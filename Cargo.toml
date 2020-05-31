@@ -31,6 +31,11 @@ default = ["cli"]
 cli = ["clap", "ansi_term", "rustyline"]
 wasm = ["wasm-bindgen"]
 
-
 [profile.release]
-lto = true
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[package.metadata.wasm-pack.profile.release.wasm-bindgen]
+debug-js-glue = false
+demangle-name-section = true
+dwarf-debug-info = false

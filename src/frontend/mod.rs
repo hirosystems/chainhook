@@ -1,2 +1,2 @@
-pub mod command_line;
-pub use command_line::CommandLine;
+pub mod terminal;
+pub use terminal::Terminal;

@@ -37,7 +37,7 @@ cargo install --bin clarity-repl --path .
 
 ```bash
 cargo install wasm-pack
-cargo build --lib --release --no-default-features --features wasm --target wasm32-unknown-unknown
+wasm-pack build --target web  -- --no-default-features --features wasm
 ```
 
 

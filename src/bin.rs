@@ -15,9 +15,9 @@ pub mod repl;
 pub mod frontend;
 
 use repl::Session;
-use frontend::CommandLine;
+use frontend::Terminal;
 
 fn main() {
-    let mut cli_frontend = CommandLine::new();
-    cli_frontend.start();
+    let mut terminal = Terminal::new();
+    terminal.start();
 }

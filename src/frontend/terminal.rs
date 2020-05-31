@@ -6,13 +6,13 @@ use ansi_term::{Style, Colour};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
-pub struct CommandLine {
+pub struct Terminal {
     session: Session,
 }
 
-impl CommandLine {
-    pub fn new() -> CommandLine {
-        CommandLine {
+impl Terminal {
+    pub fn new() -> Terminal {
+        Terminal {
             session: Session::new()
         }
     }
