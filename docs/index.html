@@ -1,61 +1,63 @@
 <!doctype html>
   <html>
     <head>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/xterm.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/hack-font/3.003/web/hack.min.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css" />
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/xterm.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/addons/fit/fit.js"></script>
-        <script src="https://cdn.rawgit.com/wavesoft/local-echo/7ee165d2c955fe07623b5d74f6dda3ae18815ba4/dist/local-echo.js"></script>
+      <link rel='stylesheet' href='//cdn.jsdelivr.net/npm/hack-font@3.3.0/build/web/hack-subset.css'>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css" />
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/xterm.min.css" />
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/xterm.js"></script>
+      <script src="https://cdn.rawgit.com/wavesoft/local-echo/7ee165d2c955fe07623b5d74f6dda3ae18815ba4/dist/local-echo.js"></script>
     </head>
-    <body style="background-color: black;">
+    <body style="background-color: black; height: 100%; overflow: hidden;">
       <a class="github-fork-ribbon" href="http://github.com/lgalabru/clarity-repl" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a> 
-      <div id="terminal"></div>
+      <div id="terminal" style="position: absolute; top: 10px; bottom: 10px; right: 10px; left: 10px;"></div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/2.9.2/addons/fit/fit.js"></script>
       <script>
-        var term = new Terminal({
-          fontSize: 12,
-          fontFamily: "hack-font, monospace", // todo(ludo): fix font not loading
-          cols: 150,                          // todo(ludo): try to use the fit addon instead (see snippet below)
-          rows: 25
+        let wasm;
+        let term = new Terminal({
+          fontSize: 13,
+          cursorBlink: true,
         });
-        term.open(document.getElementById('terminal'));
-
-        term.writeln('\x1B[1;3;32mclarity-repl v1.0')
-        term.writeln('\x1B[1;3;30mEnter \".help\" for usage hints.')
-        term.writeln('\x1B[1;3;30mConnected to a transient in-memory database.')
-        term.writeln('\x1B[1;3;30mLoading environement...\x1B[1;3;37m')
+        term.open(document.getElementById('terminal'), false);
+        term.writeln('\x1B[1;3;30mConfiguring environement...\x1B[1;3;37m')
 
         const editor = new LocalEchoController(term);
-
         const promptCommand = function() {
-          editor.read("◇ ")
+          editor.read(">> ", "   ")
             .then(input => {
-              let result = run_snippet(`${input}`);
-              term.writeln(result);
+              let snippet = input.replace(/\\/g, "");
+              console.log(snippet);
+              let result = handle_command(`${snippet}`);
+              let lines = result.split("\n");
+              for (line of lines) {
+                term.writeln(line);
+              }
               promptCommand();
             })  
             .catch(error => alert(`Error reading: ${error}`));
+            term.focus();
         }
 
-        let wasm;
+        term.writeln('\x1B[1;3;30mDownloading clarity_repl.wasm...\x1B[1;3;37m')
 
         fetch("https://clarity-repl.s3.amazonaws.com/clarity_repl.wasm")
-          .then(response => response.arrayBuffer())
-          .then(result => WebAssembly.instantiate(result))        
+          .then(response => {
+            term.writeln('\x1B[1;3;30mExtracting clarity_repl.wasm...\x1B[1;3;37m')
+            return response.arrayBuffer();
+          })
+          .then(result => {
+            term.writeln('\x1B[1;3;30mInstanctiating binary...\x1B[1;3;37m');
+            return WebAssembly.instantiate(result);
+          })
           .then(repl_backend => {
             wasm = repl_backend.instance.exports;
-            promptCommand();            
-          })
-
-        // const term = new Terminal({
-        //     fontFamily: "hack-font, monospace",
-        //     fontSize: 12,
-        // });
-
-        // const fitAddon = new FitAddon();
-        // term.loadAddon(fitAddon);
-        // term.open(document.getElementById('terminal'));
-        // fitAddon.fit();
+            term.reset();
+            console.log(this.fit);
+            term.fit();
+            term.writeln('\x1B[1;3;32mclarity-repl v1.0')
+            term.writeln('\x1B[1;3;30mEnter \".help\" for usage hints.')
+            term.writeln('\x1B[1;3;30mConnected to a transient in-memory database.\x1B[1;3;37m')
+            promptCommand();
+          });
 
         let WASM_VECTOR_LEN = 0;
 
@@ -135,20 +137,17 @@
         function getStringFromWasm0(ptr, len) {
             return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
         }
-        /**
-        * @param {string} snippet
-        * @returns {string}
-        */
-        function run_snippet(snippet) {
+
+        function handle_command(snippet) {
             try {
                 var ptr0 = passStringToWasm0(snippet, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
                 var len0 = WASM_VECTOR_LEN;
-                wasm.run_snippet(8, ptr0, len0);
+                wasm.handle_command(8, ptr0, len0);
                 var r0 = getInt32Memory0()[8 / 4 + 0];
                 var r1 = getInt32Memory0()[8 / 4 + 1];
                 return getStringFromWasm0(r0, r1);
             } finally {
-                // wasm.__wbindgen_free(r0, r1);
+                wasm.__wbindgen_free(r0, r1);
             }
         }
       </script> 

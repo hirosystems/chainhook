@@ -22,11 +22,8 @@ use repl::Session;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn run_snippet(snippet: &str) -> String {
+pub fn handle_command(command: &str) -> String {
     let mut session = Session::new();
-    let result = session.interpret(snippet.to_string());
-    match result {
-        Ok(result) => format!("{}", result),
-        Err((message, _)) => format!("{}", message)
-    }
+    let output_lines = session.handle_command(command);
+    output_lines.join("\n").to_string()
 }

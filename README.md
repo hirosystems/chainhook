@@ -37,7 +37,7 @@ cargo install --bin clarity-repl --path .
 
 ```bash
 cargo install wasm-pack
-wasm-pack build --target web  -- --no-default-features --features wasm
+wasm-pack build --target web --release -- --no-default-features --features wasm
 ```
 
 
@@ -53,7 +53,7 @@ wasm-pack build --target web  -- --no-default-features --features wasm
 - [ ] Display events
 - [ ] Save snippets as contracts that can be `contract-call?` when public functions or traits are detected
 - [ ] Ability to seed stx balances
-- [ ] Test WASM builds in browser
+- [x] Test WASM builds in browser
 - [ ] Easier installation (via brew, etc)
 
 
