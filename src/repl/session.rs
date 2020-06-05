@@ -24,9 +24,7 @@ enum Command {
 pub struct Session {
     session_id: u32,
     started_at: u32,
-    commands: VecDeque<Command>,
-    defined_functions: VecDeque<Command>,
-    defined_contracts: VecDeque<Command>,
+    contracts: Vec<String>,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
 }
@@ -37,9 +35,7 @@ impl Session {
         Session {
             session_id: 0,
             started_at: 0,
-            commands: VecDeque::new(),
-            defined_functions: VecDeque::new(),
-            defined_contracts: VecDeque::new(),
+            contracts: Vec::new(),
             interpreter: ClarityInterpreter::new(),
             api_reference: build_api_reference(),
         }
@@ -50,7 +46,6 @@ impl Session {
         let light_red = Colour::Red.bold();
         let light_black = Colour::Black.bold();
         let mut output = Vec::<String>::new();
-
         match command {
             ".help" => self.display_help(&mut output),
             cmd if cmd.starts_with(".functions") => self.display_functions(&mut output),
@@ -58,8 +53,12 @@ impl Session {
             snippet => {
                 let result = self.interpret(snippet.to_string());
                 match result {
-                    Ok(result) => { 
+                    Ok((contract_name, result)) => { 
                         output.push(format!("{}", light_green.paint(result)));
+                        if let Some(contract_name) = contract_name {
+                            let snippet = format!("Contract saved with contract_id .{}", contract_name.clone());
+                            output.push(format!("{}", light_black.paint(snippet)));    
+                        }
                     },
                     Err((message, diagnostic)) => {
                         output.push(format!("{}", light_red.paint(message)));
@@ -100,11 +99,22 @@ impl Session {
         output
     }
 
-    pub fn interpret(&mut self, snippet: String) -> Result<String, (String, Option<Diagnostic>)> {
-    
-        let contract_identifier = QualifiedContractIdentifier::transient();
+    pub fn interpret(&mut self, snippet: String) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {
+        let contract_name = format!("snippet-{}", self.contracts.len());
 
-        self.interpreter.run(snippet, contract_identifier)
+        let contract_identifier = QualifiedContractIdentifier::local(contract_name.as_str()).unwrap();
+        
+        match self.interpreter.run(snippet, contract_identifier) {
+            Ok((contract_saved, res)) => {
+                if contract_saved {
+                    self.contracts.push(contract_name.clone());
+                    Ok((Some(contract_name), res))
+                } else {
+                    Ok((None, res))
+                }
+            },
+            Err(res) => Err(res)
+        }
     }
 
     pub fn lookup_api_reference(&self, keyword: &str) -> Option<&String> {

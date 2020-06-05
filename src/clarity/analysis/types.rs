@@ -16,7 +16,7 @@ pub trait AnalysisPass {
     fn run_pass(contract_analysis: &mut ContractAnalysis, analysis_db: &mut AnalysisDatabase) -> CheckResult<()>;
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ContractAnalysis {
     pub contract_identifier: QualifiedContractIdentifier,
     pub private_function_types: BTreeMap<ClarityName, FunctionType>,
@@ -29,7 +29,6 @@ pub struct ContractAnalysis {
     pub non_fungible_tokens: BTreeMap<ClarityName, TypeSignature>,
     pub defined_traits: BTreeMap<ClarityName, BTreeMap<ClarityName, FunctionSignature>>,
     pub implemented_traits: BTreeSet<TraitIdentifier>,    
-    pub contract_interface: Option<ContractInterface>,
     #[serde(skip)]
     pub expressions: Vec<SymbolicExpression>,
     #[serde(skip)]
@@ -44,7 +43,6 @@ impl ContractAnalysis {
             contract_identifier,
             expressions,
             type_map: None,
-            contract_interface: None,
             private_function_types: BTreeMap::new(),
             public_function_types: BTreeMap::new(),
             read_only_function_types: BTreeMap::new(),

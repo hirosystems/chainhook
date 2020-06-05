@@ -26,6 +26,9 @@ impl Datastore {
 impl ClarityBackingStore for Datastore {
 
     fn put_all(&mut self, items: Vec<(String, String)>) {
+        for (key, value) in items {
+            self.put(&key, &value);
+        }
     }
 
     /// fetch K-V out of the committed datastore
