@@ -33,6 +33,14 @@ Then build and install:
 cargo install --bin clarity-repl --path .
 ```
 
+You can then run the REPL with the command:
+
+```bash
+clarity-repl
+```
+
+
+
 ### Building the WASM library
 
 ```bash
