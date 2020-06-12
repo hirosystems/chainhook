@@ -6,6 +6,7 @@ use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::errors::{InterpreterError, CheckErrors, InterpreterResult as Result, IncomparableError, RuntimeErrorType};
 use crate::clarity::analysis::AnalysisDatabase;
 
+#[derive(Clone, Debug)]
 pub struct Datastore {
     store: HashMap<String, String>,
     metadata: HashMap<(String, String), String>,

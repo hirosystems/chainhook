@@ -21,6 +21,7 @@ enum Command {
     CloseSession,
 }
 
+#[derive(Clone, Debug)]
 pub struct Session {
     session_id: u32,
     started_at: u32,
@@ -42,61 +43,74 @@ impl Session {
     }
 
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
-        let light_black = Colour::Black.bold();
         let mut output = Vec::<String>::new();
         match command {
             ".help" => self.display_help(&mut output),
             cmd if cmd.starts_with(".functions") => self.display_functions(&mut output),
             cmd if cmd.starts_with(".doc") => self.display_doc(&mut output, cmd),
             snippet => {
-                let result = self.interpret(snippet.to_string());
-                match result {
-                    Ok((contract_name, result)) => { 
-                        output.push(format!("{}", light_green.paint(result)));
-                        if let Some(contract_name) = contract_name {
-                            let snippet = format!("Contract saved with contract_id .{}", contract_name.clone());
-                            output.push(format!("{}", light_black.paint(snippet)));    
-                        }
-                    },
-                    Err((message, diagnostic)) => {
-                        output.push(format!("{}", light_red.paint(message)));
-                        if let Some(diagnostic) = diagnostic {
-                            if diagnostic.spans.len() > 0 {
-                                let lines = snippet.lines();
-                                let mut formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
-                                for span in diagnostic.spans {
-                                    let first_line = span.start_line as usize - 1;
-                                    let last_line = span.end_line as usize - 1;
-                                    let mut pass = vec![];
-
-                                    for (line_index, line) in formatted_lines.iter().enumerate() {
-                                        if line_index >= first_line && line_index <= last_line {
-                                            let (begin, end) = match (line_index == first_line, line_index == last_line) {
-                                                (true, true) => (span.start_column as usize - 1, span.end_column as usize - 1), // One line
-                                                (true, false) => (span.start_column as usize - 1, line.len() - 1),              // Multiline, first line
-                                                (false, false) => (0, line.len() - 1),                                          // Multiline, in between
-                                                (false, true) => (0, span.end_column as usize - 1),                             // Multiline, last line 
-                                            };
-                                            
-                                            let error_style = light_red.underline();
-                                            let formatted_line = format!("{}{}{}", &line[..begin], error_style.paint(&line[begin..=end]), &line[(end + 1)..]);
-                                            pass.push(formatted_line);
-                                        } else {
-                                            pass.push(line.clone());
-                                        }
-                                    }
-                                    formatted_lines = pass;
-                                }
-                                output.append(&mut formatted_lines);
-                            }
-                        }
-                    }
-                }
+                let mut result = match self.formatted_interpretation(snippet.to_string()) {
+                    Ok(result) => result,
+                    Err(result) => result,
+                };
+                output.append(&mut result);
             }
         }
         output
+    }
+
+    pub fn formatted_interpretation(&mut self, snippet: String) -> Result<Vec<String>, Vec<String>> {
+        let light_green = Colour::Green.bold();
+        let light_red = Colour::Red.bold();
+        let light_black = Colour::Black.bold();
+
+        let result = self.interpret(snippet.to_string());
+        let mut output = Vec::<String>::new();
+
+        match result {
+            Ok((contract_name, result)) => { 
+                output.push(format!("{}", light_green.paint(result)));
+                if let Some(contract_name) = contract_name {
+                    let snippet = format!("Contract saved with contract_id .{}", contract_name.clone());
+                    output.push(format!("{}", light_black.paint(snippet)));    
+                }
+                Ok(output)
+            },
+            Err((message, diagnostic)) => {
+                output.push(format!("{}", light_red.paint(message)));
+                if let Some(diagnostic) = diagnostic {
+                    if diagnostic.spans.len() > 0 {
+                        let lines = snippet.lines();
+                        let mut formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+                        for span in diagnostic.spans {
+                            let first_line = span.start_line as usize - 1;
+                            let last_line = span.end_line as usize - 1;
+                            let mut pass = vec![];
+
+                            for (line_index, line) in formatted_lines.iter().enumerate() {
+                                if line_index >= first_line && line_index <= last_line {
+                                    let (begin, end) = match (line_index == first_line, line_index == last_line) {
+                                        (true, true) => (span.start_column as usize - 1, span.end_column as usize - 1), // One line
+                                        (true, false) => (span.start_column as usize - 1, line.len() - 1),              // Multiline, first line
+                                        (false, false) => (0, line.len() - 1),                                          // Multiline, in between
+                                        (false, true) => (0, span.end_column as usize - 1),                             // Multiline, last line 
+                                    };
+                                    
+                                    let error_style = light_red.underline();
+                                    let formatted_line = format!("{}{}{}", &line[..begin], error_style.paint(&line[begin..=end]), &line[(end + 1)..]);
+                                    pass.push(formatted_line);
+                                } else {
+                                    pass.push(line.clone());
+                                }
+                            }
+                            formatted_lines = pass;
+                        }
+                        output.append(&mut formatted_lines);
+                    }
+                }
+                Err(output)
+            }
+        }
     }
 
     pub fn interpret(&mut self, snippet: String) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {

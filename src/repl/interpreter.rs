@@ -10,6 +10,7 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::eval_all;
 use crate::clarity::diagnostic::Diagnostic;
 
+#[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
     datastore: Datastore
 }

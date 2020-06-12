@@ -17,6 +17,16 @@ serde_derive = "1.0"
 ripemd160 = "0.8.0"
 wasm-bindgen = { version = "0.2", optional = true }
 
+json = { version = "0.11.15", optional = true } # should use serde_json instead
+failure = { version = "0.1.5", default-features = false, features = [ "std" ], optional = true }
+zmq = { version = "0.9.1", default-features = false, optional = true }
+uuid = { version = "0.7.4", features = [ "v4" ], optional = true }
+hmac = { version = "0.7.1", optional = true }
+hex = { version = "0.3.2", optional = true }
+colored = { version = "1.8.0", optional = true } # should use ansi_term instead
+dirs = { version = "2.0.2", optional = true }
+chrono = { version = "0.4.7", optional = true }
+
 [lib]
 name = "clarity_repl"
 path = "src/lib.rs"
@@ -26,10 +36,15 @@ crate-type = ["cdylib"]
 name = "clarity-repl"
 path = "src/bin.rs"
 
+[[bin]]
+name = "clarity-jupyter-kernel"
+path = "src/kernel.rs"
+
 [features]
 default = ["cli"]
 cli = ["clap", "rustyline"]
 wasm = ["wasm-bindgen"]
+jupyter = ["json", "failure", "zmq", "uuid", "hmac", "hex", "colored", "dirs", "chrono"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

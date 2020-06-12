@@ -48,6 +48,25 @@ cargo install wasm-pack
 wasm-pack build --target web --release -- --no-default-features --features wasm
 ```
 
+### Using Clarity with Jupyter notebooks
+
+The first step is to install jupyter-notebook, with pip or your favourite packet manager (brew, pacman, etc).
+You can then build and install the kernel handling Clarity:
+
+```bash
+cargo install --features jupyter --bin clarity-jupyter-kernel --path . 
+clarity-jupyter-kernel --install
+```
+
+By starting jupyter-notebook
+```bash
+jupyter-notebook
+```
+
+You can now create a new Notebook with Clarity.
+
+![screenshot](docs/images/jupyter.png)
+
 
 ## Initial feature set
 - [x] Eval clarity expressions (arithmetic, logic, hash functions)
@@ -62,6 +81,7 @@ wasm-pack build --target web --release -- --no-default-features --features wasm
 - [x] Save snippets as contracts that can be `contract-call?` when public functions or traits are detected
 - [ ] Ability to seed stx balances
 - [x] Test WASM builds in browser
+- [x] Ability to write Clarity contracts in Jupyter notebooks
 - [ ] Easier installation (via brew, etc)
 
 
