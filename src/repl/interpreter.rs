@@ -1,5 +1,5 @@
 use crate::clarity::analysis::AnalysisDatabase;
-use crate::clarity::types::QualifiedContractIdentifier;
+use crate::clarity::types::{QualifiedContractIdentifier, PrincipalData};
 use crate::clarity::{ast, analysis};
 use crate::clarity::ast::ContractAST;
 use crate::clarity::analysis::ContractAnalysis;
@@ -9,6 +9,7 @@ use crate::clarity::contexts::{OwnedEnvironment, ContractContext, GlobalContext}
 use crate::clarity::contracts::Contract;
 use crate::clarity::eval_all;
 use crate::clarity::diagnostic::Diagnostic;
+use crate::clarity::util::{StacksAddress};
 
 #[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
@@ -80,7 +81,7 @@ impl ClarityInterpreter {
             eval_all(&contract_ast.expressions, &mut contract_context, g)
         });
 
-        let contract_saved =  contract_context.functions.len() > 0;
+        let contract_saved = contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
 
         if contract_saved {
             global_context.database.insert_contract_hash(&contract_identifier, &snippet).unwrap();
@@ -106,5 +107,19 @@ impl ClarityInterpreter {
                 return Err((error, None));
             }
         }
+    }
+
+    pub fn credit_stx_balance(&mut self, recipient: PrincipalData, amount: u64) -> Result<String, String> {
+        let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
+
+        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_max_limit());
+        global_context.begin();
+        let cur_balance = global_context.database.get_account_stx_balance(&recipient);
+        let final_balance = cur_balance.checked_add(amount as u128).expect("FATAL: account balance overflow");
+        global_context.database.set_account_stx_balance(&recipient, final_balance as u128);
+
+        global_context.commit().unwrap();
+
+        Ok(format!("{} balance updated: {}", recipient, final_balance))
     }
 }

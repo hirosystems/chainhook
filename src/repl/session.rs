@@ -1,5 +1,5 @@
 use std::collections::{VecDeque, HashMap};
-use crate::clarity::types::QualifiedContractIdentifier;
+use crate::clarity::types::{QualifiedContractIdentifier, PrincipalData};
 use super::ClarityInterpreter;
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::functions::NativeFunctions;
@@ -48,6 +48,7 @@ impl Session {
             ".help" => self.display_help(&mut output),
             cmd if cmd.starts_with(".functions") => self.display_functions(&mut output),
             cmd if cmd.starts_with(".doc") => self.display_doc(&mut output, cmd),
+            cmd if cmd.starts_with(".mint-stx") => self.mint_stx(&mut output, cmd),
             snippet => {
                 let mut result = match self.formatted_interpretation(snippet.to_string()) {
                     Ok(result) => result,
@@ -149,9 +150,41 @@ impl Session {
         output.push(format!("{}", help_colour.paint(".help\t\t\t\tDisplay help")));
         output.push(format!("{}", help_colour.paint(".functions\t\t\tDisplay all the native functions available in clarity")));
         output.push(format!("{}", help_colour.paint(".doc <function> \t\tDisplay documentation for a given native function fn-name")));
-        output.push(format!("{}", coming_soon_colour.paint(".mint-stx <principal>\t\tMint STX balance for a given principal [coming soon]")));
+        output.push(format!("{}", help_colour.paint(".mint-stx <principal> <amount>\t\tMint STX balance for a given principal")));
         output.push(format!("{}", coming_soon_colour.paint(".get-block-height\t\tGet current block height [coming soon]")));
         output.push(format!("{}", coming_soon_colour.paint(".set-block-height <number>\tSet current block height [coming soon]")));
+    }
+
+    fn mint_stx(&mut self, output: &mut Vec<String>, command: &str) {
+        let args: Vec<_> = command.split(' ').collect();
+        let light_green = Colour::Green.bold();
+        let light_red = Colour::Red.bold();
+
+        if args.len() != 3 {
+            output.push(format!("{}", light_red.paint("Usage: .mint-stx <recipient address> <amount>")));
+            return;
+        }
+
+        let recipient = match PrincipalData::parse(&args[1]) {
+            Ok(address) => address,
+            _ => {
+                output.push(format!("{}", light_red.paint("Unable to parse the address")));
+                return;
+            }
+        };
+
+        let amount: u64 = match args[2].parse() {
+            Ok(recipient) => recipient,
+            _ => {
+                output.push(format!("{}", light_red.paint("Unable to parse the balance")));
+                return;    
+            }
+        };
+
+        match self.interpreter.credit_stx_balance(recipient, amount) {
+            Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
+            Err(err) => output.push(format!("{}", light_red.paint(err)))
+        };
     }
 
     fn display_functions(&self, output: &mut Vec<String>) {
