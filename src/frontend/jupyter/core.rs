@@ -1,4 +1,4 @@
-use crate::repl::Session;
+use crate::repl::{Session, SessionSettings};
 
 use super::connection::Connection;
 use super::control_file;
@@ -53,7 +53,7 @@ impl Server {
             zmq_context.socket(SocketType::PUB)?,
         )?));
 
-        let session = Session::new();
+        let session = Session::new(SessionSettings::default());
 
         let (shutdown_requested_sender, shutdown_requested_receiver) = mpsc::channel();
 

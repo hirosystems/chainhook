@@ -18,12 +18,12 @@ use wasm_bindgen::prelude::*;
 pub mod clarity;
 pub mod repl;
 
-use repl::Session;
+use repl::{Session, SessionSettings};
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn handle_command(command: &str) -> String {
-    let mut session = Session::new();
+    let mut session = Session::new(SessionSettings::default());
     let output_lines = session.handle_command(command);
     output_lines.join("\n").to_string()
 }
