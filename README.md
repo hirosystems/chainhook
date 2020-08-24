@@ -40,32 +40,12 @@ clarity-repl
 ```
 
 
-
 ### Building the WASM library
 
 ```bash
 cargo install wasm-pack
 wasm-pack build --target web --release -- --no-default-features --features wasm
 ```
-
-### Using Clarity with Jupyter notebooks
-
-The first step is to install jupyter-notebook, with pip or your favourite packet manager (brew, pacman, etc).
-You can then build and install the kernel handling Clarity:
-
-```bash
-cargo install --features jupyter --bin clarity-jupyter-kernel --path . 
-clarity-jupyter-kernel --install
-```
-
-By starting jupyter-notebook
-```bash
-jupyter-notebook
-```
-
-You can now create a new Notebook with Clarity.
-
-![screenshot](docs/images/jupyter.png)
 
 
 ## Initial feature set
