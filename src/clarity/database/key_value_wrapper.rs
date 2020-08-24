@@ -239,7 +239,7 @@ impl <'a> RollbackWrapper <'a> {
         self.store.set_block_hash(bhh)
     }
 
-    pub fn get<T>(&mut self, key: &str) -> Option<T> where T: ClarityDeserializable<T>  {
+    pub fn get<T>(&mut self, key: &str) -> Option<T> where T: ClarityDeserializable<T> {
         self.stack.last()
             .expect("ERROR: Clarity VM attempted GET on non-nested context.");
 

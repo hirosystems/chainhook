@@ -22,6 +22,7 @@ pub fn build_contract_interface(contract_analysis: &ContractAnalysis) -> Contrac
         contract_identifier: _,
         type_map: _,
         cost_track: _,
+        contract_interface: _,
     } = contract_analysis;
 
     contract_interface.functions.append(
@@ -61,21 +62,21 @@ pub fn build_contract_interface(contract_analysis: &ContractAnalysis) -> Contrac
     contract_interface
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContractInterfaceFunctionAccess {
     private,
     public,
     read_only,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceTupleEntryType {
     pub name: String,
     #[serde(rename = "type")]
     pub type_f: ContractInterfaceAtomType,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContractInterfaceAtomType {
     none,
     int128,
@@ -83,6 +84,8 @@ pub enum ContractInterfaceAtomType {
     bool,
     principal,
     buffer { length: u32 },
+    string_utf8 { length: u32 },
+    string_ascii { length: u32 },
     tuple(Vec<ContractInterfaceTupleEntryType>),
     optional(Box<ContractInterfaceAtomType>),
     response { ok: Box<ContractInterfaceAtomType>, error: Box<ContractInterfaceAtomType> },
@@ -94,12 +97,12 @@ pub enum ContractInterfaceAtomType {
     trait_reference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceFungibleTokens {
     pub name: String
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceNonFungibleTokens {
     pub name: String,
     #[serde(rename = "type")]
@@ -125,6 +128,8 @@ impl ContractInterfaceAtomType {
 
     pub fn from_type_signature(sig: &TypeSignature) -> ContractInterfaceAtomType {
         use crate::clarity::types::TypeSignature::*;
+        use crate::clarity::types::{SequenceSubtype::*, StringSubtype::*};
+
         match sig {
             NoType => ContractInterfaceAtomType::none,
             IntType => ContractInterfaceAtomType::int128,
@@ -132,9 +137,11 @@ impl ContractInterfaceAtomType {
             BoolType => ContractInterfaceAtomType::bool,
             PrincipalType => ContractInterfaceAtomType::principal,
             TraitReferenceType(_) => ContractInterfaceAtomType::trait_reference,
-            BufferType(len) => ContractInterfaceAtomType::buffer { length: len.into() },
-            TupleType(sig) => Self::from_tuple_type(sig),
-            ListType(list_data) => {
+            TupleType(sig) => ContractInterfaceAtomType::from_tuple_type(sig),
+            SequenceType(StringType(ASCII(len))) => ContractInterfaceAtomType::string_ascii { length: len.into() },
+            SequenceType(StringType(UTF8(len))) => ContractInterfaceAtomType::string_utf8 { length: len.into() },
+            SequenceType(BufferType(len)) => ContractInterfaceAtomType::buffer { length: len.into() },
+            SequenceType(ListType(list_data)) => {
                 let (type_f, length) = list_data.clone().destruct();
                 ContractInterfaceAtomType::list {
                     type_f: Box::new(Self::from_type_signature(&type_f)), length }
@@ -153,7 +160,7 @@ impl ContractInterfaceAtomType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceFunctionArg {
     pub name: String,
     #[serde(rename = "type")]
@@ -173,13 +180,13 @@ impl ContractInterfaceFunctionArg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceFunctionOutput {
     #[serde(rename = "type")]
     pub type_f: ContractInterfaceAtomType,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceFunction {
     pub name: String,
     pub access: ContractInterfaceFunctionAccess,
@@ -212,13 +219,13 @@ impl ContractInterfaceFunction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ContractInterfaceVariableAccess {
     constant,
     variable,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceVariable { 
     pub name: String,
     #[serde(rename = "type")]
@@ -254,7 +261,7 @@ impl ContractInterfaceVariable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterfaceMap {
     pub name: String,
     pub key: Vec<ContractInterfaceTupleEntryType>,
@@ -284,7 +291,7 @@ impl ContractInterfaceMap {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContractInterface {
     pub functions: Vec<ContractInterfaceFunction>,
     pub variables: Vec<ContractInterfaceVariable>,

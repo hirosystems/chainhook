@@ -49,6 +49,7 @@ pub trait HeadersDB {
     fn get_burn_header_hash_for_block(&self, id_bhh: &StacksBlockId) -> Option<BurnchainHeaderHash>;
     fn get_vrf_seed_for_block(&self, id_bhh: &StacksBlockId) -> Option<VRFSeed>;
     fn get_burn_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64>;
+    fn get_burn_block_height_for_block(&self, id_bhh: &StacksBlockId) -> Option<u32>;
     fn get_miner_address(&self, id_bhh: &StacksBlockId) -> Option<StacksAddress>;
 }
 
@@ -67,6 +68,9 @@ impl HeadersDB for NullHeadersDB {
         None
     }
     fn get_burn_block_time_for_block(&self, _id_bhh: &StacksBlockId) -> Option<u64> {
+        None
+    }
+    fn get_burn_block_height_for_block(&self, _id_bhh: &StacksBlockId) -> Option<u32> {
         None
     }
     fn get_miner_address(&self, _id_bhh: &StacksBlockId)  -> Option<StacksAddress> {
@@ -109,7 +113,7 @@ impl <'a> ClarityDatabase <'a> {
         self.store.put(&key, &value.serialize());
     }
 
-    fn get <T> (&mut self, key: &str) -> Option<T> where T: ClarityDeserializable<T> {
+    pub fn get <T> (&mut self, key: &str) -> Option<T> where T: ClarityDeserializable<T> {
         self.store.get::<T>(key)
     }
 
@@ -159,8 +163,7 @@ impl <'a> ClarityDatabase <'a> {
     }
 
     fn fetch_metadata <T> (&mut self, contract_identifier: &QualifiedContractIdentifier, key: &str) -> Result<Option<T>>
-    where T: ClarityDeserializable<T>
-    {
+    where T: ClarityDeserializable<T> {
         self.store.get_metadata(contract_identifier, key)
             .map(|x_opt| x_opt.map(|x| T::deserialize(&x)))
     }
@@ -225,6 +228,13 @@ impl <'a> ClarityDatabase <'a> {
         self.store.get_current_block_height()
     }
 
+    pub fn get_current_burnchain_block_height(&mut self) -> u32 {
+        let cur_stacks_height = self.store.get_current_block_height();
+        let cur_id_bhh = self.get_index_block_header_hash(cur_stacks_height);
+        self.get_burnchain_block_height(&cur_id_bhh)
+            .expect("Block header hash must return for provided burn block height")
+    }
+
     pub fn get_block_header_hash(&mut self, block_height: u32) -> BlockHeaderHash {
         let id_bhh = self.get_index_block_header_hash(block_height);
         self.headers_db.get_stacks_block_header_hash_for_block(&id_bhh)
@@ -241,6 +251,10 @@ impl <'a> ClarityDatabase <'a> {
         let id_bhh = self.get_index_block_header_hash(block_height);
         self.headers_db.get_burn_header_hash_for_block(&id_bhh)
             .expect("Failed to get block data.")
+    }
+    
+    pub fn get_burnchain_block_height(&mut self, id_bhh: &StacksBlockId) -> Option<u32> {
+        self.headers_db.get_burn_block_height_for_block(id_bhh)
     }
 
     pub fn get_block_vrf_seed(&mut self, block_height: u32) -> VRFSeed {
@@ -299,7 +313,9 @@ impl <'a> ClarityDatabase <'a> {
 
     pub fn lookup_variable(&mut self, contract_identifier: &QualifiedContractIdentifier, variable_name: &str) -> Result<Value>  {
         let variable_descriptor = self.load_variable(contract_identifier, variable_name)?;
+
         let key = ClarityDatabase::make_key_for_trip(contract_identifier, StoreType::Variable, variable_name);
+
         let result = self.get_value(&key, &variable_descriptor.value_type);
 
         match result {
@@ -469,7 +485,7 @@ impl <'a> ClarityDatabase <'a> {
     pub fn get_ft_balance(&mut self, contract_identifier: &QualifiedContractIdentifier, token_name: &str, principal: &PrincipalData) -> Result<u128> {
         self.load_ft(contract_identifier, token_name)?;
 
-        let key = ClarityDatabase::make_key_for_quad(contract_identifier, StoreType::FungibleToken, token_name, principal.serialize());
+        let key =  ClarityDatabase::make_key_for_quad(contract_identifier, StoreType::FungibleToken, token_name, principal.serialize());
 
         let result = self.get(&key);
         match result {

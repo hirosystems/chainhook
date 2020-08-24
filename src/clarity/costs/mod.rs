@@ -27,7 +27,7 @@ macro_rules! runtime_cost {
             }
         }
     }
-}   
+}
 
 macro_rules! finally_drop_memory {
     ( $env: expr, $used_mem:expr; $exec:expr ) => {

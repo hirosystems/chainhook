@@ -1,6 +1,6 @@
 pub mod define;
 pub mod tuples;
-mod iterables;
+mod sequences;
 mod arithmetic;
 mod boolean;
 mod database;
@@ -8,7 +8,7 @@ mod options;
 mod assets;
 
 use crate::clarity::errors::{Error, CheckErrors, RuntimeErrorType, ShortReturnType, InterpreterResult as Result, check_argument_count, check_arguments_at_least};
-use crate::clarity::types::{Value, PrincipalData, ResponseData, TypeSignature};
+use crate::clarity::types::{Value, SequenceData, CharType, PrincipalData, ResponseData, TypeSignature};
 use crate::clarity::callables::{CallableType, NativeHandle};
 use crate::clarity::representations::{SymbolicExpression, SymbolicExpressionType, ClarityName};
 use crate::clarity::representations::SymbolicExpressionType::{List, Atom};
@@ -60,6 +60,7 @@ define_named_enum!(NativeFunctions {
     Print("print"),
     ContractCall("contract-call?"),
     AsContract("as-contract"),
+    ContractOf("contract-of"),
     AtBlock("at-block"),
     GetBlockInfo("get-block-info?"),
     ConsError("err"),
@@ -115,14 +116,14 @@ pub fn lookup_reserved_functions(name: &str) -> Option<CallableType> {
             Let => SpecialFunction("special_let", &special_let),
             FetchVar => SpecialFunction("special_var-get", &database::special_fetch_variable),
             SetVar => SpecialFunction("special_set-var", &database::special_set_variable),
-            Map => SpecialFunction("special_map", &iterables::special_map),
-            Filter => SpecialFunction("special_filter", &iterables::special_filter),
-            Fold => SpecialFunction("special_fold", &iterables::special_fold),
-            Concat => SpecialFunction("special_concat", &iterables::special_concat),
-            AsMaxLen => SpecialFunction("special_as_max_len", &iterables::special_as_max_len),
-            Append => SpecialFunction("special_append", &iterables::special_append),
-            Len => NativeFunction("native_len", NativeHandle::SingleArg(&iterables::native_len), cost_functions::LEN),
-            ListCons => SpecialFunction("special_list_cons", &iterables::list_cons),
+            Map => SpecialFunction("special_map", &sequences::special_map),
+            Filter => SpecialFunction("special_filter", &sequences::special_filter),
+            Fold => SpecialFunction("special_fold", &sequences::special_fold),
+            Concat => SpecialFunction("special_concat", &sequences::special_concat),
+            AsMaxLen => SpecialFunction("special_as_max_len", &sequences::special_as_max_len),
+            Append => SpecialFunction("special_append", &sequences::special_append),
+            Len => NativeFunction("native_len", NativeHandle::SingleArg(&sequences::native_len), cost_functions::LEN),
+            ListCons => SpecialFunction("special_list_cons", &sequences::list_cons),
             FetchEntry => SpecialFunction("special_map-get?", &database::special_fetch_entry),
             SetEntry => SpecialFunction("special_set-entry", &database::special_set_entry),
             InsertEntry => SpecialFunction("special_insert-entry", &database::special_insert_entry),
@@ -138,6 +139,7 @@ pub fn lookup_reserved_functions(name: &str) -> Option<CallableType> {
             Print => SpecialFunction("special_print", &special_print),
             ContractCall => SpecialFunction("special_contract-call", &database::special_contract_call),
             AsContract => SpecialFunction("special_as-contract", &special_as_contract),
+            ContractOf => SpecialFunction("special_contract-of", &special_contract_of),
             GetBlockInfo => SpecialFunction("special_get_block_info", &database::special_get_block_info),
             ConsSome => NativeFunction("native_some", NativeHandle::SingleArg(&options::native_some), cost_functions::SOME_CONS),
             ConsOkay => NativeFunction("native_okay", NativeHandle::SingleArg(&options::native_okay), cost_functions::OK_CONS),
@@ -198,7 +200,7 @@ macro_rules! native_hash_func {
             let bytes = match input {
                 Value::Int(value) => Ok(value.to_le_bytes().to_vec()),
                 Value::UInt(value) => Ok(value.to_le_bytes().to_vec()),
-                Value::Buffer(value) => Ok(value.data),
+                Value::Sequence(SequenceData::Buffer(value)) => Ok(value.data),
                 _ => Err(CheckErrors::UnionTypeValueError(vec![TypeSignature::IntType, TypeSignature::UIntType, TypeSignature::max_buffer()], input))
             }?;
             let hash = <$module>::from_data(&bytes);
@@ -366,4 +368,32 @@ fn special_as_contract(args: &[SymbolicExpression], env: &mut Environment, conte
     env.drop_memory(cost_constants::AS_CONTRACT_MEMORY);
 
     result
+}
+
+fn special_contract_of(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+    // (contract-of (..))
+    // arg0 => trait
+    check_argument_count(1, args)?;
+
+    runtime_cost!(cost_functions::CONTRACT_OF, env, 0)?;
+
+    let contract_ref = match &args[0].expr {
+        SymbolicExpressionType::Atom(contract_ref) => {
+            contract_ref
+        },
+        _ => return Err(CheckErrors::ContractOfExpectsTrait.into())
+    };
+
+    let contract_identifier = match context.callable_contracts.get(contract_ref) {
+        Some((ref contract_identifier, _trait_identifier)) => {
+            env.global_context.database.get_contract(contract_identifier)
+                .map_err(|_e| CheckErrors::NoSuchContract(contract_identifier.to_string()))?;
+
+            contract_identifier
+        },
+        _ => return Err(CheckErrors::ContractOfExpectsTrait.into())
+    };
+
+    let contract_principal = Value::Principal(PrincipalData::Contract(contract_identifier.clone()));
+    Ok(contract_principal)
 }

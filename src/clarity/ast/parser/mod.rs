@@ -32,7 +32,7 @@ enum TokenType {
     Whitespace, Comma, Colon,
     LParens, RParens,
     LCurly, RCurly,
-    StringLiteral, HexStringLiteral,
+    StringASCIILiteral, StringUTF8Literal, HexStringLiteral,
     UIntLiteral, IntLiteral,
     Variable, TraitReferenceLiteral, PrincipalLiteral,
     SugaredContractIdentifierLiteral,
@@ -96,7 +96,8 @@ pub fn lex(input: &str) -> ParseResult<Vec<(LexItem, u32, u32)>> {
     //    it's worth either (1) an extern macro, or (2) the complexity of hand implementing.
 
     let lex_matchers: &[LexMatcher] = &[
-        LexMatcher::new(r##""(?P<value>((\\")|([[ -~]&&[^"]]))*)""##, TokenType::StringLiteral),
+        LexMatcher::new(r##"u"(?P<value>((\\")|([[ -~]&&[^"]]))*)""##, TokenType::StringUTF8Literal),
+        LexMatcher::new(r##""(?P<value>((\\")|([[ -~]&&[^"]]))*)""##, TokenType::StringASCIILiteral),
         LexMatcher::new(";;[ -~]*", TokenType::Whitespace), // ;; comments.
         LexMatcher::new("[\n]+", TokenType::Whitespace),
         LexMatcher::new("[ \t]+", TokenType::Whitespace),
@@ -107,7 +108,7 @@ pub fn lex(input: &str) -> ParseResult<Vec<(LexItem, u32, u32)>> {
         LexMatcher::new("[{]", TokenType::LCurly),
         LexMatcher::new("[}]", TokenType::RCurly),
         LexMatcher::new("<(?P<value>([[:word:]]|[-])+)>", TokenType::TraitReferenceLiteral),
-        LexMatcher::new("0x(?P<value>[[:xdigit:]]+)", TokenType::HexStringLiteral),
+        LexMatcher::new("0x(?P<value>[[:xdigit:]]*)", TokenType::HexStringLiteral),
         LexMatcher::new("u(?P<value>[[:digit:]]+)", TokenType::UIntLiteral),
         LexMatcher::new("(?P<value>-?[[:digit:]]+)", TokenType::IntLiteral),
         LexMatcher::new(&format!(r#"'(?P<value>{}(\.)([[:alnum:]]|[-]){{1,{}}})"#,
@@ -290,17 +291,32 @@ pub fn lex(input: &str) -> ParseResult<Vec<(LexItem, u32, u32)>> {
                         }?;
                         Ok(LexItem::LiteralValue(str_value.len(), value))
                     },
-                    TokenType::StringLiteral => {
+                    TokenType::StringASCIILiteral => {
                         let str_value = get_value_or_err(current_slice, captures)?;
-                        let quote_unescaped = str_value.replace("\\\"","\"");
-                        let slash_unescaped = quote_unescaped.replace("\\\\","\\");
-                        let byte_vec = slash_unescaped.as_bytes().to_vec();
-                        let value = match Value::buff_from(byte_vec) {
+                        let str_value_len = str_value.len();
+                        let unescaped_str = unescape_ascii_chars(str_value, false)?;
+                        let byte_vec = unescaped_str
+                            .as_bytes()
+                            .to_vec();
+
+                        let value = match Value::string_ascii_from_bytes(byte_vec) {
                             Ok(parsed) => Ok(parsed),
-                            Err(_e) => Err(ParseError::new(ParseErrors::FailedParsingBuffer(str_value.clone())))
+                            Err(_e) => Err(ParseError::new(ParseErrors::InvalidCharactersDetected))
                         }?;
-                        Ok(LexItem::LiteralValue(str_value.len(), value))
+                        Ok(LexItem::LiteralValue(str_value_len, value))
                     },
+                    TokenType::StringUTF8Literal => {
+                        let str_value = get_value_or_err(current_slice, captures)?;
+                        let str_value_len = str_value.len();
+                        let unescaped_str = unescape_ascii_chars(str_value, true)?;
+                        
+                        let value = match Value::string_utf8_from_string_utf8_literal(unescaped_str) {
+                            Ok(parsed) => Ok(parsed),
+                            Err(_e) => Err(ParseError::new(ParseErrors::InvalidCharactersDetected))
+                        }?;
+                        Ok(LexItem::LiteralValue(str_value_len, value))
+                    },
+
                 }?;
 
                 result.push((token, current_line, column_pos));
@@ -316,6 +332,34 @@ pub fn lex(input: &str) -> ParseResult<Vec<(LexItem, u32, u32)>> {
     } else {
         Err(ParseError::new(ParseErrors::FailedParsingRemainder(input[munch_index..].to_string())))
     }
+}
+
+fn unescape_ascii_chars(escaped_str: String, allow_unicode_escape: bool) -> ParseResult<String> {
+    let mut unescaped_str = String::new();
+    let mut chars = escaped_str.chars().into_iter();
+    while let Some(char) = chars.next() {
+        if char == '\\' {
+            if let Some(next) = chars.next() {
+                match next {
+                    // ASCII escapes based on Rust list (https://doc.rust-lang.org/reference/tokens.html#ascii-escapes)
+                    '\\' => unescaped_str.push('\\'),
+                    '\"' => unescaped_str.push('\"'),
+                    'n' => unescaped_str.push('\n'),
+                    't' => unescaped_str.push('\t'),
+                    'r' => unescaped_str.push('\r'),
+                    '0' => unescaped_str.push('\0'),
+                    'u' if allow_unicode_escape == true => 
+                        unescaped_str.push_str("\\u"),
+                    _ => return Err(ParseError::new(ParseErrors::InvalidEscaping))
+                }
+            } else {
+                return Err(ParseError::new(ParseErrors::InvalidEscaping))
+            }
+        } else {
+            unescaped_str.push(char);
+        } 
+    }
+    Ok(unescaped_str)
 }
 
 enum ParseStackItem {

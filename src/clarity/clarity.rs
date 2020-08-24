@@ -155,6 +155,14 @@ impl ClarityBlockConnection<'_> {
             cost_tracker.set_total(cost);
         }
     }
+
+    /// Get the current cost so far
+    pub fn cost_so_far(&self) -> ExecutionCost {
+        match self.cost_track {
+            Some(ref track) => track.get_total(),
+            None => ExecutionCost::zero()
+        }
+    }
 }
 
 impl ClarityInstance {
