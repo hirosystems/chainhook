@@ -1,5 +1,5 @@
 
-use crate::repl::Session;
+use crate::repl::{Session, settings::SessionSettings};
 
 use std::io::{Write, stdout, stdin};
 use ansi_term::{Style, Colour};
@@ -11,14 +11,13 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new() -> Terminal {
+    pub fn new(session_settings: SessionSettings) -> Terminal {
         Terminal {
-            session: Session::new()
+            session: Session::new(session_settings)
         }
     }
 
     pub fn start(&mut self) {
-
         let light_green = Colour::Green.bold();
         let light_red = Colour::Red.bold();
         let light_black = Colour::Black.bold();
@@ -26,6 +25,9 @@ impl Terminal {
         println!("{}", light_green.paint("clarity-repl v1.0"));
         println!("{}", light_black.paint("Enter \".help\" for usage hints."));
         println!("{}", light_black.paint("Connected to a transient in-memory database."));
+
+        let res = self.session.start();
+        println!("{}", res);
 
         let mut editor = Editor::<()>::new();
         let mut ctrl_c_acc = 0;

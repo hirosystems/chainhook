@@ -14,10 +14,19 @@ pub mod clarity;
 pub mod repl;
 pub mod frontend;
 
-use repl::Session;
+use repl::{Session, SessionSettings, settings};
 use frontend::Terminal;
+use pico_args::Arguments;
+use std::env;
 
 fn main() {
-    let mut terminal = Terminal::new();
+
+    let mut args = Arguments::from_env();
+    let subcommand = args.subcommand().unwrap().unwrap_or_default();
+
+    let mut settings = SessionSettings::default();
+    // todo(ludo): use env to seed contracts / notebooks
+    
+    let mut terminal = Terminal::new(settings);
     terminal.start();
 }

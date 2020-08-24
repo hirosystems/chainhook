@@ -81,9 +81,39 @@ impl ClarityInterpreter {
             eval_all(&contract_ast.expressions, &mut contract_context, g)
         });
 
+        let value = match result {
+            Ok(Some(value)) => format!("{}", value),
+            Ok(None) => format!("()"),
+            Err(error) => {
+                let error = format!("Runtime Error: {:?}", error);
+                return Err((error, None));
+            }
+        };
+
         let contract_saved = contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
 
+        let mut contract_synopsis = vec![];
+
         if contract_saved {
+            for (name, defined_func) in contract_context.functions.iter() {
+                if !defined_func.is_public() {
+                    continue;
+                }
+
+                let args: Vec<_> = defined_func.arguments.iter()
+                    .zip(defined_func.arg_types.iter())
+                    .map(|(n, t)| format!("({} {})", n.as_str(), t))
+                    .collect();
+
+                let func_sig = format!("({} {})", name.as_str(), args.join(" "));
+
+                contract_synopsis.push(func_sig);
+            }
+
+            for defined_trait in contract_context.defined_traits.iter() {
+
+            }
+
             global_context.database.insert_contract_hash(&contract_identifier, &snippet).unwrap();
             let contract = Contract { contract_context };
             global_context.database.insert_contract(&contract_identifier, contract);
@@ -92,21 +122,16 @@ impl ClarityInterpreter {
         }
         global_context.commit().unwrap();
 
-        if contract_saved {
-            let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-            analysis_db.begin();
-            analysis_db.insert_contract(&contract_identifier, &contract_analysis).unwrap();
-            analysis_db.commit();
+        if !contract_saved {
+            return Ok((false, format!("{}", value)))
         }
 
-        match result {
-            Ok(Some(value)) => Ok((contract_saved, format!("{}", value))),
-            Ok(None) => Ok((contract_saved, format!("()"))),
-            Err(error) => {
-                let error = format!("Runtime Error: {:?}", error);
-                return Err((error, None));
-            }
-        }
+        let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
+        analysis_db.begin();
+        analysis_db.insert_contract(&contract_identifier, &contract_analysis).unwrap();
+        analysis_db.commit();
+        
+        Ok((true, contract_synopsis.join("\n")))
     }
 
     pub fn credit_stx_balance(&mut self, recipient: PrincipalData, amount: u64) -> Result<String, String> {
@@ -120,6 +145,6 @@ impl ClarityInterpreter {
 
         global_context.commit().unwrap();
 
-        Ok(format!("{} balance updated: {}", recipient, final_balance))
+        Ok(format!("→ {}: {} µSTX", recipient, final_balance))
     }
 }

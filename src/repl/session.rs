@@ -12,6 +12,8 @@ use crate::clarity::docs::{
 };
 use ansi_term::{Style, Colour};
 
+use super::{SessionSettings};
+
 enum Command {
     LoadLocalContract(String),
     LoadDeployContract(String),
@@ -25,6 +27,7 @@ enum Command {
 pub struct Session {
     session_id: u32,
     started_at: u32,
+    settings: SessionSettings,
     contracts: Vec<String>,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
@@ -32,14 +35,56 @@ pub struct Session {
 
 impl Session {
 
-    pub fn new() -> Session {
+    pub fn new(settings: SessionSettings) -> Session {
         Session {
             session_id: 0,
             started_at: 0,
+            settings,
             contracts: Vec::new(),
             interpreter: ClarityInterpreter::new(),
             api_reference: build_api_reference(),
         }
+    }
+
+    pub fn start(&mut self) -> String {
+        let mut output = Vec::<String>::new();
+        let light_green = Colour::Green.bold();
+        let light_red = Colour::Red.bold();
+        let light_black = Colour::Black.bold();
+
+        if self.settings.initial_contracts.len() > 0 {
+            output.push(format!("[Initial contracts]"));
+            let mut initial_contracts = self.settings.initial_contracts.clone();
+            for contract in initial_contracts.drain(..) {
+                let mut result = match self.formatted_interpretation(contract.code, contract.name) {
+                    Ok(result) => result,
+                    Err(result) => result,
+                };
+                output.append(&mut result);
+            }    
+        }
+
+        if self.settings.initial_balances.len() > 0 {
+            output.push(format!("[Initial balances]"));
+            let mut initial_balances = self.settings.initial_balances.clone();
+            for balance in initial_balances.drain(..) {
+
+                let recipient = match PrincipalData::parse(&balance.address) {
+                    Ok(recipient) => recipient,
+                    _ => {
+                        output.push(format!("{}", light_red.paint("Unable to parse address to credit")));
+                        continue;
+                    }
+                };
+            
+                match self.interpreter.credit_stx_balance(recipient, balance.amount) {
+                    Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
+                    Err(err) => output.push(format!("{}", light_red.paint(err)))
+                };
+            }
+        }
+
+        output.join("\n")
     }
 
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {
@@ -50,7 +95,7 @@ impl Session {
             cmd if cmd.starts_with(".doc") => self.display_doc(&mut output, cmd),
             cmd if cmd.starts_with(".mint-stx") => self.mint_stx(&mut output, cmd),
             snippet => {
-                let mut result = match self.formatted_interpretation(snippet.to_string()) {
+                let mut result = match self.formatted_interpretation(snippet.to_string(), None) {
                     Ok(result) => result,
                     Err(result) => result,
                 };
@@ -60,21 +105,21 @@ impl Session {
         output
     }
 
-    pub fn formatted_interpretation(&mut self, snippet: String) -> Result<Vec<String>, Vec<String>> {
+    pub fn formatted_interpretation(&mut self, snippet: String, name: Option<String>) -> Result<Vec<String>, Vec<String>> {
         let light_green = Colour::Green.bold();
         let light_red = Colour::Red.bold();
         let light_black = Colour::Black.bold();
 
-        let result = self.interpret(snippet.to_string());
+        let result = self.interpret(snippet.to_string(), name);
         let mut output = Vec::<String>::new();
 
         match result {
             Ok((contract_name, result)) => { 
-                output.push(format!("{}", light_green.paint(result)));
                 if let Some(contract_name) = contract_name {
-                    let snippet = format!("Contract saved with contract_id .{}", contract_name.clone());
-                    output.push(format!("{}", light_black.paint(snippet)));    
+                    let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
+                    output.push(format!("{}", light_green.paint(snippet)));    
                 }
+                output.push(format!("{}", light_green.paint(result)));
                 Ok(output)
             },
             Err((message, diagnostic)) => {
@@ -114,8 +159,11 @@ impl Session {
         }
     }
 
-    pub fn interpret(&mut self, snippet: String) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {
-        let contract_name = format!("snippet-{}", self.contracts.len());
+    pub fn interpret(&mut self, snippet: String, name: Option<String>) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {
+        let contract_name = match name {
+            Some(name) => name,
+            None => format!("snippet-{}", self.contracts.len()),
+        };
 
         let contract_identifier = QualifiedContractIdentifier::local(contract_name.as_str()).unwrap();
         
@@ -150,7 +198,7 @@ impl Session {
         output.push(format!("{}", help_colour.paint(".help\t\t\t\tDisplay help")));
         output.push(format!("{}", help_colour.paint(".functions\t\t\tDisplay all the native functions available in clarity")));
         output.push(format!("{}", help_colour.paint(".doc <function> \t\tDisplay documentation for a given native function fn-name")));
-        output.push(format!("{}", help_colour.paint(".mint-stx <principal> <amount>\t\tMint STX balance for a given principal")));
+        output.push(format!("{}", help_colour.paint(".mint-stx <principal> <amount>\tMint STX balance for a given principal")));
         output.push(format!("{}", coming_soon_colour.paint(".get-block-height\t\tGet current block height [coming soon]")));
         output.push(format!("{}", coming_soon_colour.paint(".set-block-height <number>\tSet current block height [coming soon]")));
     }

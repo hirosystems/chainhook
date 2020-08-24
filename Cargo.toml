@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-clap = { version = "3.0.0-beta.1", optional = true }
+pico-args = { version = "0.3.1", optional = true }
 rustyline = { version = "6.1.2", optional = true }
 ansi_term = "0.12.1"
 lazy_static = "1.4.0"
@@ -42,7 +42,7 @@ path = "src/kernel.rs"
 
 [features]
 default = ["cli"]
-cli = ["clap", "rustyline"]
+cli = ["pico-args", "rustyline"]
 wasm = ["wasm-bindgen"]
 jupyter = ["json", "failure", "zmq", "uuid", "hmac", "hex", "colored", "dirs", "chrono"]
 
