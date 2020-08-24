@@ -1,7 +1,15 @@
 [package]
 name = "clarity-repl"
+description = "Clarity REPL"
 version = "0.1.0"
+authors = ["Ludo Galabru <ludovic@galabru.com>"]
 edition = "2018"
+license = "GPL-3.0-only"
+keywords = ["blockstack", "blockchain", "clarity", "smart contract", "lsp"]
+exclude = ["vs-client/**"]
+homepage = "https://lgalabru.github.io/clarity-repl/"
+repository = "https://github.com/lgalabru/clarity-repl"
+categories = ["command-line-utilities", "development-tools", "development-tools::build-utils"]
 
 [dependencies]
 pico-args = { version = "0.3.1", optional = true }
@@ -30,7 +38,7 @@ chrono = { version = "0.4.7", optional = true }
 [lib]
 name = "clarity_repl"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["lib"]
 
 [[bin]]
 name = "clarity-repl"
