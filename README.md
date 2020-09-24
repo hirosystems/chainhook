@@ -11,6 +11,12 @@ A read–eval–print loop (REPL), also termed an interactive toplevel or langua
 
 ## Quick Start
 
+### Building from cargo
+
+```bash
+cargo install clarity-repl
+```
+
 ### Building the CLI from source
 
 The first step is to ensure that you have Rust and the support software installed.
