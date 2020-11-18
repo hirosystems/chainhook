@@ -1,27 +1,41 @@
-use std::fmt;
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use regex::Regex;
 use std::borrow::Borrow;
-use std::ops::Deref;
 use std::convert::TryFrom;
-use regex::{Regex};
-use serde::{Serialize, Deserialize};
-use super::types::{Value, TraitIdentifier};
-use super::errors::RuntimeErrorType;
+use std::fmt;
+use std::ops::Deref;
+use crate::clarity::errors::RuntimeErrorType;
+use crate::clarity::types::{QualifiedContractIdentifier, TraitIdentifier, Value};
 
 pub const MAX_STRING_LEN: u8 = 128;
 
 macro_rules! guarded_string {
     ($Name:ident, $Label:literal, $Regex:expr) => {
         #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-        pub struct $Name (String);
+        pub struct $Name(String);
         impl TryFrom<String> for $Name {
             type Error = RuntimeErrorType;
             fn try_from(value: String) -> Result<Self, Self::Error> {
                 if value.len() > (MAX_STRING_LEN as usize) {
-                    return Err(RuntimeErrorType::BadNameValue($Label, value))
+                    return Err(RuntimeErrorType::BadNameValue($Label, value));
                 }
                 // TODO: use lazy static ?
-                let regex_check = $Regex
-                    .expect("FAIL: Bad static regex.");
+                let regex_check = $Regex.expect("FAIL: Bad static regex.");
                 if regex_check.is_match(&value) {
                     Ok(Self(value))
                 } else {
@@ -64,12 +78,24 @@ macro_rules! guarded_string {
                 Self::try_from(value.to_string()).unwrap()
             }
         }
-    }
+    };
 }
 
-guarded_string!(ClarityName, "ClarityName", Regex::new("^[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*])*$|^[-+=/*]$|^[<>]=?$"));
-guarded_string!(ContractName, "ContractName", Regex::new("^[a-zA-Z]([a-zA-Z0-9]|[-_])*$|^__transient$"));
-guarded_string!(UrlString, "UrlString", Regex::new(r#"^[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;%=-]*$"#));
+guarded_string!(
+    ClarityName,
+    "ClarityName",
+    Regex::new("^[a-zA-Z]([a-zA-Z0-9]|[-_!?+<>=/*])*$|^[-+=/*]$|^[<>]=?$")
+);
+guarded_string!(
+    ContractName,
+    "ContractName",
+    Regex::new("^[a-zA-Z]([a-zA-Z0-9]|[-_])*$|^__transient$")
+);
+guarded_string!(
+    UrlString,
+    "UrlString",
+    Regex::new(r#"^[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;%=-]*$"#)
+);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum PreSymbolicExpressionType {
@@ -88,6 +114,7 @@ pub struct PreSymbolicExpression {
     pub pre_expr: PreSymbolicExpressionType,
     pub id: u64,
 
+    #[cfg(feature = "developer-mode")]
     pub span: Span,
 }
 
@@ -126,76 +153,98 @@ impl SymbolicExpressionCommon for SymbolicExpression {
 }
 
 impl PreSymbolicExpression {
+    #[cfg(feature = "developer-mode")]
     fn cons() -> PreSymbolicExpression {
         PreSymbolicExpression {
             id: 0,
             span: Span::zero(),
-            pre_expr: PreSymbolicExpressionType::AtomValue(Value::Bool(false))
+            pre_expr: PreSymbolicExpressionType::AtomValue(Value::Bool(false)),
+        }
+    }
+    #[cfg(not(feature = "developer-mode"))]
+    fn cons() -> PreSymbolicExpression {
+        PreSymbolicExpression {
+            id: 0,
+            pre_expr: PreSymbolicExpressionType::AtomValue(Value::Bool(false)),
         }
     }
 
+    #[cfg(feature = "developer-mode")]
     pub fn set_span(&mut self, start_line: u32, start_column: u32, end_line: u32, end_column: u32) {
         self.span = Span {
             start_line,
             start_column,
             end_line,
-            end_column
+            end_column,
         }
+    }
+
+    #[cfg(not(feature = "developer-mode"))]
+    pub fn set_span(
+        &mut self,
+        _start_line: u32,
+        _start_column: u32,
+        _end_line: u32,
+        _end_column: u32,
+    ) {
     }
 
     pub fn sugared_contract_identifier(val: ContractName) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::SugaredContractIdentifier(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
-    pub fn sugared_field_identifier(contract_name: ContractName, name: ClarityName) -> PreSymbolicExpression {
+    pub fn sugared_field_identifier(
+        contract_name: ContractName,
+        name: ClarityName,
+    ) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::SugaredFieldIdentifier(contract_name, name),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn atom_value(val: Value) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::AtomValue(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn atom(val: ClarityName) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::Atom(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn trait_reference(val: ClarityName) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::TraitReference(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn field_identifier(val: TraitIdentifier) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::FieldIdentifier(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn list(val: Box<[PreSymbolicExpression]>) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::List(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
     pub fn tuple(val: Box<[PreSymbolicExpression]>) -> PreSymbolicExpression {
         PreSymbolicExpression {
             pre_expr: PreSymbolicExpressionType::Tuple(val),
-            .. PreSymbolicExpression::cons()
+            ..PreSymbolicExpression::cons()
         }
     }
 
@@ -253,11 +302,13 @@ pub enum SymbolicExpressionType {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum TraitDefinition {
     Defined(TraitIdentifier),
-    Imported(TraitIdentifier)
+    Imported(TraitIdentifier),
 }
 
-pub fn depth_traverse<F,T,E>(expr: &SymbolicExpression, mut visit: F) -> Result<T, E>
-where F: FnMut(&SymbolicExpression) -> Result<T, E> {
+pub fn depth_traverse<F, T, E>(expr: &SymbolicExpression, mut visit: F) -> Result<T, E>
+where
+    F: FnMut(&SymbolicExpression) -> Result<T, E>,
+{
     let mut stack = vec![];
     let mut last = None;
     stack.push(expr);
@@ -280,77 +331,100 @@ pub struct SymbolicExpression {
     //  maps.
     // first pass       -> fill out unique ids
     // ...typing passes -> store information in hashmap according to id.
-    // 
+    //
     // this is a fairly standard technique in compiler passes
     pub id: u64,
 
+    #[cfg(feature = "developer-mode")]
     pub span: Span,
 }
 
 impl SymbolicExpression {
+    #[cfg(feature = "developer-mode")]
     fn cons() -> SymbolicExpression {
         SymbolicExpression {
             id: 0,
             span: Span::zero(),
-            expr: SymbolicExpressionType::AtomValue(Value::Bool(false))
+            expr: SymbolicExpressionType::AtomValue(Value::Bool(false)),
+        }
+    }
+    #[cfg(not(feature = "developer-mode"))]
+    fn cons() -> SymbolicExpression {
+        SymbolicExpression {
+            id: 0,
+            expr: SymbolicExpressionType::AtomValue(Value::Bool(false)),
         }
     }
 
+    #[cfg(feature = "developer-mode")]
     pub fn set_span(&mut self, start_line: u32, start_column: u32, end_line: u32, end_column: u32) {
         self.span = Span {
             start_line,
             start_column,
             end_line,
-            end_column
+            end_column,
         }
     }
-    
+
+    #[cfg(not(feature = "developer-mode"))]
+    pub fn set_span(
+        &mut self,
+        _start_line: u32,
+        _start_column: u32,
+        _end_line: u32,
+        _end_column: u32,
+    ) {
+    }
+
     pub fn atom_value(val: Value) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::AtomValue(val),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
     pub fn atom(val: ClarityName) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::Atom(val),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
     pub fn literal_value(val: Value) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::LiteralValue(val),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
     pub fn list(val: Box<[SymbolicExpression]>) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::List(val),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
-    pub fn trait_reference(val: ClarityName, trait_definition: TraitDefinition) -> SymbolicExpression {
+    pub fn trait_reference(
+        val: ClarityName,
+        trait_definition: TraitDefinition,
+    ) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::TraitReference(val, trait_definition),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
     pub fn field(val: TraitIdentifier) -> SymbolicExpression {
         SymbolicExpression {
             expr: SymbolicExpressionType::Field(val),
-            .. SymbolicExpression::cons()
+            ..SymbolicExpression::cons()
         }
     }
 
     // These match functions are used to simplify calling code
     //   areas a lot. There is a frequent code pattern where
     //   a block _expects_ specific symbolic expressions, leading
-    //   to a lot of very verbose `if let x = {` expressions. 
+    //   to a lot of very verbose `if let x = {` expressions.
 
     pub fn match_list(&self) -> Option<&[SymbolicExpression]> {
         if let SymbolicExpressionType::List(ref list) = self.expr {
@@ -410,29 +484,32 @@ impl fmt::Display for SymbolicExpression {
                     write!(f, " {}", item)?;
                 }
                 write!(f, " )")?;
-            },
+            }
             SymbolicExpressionType::Atom(ref value) => {
                 write!(f, "{}", &**value)?;
-            },
-            SymbolicExpressionType::AtomValue(ref value) | SymbolicExpressionType::LiteralValue(ref value) => {
+            }
+            SymbolicExpressionType::AtomValue(ref value)
+            | SymbolicExpressionType::LiteralValue(ref value) => {
                 write!(f, "{}", value)?;
-            },
-            SymbolicExpressionType::TraitReference(ref value, _) => { write!(f, "<{}>", &**value)?; },
-            SymbolicExpressionType::Field(ref value) => { write!(f, "<{}>", value)?; },
+            }
+            SymbolicExpressionType::TraitReference(ref value, _) => {
+                write!(f, "<{}>", &**value)?;
+            }
+            SymbolicExpressionType::Field(ref value) => {
+                write!(f, "<{}>", value)?;
+            }
         };
-        
+
         Ok(())
     }
 }
 
-#[derive(Debug)]
-#[derive(Serialize, Deserialize)]
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct Span {
     pub start_line: u32,
     pub start_column: u32,
     pub end_line: u32,
-    pub end_column: u32
+    pub end_column: u32,
 }
 
 impl Span {
@@ -441,7 +518,7 @@ impl Span {
             start_line: 0,
             start_column: 0,
             end_line: 0,
-            end_column: 0
+            end_column: 0,
         }
     }
 }

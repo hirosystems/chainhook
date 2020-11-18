@@ -1,17 +1,32 @@
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use super::CostFunctions::{Constant, Linear, LogN, NLogN};
 use super::{SimpleCostSpecification, TypeCheckCost};
-use super::CostFunctions::{Linear, Constant, NLogN, LogN};
 
 macro_rules! def_runtime_cost {
     ($Name:ident { $runtime:expr }) => {
-        pub const $Name: SimpleCostSpecification = 
-            SimpleCostSpecification {
-                write_length: Constant(0),
-                write_count: Constant(0),
-                read_count: Constant(0),
-                read_length: Constant(0),
-                runtime: $runtime
-            };
-    }
+        pub const $Name: SimpleCostSpecification = SimpleCostSpecification {
+            write_length: Constant(0),
+            write_count: Constant(0),
+            read_count: Constant(0),
+            read_length: Constant(0),
+            runtime: $runtime,
+        };
+    };
 }
 
 def_runtime_cost!(ANALYSIS_TYPE_ANNOTATE { Linear(1, 1) });
@@ -53,7 +68,7 @@ pub const ANALYSIS_USE_TRAIT_ENTRY: SimpleCostSpecification = SimpleCostSpecific
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 pub const ANALYSIS_GET_FUNCTION_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
@@ -61,7 +76,7 @@ pub const ANALYSIS_GET_FUNCTION_ENTRY: SimpleCostSpecification = SimpleCostSpeci
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 pub const ANALYSIS_FETCH_CONTRACT_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
@@ -69,7 +84,7 @@ pub const ANALYSIS_FETCH_CONTRACT_ENTRY: SimpleCostSpecification = SimpleCostSpe
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 def_runtime_cost!(LOOKUP_VARIABLE_DEPTH { Linear(1, 1) });
@@ -103,6 +118,7 @@ def_runtime_cost!(GE  { Constant(1) });
 def_runtime_cost!(INT_CAST { Constant(1) });
 def_runtime_cost!(MOD { Constant(1) });
 def_runtime_cost!(POW { Constant(1) });
+def_runtime_cost!(SQRTI { Constant(1) });
 def_runtime_cost!(XOR { Constant(1) });
 def_runtime_cost!(NOT { Constant(1) });
 def_runtime_cost!(EQ { Linear(1, 1) });
@@ -112,6 +128,8 @@ def_runtime_cost!(SHA256 { Constant(1) });
 def_runtime_cost!(SHA512 { Constant(1) });
 def_runtime_cost!(SHA512T256 { Constant(1) });
 def_runtime_cost!(KECCAK256 { Constant(1) });
+def_runtime_cost!(SECP256K1RECOVER { Constant(1) });
+def_runtime_cost!(SECP256K1VERIFY { Constant(1) });
 def_runtime_cost!(PRINT { Linear(1, 1) });
 def_runtime_cost!(SOME_CONS { Constant(1) });
 def_runtime_cost!(OK_CONS { Constant(1) });
@@ -136,13 +154,14 @@ def_runtime_cost!(AS_MAX_LEN { Constant(1) });
 
 def_runtime_cost!(CONTRACT_CALL { Constant(1) });
 def_runtime_cost!(CONTRACT_OF { Constant(1) });
+def_runtime_cost!(PRINCIPAL_OF { Constant(1) });
 
 pub const AT_BLOCK: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(0),
     write_count: Constant(0),
     runtime: Constant(1),
     read_count: Constant(1),
-    read_length: Constant(1)
+    read_length: Constant(1),
 };
 
 pub const LOAD_CONTRACT: SimpleCostSpecification = SimpleCostSpecification {
@@ -150,7 +169,7 @@ pub const LOAD_CONTRACT: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 pub const CREATE_MAP: SimpleCostSpecification = SimpleCostSpecification {
@@ -158,7 +177,7 @@ pub const CREATE_MAP: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(0),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const CREATE_VAR: SimpleCostSpecification = SimpleCostSpecification {
@@ -166,7 +185,7 @@ pub const CREATE_VAR: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(2),
     runtime: Linear(1, 1),
     read_count: Constant(0),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const CREATE_NFT: SimpleCostSpecification = SimpleCostSpecification {
@@ -174,7 +193,7 @@ pub const CREATE_NFT: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(0),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const CREATE_FT: SimpleCostSpecification = SimpleCostSpecification {
@@ -182,7 +201,7 @@ pub const CREATE_FT: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(2),
     runtime: Constant(1),
     read_count: Constant(0),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const FETCH_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
@@ -190,7 +209,7 @@ pub const FETCH_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 pub const SET_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
@@ -198,7 +217,7 @@ pub const SET_ENTRY: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const FETCH_VAR: SimpleCostSpecification = SimpleCostSpecification {
@@ -206,7 +225,7 @@ pub const FETCH_VAR: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Linear(1, 1)
+    read_length: Linear(1, 1),
 };
 
 pub const SET_VAR: SimpleCostSpecification = SimpleCostSpecification {
@@ -214,7 +233,7 @@ pub const SET_VAR: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Constant(0)
+    read_length: Constant(0),
 };
 
 pub const CONTRACT_STORAGE: SimpleCostSpecification = SimpleCostSpecification {
@@ -222,69 +241,79 @@ pub const CONTRACT_STORAGE: SimpleCostSpecification = SimpleCostSpecification {
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(0),
-    read_length: Constant(0) };
+    read_length: Constant(0),
+};
 
 pub const BLOCK_INFO: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(0),
     write_count: Constant(0),
     runtime: Constant(1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const STX_BALANCE: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(0),
     write_count: Constant(0),
     runtime: Constant(1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const STX_TRANSFER: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(1),
     write_count: Constant(1),
     runtime: Constant(1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const FT_MINT: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(1),
     write_count: Constant(2),
     runtime: Constant(1),
     read_count: Constant(2),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const FT_TRANSFER: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(1),
     write_count: Constant(2),
     runtime: Constant(1),
     read_count: Constant(2),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const FT_BALANCE: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(0),
     write_count: Constant(0),
     runtime: Constant(1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const NFT_MINT: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(1),
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const NFT_TRANSFER: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(1),
     write_count: Constant(1),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const NFT_OWNER: SimpleCostSpecification = SimpleCostSpecification {
     write_length: Constant(0),
     write_count: Constant(0),
     runtime: Linear(1, 1),
     read_count: Constant(1),
-    read_length: Constant(1) };
+    read_length: Constant(1),
+};
 
 pub const TYPE_CHECK_COST: TypeCheckCost = TypeCheckCost {};

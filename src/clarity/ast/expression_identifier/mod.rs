@@ -1,17 +1,35 @@
-use crate::clarity::representations::{SymbolicExpression, SymbolicExpressionType, SymbolicExpressionCommon};
-use crate::clarity::representations::SymbolicExpressionType::{AtomValue, LiteralValue, Atom, List, TraitReference, Field};
-use crate::clarity::ast::types::{ContractAST, BuildASTPass};
-use crate::clarity::ast::errors::{ParseResult, ParseErrors, ParseError};
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use crate::clarity::ast::errors::{ParseError, ParseErrors, ParseResult};
+use crate::clarity::ast::types::{BuildASTPass, ContractAST};
+use crate::clarity::representations::PreSymbolicExpressionType::List;
+use crate::clarity::representations::SymbolicExpressionCommon;
 
 fn inner_relabel<T: SymbolicExpressionCommon>(args: &mut [T], index: u64) -> ParseResult<u64> {
-    let mut current = index.checked_add(1)
+    let mut current = index
+        .checked_add(1)
         .ok_or(ParseError::new(ParseErrors::TooManyExpressions))?;
     for expression in &mut args[..] {
         expression.set_id(current);
         current = if let Some(exprs) = expression.match_list_mut() {
             inner_relabel(exprs, current)
         } else {
-            current.checked_add(1)
+            current
+                .checked_add(1)
                 .ok_or(ParseError::new(ParseErrors::TooManyExpressions))
         }?;
     }

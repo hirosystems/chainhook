@@ -1,17 +1,39 @@
-use crate::clarity::types::{Value, TypeSignature};
-use crate::clarity::errors::{CheckErrors, check_arguments_at_least, check_argument_count, InterpreterResult as Result};
-use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::{LocalContext, Environment, eval};
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 use crate::clarity::costs::cost_functions;
+use crate::clarity::errors::{
+    check_argument_count, check_arguments_at_least, CheckErrors, InterpreterResult as Result,
+};
+use crate::clarity::representations::SymbolicExpression;
+use crate::clarity::types::{TypeSignature, Value};
+use crate::clarity::{eval, Environment, LocalContext};
 
 fn type_force_bool(value: &Value) -> Result<bool> {
     match *value {
         Value::Bool(boolean) => Ok(boolean),
-        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, value.clone()).into())
+        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, value.clone()).into()),
     }
 }
 
-pub fn special_or(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+pub fn special_or(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     check_arguments_at_least(1, args)?;
 
     runtime_cost!(cost_functions::OR, env, args.len())?;
@@ -20,14 +42,18 @@ pub fn special_or(args: &[SymbolicExpression], env: &mut Environment, context: &
         let evaluated = eval(&arg, env, context)?;
         let result = type_force_bool(&evaluated)?;
         if result {
-            return Ok(Value::Bool(true))
+            return Ok(Value::Bool(true));
         }
     }
 
     Ok(Value::Bool(false))
 }
 
-pub fn special_and(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+pub fn special_and(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     check_arguments_at_least(1, args)?;
 
     runtime_cost!(cost_functions::AND, env, args.len())?;
@@ -36,7 +62,7 @@ pub fn special_and(args: &[SymbolicExpression], env: &mut Environment, context: 
         let evaluated = eval(&arg, env, context)?;
         let result = type_force_bool(&evaluated)?;
         if !result {
-            return Ok(Value::Bool(false))
+            return Ok(Value::Bool(false));
         }
     }
 

@@ -1,20 +1,49 @@
-pub mod define;
-pub mod tuples;
-mod sequences;
-mod arithmetic;
-mod boolean;
-mod database;
-mod options;
-mod assets;
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::clarity::errors::{Error, CheckErrors, RuntimeErrorType, ShortReturnType, InterpreterResult as Result, check_argument_count, check_arguments_at_least};
-use crate::clarity::types::{Value, SequenceData, CharType, PrincipalData, ResponseData, TypeSignature};
+mod arithmetic;
+mod assets;
+mod boolean;
+mod crypto;
+mod database;
+pub mod define;
+mod options;
+mod sequences;
+mod special;
+pub mod tuples;
+
+use util::hash;
 use crate::clarity::callables::{CallableType, NativeHandle};
-use crate::clarity::representations::{SymbolicExpression, SymbolicExpressionType, ClarityName};
-use crate::clarity::representations::SymbolicExpressionType::{List, Atom};
-use crate::clarity::{LocalContext, Environment, eval};
-use crate::clarity::costs::{cost_functions, MemoryConsumer, CostTracker, constants as cost_constants};
-use crate::clarity::util::hash;
+use crate::clarity::costs::{constants as cost_constants, cost_functions, CostTracker, MemoryConsumer};
+use crate::clarity::errors::{
+    check_argument_count, check_arguments_at_least, CheckErrors, Error,
+    InterpreterResult as Result, RuntimeErrorType, ShortReturnType,
+};
+use crate::clarity::representations::SymbolicExpressionType::{Atom, List};
+use crate::clarity::representations::{ClarityName, SymbolicExpression, SymbolicExpressionType};
+use crate::clarity::types::{
+    BuffData, CharType, PrincipalData, ResponseData, SequenceData, TypeSignature, Value, BUFF_32,
+    BUFF_33, BUFF_65,
+};
+use crate::clarity::{eval, Environment, LocalContext};
+
+use address::AddressHashMode;
+use chainstate::stacks::{StacksAddress, C32_ADDRESS_VERSION_TESTNET_SINGLESIG};
+pub use crate::clarity::functions::assets::{get_stx_balance_snapshot, stx_transfer_consolidated};
+pub use crate::clarity::functions::special::handle_contract_call_special_cases;
 
 define_named_enum!(NativeFunctions {
     Add("+"),
@@ -29,6 +58,7 @@ define_named_enum!(NativeFunctions {
     ToUInt("to-uint"),
     Modulo("mod"),
     Power("pow"),
+    Sqrti("sqrti"),
     BitwiseXOR("xor"),
     And("and"),
     Or("or"),
@@ -57,10 +87,13 @@ define_named_enum!(NativeFunctions {
     Sha512("sha512"),
     Sha512Trunc256("sha512/256"),
     Keccak256("keccak256"),
+    Secp256k1Recover("secp256k1-recover?"),
+    Secp256k1Verify("secp256k1-verify"),
     Print("print"),
     ContractCall("contract-call?"),
     AsContract("as-contract"),
     ContractOf("contract-of"),
+    PrincipalOf("principal-of?"),
     AtBlock("at-block"),
     GetBlockInfo("get-block-info?"),
     ConsError("err"),
@@ -91,27 +124,92 @@ define_named_enum!(NativeFunctions {
 });
 
 pub fn lookup_reserved_functions(name: &str) -> Option<CallableType> {
+    use crate::clarity::callables::CallableType::{NativeFunction, SpecialFunction};
     use crate::clarity::functions::NativeFunctions::*;
-    use crate::clarity::callables::CallableType::{ NativeFunction, SpecialFunction };
     if let Some(native_function) = NativeFunctions::lookup_by_name(name) {
         let callable = match native_function {
-            Add => NativeFunction("native_add", NativeHandle::MoreArg(&arithmetic::native_add), cost_functions::ADD),
-            Subtract => NativeFunction("native_sub", NativeHandle::MoreArg(&arithmetic::native_sub), cost_functions::SUB),
-            Multiply => NativeFunction("native_mul", NativeHandle::MoreArg(&arithmetic::native_mul), cost_functions::MUL),
-            Divide => NativeFunction("native_div", NativeHandle::MoreArg(&arithmetic::native_div), cost_functions::DIV),
-            CmpGeq => NativeFunction("native_geq", NativeHandle::DoubleArg(&arithmetic::native_geq), cost_functions::GEQ),
-            CmpLeq => NativeFunction("native_leq", NativeHandle::DoubleArg(&arithmetic::native_leq), cost_functions::LEQ),
-            CmpLess => NativeFunction("native_le", NativeHandle::DoubleArg(&arithmetic::native_le), cost_functions::LE),
-            CmpGreater => NativeFunction("native_ge", NativeHandle::DoubleArg(&arithmetic::native_ge), cost_functions::GE),
-            ToUInt => NativeFunction("native_to_uint", NativeHandle::SingleArg(&arithmetic::native_to_uint), cost_functions::INT_CAST),
-            ToInt => NativeFunction("native_to_int", NativeHandle::SingleArg(&arithmetic::native_to_int), cost_functions::INT_CAST),
-            Modulo => NativeFunction("native_mod", NativeHandle::DoubleArg(&arithmetic::native_mod), cost_functions::MOD),
-            Power => NativeFunction("native_pow", NativeHandle::DoubleArg(&arithmetic::native_pow), cost_functions::POW),
-            BitwiseXOR => NativeFunction("native_xor", NativeHandle::DoubleArg(&arithmetic::native_xor), cost_functions::XOR),
+            Add => NativeFunction(
+                "native_add",
+                NativeHandle::MoreArg(&arithmetic::native_add),
+                cost_functions::ADD,
+            ),
+            Subtract => NativeFunction(
+                "native_sub",
+                NativeHandle::MoreArg(&arithmetic::native_sub),
+                cost_functions::SUB,
+            ),
+            Multiply => NativeFunction(
+                "native_mul",
+                NativeHandle::MoreArg(&arithmetic::native_mul),
+                cost_functions::MUL,
+            ),
+            Divide => NativeFunction(
+                "native_div",
+                NativeHandle::MoreArg(&arithmetic::native_div),
+                cost_functions::DIV,
+            ),
+            CmpGeq => NativeFunction(
+                "native_geq",
+                NativeHandle::DoubleArg(&arithmetic::native_geq),
+                cost_functions::GEQ,
+            ),
+            CmpLeq => NativeFunction(
+                "native_leq",
+                NativeHandle::DoubleArg(&arithmetic::native_leq),
+                cost_functions::LEQ,
+            ),
+            CmpLess => NativeFunction(
+                "native_le",
+                NativeHandle::DoubleArg(&arithmetic::native_le),
+                cost_functions::LE,
+            ),
+            CmpGreater => NativeFunction(
+                "native_ge",
+                NativeHandle::DoubleArg(&arithmetic::native_ge),
+                cost_functions::GE,
+            ),
+            ToUInt => NativeFunction(
+                "native_to_uint",
+                NativeHandle::SingleArg(&arithmetic::native_to_uint),
+                cost_functions::INT_CAST,
+            ),
+            ToInt => NativeFunction(
+                "native_to_int",
+                NativeHandle::SingleArg(&arithmetic::native_to_int),
+                cost_functions::INT_CAST,
+            ),
+            Modulo => NativeFunction(
+                "native_mod",
+                NativeHandle::DoubleArg(&arithmetic::native_mod),
+                cost_functions::MOD,
+            ),
+            Power => NativeFunction(
+                "native_pow",
+                NativeHandle::DoubleArg(&arithmetic::native_pow),
+                cost_functions::POW,
+            ),
+            Sqrti => NativeFunction(
+                "native_sqrti",
+                NativeHandle::SingleArg(&arithmetic::native_sqrti),
+                cost_functions::SQRTI,
+            ),
+            BitwiseXOR => NativeFunction(
+                "native_xor",
+                NativeHandle::DoubleArg(&arithmetic::native_xor),
+                cost_functions::XOR,
+            ),
             And => SpecialFunction("special_and", &boolean::special_and),
             Or => SpecialFunction("special_or", &boolean::special_or),
-            Not => NativeFunction("native_not", NativeHandle::SingleArg(&boolean::native_not), cost_functions::NOT),
-            Equals => NativeFunction("native_eq", NativeHandle::MoreArg(&native_eq), cost_functions::EQ),
+            Not => NativeFunction(
+                "native_not",
+                NativeHandle::SingleArg(&boolean::native_not),
+                cost_functions::NOT,
+            ),
+            Equals => NativeFunction(
+                "native_eq",
+                NativeHandle::MoreArg(&native_eq),
+                cost_functions::EQ,
+            ),
             If => SpecialFunction("special_if", &special_if),
             Let => SpecialFunction("special_let", &special_let),
             FetchVar => SpecialFunction("special_var-get", &database::special_fetch_variable),
@@ -122,7 +220,11 @@ pub fn lookup_reserved_functions(name: &str) -> Option<CallableType> {
             Concat => SpecialFunction("special_concat", &sequences::special_concat),
             AsMaxLen => SpecialFunction("special_as_max_len", &sequences::special_as_max_len),
             Append => SpecialFunction("special_append", &sequences::special_append),
-            Len => NativeFunction("native_len", NativeHandle::SingleArg(&sequences::native_len), cost_functions::LEN),
+            Len => NativeFunction(
+                "native_len",
+                NativeHandle::SingleArg(&sequences::native_len),
+                cost_functions::LEN,
+            ),
             ListCons => SpecialFunction("special_list_cons", &sequences::list_cons),
             FetchEntry => SpecialFunction("special_map-get?", &database::special_fetch_entry),
             SetEntry => SpecialFunction("special_set-entry", &database::special_set_entry),
@@ -130,36 +232,128 @@ pub fn lookup_reserved_functions(name: &str) -> Option<CallableType> {
             DeleteEntry => SpecialFunction("special_delete-entry", &database::special_delete_entry),
             TupleCons => SpecialFunction("special_tuple", &tuples::tuple_cons),
             TupleGet => SpecialFunction("special_get-tuple", &tuples::tuple_get),
-            Begin => NativeFunction("native_begin", NativeHandle::MoreArg(&native_begin), cost_functions::BEGIN),
-            Hash160 => NativeFunction("native_hash160", NativeHandle::SingleArg(&native_hash160), cost_functions::HASH160),
-            Sha256 => NativeFunction("native_sha256", NativeHandle::SingleArg(&native_sha256), cost_functions::SHA256),
-            Sha512 => NativeFunction("native_sha512", NativeHandle::SingleArg(&native_sha512), cost_functions::SHA512),
-            Sha512Trunc256 => NativeFunction("native_sha512trunc256", NativeHandle::SingleArg(&native_sha512trunc256), cost_functions::SHA512T256),
-            Keccak256 => NativeFunction("native_keccak256", NativeHandle::SingleArg(&native_keccak256), cost_functions::KECCAK256),
+            Begin => NativeFunction(
+                "native_begin",
+                NativeHandle::MoreArg(&native_begin),
+                cost_functions::BEGIN,
+            ),
+            Hash160 => NativeFunction(
+                "native_hash160",
+                NativeHandle::SingleArg(&crypto::native_hash160),
+                cost_functions::HASH160,
+            ),
+            Sha256 => NativeFunction(
+                "native_sha256",
+                NativeHandle::SingleArg(&crypto::native_sha256),
+                cost_functions::SHA256,
+            ),
+            Sha512 => NativeFunction(
+                "native_sha512",
+                NativeHandle::SingleArg(&crypto::native_sha512),
+                cost_functions::SHA512,
+            ),
+            Sha512Trunc256 => NativeFunction(
+                "native_sha512trunc256",
+                NativeHandle::SingleArg(&crypto::native_sha512trunc256),
+                cost_functions::SHA512T256,
+            ),
+            Keccak256 => NativeFunction(
+                "native_keccak256",
+                NativeHandle::SingleArg(&crypto::native_keccak256),
+                cost_functions::KECCAK256,
+            ),
+            Secp256k1Recover => SpecialFunction(
+                "native_secp256k1-recover",
+                &crypto::special_secp256k1_recover,
+            ),
+            Secp256k1Verify => {
+                SpecialFunction("native_secp256k1-verify", &crypto::special_secp256k1_verify)
+            }
             Print => SpecialFunction("special_print", &special_print),
-            ContractCall => SpecialFunction("special_contract-call", &database::special_contract_call),
+            ContractCall => {
+                SpecialFunction("special_contract-call", &database::special_contract_call)
+            }
             AsContract => SpecialFunction("special_as-contract", &special_as_contract),
             ContractOf => SpecialFunction("special_contract-of", &special_contract_of),
-            GetBlockInfo => SpecialFunction("special_get_block_info", &database::special_get_block_info),
-            ConsSome => NativeFunction("native_some", NativeHandle::SingleArg(&options::native_some), cost_functions::SOME_CONS),
-            ConsOkay => NativeFunction("native_okay", NativeHandle::SingleArg(&options::native_okay), cost_functions::OK_CONS),
-            ConsError => NativeFunction("native_error", NativeHandle::SingleArg(&options::native_error), cost_functions::ERR_CONS),
-            DefaultTo => NativeFunction("native_default_to", NativeHandle::DoubleArg(&options::native_default_to), cost_functions::DEFAULT_TO),
+            PrincipalOf => SpecialFunction("special_principal-of", &crypto::special_principal_of),
+            GetBlockInfo => {
+                SpecialFunction("special_get_block_info", &database::special_get_block_info)
+            }
+            ConsSome => NativeFunction(
+                "native_some",
+                NativeHandle::SingleArg(&options::native_some),
+                cost_functions::SOME_CONS,
+            ),
+            ConsOkay => NativeFunction(
+                "native_okay",
+                NativeHandle::SingleArg(&options::native_okay),
+                cost_functions::OK_CONS,
+            ),
+            ConsError => NativeFunction(
+                "native_error",
+                NativeHandle::SingleArg(&options::native_error),
+                cost_functions::ERR_CONS,
+            ),
+            DefaultTo => NativeFunction(
+                "native_default_to",
+                NativeHandle::DoubleArg(&options::native_default_to),
+                cost_functions::DEFAULT_TO,
+            ),
             Asserts => SpecialFunction("special_asserts", &special_asserts),
-            UnwrapRet => NativeFunction("native_unwrap_ret", NativeHandle::DoubleArg(&options::native_unwrap_or_ret), cost_functions::UNWRAP_RET),
-            UnwrapErrRet => NativeFunction("native_unwrap_err_ret", NativeHandle::DoubleArg(&options::native_unwrap_err_or_ret), cost_functions::UNWRAP_ERR_OR_RET),
-            IsOkay => NativeFunction("native_is_okay", NativeHandle::SingleArg(&options::native_is_okay), cost_functions::IS_OKAY),
-            IsNone => NativeFunction("native_is_none", NativeHandle::SingleArg(&options::native_is_none), cost_functions::IS_NONE),
-            IsErr => NativeFunction("native_is_err", NativeHandle::SingleArg(&options::native_is_err), cost_functions::IS_ERR),
-            IsSome => NativeFunction("native_is_some", NativeHandle::SingleArg(&options::native_is_some), cost_functions::IS_SOME),
-            Unwrap => NativeFunction("native_unwrap", NativeHandle::SingleArg(&options::native_unwrap), cost_functions::UNWRAP),
-            UnwrapErr => NativeFunction("native_unwrap_err", NativeHandle::SingleArg(&options::native_unwrap_err), cost_functions::UNWRAP_ERR),
+            UnwrapRet => NativeFunction(
+                "native_unwrap_ret",
+                NativeHandle::DoubleArg(&options::native_unwrap_or_ret),
+                cost_functions::UNWRAP_RET,
+            ),
+            UnwrapErrRet => NativeFunction(
+                "native_unwrap_err_ret",
+                NativeHandle::DoubleArg(&options::native_unwrap_err_or_ret),
+                cost_functions::UNWRAP_ERR_OR_RET,
+            ),
+            IsOkay => NativeFunction(
+                "native_is_okay",
+                NativeHandle::SingleArg(&options::native_is_okay),
+                cost_functions::IS_OKAY,
+            ),
+            IsNone => NativeFunction(
+                "native_is_none",
+                NativeHandle::SingleArg(&options::native_is_none),
+                cost_functions::IS_NONE,
+            ),
+            IsErr => NativeFunction(
+                "native_is_err",
+                NativeHandle::SingleArg(&options::native_is_err),
+                cost_functions::IS_ERR,
+            ),
+            IsSome => NativeFunction(
+                "native_is_some",
+                NativeHandle::SingleArg(&options::native_is_some),
+                cost_functions::IS_SOME,
+            ),
+            Unwrap => NativeFunction(
+                "native_unwrap",
+                NativeHandle::SingleArg(&options::native_unwrap),
+                cost_functions::UNWRAP,
+            ),
+            UnwrapErr => NativeFunction(
+                "native_unwrap_err",
+                NativeHandle::SingleArg(&options::native_unwrap_err),
+                cost_functions::UNWRAP_ERR,
+            ),
             Match => SpecialFunction("special_match", &options::special_match),
-            TryRet => NativeFunction("native_try_ret", NativeHandle::SingleArg(&options::native_try_ret), cost_functions::TRY_RET),
+            TryRet => NativeFunction(
+                "native_try_ret",
+                NativeHandle::SingleArg(&options::native_try_ret),
+                cost_functions::TRY_RET,
+            ),
             MintAsset => SpecialFunction("special_mint_asset", &assets::special_mint_asset),
             MintToken => SpecialFunction("special_mint_token", &assets::special_mint_token),
-            TransferAsset => SpecialFunction("special_transfer_asset", &assets::special_transfer_asset),
-            TransferToken => SpecialFunction("special_transfer_token", &assets::special_transfer_token),
+            TransferAsset => {
+                SpecialFunction("special_transfer_asset", &assets::special_transfer_asset)
+            }
+            TransferToken => {
+                SpecialFunction("special_transfer_token", &assets::special_transfer_token)
+            }
             GetTokenBalance => SpecialFunction("special_get_balance", &assets::special_get_balance),
             GetAssetOwner => SpecialFunction("special_get_owner", &assets::special_get_owner),
             AtBlock => SpecialFunction("special_at_block", &database::special_at_block),
@@ -187,42 +381,25 @@ fn native_eq(args: Vec<Value>) -> Result<Value> {
         for x in args.iter() {
             arg_type = TypeSignature::least_supertype(&TypeSignature::type_of(x), &arg_type)?;
             if x != first {
-                return Ok(Value::Bool(false))
+                return Ok(Value::Bool(false));
             }
         }
         Ok(Value::Bool(true))
     }
 }
 
-macro_rules! native_hash_func {
-    ($name:ident, $module:ty) => {
-        fn $name(input: Value) -> Result<Value> {
-            let bytes = match input {
-                Value::Int(value) => Ok(value.to_le_bytes().to_vec()),
-                Value::UInt(value) => Ok(value.to_le_bytes().to_vec()),
-                Value::Sequence(SequenceData::Buffer(value)) => Ok(value.data),
-                _ => Err(CheckErrors::UnionTypeValueError(vec![TypeSignature::IntType, TypeSignature::UIntType, TypeSignature::max_buffer()], input))
-            }?;
-            let hash = <$module>::from_data(&bytes);
-            Value::buff_from(hash.as_bytes().to_vec())
-        }
-    }
-}
-
-native_hash_func!(native_hash160, hash::Hash160);
-native_hash_func!(native_sha256, hash::Sha256Sum);
-native_hash_func!(native_sha512, hash::Sha512Sum);
-native_hash_func!(native_sha512trunc256, hash::Sha512Trunc256Sum);
-native_hash_func!(native_keccak256, hash::Keccak256Hash);
-
 fn native_begin(mut args: Vec<Value>) -> Result<Value> {
     match args.pop() {
         Some(v) => Ok(v),
-        None => Err(CheckErrors::RequiresAtLeastArguments(1,0).into())
+        None => Err(CheckErrors::RequiresAtLeastArguments(1, 0).into()),
     }
 }
 
-fn special_print(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_print(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     let input = eval(&args[0], env, context)?;
 
     runtime_cost!(cost_functions::PRINT, env, input.size())?;
@@ -235,7 +412,11 @@ fn special_print(args: &[SymbolicExpression], env: &mut Environment, context: &L
     Ok(input)
 }
 
-fn special_if(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_if(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     check_argument_count(3, args)?;
 
     runtime_cost!(cost_functions::IF, env, 0)?;
@@ -248,12 +429,16 @@ fn special_if(args: &[SymbolicExpression], env: &mut Environment, context: &Loca
             } else {
                 eval(&args[2], env, context)
             }
-        },
-        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, conditional).into())
+        }
+        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, conditional).into()),
     }
 }
 
-fn special_asserts(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_asserts(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     check_argument_count(2, args)?;
 
     runtime_cost!(cost_functions::ASSERTS, env, 0)?;
@@ -268,22 +453,26 @@ fn special_asserts(args: &[SymbolicExpression], env: &mut Environment, context: 
                 let thrown = eval(&args[1], env, context)?;
                 Err(ShortReturnType::AssertionFailed(thrown.clone()).into())
             }
-        },
-        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, conditional).into())
+        }
+        _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, conditional).into()),
     }
 }
 
-pub fn handle_binding_list <F, E> (bindings: &[SymbolicExpression], mut handler: F) -> std::result::Result<(), E>
-where F: FnMut(&ClarityName, &SymbolicExpression) -> std::result::Result<(), E>,
-      E: From<CheckErrors>
+pub fn handle_binding_list<F, E>(
+    bindings: &[SymbolicExpression],
+    mut handler: F,
+) -> std::result::Result<(), E>
+where
+    F: FnMut(&ClarityName, &SymbolicExpression) -> std::result::Result<(), E>,
+    E: From<CheckErrors>,
 {
     for binding in bindings.iter() {
-        let binding_expression = binding.match_list()
-            .ok_or(CheckErrors::BadSyntaxBinding)?;
+        let binding_expression = binding.match_list().ok_or(CheckErrors::BadSyntaxBinding)?;
         if binding_expression.len() != 2 {
             return Err(CheckErrors::BadSyntaxBinding.into());
         }
-        let var_name = binding_expression[0].match_atom()
+        let var_name = binding_expression[0]
+            .match_atom()
             .ok_or(CheckErrors::BadSyntaxBinding)?;
         let var_sexp = &binding_expression[1];
 
@@ -292,20 +481,27 @@ where F: FnMut(&ClarityName, &SymbolicExpression) -> std::result::Result<(), E>,
     Ok(())
 }
 
-pub fn parse_eval_bindings(bindings: &[SymbolicExpression],
-                       env: &mut Environment, context: &LocalContext)-> Result<Vec<(ClarityName, Value)>> {
+pub fn parse_eval_bindings(
+    bindings: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Vec<(ClarityName, Value)>> {
     let mut result = Vec::new();
     handle_binding_list(bindings, |var_name, var_sexp| {
-        eval(var_sexp, env, context)
-            .and_then(|value| {
-                result.push((var_name.clone(), value));
-                Ok(()) })
+        eval(var_sexp, env, context).and_then(|value| {
+            result.push((var_name.clone(), value));
+            Ok(())
+        })
     })?;
 
     Ok(result)
 }
 
-fn special_let(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_let(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     use crate::clarity::is_reserved;
 
     // (let ((x 1) (y 2)) (+ x y)) -> 3
@@ -314,8 +510,7 @@ fn special_let(args: &[SymbolicExpression], env: &mut Environment, context: &Loc
     check_arguments_at_least(2, args)?;
 
     // parse and eval the bindings.
-    let bindings = args[0].match_list()
-        .ok_or(CheckErrors::BadLetSyntax)?;
+    let bindings = args[0].match_list().ok_or(CheckErrors::BadLetSyntax)?;
 
     runtime_cost!(cost_functions::LET, env, bindings.len())?;
 
@@ -352,7 +547,11 @@ fn special_let(args: &[SymbolicExpression], env: &mut Environment, context: &Loc
     })
 }
 
-fn special_as_contract(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_as_contract(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     // (as-contract (..))
     // arg0 => body
     check_argument_count(1, args)?;
@@ -360,7 +559,9 @@ fn special_as_contract(args: &[SymbolicExpression], env: &mut Environment, conte
     // nest an environment.
     env.add_memory(cost_constants::AS_CONTRACT_MEMORY)?;
 
-    let contract_principal = Value::Principal(PrincipalData::Contract(env.contract_context.contract_identifier.clone()));
+    let contract_principal = Value::Principal(PrincipalData::Contract(
+        env.contract_context.contract_identifier.clone(),
+    ));
     let mut nested_env = env.nest_as_principal(contract_principal);
 
     let result = eval(&args[0], &mut nested_env, context);
@@ -370,7 +571,11 @@ fn special_as_contract(args: &[SymbolicExpression], env: &mut Environment, conte
     result
 }
 
-fn special_contract_of(args: &[SymbolicExpression], env: &mut Environment, context: &LocalContext) -> Result<Value> {
+fn special_contract_of(
+    args: &[SymbolicExpression],
+    env: &mut Environment,
+    context: &LocalContext,
+) -> Result<Value> {
     // (contract-of (..))
     // arg0 => trait
     check_argument_count(1, args)?;
@@ -378,20 +583,20 @@ fn special_contract_of(args: &[SymbolicExpression], env: &mut Environment, conte
     runtime_cost!(cost_functions::CONTRACT_OF, env, 0)?;
 
     let contract_ref = match &args[0].expr {
-        SymbolicExpressionType::Atom(contract_ref) => {
-            contract_ref
-        },
-        _ => return Err(CheckErrors::ContractOfExpectsTrait.into())
+        SymbolicExpressionType::Atom(contract_ref) => contract_ref,
+        _ => return Err(CheckErrors::ContractOfExpectsTrait.into()),
     };
 
-    let contract_identifier = match context.callable_contracts.get(contract_ref) {
+    let contract_identifier = match context.lookup_callable_contract(contract_ref) {
         Some((ref contract_identifier, _trait_identifier)) => {
-            env.global_context.database.get_contract(contract_identifier)
+            env.global_context
+                .database
+                .get_contract(contract_identifier)
                 .map_err(|_e| CheckErrors::NoSuchContract(contract_identifier.to_string()))?;
 
             contract_identifier
-        },
-        _ => return Err(CheckErrors::ContractOfExpectsTrait.into())
+        }
+        _ => return Err(CheckErrors::ContractOfExpectsTrait.into()),
     };
 
     let contract_principal = Value::Principal(PrincipalData::Contract(contract_identifier.clone()));

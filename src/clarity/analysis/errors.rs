@@ -1,11 +1,27 @@
-use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::diagnostic::{Diagnostic, DiagnosableError};
-use crate::clarity::types::{TypeSignature, TupleTypeSignature, Value};
-use crate::clarity::costs::{ExecutionCost, CostErrors};
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 use std::error;
 use std::fmt;
+use crate::clarity::costs::{CostErrors, ExecutionCost};
+use crate::clarity::diagnostic::{DiagnosableError, Diagnostic};
+use crate::clarity::representations::SymbolicExpression;
+use crate::clarity::types::{TupleTypeSignature, TypeSignature, Value};
 
-pub type CheckResult <T> = Result<T, CheckError>;
+pub type CheckResult<T> = Result<T, CheckError>;
 
 #[derive(Debug, PartialEq)]
 pub enum CheckErrors {
@@ -151,8 +167,11 @@ pub enum CheckErrors {
     // strings
     InvalidCharactersDetected,
 
+    // secp256k1 signature
+    InvalidSecp65k1Signature,
+
     WriteAttemptedInReadOnly,
-    AtBlockClosureMustBeReadOnly
+    AtBlockClosureMustBeReadOnly,
 }
 
 #[derive(Debug, PartialEq)]
@@ -168,7 +187,7 @@ impl CheckError {
         CheckError {
             err,
             expressions: None,
-            diagnostic
+            diagnostic,
         }
     }
 
@@ -181,7 +200,7 @@ impl CheckError {
         self.expressions.replace(vec![expr.clone()]);
     }
 
-    pub fn set_expressions(&mut self, exprs: Vec<SymbolicExpression>) {
+    pub fn set_expressions(&mut self, exprs: &[SymbolicExpression]) {
         self.diagnostic.spans = exprs.iter().map(|e| e.span.clone()).collect();
         self.expressions.replace(exprs.clone().to_vec());
     }
@@ -196,7 +215,7 @@ impl fmt::Display for CheckErrors {
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.err {
-            _ =>  write!(f, "{}", self.err)
+            _ => write!(f, "{}", self.err),
         }?;
 
         if let Some(ref e) = self.expressions {
@@ -257,20 +276,22 @@ pub fn check_arguments_at_least<T>(expected: usize, args: &[T]) -> Result<(), Ch
     }
 }
 
-fn formatted_expected_types(expected_types: & Vec<TypeSignature>) -> String {
+fn formatted_expected_types(expected_types: &Vec<TypeSignature>) -> String {
     let mut expected_types_joined = format!("'{}'", expected_types[0]);
 
     if expected_types.len() > 2 {
-        for expected_type in expected_types[1..expected_types.len()-1].into_iter() {
+        for expected_type in expected_types[1..expected_types.len() - 1].into_iter() {
             expected_types_joined.push_str(&format!(", '{}'", expected_type));
         }
     }
-    expected_types_joined.push_str(&format!(" or '{}'", expected_types[expected_types.len()-1]));
+    expected_types_joined.push_str(&format!(
+        " or '{}'",
+        expected_types[expected_types.len() - 1]
+    ));
     expected_types_joined
 }
 
 impl DiagnosableError for CheckErrors {
-
     fn message(&self) -> String {
         match &self {
             CheckErrors::ExpectedLiteral => "expected a literal argument".into(),
@@ -374,6 +395,7 @@ impl DiagnosableError for CheckErrors {
             CheckErrors::TraitReferenceNotAllowed => format!("trait references can not be stored"),
             CheckErrors::ContractOfExpectsTrait => format!("trait reference expected"),
             CheckErrors::InvalidCharactersDetected => format!("invalid characters detected"),
+            CheckErrors::InvalidSecp65k1Signature => format!("invalid seckp256k1 signature"),
             CheckErrors::TypeAlreadyAnnotatedFailure | CheckErrors::CheckerImplementationFailure => {
                 format!("internal error - please file an issue on github.com/blockstack/blockstack-core")
             },
@@ -382,11 +404,19 @@ impl DiagnosableError for CheckErrors {
 
     fn suggestion(&self) -> Option<String> {
         match &self {
-            CheckErrors::BadSyntaxBinding => Some(format!("binding syntax example: ((supply int) (ttl int))")),
-            CheckErrors::BadLetSyntax => Some(format!("'let' syntax example: (let ((supply 1000) (ttl 60)) <next-expression>)")),
-            CheckErrors::TraitReferenceUnknown(_) => Some(format!("traits should be either defined, with define-trait, or imported, with use-trait.")),
-            CheckErrors::NoSuchBlockInfoProperty(_) => Some(format!("properties available: time, header-hash, burnchain-header-hash, vrf-seed")),
-            _ => None
+            CheckErrors::BadSyntaxBinding => {
+                Some(format!("binding syntax example: ((supply int) (ttl int))"))
+            }
+            CheckErrors::BadLetSyntax => Some(format!(
+                "'let' syntax example: (let ((supply 1000) (ttl 60)) <next-expression>)"
+            )),
+            CheckErrors::TraitReferenceUnknown(_) => Some(format!(
+                "traits should be either defined, with define-trait, or imported, with use-trait."
+            )),
+            CheckErrors::NoSuchBlockInfoProperty(_) => Some(format!(
+                "properties available: time, header-hash, burnchain-header-hash, vrf-seed"
+            )),
+            _ => None,
         }
     }
 }

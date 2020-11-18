@@ -1,12 +1,32 @@
-pub mod marf;
-pub mod datastore;
-mod structures;
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 mod clarity_db;
 mod key_value_wrapper;
+pub mod marf;
+mod sqlite;
+mod structures;
+
 use std::collections::HashMap;
 
+pub use self::clarity_db::{
+    BurnStateDB, ClarityDatabase, HeadersDB, NULL_BURN_STATE_DB, NULL_HEADER_DB,
+    STORE_CONTRACT_SRC_INTERFACE,
+};
 pub use self::key_value_wrapper::{RollbackWrapper, RollbackWrapperPersistedLog};
-pub use self::clarity_db::{ClarityDatabase, HeadersDB, NULL_HEADER_DB, STORE_CONTRACT_SRC_INTERFACE};
-pub use self::structures::{ClaritySerializable, ClarityDeserializable};
-pub use self::marf::{ClarityBackingStore};
-pub use self::datastore::Datastore;
+pub use self::marf::{ClarityBackingStore, MarfedKV, MemoryBackingStore};
+pub use self::sqlite::SqliteConnection;
+pub use self::structures::{ClarityDeserializable, ClaritySerializable, STXBalance};

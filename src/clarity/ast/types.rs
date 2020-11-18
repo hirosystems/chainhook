@@ -1,11 +1,26 @@
-use std::collections::{HashSet, HashMap};
-use crate::clarity::{ClarityName};
-use crate::clarity::types::signatures::FunctionSignature;
-use crate::clarity::representations::{SymbolicExpression, PreSymbolicExpression, TraitDefinition};
-use crate::clarity::ast::errors::{ParseResult};
-use crate::clarity::types::{QualifiedContractIdentifier, TraitIdentifier};
-use serde::{Serialize, Deserialize};
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use std::collections::{HashMap, HashSet};
 use std::vec::Drain;
+use crate::clarity::ast::errors::ParseResult;
+use crate::clarity::representations::{PreSymbolicExpression, SymbolicExpression, TraitDefinition};
+use crate::clarity::types::signatures::FunctionSignature;
+use crate::clarity::types::{QualifiedContractIdentifier, TraitIdentifier};
+use crate::clarity::ClarityName;
 
 pub trait BuildASTPass {
     fn run_pass(contract_ast: &mut ContractAST) -> ParseResult<()>;
@@ -22,7 +37,10 @@ pub struct ContractAST {
 }
 
 impl ContractAST {
-    pub fn new(contract_identifier: QualifiedContractIdentifier, pre_expressions: Vec<PreSymbolicExpression>) -> ContractAST {
+    pub fn new(
+        contract_identifier: QualifiedContractIdentifier,
+        pre_expressions: Vec<PreSymbolicExpression>,
+    ) -> ContractAST {
         ContractAST {
             contract_identifier,
             pre_expressions,
@@ -36,7 +54,7 @@ impl ContractAST {
     pub fn pre_expressions_drain(&mut self) -> PreExpressionsDrain {
         let sorting = match self.top_level_expression_sorting {
             Some(ref exprs_ids) => Some(exprs_ids[..].to_vec()),
-            None => None
+            None => None,
         };
 
         PreExpressionsDrain::new(self.pre_expressions.drain(..), sorting)
@@ -90,7 +108,7 @@ impl Iterator for PreExpressionsDrain {
         }
         let expr_index = match self.sorting {
             Some(ref indirections) => indirections[self.index],
-            None => self.index
+            None => self.index,
         };
         let result = self.pre_expressions.remove(&expr_index);
         self.index += 1;

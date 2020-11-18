@@ -1,27 +1,46 @@
-use std::fmt;
+// Copyright (C) 2013-2020 Blocstack PBC, a public benefit corporation
+// Copyright (C) 2020 Stacks Open Internet Foundation
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use chainstate::burn::BlockHeaderHash;
+use chainstate::stacks::index::Error as MarfError;
+use rusqlite::Error as SqliteError;
+use serde_json::Error as SerdeJSONErr;
 use std::error;
-use crate::clarity::ast::errors::ParseError;
-pub use crate::clarity::analysis::errors::{CheckErrors};
+use std::fmt;
+pub use crate::clarity::analysis::errors::CheckErrors;
 pub use crate::clarity::analysis::errors::{check_argument_count, check_arguments_at_least};
-use crate::clarity::types::{Value, TypeSignature};
+use crate::clarity::ast::errors::ParseError;
 use crate::clarity::contexts::StackTrace;
 use crate::clarity::costs::CostErrors;
-use serde_json::Error as SerdeJSONErr;
+use crate::clarity::types::{TypeSignature, Value};
 
 #[derive(Debug)]
 pub struct IncomparableError<T> {
-    pub err: T
+    pub err: T,
 }
 
 #[derive(Debug)]
 pub enum Error {
-/// UncheckedErrors are errors that *should* be caught by the
-///   TypeChecker and other check passes. Test executions may
-///   trigger these errors.
+    /// UncheckedErrors are errors that *should* be caught by the
+    ///   TypeChecker and other check passes. Test executions may
+    ///   trigger these errors.
     Unchecked(CheckErrors),
     Interpreter(InterpreterError),
     Runtime(RuntimeErrorType, Option<StackTrace>),
-    ShortReturn(ShortReturnType)
+    ShortReturn(ShortReturnType),
 }
 
 /// InterpreterErrors are errors that *should never* occur.
@@ -34,12 +53,14 @@ pub enum InterpreterError {
     UninitializedPersistedVariable,
     FailedToConstructAssetTable,
     FailedToConstructEventBatch,
+    SqliteError(IncomparableError<SqliteError>),
     BadFileName,
     FailedToCreateDataDirectory,
+    MarfFailure(IncomparableError<MarfError>),
     FailureConstructingTupleWithType,
     FailureConstructingListWithType,
+    InsufficientBalance,
 }
-
 
 /// RuntimeErrors are errors that smart contracts are expected
 ///   to be able to trigger during execution (e.g., arithmetic errors)
@@ -68,7 +89,7 @@ pub enum RuntimeErrorType {
     JSONParseError(IncomparableError<SerdeJSONErr>),
     AttemptToFetchInTransientContext,
     BadNameValue(&'static str, String),
-    UnknownBlockHeaderHash,
+    UnknownBlockHeaderHash(BlockHeaderHash),
     BadBlockHash(Vec<u8>),
     UnwrapFailure,
 }
@@ -79,11 +100,11 @@ pub enum ShortReturnType {
     AssertionFailed(Value),
 }
 
-pub type InterpreterResult <R> = Result<R, Error>;
+pub type InterpreterResult<R> = Result<R, Error>;
 
-impl <T> PartialEq<IncomparableError<T>> for IncomparableError<T> {
+impl<T> PartialEq<IncomparableError<T>> for IncomparableError<T> {
     fn eq(&self, _other: &IncomparableError<T>) -> bool {
-        return false
+        return false;
     }
 }
 
@@ -94,7 +115,7 @@ impl PartialEq<Error> for Error {
             (Error::Unchecked(x), Error::Unchecked(y)) => x == y,
             (Error::ShortReturn(x), Error::ShortReturn(y)) => x == y,
             (Error::Interpreter(x), Error::Interpreter(y)) => x == y,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -104,7 +125,7 @@ impl fmt::Display for Error {
         match self {
             Error::Runtime(ref err, ref stack) => {
                 match err {
-                    _ =>  write!(f, "{}", err)
+                    _ => write!(f, "{}", err),
                 }?;
 
                 if let Some(ref stack_trace) = stack {
@@ -114,8 +135,8 @@ impl fmt::Display for Error {
                     }
                 }
                 Ok(())
-            },
-            _ =>  write!(f, "{:?}", self)
+            }
+            _ => write!(f, "{:?}", self),
         }
     }
 }
@@ -184,7 +205,40 @@ impl Into<Value> for ShortReturnType {
     fn into(self) -> Value {
         match self {
             ShortReturnType::ExpectedValue(v) => v,
-            ShortReturnType::AssertionFailed(v) => v
+            ShortReturnType::AssertionFailed(v) => v,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::clarity::execute;
+
+    #[test]
+    fn error_formats() {
+        let t = "(/ 10 0)";
+        let expected = "DivisionByZero
+ Stack Trace: 
+_native_:native_div
+";
+
+        assert_eq!(format!("{}", execute(t).unwrap_err()), expected);
+    }
+
+    #[test]
+    fn equality() {
+        assert_eq!(
+            Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Bool(true))),
+            Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Bool(true)))
+        );
+        assert_eq!(
+            Error::Interpreter(InterpreterError::InterpreterError("".to_string())),
+            Error::Interpreter(InterpreterError::InterpreterError("".to_string()))
+        );
+        assert!(
+            Error::ShortReturn(ShortReturnType::ExpectedValue(Value::Bool(true)))
+                != Error::Interpreter(InterpreterError::InterpreterError("".to_string()))
+        );
     }
 }
