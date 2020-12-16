@@ -1,7 +1,7 @@
 [package]
 name = "clarity-repl"
 description = "Clarity REPL"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Ludo Galabru <ludovic@galabru.com>"]
 readme = "README.md"
 edition = "2018"
@@ -23,7 +23,7 @@ sha3 = "0.8.2"
 serde_derive = "1.0"
 ripemd160 = "0.8.0"
 integer-sqrt = "0.1.3"
-secp256k1 = { version = "0.19.0", features = ["serde", "recovery"] }
+libsecp256k1 = "0.3.5"
 
 # CLI
 pico-args = { version = "0.3.1", optional = true }
@@ -34,7 +34,11 @@ wasm-bindgen = { version = "0.2", optional = true }
 [lib]
 name = "clarity_repl"
 path = "src/lib.rs"
-crate-type = ["lib"]
+# Default type
+# crate-type = ["lib"]
+
+# Use this instead for WASM builds
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "clarity-repl"

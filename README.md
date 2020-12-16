@@ -45,7 +45,6 @@ You can then run the REPL with the command:
 clarity-repl
 ```
 
-
 ### Building the WASM library
 
 ```bash
@@ -53,19 +52,20 @@ cargo install wasm-pack
 wasm-pack build --target web --release -- --no-default-features --features wasm
 ```
 
-
 ## Initial feature set
+
 - [x] Eval clarity expressions (arithmetic, logic, hash functions)
 - [x] Display formatted errors
 - [x] Ability to produce WASM builds
 - [x] Full support of persisted data (define-map, define-data-var, define-fungible-token, define-non-fungible-token)
 
 ## Additional desired features (not exhaustive, not prioritized)
+
 - [x] Display documentation
 - [ ] Display cost analysis
 - [ ] Display events
 - [x] Save snippets as contracts that can be `contract-call?` when public functions or traits are detected
-- [ ] Ability to seed stx balances
+- [x] Ability to seed stx balances
 - [x] Test WASM builds in browser
 - [x] Ability to write Clarity contracts in Jupyter notebooks
 - [ ] Easier installation (via brew, etc)
