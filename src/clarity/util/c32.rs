@@ -17,8 +17,8 @@
  along with Blockstack. If not, see <http://www.gnu.org/licenses/>.
 */
 
-use sha2::Sha256;
 use sha2::Digest;
+use sha2::Sha256;
 
 const C32_CHARACTERS: &str = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -38,7 +38,7 @@ pub enum Error {
     /// Checked data was less than 4 bytes
     TooShort(usize),
     /// Any other error
-    Other(String)
+    Other(String),
 }
 
 fn c32_encode(input_bytes: &[u8]) -> String {
@@ -50,14 +50,14 @@ fn c32_encode(input_bytes: &[u8]) -> String {
 
     for current_value in input_bytes.iter().rev() {
         let low_bits_to_take = 5 - carry_bits;
-        let low_bits = current_value & ((1<<low_bits_to_take) - 1);
+        let low_bits = current_value & ((1 << low_bits_to_take) - 1);
         let c32_value = (low_bits << carry_bits) + carry;
         result.push(c32_chars[c32_value as usize]);
         carry_bits = (8 + carry_bits) - 5;
         carry = current_value >> (8 - carry_bits);
 
         if carry_bits >= 5 {
-            let c32_value = carry & ((1<<5) - 1);
+            let c32_value = carry & ((1 << 5) - 1);
             result.push(c32_chars[c32_value as usize]);
             carry_bits = carry_bits - 5;
             carry = carry >> 5;
@@ -90,7 +90,7 @@ fn c32_encode(input_bytes: &[u8]) -> String {
 }
 
 fn c32_normalize(input_str: &str) -> String {
-    let norm_str : String = input_str
+    let norm_str: String = input_str
         .to_uppercase()
         .replace("O", "0")
         .replace("L", "1")
@@ -104,13 +104,13 @@ fn c32_decode(input_str: &str) -> Result<Vec<u8>, Error> {
     let mut carry: u16 = 0;
     let mut carry_bits = 0; // can be up to 5
 
-    let iter_c32_digits_opts : Vec<Option<usize>> = c32_normalize(input_str)
+    let iter_c32_digits_opts: Vec<Option<usize>> = c32_normalize(input_str)
         .chars()
         .rev()
-        .map(|x| { C32_CHARACTERS.find(x) })
+        .map(|x| C32_CHARACTERS.find(x))
         .collect();
 
-    let iter_c32_digits : Vec<usize> = iter_c32_digits_opts
+    let iter_c32_digits: Vec<usize> = iter_c32_digits_opts
         .iter()
         .filter_map(|x| x.as_ref())
         .map(|ref_x| *ref_x)
@@ -126,7 +126,7 @@ fn c32_decode(input_str: &str) -> Result<Vec<u8>, Error> {
         carry_bits += 5;
 
         if carry_bits >= 8 {
-            result.push((carry & ((1<<8) - 1)) as u8);
+            result.push((carry & ((1 << 8) - 1)) as u8);
             carry_bits -= 8;
             carry = carry >> 8;
         }
@@ -174,7 +174,7 @@ fn double_sha256_checksum(data: &[u8]) -> Vec<u8> {
 
 fn c32_check_encode(version: u8, data: &[u8]) -> Result<String, Error> {
     if version >= 32 {
-        return Err(Error::InvalidVersion(version))
+        return Err(Error::InvalidVersion(version));
     }
 
     let mut check_data = vec![version];
@@ -194,15 +194,15 @@ fn c32_check_encode(version: u8, data: &[u8]) -> Result<String, Error> {
 
 fn c32_check_decode(check_data_unsanitized: &str) -> Result<(u8, Vec<u8>), Error> {
     if check_data_unsanitized.len() < 2 {
-        return Err(Error::InvalidCrockford32)
+        return Err(Error::InvalidCrockford32);
     }
-    
+
     let check_data = c32_normalize(check_data_unsanitized);
     let (version, data) = check_data.split_at(1);
 
     let data_sum_bytes = c32_decode(data)?;
     if data_sum_bytes.len() < 5 {
-        return Err(Error::InvalidCrockford32)
+        return Err(Error::InvalidCrockford32);
     }
 
     let (data_bytes, expected_sum) = data_sum_bytes.split_at(data_sum_bytes.len() - 4);
@@ -212,17 +212,15 @@ fn c32_check_decode(check_data_unsanitized: &str) -> Result<(u8, Vec<u8>), Error
 
     let computed_sum = double_sha256_checksum(&check_data);
     if computed_sum != expected_sum {
-        let computed_sum_u32 = 
-            (computed_sum[0] as u32) |
-            ((computed_sum[1] as u32) << 8) |
-            ((computed_sum[2] as u32) << 16) |
-            ((computed_sum[3] as u32) << 24);
+        let computed_sum_u32 = (computed_sum[0] as u32)
+            | ((computed_sum[1] as u32) << 8)
+            | ((computed_sum[2] as u32) << 16)
+            | ((computed_sum[3] as u32) << 24);
 
-        let expected_sum_u32 = 
-            (expected_sum[0] as u32) |
-            ((expected_sum[1] as u32) << 8) |
-            ((expected_sum[2] as u32) << 16) |
-            ((expected_sum[3] as u32) << 24);
+        let expected_sum_u32 = (expected_sum[0] as u32)
+            | ((expected_sum[1] as u32) << 8)
+            | ((expected_sum[2] as u32) << 16)
+            | ((expected_sum[3] as u32) << 24);
 
         return Err(Error::BadChecksum(computed_sum_u32, expected_sum_u32));
     }

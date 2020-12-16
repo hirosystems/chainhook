@@ -17,8 +17,8 @@
  along with Blockstack. If not, see <http://www.gnu.org/licenses/>.
 */
 
-use std::io::prelude::*;
 use std::io;
+use std::io::prelude::*;
 use std::io::{Read, Write};
 
 use super::hash::to_hex;
@@ -28,7 +28,7 @@ use super::hash::to_hex;
 pub struct RetryReader<'a, R: Read> {
     fd: &'a mut R,
     buf: Vec<u8>,
-    i: usize
+    i: usize,
 }
 
 impl<'a, R: Read> RetryReader<'a, R> {
@@ -36,15 +36,14 @@ impl<'a, R: Read> RetryReader<'a, R> {
         RetryReader {
             fd: fd,
             buf: vec![],
-            i: 0
+            i: 0,
         }
     }
 
     pub fn set_position(&mut self, offset: usize) -> () {
         if offset <= self.buf.len() {
             self.i = offset
-        }
-        else {
+        } else {
             self.i = self.buf.len()
         }
     }
@@ -63,17 +62,15 @@ impl<'a, R: Read> RetryReader<'a, R> {
 
 impl<'a, R: Read> Read for RetryReader<'a, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let nr_buf = 
-            if self.i < self.buf.len() {
-                // consume from inner buffer
-                let bytes_copied = (&self.buf[self.i..]).read(buf)?;
-                self.i += bytes_copied;
-                bytes_copied
-            }
-            else {
-                0
-            };
-        
+        let nr_buf = if self.i < self.buf.len() {
+            // consume from inner buffer
+            let bytes_copied = (&self.buf[self.i..]).read(buf)?;
+            self.i += bytes_copied;
+            bytes_copied
+        } else {
+            0
+        };
+
         let nr = self.read_and_buffer(&mut buf[nr_buf..])?;
         Ok(nr + nr_buf)
     }
@@ -83,7 +80,7 @@ impl<'a, R: Read> Read for RetryReader<'a, R> {
 pub struct BoundReader<'a, R: Read> {
     fd: &'a mut R,
     max_len: u64,
-    read_so_far: u64
+    read_so_far: u64,
 }
 
 impl<'a, R: Read> BoundReader<'a, R> {
@@ -91,7 +88,7 @@ impl<'a, R: Read> BoundReader<'a, R> {
         BoundReader {
             fd: reader,
             max_len: max_len,
-            read_so_far: 0
+            read_so_far: 0,
         }
     }
 
@@ -100,17 +97,19 @@ impl<'a, R: Read> BoundReader<'a, R> {
     }
 }
 
-impl <'a, R: Read> Read for BoundReader<'a, R> {
+impl<'a, R: Read> Read for BoundReader<'a, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let intended_read = self.read_so_far.checked_add(buf.len() as u64)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Read would overflow u64".to_string()))?;
-        let max_read = 
-            if intended_read > self.max_len {
-                self.max_len - self.read_so_far
-            }
-            else {
-                buf.len() as u64
-            };
+        let intended_read = self
+            .read_so_far
+            .checked_add(buf.len() as u64)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::Other, "Read would overflow u64".to_string())
+            })?;
+        let max_read = if intended_read > self.max_len {
+            self.max_len - self.read_so_far
+        } else {
+            buf.len() as u64
+        };
 
         let nr = self.fd.read(&mut buf[0..(max_read as usize)])?;
         self.read_so_far += nr as u64;
@@ -121,14 +120,14 @@ impl <'a, R: Read> Read for BoundReader<'a, R> {
 /// A Read that will log everything it reads
 pub struct LogReader<'a, R: Read> {
     fd: &'a mut R,
-    reads: Vec<Vec<u8>>
+    reads: Vec<Vec<u8>>,
 }
 
-impl <'a, R: Read> LogReader<'a, R> {
+impl<'a, R: Read> LogReader<'a, R> {
     pub fn from_reader(fd: &'a mut R) -> LogReader<'a, R> {
         LogReader {
             fd: fd,
-            reads: vec![]
+            reads: vec![],
         }
     }
 
@@ -137,7 +136,7 @@ impl <'a, R: Read> LogReader<'a, R> {
     }
 }
 
-impl <'a, R: Read> Read for LogReader<'a, R> {
+impl<'a, R: Read> Read for LogReader<'a, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let nr = self.fd.read(buf)?;
         let read = buf[0..nr].to_vec();
@@ -152,14 +151,14 @@ mod test {
 
     #[test]
     fn test_retry_reader() {
-        let buf = vec![1,1,1,2,2,2,3,3,3,4,4,4];
+        let buf = vec![1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4];
         let mut cursor = io::Cursor::new(&buf);
         let mut retry_reader = RetryReader::new(&mut cursor);
 
         let mut empty_buf = [];
         let nr = retry_reader.read(&mut empty_buf).unwrap();
         assert_eq!(nr, 0);
-        
+
         for i in 1..5 {
             let mut read_buf = [0u8; 3];
             retry_reader.read_exact(&mut read_buf).unwrap();
@@ -170,28 +169,33 @@ mod test {
         let e = retry_reader.read_exact(&mut tmp_buf);
         let e_str = format!("{:?}", &e);
         assert!(e.is_err(), e_str);
-        assert!(format!("{:?}", &e.unwrap_err()).find("failed to fill whole buffer").is_some(), e_str);
-        
+        assert!(
+            format!("{:?}", &e.unwrap_err())
+                .find("failed to fill whole buffer")
+                .is_some(),
+            e_str
+        );
+
         let res = retry_reader.read(&mut tmp_buf);
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), 0);
 
         retry_reader.set_position(0);
-        
+
         for i in 1..5 {
             let mut read_buf = [0u8; 3];
             retry_reader.read_exact(&mut read_buf).unwrap();
             assert_eq!(read_buf, [i as u8, i as u8, i as u8]);
         }
     }
-    
+
     #[test]
     fn test_bound_reader() {
         let tests = [
             ("aaaaaaaaaa", 10, "aaaaaaaaaa"),
-            ("bbbbbbbbbb", 9,  "bbbbbbbbb"),
-            ("cccccccccc", 1,  "c"),
-            ("dddddddddd", 0,  ""),
+            ("bbbbbbbbbb", 9, "bbbbbbbbb"),
+            ("cccccccccc", 1, "c"),
+            ("dddddddddd", 0, ""),
         ];
 
         // read_to_end
@@ -215,7 +219,7 @@ mod test {
             let mut cursor = io::Cursor::new(data.as_bytes());
             let mut reader = BoundReader::from_reader(&mut cursor, *len as u64);
             let mut buf = vec![];
-            
+
             for i in 0..*len {
                 let mut tmp = [0u8; 1];
                 let nr = reader.read(&mut tmp).unwrap();
@@ -233,5 +237,4 @@ mod test {
             assert_eq!(buf2, vec![0u8; *len]);
         }
     }
-
 }

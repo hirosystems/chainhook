@@ -1,19 +1,15 @@
-use super::types::{
-    Value,
-    PrincipalData,
-    StandardPrincipalData,
-    QualifiedContractIdentifier,
-    AssetIdentifier
-};
-use super::costs::ExecutionCost;
 use super::analysis::ContractAnalysis;
+use super::costs::ExecutionCost;
+use super::types::{
+    AssetIdentifier, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
+};
 #[derive(Debug, Clone, PartialEq)]
 pub struct StacksTransactionReceipt {
     pub events: Vec<StacksTransactionEvent>,
     pub result: Value,
     pub stx_burned: u128,
     pub contract_analysis: Option<ContractAnalysis>,
-    pub execution_cost: ExecutionCost
+    pub execution_cost: ExecutionCost,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,7 +21,6 @@ pub enum StacksTransactionEvent {
 }
 
 impl StacksTransactionEvent {
-
     pub fn json_serialize(&self) -> serde_json::Value {
         match self {
             StacksTransactionEvent::SmartContractEvent(event_data) => json!({
@@ -44,6 +39,10 @@ impl StacksTransactionEvent {
                 "type": "stx_burn_event",
                 "stx_burn_event": event_data.json_serialize()
             }),
+            StacksTransactionEvent::STXEvent(STXEventType::STXLockEvent(event_data)) => json!({
+                "type": "stx_lock_event",
+                "stx_lock_event": event_data.json_serialize()
+            }),
             StacksTransactionEvent::NFTEvent(NFTEventType::NFTTransferEvent(event_data)) => json!({
                 "type": "nft_transfer_event",
                 "nft_transfer_event": event_data.json_serialize()
@@ -51,6 +50,10 @@ impl StacksTransactionEvent {
             StacksTransactionEvent::NFTEvent(NFTEventType::NFTMintEvent(event_data)) => json!({
                 "type": "nft_mint_event",
                 "nft_mint_event": event_data.json_serialize()
+            }),
+            StacksTransactionEvent::NFTEvent(NFTEventType::NFTBurnEvent(event_data)) => json!({
+                "type": "nft_burn_event",
+                "nft_burn_event": event_data.json_serialize()
             }),
             StacksTransactionEvent::FTEvent(FTEventType::FTTransferEvent(event_data)) => json!({
                 "type": "ft_transfer_event",
@@ -60,6 +63,10 @@ impl StacksTransactionEvent {
                 "type": "ft_mint_event",
                 "ft_mint_event": event_data.json_serialize()
             }),
+            StacksTransactionEvent::FTEvent(FTEventType::FTBurnEvent(event_data)) => json!({
+                "type": "ft_burn_event",
+                "ft_burn_event": event_data.json_serialize()
+            }),
         }
     }
 }
@@ -68,19 +75,22 @@ impl StacksTransactionEvent {
 pub enum STXEventType {
     STXTransferEvent(STXTransferEventData),
     STXMintEvent(STXMintEventData),
-    STXBurnEvent(STXBurnEventData)
+    STXBurnEvent(STXBurnEventData),
+    STXLockEvent(STXLockEventData),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NFTEventType {
     NFTTransferEvent(NFTTransferEventData),
     NFTMintEvent(NFTMintEventData),
+    NFTBurnEvent(NFTBurnEventData),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FTEventType {
     FTTransferEvent(FTTransferEventData),
     FTMintEvent(FTMintEventData),
+    FTBurnEvent(FTBurnEventData),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -116,6 +126,23 @@ impl STXMintEventData {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct STXLockEventData {
+    pub locked_amount: u128,
+    pub unlock_height: u64,
+    pub locked_address: PrincipalData,
+}
+
+impl STXLockEventData {
+    pub fn json_serialize(&self) -> serde_json::Value {
+        json!({
+            "locked_amount": format!("{}",self.locked_amount),
+            "unlock_height": format!("{}", self.unlock_height),
+            "locked_address": format!("{}", self.locked_address),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct STXBurnEventData {
     pub sender: PrincipalData,
     pub amount: u128,
@@ -124,7 +151,7 @@ pub struct STXBurnEventData {
 impl STXBurnEventData {
     pub fn json_serialize(&self) -> serde_json::Value {
         json!({
-            "sender": format!("{}",self.sender),
+            "sender": format!("{}", self.sender),
             "amount": format!("{}", self.amount),
         })
     }
@@ -167,6 +194,23 @@ impl NFTMintEventData {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct NFTBurnEventData {
+    pub asset_identifier: AssetIdentifier,
+    pub sender: PrincipalData,
+    pub value: Value,
+}
+
+impl NFTBurnEventData {
+    pub fn json_serialize(&self) -> serde_json::Value {
+        json!({
+            "asset_identifier": format!("{}", self.asset_identifier),
+            "sender": format!("{}",self.sender),
+            "value": self.value,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FTTransferEventData {
     pub asset_identifier: AssetIdentifier,
     pub sender: PrincipalData,
@@ -197,6 +241,23 @@ impl FTMintEventData {
         json!({
             "asset_identifier": format!("{}", self.asset_identifier),
             "recipient": format!("{}",self.recipient),
+            "amount": format!("{}", self.amount),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FTBurnEventData {
+    pub asset_identifier: AssetIdentifier,
+    pub sender: PrincipalData,
+    pub amount: u128,
+}
+
+impl FTBurnEventData {
+    pub fn json_serialize(&self) -> serde_json::Value {
+        json!({
+            "asset_identifier": format!("{}", self.asset_identifier),
+            "sender": format!("{}",self.sender),
             "amount": format!("{}", self.amount),
         })
     }

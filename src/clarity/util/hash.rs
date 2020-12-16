@@ -17,10 +17,10 @@
  along with Blockstack. If not, see <http://www.gnu.org/licenses/>.
 */
 
-use super::HexError;
 use super::pair::*;
+use super::HexError;
 use ripemd160::Ripemd160;
-use sha2::{Sha256, Sha512, Sha512Trunc256, Digest};
+use sha2::{Digest, Sha256, Sha512, Sha512Trunc256};
 use sha3::Keccak256;
 
 // borrowed from Andrew Poelstra's rust-bitcoin library
@@ -29,26 +29,30 @@ pub fn hex_bytes(s: &str) -> Result<Vec<u8>, HexError> {
     let mut v = vec![];
     let mut iter = s.chars().pair();
     // Do the parsing
-    iter.by_ref().fold(Ok(()), |e, (f, s)| 
-        if e.is_err() { e }
-        else {
+    iter.by_ref().fold(Ok(()), |e, (f, s)| {
+        if e.is_err() {
+            e
+        } else {
             match (f.to_digit(16), s.to_digit(16)) {
                 (None, _) => Err(HexError::BadCharacter(f)),
                 (_, None) => Err(HexError::BadCharacter(s)),
-                (Some(f), Some(s)) => { v.push((f * 0x10 + s) as u8); Ok(()) }
+                (Some(f), Some(s)) => {
+                    v.push((f * 0x10 + s) as u8);
+                    Ok(())
+                }
             }
         }
-    )?;
+    })?;
     // Check that there was no remainder
     match iter.remainder() {
         Some(_) => Err(HexError::BadLength(s.len())),
-        None => Ok(v)
+        None => Ok(v),
     }
 }
 
 /// Convert a slice of u8 to a hex string
 pub fn to_hex(s: &[u8]) -> String {
-    let r : Vec<String> = s.to_vec().iter().map(|b| format!("{:02x}", b)).collect();
+    let r: Vec<String> = s.to_vec().iter().map(|b| format!("{:02x}", b)).collect();
     return r.join("");
 }
 
@@ -57,42 +61,35 @@ pub fn bytes_to_hex(s: &Vec<u8>) -> String {
     to_hex(&s[..])
 }
 
-pub struct Hash160(
-    pub [u8; 20]);
+pub struct Hash160(pub [u8; 20]);
 impl_array_newtype!(Hash160, u8, 20);
 impl_array_hexstring_fmt!(Hash160);
 impl_byte_array_newtype!(Hash160, u8, 20);
 
-pub struct Keccak256Hash(
-    pub [u8; 32]);
+pub struct Keccak256Hash(pub [u8; 32]);
 impl_array_newtype!(Keccak256Hash, u8, 32);
 impl_array_hexstring_fmt!(Keccak256Hash);
 impl_byte_array_newtype!(Keccak256Hash, u8, 32);
 
-pub struct Sha256Sum(
-    pub [u8; 32]);
+pub struct Sha256Sum(pub [u8; 32]);
 impl_array_newtype!(Sha256Sum, u8, 32);
 impl_array_hexstring_fmt!(Sha256Sum);
 impl_byte_array_newtype!(Sha256Sum, u8, 32);
 
-pub struct Sha512Sum(
-    pub [u8; 64]);
+pub struct Sha512Sum(pub [u8; 64]);
 impl_array_newtype!(Sha512Sum, u8, 64);
 impl_array_hexstring_fmt!(Sha512Sum);
 impl_byte_array_newtype!(Sha512Sum, u8, 64);
 
-pub struct Sha512Trunc256Sum(
-    pub [u8; 32]);
+pub struct Sha512Trunc256Sum(pub [u8; 32]);
 impl_array_newtype!(Sha512Trunc256Sum, u8, 32);
 impl_array_hexstring_fmt!(Sha512Trunc256Sum);
 impl_byte_array_newtype!(Sha512Trunc256Sum, u8, 32);
 
-pub struct DoubleSha256(
-    pub [u8; 32]);
+pub struct DoubleSha256(pub [u8; 32]);
 impl_array_newtype!(DoubleSha256, u8, 32);
 impl_array_hexstring_fmt!(DoubleSha256);
 impl_byte_array_newtype!(DoubleSha256, u8, 32);
-
 
 impl Hash160 {
     pub fn from_sha256(sha256_hash: &[u8; 32]) -> Hash160 {
@@ -102,7 +99,7 @@ impl Hash160 {
         ret.copy_from_slice(rmd.result().as_slice());
         Hash160(ret)
     }
-    
+
     /// Create a hash by hashing some data
     /// (borrwed from Andrew Poelstra)
     pub fn from_data(data: &[u8]) -> Hash160 {
@@ -150,7 +147,7 @@ impl Sha256Sum {
 impl DoubleSha256 {
     pub fn from_data(data: &[u8]) -> DoubleSha256 {
         let mut tmp = [0u8; 32];
-        
+
         let mut sha2 = Sha256::new();
         sha2.input(data);
         tmp.copy_from_slice(sha2.result().as_slice());

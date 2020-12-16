@@ -17,8 +17,8 @@
  along with Blockstack. If not, see <http://www.gnu.org/licenses/>.
 */
 
-use std::cell::RefCell;
 use super::hash::hex_bytes;
+use std::cell::RefCell;
 
 // is this machine big-endian?
 pub fn is_big_endian() -> bool {
@@ -31,7 +31,7 @@ pub fn is_big_endian() -> bool {
 macro_rules! define_named_enum {
     ($Name:ident { $($Variant:ident($VarName:literal),)* }) =>
     {
-        #[derive(Debug)]
+        #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
         pub enum $Name {
             $($Variant),*,
         }
@@ -115,27 +115,37 @@ macro_rules! impl_array_newtype {
             #[inline]
             #[allow(dead_code)]
             /// Returns the length of the object as an array
-            pub fn len(&self) -> usize { $len }
+            pub fn len(&self) -> usize {
+                $len
+            }
 
             #[inline]
             #[allow(dead_code)]
             /// Returns whether the object, as an array, is empty. Always false.
-            pub fn is_empty(&self) -> bool { false }
+            pub fn is_empty(&self) -> bool {
+                false
+            }
 
             #[inline]
             #[allow(dead_code)]
             /// Returns the underlying bytes.
-            pub fn as_bytes(&self) -> &[$ty; $len] { &self.0 }
+            pub fn as_bytes(&self) -> &[$ty; $len] {
+                &self.0
+            }
 
             #[inline]
             #[allow(dead_code)]
             /// Returns the underlying bytes.
-            pub fn to_bytes(&self) -> [$ty; $len] { self.0.clone() }
+            pub fn to_bytes(&self) -> [$ty; $len] {
+                self.0.clone()
+            }
 
             #[inline]
             #[allow(dead_code)]
             /// Returns the underlying bytes.
-            pub fn into_bytes(self) -> [$ty; $len] { self.0 }
+            pub fn into_bytes(self) -> [$ty; $len] {
+                self.0
+            }
         }
 
         impl<'a> From<&'a [$ty]> for $thing {
@@ -183,8 +193,12 @@ macro_rules! impl_array_newtype {
                 // be ordered anyway except to put them in BTrees or whatever, and
                 // they don't care how we order as long as we're consisistent).
                 for i in 0..$len {
-                    if self[$len - 1 - i] < other[$len - 1 - i] { return ::std::cmp::Ordering::Less; }
-                    if self[$len - 1 - i] > other[$len - 1 - i] { return ::std::cmp::Ordering::Greater; }
+                    if self[$len - 1 - i] < other[$len - 1 - i] {
+                        return ::std::cmp::Ordering::Less;
+                    }
+                    if self[$len - 1 - i] > other[$len - 1 - i] {
+                        return ::std::cmp::Ordering::Greater;
+                    }
                 }
                 ::std::cmp::Ordering::Equal
             }
@@ -203,20 +217,22 @@ macro_rules! impl_array_newtype {
         impl ::std::hash::Hash for $thing {
             #[inline]
             fn hash<H>(&self, state: &mut H)
-                where H: ::std::hash::Hasher
+            where
+                H: ::std::hash::Hasher,
             {
                 (&self[..]).hash(state);
             }
 
             fn hash_slice<H>(data: &[$thing], state: &mut H)
-                where H: ::std::hash::Hasher
+            where
+                H: ::std::hash::Hasher,
             {
                 for d in data.iter() {
                     (&d[..]).hash(state);
                 }
             }
         }
-    }
+    };
 }
 
 macro_rules! impl_index_newtype {
@@ -256,7 +272,7 @@ macro_rules! impl_index_newtype {
                 &self.0[..]
             }
         }
-    }
+    };
 }
 
 macro_rules! impl_array_hexstring_fmt {
@@ -270,14 +286,14 @@ macro_rules! impl_array_hexstring_fmt {
                 Ok(())
             }
         }
-    }
+    };
 }
 
 #[allow(unused_macros)]
 macro_rules! impl_byte_array_newtype {
     ($thing:ident, $ty:ty, $len:expr) => {
         impl $thing {
-            /// Instantiates from a hex string 
+            /// Instantiates from a hex string
             #[allow(dead_code)]
             pub fn from_hex(hex_str: &str) -> Result<$thing, crate::clarity::util::HexError> {
                 use crate::clarity::util::hash::hex_bytes;
@@ -290,14 +306,12 @@ macro_rules! impl_byte_array_newtype {
                         let mut ret = [0; $len];
                         ret.copy_from_slice(&bytes);
                         Ok($thing(ret))
-                    },
-                    (_, Err(e)) => {
-                        Err(e)
                     }
+                    (_, Err(e)) => Err(e),
                 }
             }
-            
-            /// Instantiates from a slice of bytes 
+
+            /// Instantiates from a slice of bytes
             #[allow(dead_code)]
             pub fn from_bytes(inp: &[u8]) -> Option<$thing> {
                 match inp.len() {
@@ -305,8 +319,8 @@ macro_rules! impl_byte_array_newtype {
                         let mut ret = [0; $len];
                         ret.copy_from_slice(inp);
                         Some($thing(ret))
-                    },
-                    _ => None
+                    }
+                    _ => None,
                 }
             }
 
@@ -325,8 +339,8 @@ macro_rules! impl_byte_array_newtype {
                         let bytes = &inp[..inp.len()];
                         ret.copy_from_slice(&bytes);
                         Some($thing(ret))
-                    },
-                    _ => None
+                    }
+                    _ => None,
                 }
             }
 
@@ -343,11 +357,11 @@ macro_rules! impl_byte_array_newtype {
                         }
                         Some($thing(ret))
                     }
-                    _ => None
+                    _ => None,
                 }
             }
 
-            /// Convert to a hex string 
+            /// Convert to a hex string
             #[allow(dead_code)]
             pub fn to_hex(&self) -> String {
                 use crate::clarity::util::hash::to_hex;
@@ -369,7 +383,7 @@ macro_rules! impl_byte_array_newtype {
                 Self(o)
             }
         }
-    }
+    };
 }
 
 #[allow(unused_macros)]
@@ -388,7 +402,7 @@ macro_rules! impl_byte_array_serde {
                 $thing::from_hex(&inst_str).map_err(serde::de::Error::custom)
             }
         }
-    }
+    };
 }
 
 // print debug statements while testing
@@ -406,9 +420,9 @@ macro_rules! test_debug {
 }
 
 // enables/disables trace!() at compile-time
-pub const TRACE_ENABLED : bool = true;
+pub const TRACE_ENABLED: bool = true;
 
 pub fn is_trace() -> bool {
     use std::env;
-    TRACE_ENABLED && env::var("BLOCKSTACK_TRACE") == Ok("1".to_string()) 
+    TRACE_ENABLED && env::var("BLOCKSTACK_TRACE") == Ok("1".to_string())
 }

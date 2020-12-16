@@ -1,33 +1,33 @@
 use crate::clarity::analysis::AnalysisDatabase;
-use crate::clarity::types::{QualifiedContractIdentifier, PrincipalData};
-use crate::clarity::{ast, analysis};
-use crate::clarity::ast::ContractAST;
 use crate::clarity::analysis::ContractAnalysis;
+use crate::clarity::ast::ContractAST;
+use crate::clarity::contexts::{ContractContext, GlobalContext, OwnedEnvironment};
+use crate::clarity::contracts::Contract;
 use crate::clarity::costs::LimitedCostTracker;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
-use crate::clarity::contexts::{OwnedEnvironment, ContractContext, GlobalContext};
-use crate::clarity::contracts::Contract;
-use crate::clarity::eval_all;
 use crate::clarity::diagnostic::Diagnostic;
-use crate::clarity::util::{StacksAddress};
+use crate::clarity::eval_all;
+use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier};
+use crate::clarity::util::StacksAddress;
+use crate::clarity::{analysis, ast};
 
 #[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
-    datastore: Datastore
+    datastore: Datastore,
 }
 
 impl ClarityInterpreter {
-
     pub fn new() -> ClarityInterpreter {
         let datastore = Datastore::new();
 
-        ClarityInterpreter {
-            datastore
-        }
+        ClarityInterpreter { datastore }
     }
 
-    pub fn run(&mut self, snippet: String, contract_identifier: QualifiedContractIdentifier) -> Result<(bool, String), (String, Option<Diagnostic>)> {
-
+    pub fn run(
+        &mut self,
+        snippet: String,
+        contract_identifier: QualifiedContractIdentifier,
+    ) -> Result<(bool, String), (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
         let result = self.execute(contract_identifier, &mut ast, snippet, analysis)?;
@@ -39,7 +39,11 @@ impl ClarityInterpreter {
         Ok(result)
     }
 
-    pub fn build_ast(&mut self, contract_identifier: QualifiedContractIdentifier, snippet: String) -> Result<ContractAST, (String, Option<Diagnostic>)> {
+    pub fn build_ast(
+        &mut self,
+        contract_identifier: QualifiedContractIdentifier,
+        snippet: String,
+    ) -> Result<ContractAST, (String, Option<Diagnostic>)> {
         let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
             Ok(res) => res,
             Err(error) => {
@@ -50,17 +54,20 @@ impl ClarityInterpreter {
         Ok(contract_ast)
     }
 
-    pub fn run_analysis(&mut self, contract_identifier: QualifiedContractIdentifier, contract_ast: &mut ContractAST) -> Result<ContractAnalysis, (String, Option<Diagnostic>)> {
-
+    pub fn run_analysis(
+        &mut self,
+        contract_identifier: QualifiedContractIdentifier,
+        contract_ast: &mut ContractAST,
+    ) -> Result<ContractAnalysis, (String, Option<Diagnostic>)> {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
 
         let contract_analysis = match analysis::run_analysis(
-            &contract_identifier, 
+            &contract_identifier,
             &mut contract_ast.expressions,
-            &mut analysis_db, 
+            &mut analysis_db,
             false,
-            LimitedCostTracker::new_max_limit()) 
-        {
+            LimitedCostTracker::new_free(),
+        ) {
             Ok(res) => res,
             Err((error, cost_tracker)) => {
                 let message = format!("Analysis error: {}", error.diagnostic.message);
@@ -70,16 +77,21 @@ impl ClarityInterpreter {
         Ok(contract_analysis)
     }
 
-    pub fn execute(&mut self, contract_identifier: QualifiedContractIdentifier, contract_ast: &mut ContractAST, snippet: String, contract_analysis: ContractAnalysis) -> Result<(bool, String), (String, Option<Diagnostic>)> {
+    pub fn execute(
+        &mut self,
+        contract_identifier: QualifiedContractIdentifier,
+        contract_ast: &mut ContractAST,
+        snippet: String,
+        contract_analysis: ContractAnalysis,
+    ) -> Result<(bool, String), (String, Option<Diagnostic>)> {
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
 
-        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_max_limit());
+        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_free());
         global_context.begin();
 
-        let result = global_context.execute(|g| {
-            eval_all(&contract_ast.expressions, &mut contract_context, g)
-        });
+        let result = global_context
+            .execute(|g| eval_all(&contract_ast.expressions, &mut contract_context, g));
 
         let value = match result {
             Ok(Some(value)) => format!("{}", value),
@@ -90,7 +102,8 @@ impl ClarityInterpreter {
             }
         };
 
-        let contract_saved = contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
+        let contract_saved =
+            contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
 
         let mut contract_synopsis = vec![];
 
@@ -100,7 +113,9 @@ impl ClarityInterpreter {
                     continue;
                 }
 
-                let args: Vec<_> = defined_func.arguments.iter()
+                let args: Vec<_> = defined_func
+                    .arguments
+                    .iter()
                     .zip(defined_func.arg_types.iter())
                     .map(|(n, t)| format!("({} {})", n.as_str(), t))
                     .collect();
@@ -110,39 +125,50 @@ impl ClarityInterpreter {
                 contract_synopsis.push(func_sig);
             }
 
-            for defined_trait in contract_context.defined_traits.iter() {
+            for defined_trait in contract_context.defined_traits.iter() {}
 
-            }
-
-            global_context.database.insert_contract_hash(&contract_identifier, &snippet).unwrap();
+            global_context
+                .database
+                .insert_contract_hash(&contract_identifier, &snippet)
+                .unwrap();
             let contract = Contract { contract_context };
-            global_context.database.insert_contract(&contract_identifier, contract);
-            global_context.database.set_contract_data_size(
-                &contract_identifier, 0).unwrap();
+            global_context
+                .database
+                .insert_contract(&contract_identifier, contract);
+            global_context
+                .database
+                .set_contract_data_size(&contract_identifier, 0)
+                .unwrap();
         }
         global_context.commit().unwrap();
 
         if !contract_saved {
-            return Ok((false, format!("{}", value)))
+            return Ok((false, format!("{}", value)));
         }
 
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
         analysis_db.begin();
-        analysis_db.insert_contract(&contract_identifier, &contract_analysis).unwrap();
+        analysis_db
+            .insert_contract(&contract_identifier, &contract_analysis)
+            .unwrap();
         analysis_db.commit();
-        
+
         Ok((true, contract_synopsis.join("\n")))
     }
 
-    pub fn credit_stx_balance(&mut self, recipient: PrincipalData, amount: u64) -> Result<String, String> {
+    pub fn credit_stx_balance(
+        &mut self,
+        recipient: PrincipalData,
+        amount: u64,
+    ) -> Result<String, String> {
         let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
 
-        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_max_limit());
+        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_free());
         global_context.begin();
-        let cur_balance = global_context.database.get_account_stx_balance(&recipient);
-        let final_balance = cur_balance.checked_add(amount as u128).expect("FATAL: account balance overflow");
-        global_context.database.set_account_stx_balance(&recipient, final_balance as u128);
-
+        let mut cur_balance = global_context.database.get_stx_balance_snapshot(&recipient);
+        cur_balance.credit(amount as u128);
+        let final_balance = cur_balance.get_available_balance();
+        cur_balance.save();
         global_context.commit().unwrap();
 
         Ok(format!("→ {}: {} µSTX", recipient, final_balance))

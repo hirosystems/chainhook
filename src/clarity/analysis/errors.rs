@@ -1,11 +1,11 @@
+use crate::clarity::costs::{CostErrors, ExecutionCost};
+use crate::clarity::diagnostic::{DiagnosableError, Diagnostic};
 use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::diagnostic::{Diagnostic, DiagnosableError};
-use crate::clarity::types::{TypeSignature, TupleTypeSignature, Value};
-use crate::clarity::costs::{ExecutionCost, CostErrors};
+use crate::clarity::types::{TupleTypeSignature, TypeSignature, Value};
 use std::error;
 use std::fmt;
 
-pub type CheckResult <T> = Result<T, CheckError>;
+pub type CheckResult<T> = Result<T, CheckError>;
 
 #[derive(Debug, PartialEq)]
 pub enum CheckErrors {
@@ -13,6 +13,7 @@ pub enum CheckErrors {
     CostOverflow,
     CostBalanceExceeded(ExecutionCost, ExecutionCost),
     MemoryBalanceExceeded(u64, u64),
+    CostComputationFailed(String),
 
     ValueTooLarge,
     ValueOutOfBounds,
@@ -51,6 +52,7 @@ pub enum CheckErrors {
     ExpectedOptionalOrResponseValue(Value),
     CouldNotDetermineResponseOkType,
     CouldNotDetermineResponseErrType,
+    UncheckedIntermediaryResponses,
 
     CouldNotDetermineMatchTypes,
 
@@ -70,6 +72,7 @@ pub enum CheckErrors {
     BadTransferFTArguments,
     BadTransferNFTArguments,
     BadMintFTArguments,
+    BadBurnFTArguments,
 
     // tuples
     BadTupleFieldName,
@@ -151,8 +154,11 @@ pub enum CheckErrors {
     // strings
     InvalidCharactersDetected,
 
+    // secp256k1 signature
+    InvalidSecp65k1Signature,
+
     WriteAttemptedInReadOnly,
-    AtBlockClosureMustBeReadOnly
+    AtBlockClosureMustBeReadOnly,
 }
 
 #[derive(Debug, PartialEq)]
@@ -168,7 +174,7 @@ impl CheckError {
         CheckError {
             err,
             expressions: None,
-            diagnostic
+            diagnostic,
         }
     }
 
@@ -181,7 +187,7 @@ impl CheckError {
         self.expressions.replace(vec![expr.clone()]);
     }
 
-    pub fn set_expressions(&mut self, exprs: Vec<SymbolicExpression>) {
+    pub fn set_expressions(&mut self, exprs: &[SymbolicExpression]) {
         self.diagnostic.spans = exprs.iter().map(|e| e.span.clone()).collect();
         self.expressions.replace(exprs.clone().to_vec());
     }
@@ -196,7 +202,7 @@ impl fmt::Display for CheckErrors {
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.err {
-            _ =>  write!(f, "{}", self.err)
+            _ => write!(f, "{}", self.err),
         }?;
 
         if let Some(ref e) = self.expressions {
@@ -219,6 +225,10 @@ impl From<CostErrors> for CheckErrors {
             CostErrors::CostOverflow => CheckErrors::CostOverflow,
             CostErrors::CostBalanceExceeded(a, b) => CheckErrors::CostBalanceExceeded(a, b),
             CostErrors::MemoryBalanceExceeded(a, b) => CheckErrors::MemoryBalanceExceeded(a, b),
+            CostErrors::CostComputationFailed(s) => CheckErrors::CostComputationFailed(s),
+            CostErrors::CostContractLoadFailure => {
+                CheckErrors::CostComputationFailed("Failed to load cost contract".into())
+            }
         }
     }
 }
@@ -257,20 +267,22 @@ pub fn check_arguments_at_least<T>(expected: usize, args: &[T]) -> Result<(), Ch
     }
 }
 
-fn formatted_expected_types(expected_types: & Vec<TypeSignature>) -> String {
+fn formatted_expected_types(expected_types: &Vec<TypeSignature>) -> String {
     let mut expected_types_joined = format!("'{}'", expected_types[0]);
 
     if expected_types.len() > 2 {
-        for expected_type in expected_types[1..expected_types.len()-1].into_iter() {
+        for expected_type in expected_types[1..expected_types.len() - 1].into_iter() {
             expected_types_joined.push_str(&format!(", '{}'", expected_type));
         }
     }
-    expected_types_joined.push_str(&format!(" or '{}'", expected_types[expected_types.len()-1]));
+    expected_types_joined.push_str(&format!(
+        " or '{}'",
+        expected_types[expected_types.len() - 1]
+    ));
     expected_types_joined
 }
 
 impl DiagnosableError for CheckErrors {
-
     fn message(&self) -> String {
         match &self {
             CheckErrors::ExpectedLiteral => "expected a literal argument".into(),
@@ -321,7 +333,8 @@ impl DiagnosableError for CheckErrors {
             CheckErrors::BadTransferSTXArguments => format!("STX transfer expects an int amount, from principal, to principal"),
             CheckErrors::BadTransferFTArguments => format!("transfer expects an int amount, from principal, to principal"),
             CheckErrors::BadTransferNFTArguments => format!("transfer expects an asset, from principal, to principal"),
-            CheckErrors::BadMintFTArguments => format!("mint expects an int amount and from principal"),
+            CheckErrors::BadMintFTArguments => format!("mint expects a uint amount and from principal"),
+            CheckErrors::BadBurnFTArguments => format!("burn expects a uint amount and from principal"),
             CheckErrors::BadMapName => format!("invalid map name"),
             CheckErrors::NoSuchMap(map_name) => format!("use of unresolved map '{}'", map_name),
             CheckErrors::DefineFunctionBadSignature => format!("invalid function definition"),
@@ -374,19 +387,30 @@ impl DiagnosableError for CheckErrors {
             CheckErrors::TraitReferenceNotAllowed => format!("trait references can not be stored"),
             CheckErrors::ContractOfExpectsTrait => format!("trait reference expected"),
             CheckErrors::InvalidCharactersDetected => format!("invalid characters detected"),
+            CheckErrors::InvalidSecp65k1Signature => format!("invalid seckp256k1 signature"),
             CheckErrors::TypeAlreadyAnnotatedFailure | CheckErrors::CheckerImplementationFailure => {
                 format!("internal error - please file an issue on github.com/blockstack/blockstack-core")
             },
+            CheckErrors::UncheckedIntermediaryResponses => format!("intermediary responses in consecutive statements must be checked"),
+            CheckErrors::CostComputationFailed(s) => format!("contract cost computation failed: {}", s),
         }
     }
 
     fn suggestion(&self) -> Option<String> {
         match &self {
-            CheckErrors::BadSyntaxBinding => Some(format!("binding syntax example: ((supply int) (ttl int))")),
-            CheckErrors::BadLetSyntax => Some(format!("'let' syntax example: (let ((supply 1000) (ttl 60)) <next-expression>)")),
-            CheckErrors::TraitReferenceUnknown(_) => Some(format!("traits should be either defined, with define-trait, or imported, with use-trait.")),
-            CheckErrors::NoSuchBlockInfoProperty(_) => Some(format!("properties available: time, header-hash, burnchain-header-hash, vrf-seed")),
-            _ => None
+            CheckErrors::BadSyntaxBinding => {
+                Some(format!("binding syntax example: ((supply int) (ttl int))"))
+            }
+            CheckErrors::BadLetSyntax => Some(format!(
+                "'let' syntax example: (let ((supply 1000) (ttl 60)) <next-expression>)"
+            )),
+            CheckErrors::TraitReferenceUnknown(_) => Some(format!(
+                "traits should be either defined, with define-trait, or imported, with use-trait."
+            )),
+            CheckErrors::NoSuchBlockInfoProperty(_) => Some(format!(
+                "properties available: time, header-hash, burnchain-header-hash, vrf-seed"
+            )),
+            _ => None,
         }
     }
 }

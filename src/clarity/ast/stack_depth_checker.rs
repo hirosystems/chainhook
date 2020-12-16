@@ -1,7 +1,7 @@
-use crate::clarity::representations::{PreSymbolicExpression};
+use crate::clarity::ast::errors::{ParseError, ParseErrors, ParseResult};
+use crate::clarity::ast::types::{BuildASTPass, ContractAST};
+use crate::clarity::representations::PreSymbolicExpression;
 use crate::clarity::representations::PreSymbolicExpressionType::List;
-use crate::clarity::ast::types::{ContractAST, BuildASTPass};
-use crate::clarity::ast::errors::{ParseResult, ParseErrors, ParseError};
 
 use crate::clarity::MAX_CALL_STACK_DEPTH;
 
@@ -16,14 +16,12 @@ fn check(args: &[PreSymbolicExpression], depth: u64) -> ParseResult<()> {
     }
     for expression in args.iter() {
         match expression.pre_expr {
-            List(ref exprs) => {
-                check(exprs, depth + 1)
-            },
+            List(ref exprs) => check(exprs, depth + 1),
             _ => {
                 // Other symbolic expressions don't have depth
                 //  impacts.
                 Ok(())
-            },
+            }
         }?;
     }
     Ok(())

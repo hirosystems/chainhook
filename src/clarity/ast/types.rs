@@ -1,17 +1,17 @@
-use std::collections::{HashSet, HashMap};
-use crate::clarity::{ClarityName};
+use crate::clarity::ast::errors::ParseResult;
+use crate::clarity::representations::{PreSymbolicExpression, SymbolicExpression, TraitDefinition};
 use crate::clarity::types::signatures::FunctionSignature;
-use crate::clarity::representations::{SymbolicExpression, PreSymbolicExpression, TraitDefinition};
-use crate::clarity::ast::errors::{ParseResult};
 use crate::clarity::types::{QualifiedContractIdentifier, TraitIdentifier};
-use serde::{Serialize, Deserialize};
+use crate::clarity::ClarityName;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::vec::Drain;
 
 pub trait BuildASTPass {
     fn run_pass(contract_ast: &mut ContractAST) -> ParseResult<()>;
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContractAST {
     pub contract_identifier: QualifiedContractIdentifier,
     pub pre_expressions: Vec<PreSymbolicExpression>,
@@ -22,7 +22,10 @@ pub struct ContractAST {
 }
 
 impl ContractAST {
-    pub fn new(contract_identifier: QualifiedContractIdentifier, pre_expressions: Vec<PreSymbolicExpression>) -> ContractAST {
+    pub fn new(
+        contract_identifier: QualifiedContractIdentifier,
+        pre_expressions: Vec<PreSymbolicExpression>,
+    ) -> ContractAST {
         ContractAST {
             contract_identifier,
             pre_expressions,
@@ -36,7 +39,7 @@ impl ContractAST {
     pub fn pre_expressions_drain(&mut self) -> PreExpressionsDrain {
         let sorting = match self.top_level_expression_sorting {
             Some(ref exprs_ids) => Some(exprs_ids[..].to_vec()),
-            None => None
+            None => None,
         };
 
         PreExpressionsDrain::new(self.pre_expressions.drain(..), sorting)
@@ -90,7 +93,7 @@ impl Iterator for PreExpressionsDrain {
         }
         let expr_index = match self.sorting {
             Some(ref indirections) => indirections[self.index],
-            None => self.index
+            None => self.index,
         };
         let result = self.pre_expressions.remove(&expr_index);
         self.index += 1;

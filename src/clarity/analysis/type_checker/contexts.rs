@@ -1,22 +1,22 @@
-use std::collections::{HashMap, BTreeMap, HashSet};
-use crate::clarity::representations::{SymbolicExpression, ClarityName};
-use crate::clarity::types::{TypeSignature, FunctionType, TraitIdentifier};
-use crate::clarity::types::signatures::{FunctionSignature};
-use crate::clarity::analysis::errors::{CheckResult, CheckError, CheckErrors};
-use crate::clarity::analysis::types::{ContractAnalysis};
+use crate::clarity::analysis::errors::{CheckError, CheckErrors, CheckResult};
+use crate::clarity::analysis::types::ContractAnalysis;
+use crate::clarity::representations::{ClarityName, SymbolicExpression};
+use crate::clarity::types::signatures::FunctionSignature;
+use crate::clarity::types::{FunctionType, TraitIdentifier, TypeSignature};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub const MAX_CONTEXT_DEPTH: u16 = 256;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TypeMap {
-    map: HashMap<u64, TypeSignature>
+    map: HashMap<u64, TypeSignature>,
 }
 
-pub struct TypingContext <'a> {
+pub struct TypingContext<'a> {
     pub variable_types: HashMap<ClarityName, TypeSignature>,
     pub traits_references: HashMap<ClarityName, TraitIdentifier>,
     pub parent: Option<&'a TypingContext<'a>>,
-    pub depth: u16
+    pub depth: u16,
 }
 
 pub struct ContractContext {
@@ -34,10 +34,16 @@ pub struct ContractContext {
 
 impl TypeMap {
     pub fn new() -> TypeMap {
-        TypeMap { map: HashMap::new() }
+        TypeMap {
+            map: HashMap::new(),
+        }
     }
 
-    pub fn set_type(&mut self, expr: &SymbolicExpression, type_sig: TypeSignature) -> CheckResult<()> {
+    pub fn set_type(
+        &mut self,
+        expr: &SymbolicExpression,
+        type_sig: TypeSignature,
+    ) -> CheckResult<()> {
         if self.map.insert(expr.id, type_sig).is_some() {
             Err(CheckError::new(CheckErrors::TypeAlreadyAnnotatedFailure))
         } else {
@@ -67,18 +73,21 @@ impl ContractContext {
     }
 
     pub fn check_name_used(&self, name: &str) -> CheckResult<()> {
-        if self.variable_types.contains_key(name) ||
-            self.persisted_variable_types.contains_key(name) ||
-            self.private_function_types.contains_key(name) ||
-            self.public_function_types.contains_key(name) ||
-            self.fungible_tokens.contains(name) ||
-            self.non_fungible_tokens.contains_key(name) ||
-            self.traits.contains_key(name) ||
-            self.map_types.contains_key(name) {
-                Err(CheckError::new(CheckErrors::NameAlreadyUsed(name.to_string())))
-            } else {
-                Ok(())
-            }
+        if self.variable_types.contains_key(name)
+            || self.persisted_variable_types.contains_key(name)
+            || self.private_function_types.contains_key(name)
+            || self.public_function_types.contains_key(name)
+            || self.fungible_tokens.contains(name)
+            || self.non_fungible_tokens.contains_key(name)
+            || self.traits.contains_key(name)
+            || self.map_types.contains_key(name)
+        {
+            Err(CheckError::new(CheckErrors::NameAlreadyUsed(
+                name.to_string(),
+            )))
+        } else {
+            Ok(())
+        }
     }
 
     fn check_function_type(&mut self, f_name: &str) -> CheckResult<()> {
@@ -94,37 +103,61 @@ impl ContractContext {
         self.non_fungible_tokens.get(name)
     }
 
-    pub fn add_public_function_type(&mut self, name: ClarityName, func_type: FunctionType) -> CheckResult<()> {
+    pub fn add_public_function_type(
+        &mut self,
+        name: ClarityName,
+        func_type: FunctionType,
+    ) -> CheckResult<()> {
         self.check_function_type(&name)?;
         self.public_function_types.insert(name, func_type);
         Ok(())
     }
 
-    pub fn add_read_only_function_type(&mut self, name: ClarityName, func_type: FunctionType) -> CheckResult<()> {
+    pub fn add_read_only_function_type(
+        &mut self,
+        name: ClarityName,
+        func_type: FunctionType,
+    ) -> CheckResult<()> {
         self.check_function_type(&name)?;
         self.read_only_function_types.insert(name, func_type);
         Ok(())
     }
 
-    pub fn add_private_function_type(&mut self, name: ClarityName, func_type: FunctionType) -> CheckResult<()> {
+    pub fn add_private_function_type(
+        &mut self,
+        name: ClarityName,
+        func_type: FunctionType,
+    ) -> CheckResult<()> {
         self.check_function_type(&name)?;
         self.private_function_types.insert(name, func_type);
         Ok(())
     }
 
-    pub fn add_map_type(&mut self, map_name: ClarityName, map_type: (TypeSignature, TypeSignature)) -> CheckResult<()> {
+    pub fn add_map_type(
+        &mut self,
+        map_name: ClarityName,
+        map_type: (TypeSignature, TypeSignature),
+    ) -> CheckResult<()> {
         self.check_name_used(&map_name)?;
         self.map_types.insert(map_name, map_type);
         Ok(())
     }
 
-    pub fn add_variable_type(&mut self, const_name: ClarityName, var_type: TypeSignature) -> CheckResult<()> {
+    pub fn add_variable_type(
+        &mut self,
+        const_name: ClarityName,
+        var_type: TypeSignature,
+    ) -> CheckResult<()> {
         self.check_name_used(&const_name)?;
         self.variable_types.insert(const_name, var_type);
         Ok(())
     }
 
-    pub fn add_persisted_variable_type(&mut self, var_name: ClarityName, var_type: TypeSignature) -> CheckResult<()> {
+    pub fn add_persisted_variable_type(
+        &mut self,
+        var_name: ClarityName,
+        var_type: TypeSignature,
+    ) -> CheckResult<()> {
         self.check_name_used(&var_name)?;
         self.persisted_variable_types.insert(var_name, var_type);
         Ok(())
@@ -136,13 +169,21 @@ impl ContractContext {
         Ok(())
     }
 
-    pub fn add_nft(&mut self, token_name: ClarityName, token_type: TypeSignature) -> CheckResult<()> {
+    pub fn add_nft(
+        &mut self,
+        token_name: ClarityName,
+        token_type: TypeSignature,
+    ) -> CheckResult<()> {
         self.check_name_used(&token_name)?;
         self.non_fungible_tokens.insert(token_name, token_type);
         Ok(())
     }
 
-    pub fn add_trait(&mut self, trait_name: ClarityName, trait_signature: BTreeMap<ClarityName, FunctionSignature>) -> CheckResult<()> {
+    pub fn add_trait(
+        &mut self,
+        trait_name: ClarityName,
+        trait_signature: BTreeMap<ClarityName, FunctionSignature>,
+    ) -> CheckResult<()> {
         self.traits.insert(trait_name, trait_signature);
         Ok(())
     }
@@ -171,7 +212,7 @@ impl ContractContext {
     pub fn get_function_type(&self, name: &str) -> Option<&FunctionType> {
         if let Some(f_type) = self.public_function_types.get(name) {
             Some(f_type)
-        } else if let Some(f_type) =  self.private_function_types.get(name){
+        } else if let Some(f_type) = self.private_function_types.get(name) {
             Some(f_type)
         } else {
             self.read_only_function_types.get(name)
@@ -181,7 +222,6 @@ impl ContractContext {
     /// This function consumes the ContractContext, and puts the relevant information
     ///  into the provided ContractAnalysis
     pub fn into_contract_analysis(mut self, contract_analysis: &mut ContractAnalysis) {
-
         for (name, function_type) in self.public_function_types.drain() {
             contract_analysis.add_public_function(name.into(), function_type);
         }
@@ -224,13 +264,13 @@ impl ContractContext {
     }
 }
 
-impl <'a> TypingContext <'a> {
+impl<'a> TypingContext<'a> {
     pub fn new() -> TypingContext<'static> {
         TypingContext {
             variable_types: HashMap::new(),
             traits_references: HashMap::new(),
             depth: 0,
-            parent: None
+            parent: None,
         }
     }
 
@@ -242,7 +282,7 @@ impl <'a> TypingContext <'a> {
                 variable_types: HashMap::new(),
                 traits_references: HashMap::new(),
                 parent: Some(self),
-                depth: self.depth + 1
+                depth: self.depth + 1,
             })
         }
     }
@@ -250,12 +290,10 @@ impl <'a> TypingContext <'a> {
     pub fn lookup_variable_type(&self, name: &str) -> Option<&TypeSignature> {
         match self.variable_types.get(name) {
             Some(value) => Some(value),
-            None => {
-                match self.parent {
-                    Some(parent) => parent.lookup_variable_type(name),
-                    None => None
-                }
-            }
+            None => match self.parent {
+                Some(parent) => parent.lookup_variable_type(name),
+                None => None,
+            },
         }
     }
 
@@ -266,12 +304,10 @@ impl <'a> TypingContext <'a> {
     pub fn lookup_trait_reference_type(&self, name: &str) -> Option<&TraitIdentifier> {
         match self.traits_references.get(name) {
             Some(value) => Some(value),
-            None => {
-                match self.parent {
-                    Some(parent) => parent.lookup_trait_reference_type(name),
-                    None => None
-                }
-            }
+            None => match self.parent {
+                Some(parent) => parent.lookup_trait_reference_type(name),
+                None => None,
+            },
         }
     }
 }

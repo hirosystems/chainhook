@@ -1,10 +1,12 @@
-use std::collections::HashMap;
 use super::{ClarityBackingStore, ClarityDatabase, HeadersDB};
-use crate::clarity::StacksBlockId;
-use crate::clarity::util::hash::Sha512Trunc256Sum;
-use crate::clarity::types::QualifiedContractIdentifier;
-use crate::clarity::errors::{InterpreterError, CheckErrors, InterpreterResult as Result, IncomparableError, RuntimeErrorType};
 use crate::clarity::analysis::AnalysisDatabase;
+use crate::clarity::errors::{
+    CheckErrors, IncomparableError, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
+};
+use crate::clarity::types::QualifiedContractIdentifier;
+use crate::clarity::util::hash::Sha512Trunc256Sum;
+use crate::clarity::StacksBlockId;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct Datastore {
@@ -14,18 +16,16 @@ pub struct Datastore {
 }
 
 impl Datastore {
-
     pub fn new() -> Datastore {
         Datastore {
             store: HashMap::new(),
             metadata: HashMap::new(),
-            chain_tip: StacksBlockId([255u8; 32])
+            chain_tip: StacksBlockId([255u8; 32]),
         }
     }
 }
 
 impl ClarityBackingStore for Datastore {
-
     fn put_all(&mut self, items: Vec<(String, String)>) {
         for (key, value) in items {
             self.put(&key, &value);
@@ -36,7 +36,7 @@ impl ClarityBackingStore for Datastore {
     fn get(&mut self, key: &str) -> Option<String> {
         match self.store.get(key) {
             Some(value) => Some(value.clone()),
-            None => None
+            None => None,
         }
     }
 
@@ -79,25 +79,28 @@ impl ClarityBackingStore for Datastore {
     fn insert_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str, value: &str) {
         // let bhh = self.get_open_chain_tip();
         // self.get_side_store().insert_metadata(&bhh, &contract.to_string(), key, value)
-        self.metadata.insert((contract.to_string(), key.to_string()), value.to_string());
+        self.metadata
+            .insert((contract.to_string(), key.to_string()), value.to_string());
     }
 
-    fn get_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str) -> Result<Option<String>> {
+    fn get_metadata(
+        &mut self,
+        contract: &QualifiedContractIdentifier,
+        key: &str,
+    ) -> Result<Option<String>> {
         // let (bhh, _) = self.get_contract_hash(contract)?;
         // Ok(self.get_side_store().get_metadata(&bhh, &contract.to_string(), key))
         let key = &(contract.to_string(), key.to_string());
 
         match self.metadata.get(key) {
             Some(result) => Ok(Some(result.to_string())),
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 }
 
-
 impl Datastore {
     pub fn open(path_str: &str, miner_tip: Option<&StacksBlockId>) -> Result<Datastore> {
-
         Ok(Datastore::new())
     }
 
@@ -145,14 +148,13 @@ impl Datastore {
         //     .expect("ERROR: Failed to commit MARF block");
     }
     pub fn commit_to(&mut self, final_bhh: &StacksBlockId) {
-        // println!("commit_to({})", final_bhh); 
+        // println!("commit_to({})", final_bhh);
         // self.side_store.commit_metadata_to(&self.chain_tip, final_bhh);
         // self.side_store.commit(&self.chain_tip);
         // self.marf.commit_to(final_bhh)
         //     .expect("ERROR: Failed to commit MARF block");
     }
     pub fn get_chain_tip(&self) -> &StacksBlockId {
-        
         &self.chain_tip
     }
 

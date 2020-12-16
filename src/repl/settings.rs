@@ -1,4 +1,3 @@
-
 #[derive(Clone, Debug)]
 pub struct InitialContract {
     pub code: String,

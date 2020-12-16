@@ -17,32 +17,44 @@
  along with Blockstack. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#[macro_use] pub mod macros;
+#[macro_use]
+pub mod macros;
 
-pub mod hash;
+pub mod address;
+pub mod bitcoin;
 pub mod c32;
+pub mod hash;
 pub mod pair;
 pub mod retry;
+pub mod secp256k1;
+pub mod uint;
 
-use std::time;
-use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::fmt;
 use std::error;
+use std::fmt;
+use std::thread;
+use std::time;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use hash::Hash160;
 use crate::clarity::types::StandardPrincipalData;
+use hash::Hash160;
+
+use crate::clarity::types::PrincipalData;
+use crate::clarity::util::secp256k1::Secp256k1PublicKey;
+use address::public_keys_to_address_hash;
+use address::AddressHashMode;
 
 pub fn get_epoch_time_secs() -> u64 {
     let start = SystemTime::now();
-    let since_the_epoch = start.duration_since(UNIX_EPOCH)
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
     return since_the_epoch.as_secs();
 }
 
 pub fn get_epoch_time_ms() -> u128 {
     let start = SystemTime::now();
-    let since_the_epoch = start.duration_since(UNIX_EPOCH)
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
     return since_the_epoch.as_millis();
 }
@@ -58,24 +70,26 @@ pub enum HexError {
     /// Length was not 64 characters
     BadLength(usize),
     /// Non-hex character in string
-    BadCharacter(char)
+    BadCharacter(char),
 }
 
 impl fmt::Display for HexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             HexError::BadLength(n) => write!(f, "bad length {} for sha256d hex string", n),
-            HexError::BadCharacter(c) => write!(f, "bad character {} in sha256d hex string", c)
+            HexError::BadCharacter(c) => write!(f, "bad character {} in sha256d hex string", c),
         }
     }
 }
 
 impl error::Error for HexError {
-    fn cause(&self) -> Option<&dyn error::Error> { None }
+    fn cause(&self) -> Option<&dyn error::Error> {
+        None
+    }
     fn description(&self) -> &str {
         match *self {
             HexError::BadLength(_) => "sha256d hex string non-64 length",
-            HexError::BadCharacter(_) => "sha256d bad hex character"
+            HexError::BadCharacter(_) => "sha256d bad hex character",
         }
     }
 }
@@ -83,7 +97,7 @@ impl error::Error for HexError {
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Hash)]
 pub struct StacksAddress {
     pub version: u8,
-    pub bytes: hash::Hash160
+    pub bytes: hash::Hash160,
 }
 
 impl From<StandardPrincipalData> for StacksAddress {
@@ -92,5 +106,31 @@ impl From<StandardPrincipalData> for StacksAddress {
             version: o.0,
             bytes: Hash160(o.1),
         }
+    }
+}
+
+impl StacksAddress {
+    pub fn new(version: u8, hash: Hash160) -> StacksAddress {
+        StacksAddress {
+            version,
+            bytes: hash,
+        }
+    }
+
+    /// Generate an address from a given address hash mode, signature threshold, and list of public
+    /// keys.  Only return an address if the combination given is supported.
+    /// The version is may be arbitrary.
+    pub fn from_public_key(version: u8, pubkey: Secp256k1PublicKey) -> Option<StacksAddress> {
+        let hash_bits =
+            public_keys_to_address_hash(&AddressHashMode::SerializeP2PKH, 1, &vec![pubkey]);
+        Some(StacksAddress::new(version, hash_bits))
+    }
+
+    /// Convert to PrincipalData::Standard(StandardPrincipalData)
+    pub fn to_account_principal(&self) -> PrincipalData {
+        PrincipalData::Standard(StandardPrincipalData(
+            self.version,
+            self.bytes.as_bytes().clone(),
+        ))
     }
 }

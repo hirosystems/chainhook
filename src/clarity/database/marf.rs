@@ -1,14 +1,17 @@
-use std::path::PathBuf;
 use std::convert::TryInto;
+use std::path::PathBuf;
 
-use crate::clarity::types::{QualifiedContractIdentifier};
-use crate::clarity::errors::{InterpreterError, CheckErrors, InterpreterResult as Result, IncomparableError, RuntimeErrorType};
-use crate::clarity::database::{ClarityDatabase, HeadersDB, NULL_HEADER_DB,
-                   ClaritySerializable, ClarityDeserializable};
-use crate::clarity::analysis::{AnalysisDatabase};
+use crate::clarity::analysis::AnalysisDatabase;
+use crate::clarity::database::{
+    ClarityDatabase, ClarityDeserializable, ClaritySerializable, HeadersDB, NULL_HEADER_DB,
+};
+use crate::clarity::errors::{
+    CheckErrors, IncomparableError, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
+};
+use crate::clarity::types::QualifiedContractIdentifier;
+use crate::clarity::util::hash::{hex_bytes, to_hex, Sha512Trunc256Sum};
 use crate::clarity::StacksBlockId;
-use crate::clarity::{VRFSeed, BlockHeaderHash, BurnchainHeaderHash};
-use crate::clarity::util::hash::{to_hex, hex_bytes, Sha512Trunc256Sum};
+use crate::clarity::{BlockHeaderHash, BurnchainHeaderHash, VRFSeed};
 
 // These functions generally _do not_ return errors, rather, any errors in the underlying storage
 //    will _panic_. The rationale for this is that under no condition should the interpreter
@@ -41,7 +44,10 @@ pub trait ClarityBackingStore {
     ///   which the contract was initialized.
     fn make_contract_commitment(&mut self, contract_hash: Sha512Trunc256Sum) -> String {
         let block_height = self.get_open_chain_tip_height();
-        let cc = ContractCommitment { hash: contract_hash, block_height };
+        let cc = ContractCommitment {
+            hash: contract_hash,
+            block_height,
+        };
         cc.serialize()
     }
 
@@ -50,12 +56,16 @@ pub trait ClarityBackingStore {
     ///   store.
     fn insert_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str, value: &str);
 
-    fn get_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str) -> Result<Option<String>>;
+    fn get_metadata(
+        &mut self,
+        contract: &QualifiedContractIdentifier,
+        key: &str,
+    ) -> Result<Option<String>>;
 }
 
 pub struct ContractCommitment {
     pub hash: Sha512Trunc256Sum,
-    pub block_height: u32
+    pub block_height: u32,
 }
 
 impl ClaritySerializable for ContractCommitment {
@@ -71,5 +81,63 @@ impl ClarityDeserializable<ContractCommitment> for ContractCommitment {
         let height_bytes = hex_bytes(&input[64..72]).expect("Hex decode fail.");
         let block_height = u32::from_be_bytes(height_bytes.as_slice().try_into().unwrap());
         ContractCommitment { hash, block_height }
+    }
+}
+
+pub struct NullBackingStore {}
+
+impl NullBackingStore {
+    pub fn new() -> Self {
+        NullBackingStore {}
+    }
+
+    pub fn as_clarity_db<'a>(&'a mut self) -> ClarityDatabase<'a> {
+        ClarityDatabase::new(self, &NULL_HEADER_DB)
+    }
+
+    pub fn as_analysis_db<'a>(&'a mut self) -> AnalysisDatabase<'a> {
+        AnalysisDatabase::new(self)
+    }
+}
+
+impl ClarityBackingStore for NullBackingStore {
+    fn set_block_hash(&mut self, _bhh: StacksBlockId) -> Result<StacksBlockId> {
+        panic!("NullBackingStore can't set block hash")
+    }
+
+    fn get(&mut self, _key: &str) -> Option<String> {
+        panic!("NullBackingStore can't retrieve data")
+    }
+
+    fn get_block_at_height(&mut self, _height: u32) -> Option<StacksBlockId> {
+        panic!("NullBackingStore can't get block at height")
+    }
+
+    fn get_open_chain_tip(&mut self) -> StacksBlockId {
+        panic!("NullBackingStore can't open chain tip")
+    }
+
+    fn get_open_chain_tip_height(&mut self) -> u32 {
+        panic!("NullBackingStore can't get open chain tip height")
+    }
+
+    fn get_current_block_height(&mut self) -> u32 {
+        panic!("NullBackingStore can't get current block height")
+    }
+
+    fn put_all(&mut self, mut _items: Vec<(String, String)>) {
+        panic!("NullBackingStore cannot put")
+    }
+
+    fn insert_metadata(&mut self, contract: &QualifiedContractIdentifier, key: &str, value: &str) {
+        panic!("NullBackingStore cannot insert_metadata")
+    }
+
+    fn get_metadata(
+        &mut self,
+        contract: &QualifiedContractIdentifier,
+        key: &str,
+    ) -> Result<Option<String>> {
+        panic!("NullBackingStore cannot get_metadata")
     }
 }
