@@ -26,7 +26,7 @@ pub fn runtime_cost<T: TryInto<u64>, C: CostTracker>(
     input: T,
 ) -> Result<()> {
     let size: u64 = input.try_into().map_err(|_| CostErrors::CostOverflow)?;
-    let cost = tracker.compute_cost(cost_function, size)?;
+    let cost = tracker.compute_cost(cost_function, &[size])?;
 
     tracker.add_cost(cost)
 }
@@ -48,7 +48,7 @@ pub fn analysis_typecheck_cost<T: CostTracker>(
     let t2_size = t2.type_size().map_err(|_| CostErrors::CostOverflow)?;
     let cost = track.compute_cost(
         ClarityCostFunction::AnalysisTypeCheck,
-        cmp::max(t1_size, t2_size) as u64,
+        &[cmp::max(t1_size, t2_size) as u64],
     )?;
     track.add_cost(cost)
 }
@@ -67,7 +67,7 @@ pub trait CostTracker {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> Result<ExecutionCost>;
     fn add_cost(&mut self, cost: ExecutionCost) -> Result<()>;
     fn add_memory(&mut self, memory: u64) -> Result<()>;
@@ -89,7 +89,7 @@ impl CostTracker for () {
     fn compute_cost(
         &mut self,
         _cost_function: ClarityCostFunction,
-        _input: u64,
+        _input: &[u64],
     ) -> std::result::Result<ExecutionCost, CostErrors> {
         Ok(ExecutionCost::zero())
     }
@@ -132,6 +132,57 @@ impl ClarityCostFunctionReference {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CostStateSummary {
+    pub contract_call_circuits:
+        HashMap<(QualifiedContractIdentifier, ClarityName), ClarityCostFunctionReference>,
+    pub cost_function_references: HashMap<ClarityCostFunction, ClarityCostFunctionReference>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SerializedCostStateSummary {
+    contract_call_circuits: Vec<(
+        (QualifiedContractIdentifier, ClarityName),
+        ClarityCostFunctionReference,
+    )>,
+    cost_function_references: Vec<(ClarityCostFunction, ClarityCostFunctionReference)>,
+}
+
+impl From<CostStateSummary> for SerializedCostStateSummary {
+    fn from(other: CostStateSummary) -> SerializedCostStateSummary {
+        let CostStateSummary {
+            contract_call_circuits,
+            cost_function_references,
+        } = other;
+        SerializedCostStateSummary {
+            contract_call_circuits: contract_call_circuits.into_iter().collect(),
+            cost_function_references: cost_function_references.into_iter().collect(),
+        }
+    }
+}
+
+impl From<SerializedCostStateSummary> for CostStateSummary {
+    fn from(other: SerializedCostStateSummary) -> CostStateSummary {
+        let SerializedCostStateSummary {
+            contract_call_circuits,
+            cost_function_references,
+        } = other;
+        CostStateSummary {
+            contract_call_circuits: contract_call_circuits.into_iter().collect(),
+            cost_function_references: cost_function_references.into_iter().collect(),
+        }
+    }
+}
+
+impl CostStateSummary {
+    pub fn empty() -> CostStateSummary {
+        CostStateSummary {
+            contract_call_circuits: HashMap::new(),
+            cost_function_references: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct LimitedCostTracker {
     cost_function_references: HashMap<&'static ClarityCostFunction, ClarityCostFunctionReference>,
@@ -143,6 +194,21 @@ pub struct LimitedCostTracker {
     memory: u64,
     memory_limit: u64,
     free: bool,
+    mainnet: bool,
+}
+
+#[cfg(test)]
+impl LimitedCostTracker {
+    pub fn contract_call_circuits(
+        &self,
+    ) -> HashMap<(QualifiedContractIdentifier, ClarityName), ClarityCostFunctionReference> {
+        self.contract_call_circuits.clone()
+    }
+    pub fn cost_function_references(
+        &self,
+    ) -> HashMap<&'static ClarityCostFunction, ClarityCostFunctionReference> {
+        self.cost_function_references.clone()
+    }
 }
 
 impl fmt::Debug for LimitedCostTracker {
@@ -177,10 +243,11 @@ pub enum CostErrors {
 
 impl LimitedCostTracker {
     pub fn new(
+        mainnet: bool,
         limit: ExecutionCost,
         clarity_db: &mut ClarityDatabase,
     ) -> Result<LimitedCostTracker> {
-        let mut cost_tracker = LimitedCostTracker {
+        let cost_tracker = LimitedCostTracker {
             cost_function_references: HashMap::new(),
             cost_contracts: HashMap::new(),
             contract_call_circuits: HashMap::new(),
@@ -189,33 +256,29 @@ impl LimitedCostTracker {
             total: ExecutionCost::zero(),
             memory: 0,
             free: false,
+            mainnet,
         };
-        cost_tracker.load_boot_costs(clarity_db)?;
+        // cost_tracker.load_costs(clarity_db, true)?;
         Ok(cost_tracker)
     }
-    pub fn new_max_limit(clarity_db: &mut ClarityDatabase) -> Result<LimitedCostTracker> {
-        LimitedCostTracker::new(ExecutionCost::max_value(), clarity_db)
-    }
 
-    #[cfg(test)]
-    pub fn new_max_limit_with_circuits(
+    pub fn new_mid_block(
+        mainnet: bool,
+        limit: ExecutionCost,
         clarity_db: &mut ClarityDatabase,
-        circuits: Vec<(
-            (QualifiedContractIdentifier, ClarityName),
-            ClarityCostFunctionReference,
-        )>,
     ) -> Result<LimitedCostTracker> {
-        let mut cost_tracker = LimitedCostTracker {
+        let cost_tracker = LimitedCostTracker {
             cost_function_references: HashMap::new(),
             cost_contracts: HashMap::new(),
-            contract_call_circuits: circuits.into_iter().collect(),
-            limit: ExecutionCost::max_value(),
+            contract_call_circuits: HashMap::new(),
+            limit,
             memory_limit: CLARITY_MEMORY_LIMIT,
             total: ExecutionCost::zero(),
             memory: 0,
             free: false,
+            mainnet,
         };
-        cost_tracker.load_boot_costs(clarity_db)?;
+        // cost_tracker.load_costs(clarity_db, false)?;
         Ok(cost_tracker)
     }
 
@@ -229,6 +292,7 @@ impl LimitedCostTracker {
             memory: 0,
             memory_limit: CLARITY_MEMORY_LIMIT,
             free: true,
+            mainnet: false,
         }
     }
     pub fn load_boot_costs(&mut self, clarity_db: &mut ClarityDatabase) -> Result<()> {
@@ -336,11 +400,12 @@ fn parse_cost(
 fn compute_cost(
     cost_tracker: &mut LimitedCostTracker,
     cost_function_reference: ClarityCostFunctionReference,
-    input_size: u64,
+    input_sizes: &[u64],
 ) -> Result<ExecutionCost> {
+    let mainnet = cost_tracker.mainnet;
     let mut null_store = NullBackingStore::new();
     let conn = null_store.as_clarity_db();
-    let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_free());
+    let mut global_context = GlobalContext::new(mainnet, conn, LimitedCostTracker::new_free());
 
     let cost_contract = cost_tracker
         .cost_contracts
@@ -350,10 +415,15 @@ fn compute_cost(
             &cost_function_reference
         )))?;
 
-    let program = vec![
-        SymbolicExpression::atom(cost_function_reference.function_name[..].into()),
-        SymbolicExpression::atom_value(Value::UInt(input_size.into())),
-    ];
+    let mut program = vec![SymbolicExpression::atom(
+        cost_function_reference.function_name[..].into(),
+    )];
+
+    for input_size in input_sizes.iter() {
+        program.push(SymbolicExpression::atom_value(Value::UInt(
+            *input_size as u128,
+        )));
+    }
 
     let function_invocation = [SymbolicExpression::list(program.into_boxed_slice())];
 
@@ -397,7 +467,7 @@ impl CostTracker for LimitedCostTracker {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> std::result::Result<ExecutionCost, CostErrors> {
         if self.free {
             return Ok(ExecutionCost::zero());
@@ -406,8 +476,7 @@ impl CostTracker for LimitedCostTracker {
             .cost_function_references
             .get(&cost_function)
             .ok_or(CostErrors::CostComputationFailed(format!(
-                "CostFunction not defined: {}",
-                &cost_function.get_name()
+                "CostFunction not defined"
             )))?
             .clone();
 
@@ -448,8 +517,7 @@ impl CostTracker for LimitedCostTracker {
         // grr, if HashMap::get didn't require Borrow, we wouldn't need this cloning.
         let lookup_key = (contract.clone(), function.clone());
         if let Some(cost_function) = self.contract_call_circuits.get(&lookup_key).cloned() {
-            let input_size = input.iter().fold(0, |agg, cur| agg + cur);
-            compute_cost(self, cost_function, input_size)?;
+            compute_cost(self, cost_function, input)?;
             Ok(true)
         } else {
             Ok(false)
@@ -461,7 +529,7 @@ impl CostTracker for &mut LimitedCostTracker {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> std::result::Result<ExecutionCost, CostErrors> {
         LimitedCostTracker::compute_cost(self, cost_function, input)
     }
@@ -488,23 +556,6 @@ impl CostTracker for &mut LimitedCostTracker {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub enum CostFunctions {
-    Constant(u64),
-    Linear(u64, u64),
-    NLogN(u64, u64),
-    LogN(u64, u64),
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub struct SimpleCostSpecification {
-    pub write_count: CostFunctions,
-    pub write_length: CostFunctions,
-    pub read_count: CostFunctions,
-    pub read_length: CostFunctions,
-    pub runtime: CostFunctions,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct ExecutionCost {
     pub write_length: u64,
     pub write_count: u64,
@@ -515,7 +566,7 @@ pub struct ExecutionCost {
 
 impl fmt::Display for ExecutionCost {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{\"runtime\": {}, \"write_length\": {}, \"write_count\": {}, \"read_length\": {}, \"read_count\": {}}}",
+        write!(f, "{{\"runtime\": {}, \"write_len\": {}, \"write_cnt\": {}, \"read_len\": {}, \"read_cnt\": {}}}",
                self.runtime, self.write_length, self.write_count, self.read_length, self.read_count)
     }
 }
@@ -634,61 +685,4 @@ fn int_log2(input: u64) -> Option<u64> {
             u64::from(floor_log + 1)
         }
     })
-}
-
-impl CostFunctions {
-    pub fn compute_cost(&self, input: u64) -> Result<u64> {
-        match self {
-            CostFunctions::Constant(val) => Ok(*val),
-            CostFunctions::Linear(a, b) => a.cost_overflow_mul(input)?.cost_overflow_add(*b),
-            CostFunctions::LogN(a, b) => {
-                // a*input*log(input)) + b
-                //  and don't do log(0).
-                int_log2(cmp::max(input, 1))
-                    .ok_or_else(|| CostErrors::CostOverflow)?
-                    .cost_overflow_mul(*a)?
-                    .cost_overflow_add(*b)
-            }
-            CostFunctions::NLogN(a, b) => {
-                // a*input*log(input)) + b
-                //  and don't do log(0).
-                int_log2(cmp::max(input, 1))
-                    .ok_or_else(|| CostErrors::CostOverflow)?
-                    .cost_overflow_mul(input)?
-                    .cost_overflow_mul(*a)?
-                    .cost_overflow_add(*b)
-            }
-        }
-    }
-}
-
-impl SimpleCostSpecification {
-    pub fn compute_cost(&self, input: u64) -> Result<ExecutionCost> {
-        Ok(ExecutionCost {
-            write_length: self.write_length.compute_cost(input)?,
-            write_count: self.write_count.compute_cost(input)?,
-            read_count: self.read_count.compute_cost(input)?,
-            read_length: self.read_length.compute_cost(input)?,
-            runtime: self.runtime.compute_cost(input)?,
-        })
-    }
-}
-
-impl From<ExecutionCost> for SimpleCostSpecification {
-    fn from(value: ExecutionCost) -> SimpleCostSpecification {
-        let ExecutionCost {
-            write_length,
-            write_count,
-            read_count,
-            read_length,
-            runtime,
-        } = value;
-        SimpleCostSpecification {
-            write_length: CostFunctions::Constant(write_length),
-            write_count: CostFunctions::Constant(write_count),
-            read_length: CostFunctions::Constant(read_length),
-            read_count: CostFunctions::Constant(read_count),
-            runtime: CostFunctions::Constant(runtime),
-        }
-    }
 }

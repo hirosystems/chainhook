@@ -496,7 +496,7 @@ fn special_asserts(
                 Ok(conditional)
             } else {
                 let thrown = eval(&args[1], env, context)?;
-                Err(ShortReturnType::AssertionFailed(thrown.clone()).into())
+                Err(ShortReturnType::AssertionFailed(thrown).into())
             }
         }
         _ => Err(CheckErrors::TypeValueError(TypeSignature::BoolType, conditional).into()),

@@ -62,7 +62,7 @@ impl CostTracker for TypeChecker<'_, '_> {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> Result<ExecutionCost, CostErrors> {
         self.cost_track.compute_cost(cost_function, input)
     }
@@ -249,11 +249,9 @@ impl FunctionType {
                 (expected_type, value) => {
                     if !expected_type.admits(&value) {
                         let actual_type = TypeSignature::type_of(&value);
-                        return Err(CheckErrors::TypeError(
-                            expected_type.clone(),
-                            actual_type.clone(),
-                        )
-                        .into());
+                        return Err(
+                            CheckErrors::TypeError(expected_type.clone(), actual_type).into()
+                        );
                     }
                 }
             }

@@ -87,7 +87,7 @@ impl ClarityInterpreter {
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
 
-        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_free());
+        let mut global_context = GlobalContext::new(false, conn, LimitedCostTracker::new_free());
         global_context.begin();
 
         let result = global_context
@@ -162,8 +162,7 @@ impl ClarityInterpreter {
         amount: u64,
     ) -> Result<String, String> {
         let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
-
-        let mut global_context = GlobalContext::new(conn, LimitedCostTracker::new_free());
+        let mut global_context = GlobalContext::new(false, conn, LimitedCostTracker::new_free());
         global_context.begin();
         let mut cur_balance = global_context.database.get_stx_balance_snapshot(&recipient);
         cur_balance.credit(amount as u128);

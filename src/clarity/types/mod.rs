@@ -53,7 +53,7 @@ pub struct ListData {
     pub type_signature: ListTypeData,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct StandardPrincipalData(pub u8, pub [u8; 20]);
 
 impl StandardPrincipalData {
@@ -800,6 +800,14 @@ impl Value {
         ))))
     }
 
+    pub fn expect_ascii(self) -> String {
+        if let Value::Sequence(SequenceData::String(CharType::ASCII(ASCIIData { data }))) = self {
+            String::from_utf8(data).unwrap()
+        } else {
+            panic!();
+        }
+    }
+
     pub fn expect_u128(self) -> u128 {
         if let Value::UInt(inner) = self {
             inner
@@ -1070,8 +1078,9 @@ impl PrincipalData {
     }
 
     pub fn parse_standard_principal(literal: &str) -> Result<StandardPrincipalData> {
-        let (version, data) = c32::c32_address_decode(&literal)
-            .map_err(|x| RuntimeErrorType::ParseError(format!("Invalid principal literal")))?;
+        let (version, data) = c32::c32_address_decode(&literal).map_err(|x| {
+            RuntimeErrorType::ParseError(format!("Invalid principal literal"))
+        })?;
         if data.len() != 20 {
             return Err(RuntimeErrorType::ParseError(
                 "Invalid principal literal: Expected 20 data bytes.".to_string(),
@@ -1094,6 +1103,13 @@ impl fmt::Display for StandardPrincipalData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let c32_str = self.to_address();
         write!(f, "{}", c32_str)
+    }
+}
+
+impl fmt::Debug for StandardPrincipalData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let c32_str = self.to_address();
+        write!(f, "StandardPrincipalData({})", c32_str)
     }
 }
 
@@ -1214,11 +1230,15 @@ impl TupleData {
         })
     }
 
-    pub fn shallow_merge(base: TupleData, updates: TupleData) -> Result<TupleData> {
-        let mut base = base;
-        for (name, value) in updates.data_map.into_iter() {
+    pub fn shallow_merge(mut base: TupleData, updates: TupleData) -> Result<TupleData> {
+        let TupleData {
+            data_map,
+            mut type_signature,
+        } = updates;
+        for (name, value) in data_map.into_iter() {
             base.data_map.insert(name, value);
         }
+        base.type_signature.shallow_merge(&mut type_signature);
         Ok(base)
     }
 }

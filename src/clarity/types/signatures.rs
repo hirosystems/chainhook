@@ -45,7 +45,7 @@ impl AssetIdentifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TupleTypeSignature {
     type_map: BTreeMap<ClarityName, TypeSignature>,
 }
@@ -363,7 +363,7 @@ impl TypeSignature {
         match self {
             SequenceType(SequenceSubtype::ListType(ref my_list_type)) => {
                 if let SequenceType(SequenceSubtype::ListType(other_list_type)) = other {
-                    if other_list_type.max_len <= 0 {
+                    if other_list_type.max_len == 0 {
                         // if other is an empty list, a list type should always admit.
                         true
                     } else if my_list_type.max_len >= other_list_type.max_len {
@@ -1242,6 +1242,16 @@ impl fmt::Display for TupleTypeSignature {
             write!(f, " ({} {})", &**field_name, field_type)?;
         }
         write!(f, ")")
+    }
+}
+
+impl fmt::Debug for TupleTypeSignature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TupleTypeSignature {{")?;
+        for (field_name, field_type) in self.type_map.iter() {
+            write!(f, " \"{}\": {},", &**field_name, field_type)?;
+        }
+        write!(f, "}}")
     }
 }
 

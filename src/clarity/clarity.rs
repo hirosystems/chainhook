@@ -21,6 +21,8 @@ use crate::clarity::StacksBlockId;
 use std::error;
 use std::fmt;
 
+use super::database;
+
 ///
 /// A high-level interface for interacting with the Clarity VM.
 ///
@@ -37,6 +39,7 @@ use std::fmt;
 pub struct ClarityInstance {
     datastore: Option<Datastore>,
     block_limit: ExecutionCost,
+    mainnet: bool,
 }
 
 ///
@@ -47,6 +50,7 @@ pub struct ClarityBlockConnection<'a> {
     parent: &'a mut ClarityInstance,
     header_db: &'a dyn HeadersDB,
     cost_track: Option<LimitedCostTracker>,
+    mainnet: bool,
 }
 
 ///
@@ -59,6 +63,7 @@ pub struct ClarityTransactionConnection<'a> {
     store: &'a mut Datastore,
     header_db: &'a dyn HeadersDB,
     cost_track: &'a mut Option<LimitedCostTracker>,
+    mainnet: bool,
 }
 
 pub struct ClarityReadOnlyConnection<'a> {
@@ -193,10 +198,11 @@ impl ClarityBlockConnection<'_> {
 }
 
 impl ClarityInstance {
-    pub fn new(datastore: Datastore, block_limit: ExecutionCost) -> ClarityInstance {
+    pub fn new(mainnet: bool, datastore: Datastore, block_limit: ExecutionCost) -> ClarityInstance {
         ClarityInstance {
             datastore: Some(datastore),
             block_limit,
+            mainnet,
         }
     }
 
@@ -224,6 +230,7 @@ impl ClarityInstance {
             header_db,
             parent: self,
             cost_track,
+            mainnet: false,
         }
     }
 
@@ -259,7 +266,7 @@ impl ClarityInstance {
     ) -> Result<Value, Error> {
         self.datastore.as_mut().unwrap().set_chain_tip(at_block);
         let clarity_db = self.datastore.as_mut().unwrap().as_clarity_db(header_db);
-        let mut env = OwnedEnvironment::new_free(clarity_db);
+        let mut env = OwnedEnvironment::new_free(false, clarity_db);
         env.eval_read_only(contract, program)
             .map(|(x, _, _)| x)
             .map_err(Error::from)
@@ -291,6 +298,7 @@ pub trait ClarityConnection {
 
     fn with_readonly_clarity_env<F, R>(
         &mut self,
+        mainnet: bool,
         sender: PrincipalData,
         cost_track: LimitedCostTracker,
         to_do: F,
@@ -299,7 +307,7 @@ pub trait ClarityConnection {
         F: FnOnce(&mut Environment) -> Result<R, InterpreterError>,
     {
         self.with_clarity_db_readonly_owned(|clarity_db| {
-            let mut vm_env = OwnedEnvironment::new_cost_limited(clarity_db, cost_track);
+            let mut vm_env = OwnedEnvironment::new_cost_limited(mainnet, clarity_db, cost_track);
             let result = vm_env
                 .execute_in_env(sender.into(), to_do)
                 .map(|(result, _, _)| result);
@@ -418,6 +426,7 @@ impl<'a> ClarityBlockConnection<'a> {
         let store = &mut self.datastore;
         let cost_track = &mut self.cost_track;
         let header_db = self.header_db;
+        let mainnet = self.mainnet;
         let mut log = RollbackWrapperPersistedLog::new();
         log.nest();
         ClarityTransactionConnection {
@@ -425,6 +434,7 @@ impl<'a> ClarityBlockConnection<'a> {
             cost_track,
             header_db,
             log: Some(log),
+            mainnet,
         }
     }
 
@@ -575,7 +585,7 @@ impl<'a> ClarityTransactionConnection<'a> {
                 // wrap the whole contract-call in a claritydb transaction,
                 //   so we can abort on call_back's boolean retun
                 db.begin();
-                let mut vm_env = OwnedEnvironment::new_cost_limited(db, cost_track);
+                let mut vm_env = OwnedEnvironment::new_cost_limited(false, db, cost_track);
                 let result = to_do(&mut vm_env);
                 let (mut db, cost_track) = vm_env
                     .destruct()
@@ -688,7 +698,7 @@ impl<'a> ClarityTransactionConnection<'a> {
     /// Initialize a contract in the current block.
     ///  If an error occurs while processing the initialization, it's modifications will be rolled back.
     /// abort_call_back is called with an AssetMap and a ClarityDatabase reference,
-    ///   if abort_call_back returns false, all modifications from this transaction will be rolled back.
+    ///   if abort_call_back returns true, all modifications from this transaction will be rolled back.
     ///      otherwise, they will be committed (though they may later be rolled back if the block itself is rolled back).
     pub fn initialize_smart_contract<F>(
         &mut self,

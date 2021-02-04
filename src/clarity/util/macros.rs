@@ -31,7 +31,7 @@ pub fn is_big_endian() -> bool {
 macro_rules! define_named_enum {
     ($Name:ident { $($Variant:ident($VarName:literal),)* }) =>
     {
-        #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+        #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
         pub enum $Name {
             $($Variant),*,
         }

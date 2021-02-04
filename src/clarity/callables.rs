@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 
 use crate::clarity::events::StacksTransactionEvent;
 
-use crate::clarity::costs::{cost_functions, runtime_cost, SimpleCostSpecification};
+use crate::clarity::costs::{cost_functions, runtime_cost};
 
 use crate::clarity::analysis::errors::CheckErrors;
 use crate::clarity::contexts::ContractContext;
@@ -190,11 +190,9 @@ impl DefinedFunction {
 
         let args = self.arg_types.iter().map(|a| a.clone()).collect();
         if !expected_sig.check_args_trait_compliance(args) {
-            return Err(CheckErrors::BadTraitImplementation(
-                trait_name.clone(),
-                self.name.to_string(),
-            )
-            .into());
+            return Err(
+                CheckErrors::BadTraitImplementation(trait_name, self.name.to_string()).into(),
+            );
         }
 
         Ok(())

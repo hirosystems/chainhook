@@ -12,6 +12,7 @@ use crate::clarity::costs::{
     cost_functions, runtime_cost, CostErrors, CostTracker, ExecutionCost, LimitedCostTracker,
 };
 use crate::clarity::database::ClarityDatabase;
+use crate::clarity::database::structures::{DataMapMetadata, DataVariableMetadata, NonFungibleTokenMetadata, FungibleTokenMetadata};
 use crate::clarity::errors::{
     CheckErrors, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
 };
@@ -85,6 +86,7 @@ pub struct GlobalContext<'a> {
     pub database: ClarityDatabase<'a>,
     read_only: Vec<bool>,
     pub cost_track: LimitedCostTracker,
+    pub mainnet: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -97,6 +99,11 @@ pub struct ContractContext {
     // tracks the names of NFTs, FTs, Maps, and Data Vars.
     //  used for ensuring that they never are defined twice.
     pub persisted_names: HashSet<ClarityName>,
+    // track metadata for contract defined storage
+    pub meta_data_map: HashMap<ClarityName, DataMapMetadata>,
+    pub meta_data_var: HashMap<ClarityName, DataVariableMetadata>,
+    pub meta_nft: HashMap<ClarityName, NonFungibleTokenMetadata>,
+    pub meta_ft: HashMap<ClarityName, FungibleTokenMetadata>,
     pub data_size: u64,
 }
 
@@ -415,7 +422,7 @@ impl EventBatch {
 impl<'a> OwnedEnvironment<'a> {
     pub fn new(database: ClarityDatabase<'a>) -> OwnedEnvironment<'a> {
         OwnedEnvironment {
-            context: GlobalContext::new(database, LimitedCostTracker::new_free()),
+            context: GlobalContext::new(false, database, LimitedCostTracker::new_free()),
             default_contract: ContractContext::new(QualifiedContractIdentifier::transient()),
             call_stack: CallStack::new(),
         }
@@ -427,26 +434,27 @@ impl<'a> OwnedEnvironment<'a> {
             .expect("FAIL: problem instantiating cost tracking");
 
         OwnedEnvironment {
-            context: GlobalContext::new(database, cost_track),
+            context: GlobalContext::new(false, database, cost_track),
             default_contract: ContractContext::new(QualifiedContractIdentifier::transient()),
             call_stack: CallStack::new(),
         }
     }
 
-    pub fn new_free(database: ClarityDatabase<'a>) -> OwnedEnvironment<'a> {
+    pub fn new_free(mainnet: bool, database: ClarityDatabase<'a>) -> OwnedEnvironment<'a> {
         OwnedEnvironment {
-            context: GlobalContext::new(database, LimitedCostTracker::new_free()),
+            context: GlobalContext::new(mainnet, database, LimitedCostTracker::new_free()),
             default_contract: ContractContext::new(QualifiedContractIdentifier::transient()),
             call_stack: CallStack::new(),
         }
     }
 
     pub fn new_cost_limited(
+        mainnet: bool,
         database: ClarityDatabase<'a>,
         cost_tracker: LimitedCostTracker,
     ) -> OwnedEnvironment<'a> {
         OwnedEnvironment {
-            context: GlobalContext::new(database, cost_tracker),
+            context: GlobalContext::new(mainnet, database, cost_tracker),
             default_contract: ContractContext::new(QualifiedContractIdentifier::transient()),
             call_stack: CallStack::new(),
         }
@@ -589,7 +597,7 @@ impl CostTracker for Environment<'_, '_> {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> std::result::Result<ExecutionCost, CostErrors> {
         self.global_context
             .cost_track
@@ -623,7 +631,7 @@ impl CostTracker for GlobalContext<'_> {
     fn compute_cost(
         &mut self,
         cost_function: ClarityCostFunction,
-        input: u64,
+        input: &[u64],
     ) -> std::result::Result<ExecutionCost, CostErrors> {
         self.cost_track.compute_cost(cost_function, input)
     }
@@ -1180,13 +1188,18 @@ impl<'a, 'b> Environment<'a, 'b> {
 
 impl<'a> GlobalContext<'a> {
     // Instantiate a new Global Context
-    pub fn new(database: ClarityDatabase, cost_track: LimitedCostTracker) -> GlobalContext {
+    pub fn new(
+        mainnet: bool,
+        database: ClarityDatabase,
+        cost_track: LimitedCostTracker,
+    ) -> GlobalContext {
         GlobalContext {
             database,
             cost_track,
             read_only: Vec::new(),
             asset_maps: Vec::new(),
             event_batches: Vec::new(),
+            mainnet,
         }
     }
 
@@ -1359,6 +1372,10 @@ impl ContractContext {
             implemented_traits: HashSet::new(),
             persisted_names: HashSet::new(),
             data_size: 0,
+            meta_data_map: HashMap::new(),
+            meta_data_var: HashMap::new(),
+            meta_nft: HashMap::new(),
+            meta_ft: HashMap::new(),
         }
     }
 

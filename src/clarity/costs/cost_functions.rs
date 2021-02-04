@@ -1,6 +1,3 @@
-use super::CostFunctions::{Constant, Linear, LogN, NLogN};
-use super::SimpleCostSpecification;
-
 define_named_enum!(ClarityCostFunction {
     AnalysisTypeAnnotate("cost_analysis_type_annotate"),
     AnalysisTypeCheck("cost_analysis_type_check"),

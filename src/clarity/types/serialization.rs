@@ -103,8 +103,8 @@ pub enum NetError {
     PeerThrottled,
     /// Error resolving a DNS name
     LookupError(String),
-    /// Catch-all for chainstate errors that don't map cleanly into network errors
-    ChainstateError(String),
+    // Catch-all for chainstate errors that don't map cleanly into network errors
+    // ChainstateError(String),
 }
 /// Errors that may occur in serialization or deserialization
 /// If deserialization failed because the described type is a bad type and

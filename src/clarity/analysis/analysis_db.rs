@@ -61,7 +61,7 @@ impl<'a> AnalysisDatabase<'a> {
         self.store.rollback();
     }
 
-    fn storage_key() -> &'static str {
+    pub fn storage_key() -> &'static str {
         "analysis"
     }
 
