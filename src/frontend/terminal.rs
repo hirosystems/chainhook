@@ -5,6 +5,8 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::io::{stdin, stdout, Write};
 
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+
 pub struct Terminal {
     session: Session,
 }
@@ -21,7 +23,7 @@ impl Terminal {
         let light_red = Colour::Red.bold();
         let light_black = Colour::Black.bold();
 
-        println!("{}", light_green.paint("clarity-repl v1.0"));
+        println!("{}", light_green.paint(format!("clarity-repl v{}", VERSION.unwrap())));
         println!("{}", light_black.paint("Enter \".help\" for usage hints."));
         println!(
             "{}",

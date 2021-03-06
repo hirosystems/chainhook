@@ -8,6 +8,10 @@
 #[cfg(feature = "wasm")]
 extern crate wasm_bindgen;
 
+#[cfg(feature = "cli")]
+#[macro_use]
+extern crate prettytable;
+
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
@@ -21,7 +25,11 @@ use wasm_bindgen::prelude::*;
 pub mod clarity;
 pub mod repl;
 
-use repl::{Session, SessionSettings};
+#[cfg(feature = "cli")]
+pub mod frontend;
+
+#[cfg(feature = "cli")]
+pub use frontend::Terminal;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]

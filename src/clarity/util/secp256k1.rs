@@ -41,12 +41,17 @@ pub struct Secp256k1PrivateKey {
 }
 
 impl Secp256k1PublicKey {
-
-    pub fn from_slice(data: &[u8]) -> Result<Secp256k1PublicKey, &'static str> {
-        match LibSecp256k1PublicKey::parse_slice(data, Some(secp256k1::PublicKeyFormat::Compressed)) {
+    pub fn from_slice(data: &[u8], compressed: bool) -> Result<Secp256k1PublicKey, &'static str> {
+        let format = if compressed {
+            secp256k1::PublicKeyFormat::Compressed
+        } else {
+            secp256k1::PublicKeyFormat::Full
+        };
+        match LibSecp256k1PublicKey::parse_slice(data, Some(format))
+        {
             Ok(pubkey_res) => Ok(Secp256k1PublicKey {
                 key: pubkey_res,
-                compressed: true,
+                compressed,
             }),
             Err(_e) => Err("Invalid public key: failed to load"),
         }
@@ -105,11 +110,17 @@ pub fn secp256k1_verify(
     serialized_signature: &[u8],
     pubkey_arr: &[u8],
 ) -> Result<(), LibSecp256k1Error> {
-
     let message = LibSecp256k1Message::parse_slice(message_arr)?;
     let signature = LibSecp256k1Signature::parse_slice(&serialized_signature[..64])?; // ignore 65th byte if present
-    let pubkey = LibSecp256k1PublicKey::parse_slice(pubkey_arr, Some(secp256k1::PublicKeyFormat::Compressed))?;
+    let pubkey = LibSecp256k1PublicKey::parse_slice(
+        pubkey_arr,
+        Some(secp256k1::PublicKeyFormat::Compressed),
+    )?;
 
     let res = secp256k1::verify(&message, &signature, &pubkey);
-    if res { Ok(()) } else { Err(LibSecp256k1Error::InvalidPublicKey) }
+    if res {
+        Ok(())
+    } else {
+        Err(LibSecp256k1Error::InvalidPublicKey)
+    }
 }

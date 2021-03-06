@@ -11,8 +11,10 @@ use crate::clarity::costs::cost_functions::ClarityCostFunction;
 use crate::clarity::costs::{
     cost_functions, runtime_cost, CostErrors, CostTracker, ExecutionCost, LimitedCostTracker,
 };
+use crate::clarity::database::structures::{
+    DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
+};
 use crate::clarity::database::ClarityDatabase;
-use crate::clarity::database::structures::{DataMapMetadata, DataVariableMetadata, NonFungibleTokenMetadata, FungibleTokenMetadata};
 use crate::clarity::errors::{
     CheckErrors, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
 };

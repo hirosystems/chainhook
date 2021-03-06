@@ -1078,9 +1078,8 @@ impl PrincipalData {
     }
 
     pub fn parse_standard_principal(literal: &str) -> Result<StandardPrincipalData> {
-        let (version, data) = c32::c32_address_decode(&literal).map_err(|x| {
-            RuntimeErrorType::ParseError(format!("Invalid principal literal"))
-        })?;
+        let (version, data) = c32::c32_address_decode(&literal)
+            .map_err(|x| RuntimeErrorType::ParseError(format!("Invalid principal literal")))?;
         if data.len() != 20 {
             return Err(RuntimeErrorType::ParseError(
                 "Invalid principal literal: Expected 20 data bytes.".to_string(),

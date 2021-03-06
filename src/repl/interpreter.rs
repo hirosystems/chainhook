@@ -172,4 +172,9 @@ impl ClarityInterpreter {
 
         Ok(format!("→ {}: {} µSTX", recipient, final_balance))
     }
+
+    pub fn set_tx_sender(&mut self,
+        tx_sender: PrincipalData,) -> Result<String, String> {
+            Ok(format!("tx-sender switched to {}", tx_sender))
+        }
 }

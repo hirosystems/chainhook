@@ -289,10 +289,7 @@ impl<'a> RollbackWrapper<'a> {
     ///    wrapper's pending data on reads. This is set to `false` during (at-block ...) closures,
     ///    and `true` otherwise.
     ///
-    pub fn set_block_hash(
-        &mut self,
-        bhh: StacksBlockId,
-    ) -> Result<StacksBlockId> {
+    pub fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
         self.query_pending_data = true;
         self.store.set_block_hash(bhh)
     }

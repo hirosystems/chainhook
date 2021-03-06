@@ -4,9 +4,11 @@ use crate::clarity::docs::{make_api_reference, make_define_reference, make_keywo
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier};
+use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, VecDeque};
+use prettytable::{Table, Row, Cell};
 
 use super::SessionSettings;
 
@@ -24,13 +26,19 @@ pub struct Session {
     session_id: u32,
     started_at: u32,
     settings: SessionSettings,
-    contracts: Vec<String>,
+    contracts: Vec<(String, String)>,
+    tx_sender: String,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
 }
 
 impl Session {
     pub fn new(settings: SessionSettings) -> Session {
+        let tx_sender = match settings.initial_deployer {
+            Some(ref entry) => entry.address.clone(),
+            None => format!("{}", StacksAddress::burn_address(false))
+        };
+
         Session {
             session_id: 0,
             started_at: 0,
@@ -38,6 +46,7 @@ impl Session {
             contracts: Vec::new(),
             interpreter: ClarityInterpreter::new(),
             api_reference: build_api_reference(),
+            tx_sender,
         }
     }
 
@@ -48,22 +57,21 @@ impl Session {
         let light_black = Colour::Black.bold();
 
         if self.settings.initial_contracts.len() > 0 {
-            output.push(format!("[Initial contracts]"));
             let mut initial_contracts = self.settings.initial_contracts.clone();
             for contract in initial_contracts.drain(..) {
-                let mut result = match self.formatted_interpretation(contract.code, contract.name) {
-                    Ok(result) => result,
-                    Err(result) => result,
+                match self.formatted_interpretation(contract.code, contract.name) {
+                    Ok(_) => {},
+                    Err(ref mut result) => output.append(result),
                 };
-                output.append(&mut result);
             }
+            output.push(format!("{}", light_green.paint("Initialized contracts")));
+            self.get_contracts(&mut output);
         }
 
-        if self.settings.initial_balances.len() > 0 {
-            output.push(format!("[Initial balances]"));
-            let mut initial_balances = self.settings.initial_balances.clone();
-            for balance in initial_balances.drain(..) {
-                let recipient = match PrincipalData::parse(&balance.address) {
+        if self.settings.initial_accounts.len() > 0 {
+            let mut initial_accounts = self.settings.initial_accounts.clone();
+            for account in initial_accounts.drain(..) {
+                let recipient = match PrincipalData::parse(&account.address) {
                     Ok(recipient) => recipient,
                     _ => {
                         output.push(format!(
@@ -76,12 +84,14 @@ impl Session {
 
                 match self
                     .interpreter
-                    .credit_stx_balance(recipient, balance.amount)
+                    .credit_stx_balance(recipient, account.balance)
                 {
-                    Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
+                    Ok(_) => {},
                     Err(err) => output.push(format!("{}", light_red.paint(err))),
                 };
             }
+            output.push(format!("{}", light_green.paint("Initialized balances")));
+            self.get_accounts(&mut output);
         }
 
         output.join("\n")
@@ -91,9 +101,12 @@ impl Session {
         let mut output = Vec::<String>::new();
         match command {
             ".help" => self.display_help(&mut output),
-            cmd if cmd.starts_with(".functions") => self.display_functions(&mut output),
-            cmd if cmd.starts_with(".doc") => self.display_doc(&mut output, cmd),
-            cmd if cmd.starts_with(".mint-stx") => self.mint_stx(&mut output, cmd),
+            cmd if cmd.starts_with("::list_functions") => self.display_functions(&mut output),
+            cmd if cmd.starts_with("::describe_function") => self.display_doc(&mut output, cmd),
+            cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
+            cmd if cmd.starts_with("::set_tx_sender") => self.set_tx_sender(&mut output, cmd),
+            cmd if cmd.starts_with("::get_accounts()") => self.get_accounts(&mut output),
+            cmd if cmd.starts_with("::get_contracts()") => self.get_contracts(&mut output),
             snippet => {
                 let mut result = match self.formatted_interpretation(snippet.to_string(), None) {
                     Ok(result) => result,
@@ -134,26 +147,31 @@ impl Session {
                         let mut formatted_lines: Vec<String> =
                             lines.map(|l| l.to_string()).collect();
                         for span in diagnostic.spans {
-                            let first_line = span.start_line as usize - 1;
-                            let last_line = span.end_line as usize - 1;
+                            let first_line = span.start_line.saturating_sub(1) as usize;
+                            let last_line = span.end_line.saturating_sub(1) as usize;
                             let mut pass = vec![];
 
                             for (line_index, line) in formatted_lines.iter().enumerate() {
+                                if line == "" {
+                                    pass.push(line.clone());
+                                    continue;
+                                }
                                 if line_index >= first_line && line_index <= last_line {
                                     let (begin, end) =
                                         match (line_index == first_line, line_index == last_line) {
                                             (true, true) => (
-                                                span.start_column as usize - 1,
-                                                span.end_column as usize - 1,
+                                                span.start_column.saturating_sub(1) as usize ,
+                                                span.end_column.saturating_sub(1) as usize,
                                             ), // One line
                                             (true, false) => {
-                                                (span.start_column as usize - 1, line.len() - 1)
+                                                (span.start_column.saturating_sub(1) as usize, line.len().saturating_sub(1))
                                             } // Multiline, first line
-                                            (false, false) => (0, line.len() - 1), // Multiline, in between
-                                            (false, true) => (0, span.end_column as usize - 1), // Multiline, last line
+                                            (false, false) => (0, line.len().saturating_sub(1)), // Multiline, in between
+                                            (false, true) => (0, span.end_column.saturating_sub(1) as usize), // Multiline, last line
                                         };
 
                                     let error_style = light_red.underline();
+                                    println!("{:?}", line);
                                     let formatted_line = format!(
                                         "{}{}{}",
                                         &line[..begin],
@@ -182,16 +200,18 @@ impl Session {
     ) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {
         let contract_name = match name {
             Some(name) => name,
-            None => format!("snippet-{}", self.contracts.len()),
+            None => format!("contract-{}", self.contracts.len()),
         };
 
-        let contract_identifier =
-            QualifiedContractIdentifier::local(contract_name.as_str()).unwrap();
+        let contract_identifier = {
+            let id = format!("{}.{}", self.tx_sender, contract_name);
+            QualifiedContractIdentifier::parse(&id).unwrap()
+        };
 
-        match self.interpreter.run(snippet, contract_identifier) {
+        match self.interpreter.run(snippet, contract_identifier.clone()) {
             Ok((contract_saved, res)) => {
                 if contract_saved {
-                    self.contracts.push(contract_name.clone());
+                    self.contracts.push((contract_identifier.to_string(), res.clone()));
                     Ok((Some(contract_name), res))
                 } else {
                     Ok((None, res))
@@ -220,33 +240,109 @@ impl Session {
         let coming_soon_colour = Colour::Black.bold();
         output.push(format!(
             "{}",
-            help_colour.paint(".help\t\t\t\tDisplay help")
+            help_colour.paint("::help()\t\t\t\tDisplay help")
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint(".functions\t\t\tDisplay all the native functions available in clarity")
+                .paint("::get_functions()\t\t\tDisplay all the native functions available in clarity")
         ));
         output.push(format!(
             "{}",
             help_colour.paint(
-                ".doc <function> \t\tDisplay documentation for a given native function fn-name"
+                "::get_doc(<function>)\t\t\tDisplay documentation for a given native function fn-name"
             )
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint(".mint-stx <principal> <amount>\tMint STX balance for a given principal")
+                .paint("::mint_stx(<principal>, <amount>)\tMint STX balance for a given principal")
         ));
         output.push(format!(
             "{}",
-            coming_soon_colour.paint(".get-block-height\t\tGet current block height [coming soon]")
+            help_colour
+                .paint("::set_tx_sender(<principal>)\t\tSet tx-sender variable to principal")
+        ));
+        output.push(format!(
+            "{}",
+            help_colour
+                .paint("::get_accounts()\t\t\tGet genesis accounts")
+        ));
+        output.push(format!(
+            "{}",
+            help_colour
+                .paint("::get_contracts()\t\t\tGet contracts")
+        ));
+        output.push(format!(
+            "{}",
+            coming_soon_colour.paint("::get_block_height()\t\t\tGet current block height [coming soon]")
         ));
         output.push(format!(
             "{}",
             coming_soon_colour
-                .paint(".set-block-height <number>\tSet current block height [coming soon]")
+                .paint("::set-block-height(<number>)\t\tSet current block height [coming soon]")
         ));
+    }
+
+    fn set_tx_sender(&mut self, output: &mut Vec<String>, command: &str) {
+        let args: Vec<_> = command.split(' ').collect();
+        let light_green = Colour::Green.bold();
+        let light_red = Colour::Red.bold();
+
+        if args.len() != 2 {
+            output.push(format!(
+                "{}",
+                light_red.paint("Usage: .set-tx-sender <address>")
+            ));
+            return;
+        }
+
+        let tx_sender = match PrincipalData::parse(&args[1]) {
+            Ok(address) => address,
+            _ => {
+                output.push(format!(
+                    "{}",
+                    light_red.paint("Unable to parse the address")
+                ));
+                return;
+            }
+        };
+
+        match self.interpreter.set_tx_sender(tx_sender) {
+            Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
+            Err(err) => output.push(format!("{}", light_red.paint(err))),
+        };
+    }
+
+    fn get_accounts(&mut self, output:&mut Vec<String>) {
+        if self.settings.initial_accounts.len() > 0 {
+            let mut table = Table::new();
+            table.add_row(row!["Name", "Address", "Balance", "Mnemonic", "Derivation path"]);
+            let mut initial_accounts = self.settings.initial_accounts.clone();
+            for account in initial_accounts.drain(..) {
+                table.add_row(Row::new(vec![
+                    Cell::new(&account.name),
+                    Cell::new(&account.address),
+                    Cell::new(&format!("{}", account.balance)),
+                    Cell::new(&account.mnemonic),
+                    Cell::new(&account.derivation_path)]));
+            }
+            output.push(format!("{}", table));
+        }
+    }
+
+    fn get_contracts(&mut self, output:&mut Vec<String>) {
+        if self.settings.initial_accounts.len() > 0 {
+            let mut table = Table::new();
+            table.add_row(row!["Contract identifier", "Public functions"]);
+            let mut initial_contracts = self.contracts.clone();
+            for contract in initial_contracts.drain(..) {
+                table.add_row(Row::new(vec![
+                    Cell::new(&contract.0),
+                    Cell::new(&contract.1)]));
+            }
+            output.push(format!("{}", table));
+        }
     }
 
     fn mint_stx(&mut self, output: &mut Vec<String>, command: &str) {

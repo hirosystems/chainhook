@@ -22,10 +22,12 @@ use crate::clarity::representations::SymbolicExpressionType::{
     Atom, AtomValue, Field, List, LiteralValue, TraitReference,
 };
 use crate::clarity::representations::{ClarityName, SymbolicExpression, SymbolicExpressionType};
-use crate::clarity::types::{parse_name_type_pairs, PrincipalData, TupleTypeSignature, TypeSignature, Value};
+use crate::clarity::types::{
+    parse_name_type_pairs, PrincipalData, TupleTypeSignature, TypeSignature, Value,
+};
 
-use std::collections::HashMap;
 use crate::clarity::variables::NativeVariables;
+use std::collections::HashMap;
 
 pub use super::errors::{
     check_argument_count, check_arguments_at_least, CheckError, CheckErrors, CheckResult,

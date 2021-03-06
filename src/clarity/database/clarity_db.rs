@@ -1,3 +1,4 @@
+use rand::RngCore;
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
 
@@ -77,7 +78,10 @@ impl HeadersDB for NullHeadersDB {
     }
 
     fn get_vrf_seed_for_block(&self, _bhh: &StacksBlockId) -> Option<VRFSeed> {
-        None
+        let mut rng = rand::thread_rng();
+        let mut buf = [0u8; 32];
+        rng.fill_bytes(&mut buf);
+        Some(VRFSeed(buf))
     }
 
     fn get_stacks_block_header_hash_for_block(
@@ -134,10 +138,7 @@ impl<'a> ClarityDatabase<'a> {
         self.store.rollback();
     }
 
-    pub fn set_block_hash(
-        &mut self,
-        bhh: StacksBlockId
-    ) -> Result<StacksBlockId> {
+    pub fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
         self.store.set_block_hash(bhh)
     }
 
@@ -347,18 +348,18 @@ impl<'a> ClarityDatabase<'a> {
 
     pub fn increment_ustx_liquid_supply(&mut self, incr_by: u128) -> Result<()> {
         let current = self.get_total_liquid_ustx();
-        let next = current.checked_add(incr_by).ok_or_else(|| {
-            RuntimeErrorType::ArithmeticOverflow
-        })?;
+        let next = current
+            .checked_add(incr_by)
+            .ok_or_else(|| RuntimeErrorType::ArithmeticOverflow)?;
         self.set_ustx_liquid_supply(next);
         Ok(())
     }
 
     pub fn decrement_ustx_liquid_supply(&mut self, decr_by: u128) -> Result<()> {
         let current = self.get_total_liquid_ustx();
-        let next = current.checked_sub(decr_by).ok_or_else(|| {
-            RuntimeErrorType::ArithmeticUnderflow
-        })?;
+        let next = current
+            .checked_sub(decr_by)
+            .ok_or_else(|| RuntimeErrorType::ArithmeticUnderflow)?;
         self.set_ustx_liquid_supply(next);
         Ok(())
     }
@@ -386,8 +387,7 @@ impl<'a> ClarityDatabase<'a> {
     pub fn get_current_burnchain_block_height(&mut self) -> u32 {
         let cur_stacks_height = self.store.get_current_block_height();
         let cur_id_bhh = self.get_index_block_header_hash(cur_stacks_height);
-        self.get_burnchain_block_height(&cur_id_bhh)
-            .unwrap_or(0)
+        self.get_burnchain_block_height(&cur_id_bhh).unwrap_or(0)
     }
 
     pub fn get_block_header_hash(&mut self, block_height: u32) -> BlockHeaderHash {

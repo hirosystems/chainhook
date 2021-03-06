@@ -1,7 +1,7 @@
 use crate::clarity::contexts::{Environment, LocalContext};
+use crate::clarity::costs::{cost_functions::ClarityCostFunction, runtime_cost};
 use crate::clarity::errors::{InterpreterResult as Result, RuntimeErrorType};
 use crate::clarity::types::Value;
-use crate::clarity::costs::{runtime_cost, cost_functions::ClarityCostFunction};
 use std::convert::TryFrom;
 
 define_named_enum!(NativeVariables {

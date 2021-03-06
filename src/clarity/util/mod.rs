@@ -43,6 +43,9 @@ use crate::clarity::util::secp256k1::Secp256k1PublicKey;
 use address::public_keys_to_address_hash;
 use address::AddressHashMode;
 
+pub const C32_ADDRESS_VERSION_MAINNET_SINGLESIG: u8 = 22; // P
+pub const C32_ADDRESS_VERSION_TESTNET_SINGLESIG: u8 = 26; // T
+
 pub fn get_epoch_time_secs() -> u64 {
     let start = SystemTime::now();
     let since_the_epoch = start
@@ -132,5 +135,24 @@ impl StacksAddress {
             self.version,
             self.bytes.as_bytes().clone(),
         ))
+    }
+
+    pub fn burn_address(mainnet: bool) -> StacksAddress {
+        StacksAddress {
+            version: if mainnet {
+                C32_ADDRESS_VERSION_MAINNET_SINGLESIG
+            } else {
+                C32_ADDRESS_VERSION_TESTNET_SINGLESIG
+            },
+            bytes: Hash160([0u8; 20]),
+        }
+    }
+}
+
+impl std::fmt::Display for StacksAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        c32::c32_address(self.version, self.bytes.as_bytes())
+            .expect("Stacks version is not C32-encodable")
+            .fmt(f)
     }
 }

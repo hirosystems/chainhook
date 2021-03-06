@@ -7,8 +7,8 @@ use crate::clarity::errors::{
 use crate::clarity::types::{
     OptionalData, PrincipalData, TupleTypeSignature, TypeSignature, Value, NONE,
 };
-use serde_json;
 use serde::Deserialize;
+use serde_json;
 
 pub trait ClaritySerializable {
     fn serialize(&self) -> String;

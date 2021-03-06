@@ -6,13 +6,17 @@ pub struct InitialContract {
 }
 
 #[derive(Clone, Debug)]
-pub struct InitialBalance {
+pub struct Account {
     pub address: String,
-    pub amount: u64,
+    pub balance: u64,
+    pub name: String,
+    pub mnemonic: String,
+    pub derivation_path: String,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct SessionSettings {
     pub initial_contracts: Vec<InitialContract>,
-    pub initial_balances: Vec<InitialBalance>,
+    pub initial_accounts: Vec<Account>,
+    pub initial_deployer: Option<Account>,
 }
