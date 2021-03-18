@@ -24,7 +24,7 @@ impl Terminal {
         let light_black = Colour::Black.bold();
 
         println!("{}", light_green.paint(format!("clarity-repl v{}", VERSION.unwrap())));
-        println!("{}", light_black.paint("Enter \".help\" for usage hints."));
+        println!("{}", light_black.paint("Enter \"::help\" for usage hints."));
         println!(
             "{}",
             light_black.paint("Connected to a transient in-memory database.")

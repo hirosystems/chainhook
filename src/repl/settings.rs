@@ -5,13 +5,13 @@ pub struct InitialContract {
     pub deployer: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Account {
     pub address: String,
     pub balance: u64,
     pub name: String,
     pub mnemonic: String,
-    pub derivation_path: String,
+    pub derivation: String,
 }
 
 #[derive(Clone, Debug, Default)]

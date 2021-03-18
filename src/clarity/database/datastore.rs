@@ -13,6 +13,7 @@ pub struct Datastore {
     store: HashMap<String, String>,
     metadata: HashMap<(String, String), String>,
     chain_tip: StacksBlockId,
+    chain_height: u32,
 }
 
 impl Datastore {
@@ -20,8 +21,21 @@ impl Datastore {
         Datastore {
             store: HashMap::new(),
             metadata: HashMap::new(),
-            chain_tip: StacksBlockId([255u8; 32]),
+            chain_tip: StacksBlockId([0u8; 32]),
+            chain_height: 0,
         }
+    }
+
+    pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
+        self.chain_height = self.chain_height + count;
+        let chain_height_bytes = self.chain_height.to_be_bytes();
+        let mut bytes = [0u8; 32];
+        bytes[0] = chain_height_bytes[0];
+        bytes[1] = chain_height_bytes[1];
+        bytes[2] = chain_height_bytes[2];
+        bytes[3] = chain_height_bytes[3];
+        self.chain_tip = StacksBlockId(bytes);
+        self.chain_height.clone()
     }
 }
 
@@ -48,6 +62,7 @@ impl ClarityBackingStore for Datastore {
     ///   used to implement time-shifted evaluation.
     /// returns the previous block header hash on success
     fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
+        self.chain_tip = bhh;
         Ok(bhh)
     }
 
@@ -59,11 +74,11 @@ impl ClarityBackingStore for Datastore {
     ///  i.e., it changes on time-shifted evaluation. the open_chain_tip functions always
     ///   return data about the chain tip that is currently open for writing.
     fn get_current_block_height(&mut self) -> u32 {
-        0
+        self.chain_height.clone()
     }
 
     fn get_open_chain_tip_height(&mut self) -> u32 {
-        0
+        self.chain_height.clone()
     }
 
     fn get_open_chain_tip(&mut self) -> StacksBlockId {

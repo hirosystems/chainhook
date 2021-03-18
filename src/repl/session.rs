@@ -3,7 +3,7 @@ use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
-use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier};
+use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use ansi_term::{Colour, Style};
@@ -27,16 +27,19 @@ pub struct Session {
     started_at: u32,
     settings: SessionSettings,
     contracts: Vec<(String, String)>,
-    tx_sender: String,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
 }
 
 impl Session {
     pub fn new(settings: SessionSettings) -> Session {
-        let tx_sender = match settings.initial_deployer {
-            Some(ref entry) => entry.address.clone(),
-            None => format!("{}", StacksAddress::burn_address(false))
+        let tx_sender = {
+            let address = match settings.initial_deployer {
+                Some(ref entry) => entry.address.clone(),
+                None => format!("{}", StacksAddress::burn_address(false))
+            };
+            PrincipalData::parse_standard_principal(&address)
+                .expect("Unable to parse deployer's address")
         };
 
         Session {
@@ -44,9 +47,8 @@ impl Session {
             started_at: 0,
             settings,
             contracts: Vec::new(),
-            interpreter: ClarityInterpreter::new(),
+            interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
-            tx_sender,
         }
     }
 
@@ -54,6 +56,7 @@ impl Session {
         let mut output = Vec::<String>::new();
         let light_green = Colour::Green.bold();
         let light_red = Colour::Red.bold();
+        let light_blue = Colour::Cyan.bold();
         let light_black = Colour::Black.bold();
 
         if self.settings.initial_contracts.len() > 0 {
@@ -64,7 +67,7 @@ impl Session {
                     Err(ref mut result) => output.append(result),
                 };
             }
-            output.push(format!("{}", light_green.paint("Initialized contracts")));
+            output.push(format!("{}", light_blue.paint("Initialized contracts")));
             self.get_contracts(&mut output);
         }
 
@@ -90,7 +93,7 @@ impl Session {
                     Err(err) => output.push(format!("{}", light_red.paint(err))),
                 };
             }
-            output.push(format!("{}", light_green.paint("Initialized balances")));
+            output.push(format!("{}", light_blue.paint("Initialized balances")));
             self.get_accounts(&mut output);
         }
 
@@ -100,13 +103,16 @@ impl Session {
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {
         let mut output = Vec::<String>::new();
         match command {
-            ".help" => self.display_help(&mut output),
+            "::help" => self.display_help(&mut output),
             cmd if cmd.starts_with("::list_functions") => self.display_functions(&mut output),
             cmd if cmd.starts_with("::describe_function") => self.display_doc(&mut output, cmd),
             cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
-            cmd if cmd.starts_with("::set_tx_sender") => self.set_tx_sender(&mut output, cmd),
-            cmd if cmd.starts_with("::get_accounts()") => self.get_accounts(&mut output),
-            cmd if cmd.starts_with("::get_contracts()") => self.get_contracts(&mut output),
+            cmd if cmd.starts_with("::set_tx_sender") => self.parse_and_set_tx_sender(&mut output, cmd),
+            cmd if cmd.starts_with("::get_accounts") => self.get_accounts(&mut output),
+            cmd if cmd.starts_with("::get_contracts") => self.get_contracts(&mut output),
+            cmd if cmd.starts_with("::get_block_height") => self.get_block_height(&mut output),
+            cmd if cmd.starts_with("::advance_chain_tip") => self.parse_and_advance_chain_tip(&mut output, cmd),
+
             snippet => {
                 let mut result = match self.formatted_interpretation(snippet.to_string(), None) {
                     Ok(result) => result,
@@ -171,7 +177,6 @@ impl Session {
                                         };
 
                                     let error_style = light_red.underline();
-                                    println!("{:?}", line);
                                     let formatted_line = format!(
                                         "{}{}{}",
                                         &line[..begin],
@@ -202,9 +207,9 @@ impl Session {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
         };
-
+        let tx_sender = self.interpreter.get_tx_sender().to_address();
         let contract_identifier = {
-            let id = format!("{}.{}", self.tx_sender, contract_name);
+            let id = format!("{}.{}", tx_sender, contract_name);
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
@@ -240,51 +245,51 @@ impl Session {
         let coming_soon_colour = Colour::Black.bold();
         output.push(format!(
             "{}",
-            help_colour.paint("::help()\t\t\t\tDisplay help")
+            help_colour.paint("::help\t\t\t\t\tDisplay help")
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint("::get_functions()\t\t\tDisplay all the native functions available in clarity")
+                .paint("::list_functions\t\t\tDisplay all the native functions available in clarity")
         ));
         output.push(format!(
             "{}",
             help_colour.paint(
-                "::get_doc(<function>)\t\t\tDisplay documentation for a given native function fn-name"
+                "::describe_function <function>\t\tDisplay documentation for a given native function fn-name"
             )
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint("::mint_stx(<principal>, <amount>)\tMint STX balance for a given principal")
+                .paint("::mint_stx <principal> <amount>\t\tMint STX balance for a given principal")
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint("::set_tx_sender(<principal>)\t\tSet tx-sender variable to principal")
+                .paint("::set_tx_sender <principal>\t\tSet tx-sender variable to principal")
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint("::get_accounts()\t\t\tGet genesis accounts")
+                .paint("::get_accounts\t\t\t\tGet genesis accounts")
         ));
         output.push(format!(
             "{}",
             help_colour
-                .paint("::get_contracts()\t\t\tGet contracts")
+                .paint("::get_contracts\t\t\t\tGet contracts")
         ));
         output.push(format!(
             "{}",
-            coming_soon_colour.paint("::get_block_height()\t\t\tGet current block height [coming soon]")
+            help_colour.paint("::get_block_height\t\t\tGet current block height")
         ));
         output.push(format!(
             "{}",
-            coming_soon_colour
-                .paint("::set-block-height(<number>)\t\tSet current block height [coming soon]")
+            help_colour
+                .paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
         ));
     }
 
-    fn set_tx_sender(&mut self, output: &mut Vec<String>, command: &str) {
+    fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
         let args: Vec<_> = command.split(' ').collect();
         let light_green = Colour::Green.bold();
         let light_red = Colour::Red.bold();
@@ -292,12 +297,47 @@ impl Session {
         if args.len() != 2 {
             output.push(format!(
                 "{}",
-                light_red.paint("Usage: .set-tx-sender <address>")
+                light_red.paint("Usage: ::advance_chain_tip <count>")
             ));
             return;
         }
 
-        let tx_sender = match PrincipalData::parse(&args[1]) {
+        let count = match args[1].parse::<u32>() {
+            Ok(count) => count,
+            _ => {
+                output.push(format!(
+                    "{}",
+                    light_red.paint("Unable to parse count")
+                ));
+                return;
+            }
+        };
+
+        let new_height = self.advance_chain_tip(count);
+        output.push(format!("{}", light_green.paint(format!("{} blocks simulated, new height: {}", count, new_height))));
+    }
+
+    pub fn advance_chain_tip(
+        &mut self,
+        count: u32,
+    ) -> u32 {
+        self.interpreter.advance_chain_tip(count)
+    }
+
+    fn parse_and_set_tx_sender(&mut self, output: &mut Vec<String>, command: &str) {
+        let args: Vec<_> = command.split(' ').collect();
+        let light_green = Colour::Green.bold();
+        let light_red = Colour::Red.bold();
+
+        if args.len() != 2 {
+            output.push(format!(
+                "{}",
+                light_red.paint("Usage: ::set_tx_sender <address>")
+            ));
+            return;
+        }
+
+        let tx_sender = match PrincipalData::parse_standard_principal(&args[1]) {
             Ok(address) => address,
             _ => {
                 output.push(format!(
@@ -308,24 +348,36 @@ impl Session {
             }
         };
 
-        match self.interpreter.set_tx_sender(tx_sender) {
-            Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
-            Err(err) => output.push(format!("{}", light_red.paint(err))),
-        };
+        self.set_tx_sender(tx_sender.to_address());
+        output.push(format!("{}", light_green.paint(format!("tx-sender switched to {}", tx_sender))));
     }
 
+    pub fn set_tx_sender(&mut self, address: String) {
+        let tx_sender = PrincipalData::parse_standard_principal(&address)
+            .expect("Unable to parse address");
+        self.interpreter.set_tx_sender(tx_sender)
+    }
+
+    pub fn get_tx_sender(&self) -> String {
+        self.interpreter.get_tx_sender().to_address()
+    }
+
+    fn get_block_height(&mut self, output:&mut Vec<String>) {
+        let light_green = Colour::Green.bold();
+        let height = self.interpreter.get_block_height();
+        output.push(format!("{}", light_green.paint(format!("Current height: {}", height))));
+    }
+    
     fn get_accounts(&mut self, output:&mut Vec<String>) {
         if self.settings.initial_accounts.len() > 0 {
             let mut table = Table::new();
-            table.add_row(row!["Name", "Address", "Balance", "Mnemonic", "Derivation path"]);
+            table.add_row(row!["Name", "Address", "Balance"]);
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
                 table.add_row(Row::new(vec![
                     Cell::new(&account.name),
                     Cell::new(&account.address),
-                    Cell::new(&format!("{}", account.balance)),
-                    Cell::new(&account.mnemonic),
-                    Cell::new(&account.derivation_path)]));
+                    Cell::new(&format!("{}", account.balance))]));
             }
             output.push(format!("{}", table));
         }
@@ -353,7 +405,7 @@ impl Session {
         if args.len() != 3 {
             output.push(format!(
                 "{}",
-                light_red.paint("Usage: .mint-stx <recipient address> <amount>")
+                light_red.paint("Usage: ::mint_stx <recipient address> <amount>")
             ));
             return;
         }
@@ -400,7 +452,7 @@ impl Session {
         let help_accent_colour = Colour::Yellow.bold();
         let keyword = {
             let mut s = command.to_string();
-            s = s.replace(".doc", "");
+            s = s.replace("::doc", "");
             s = s.replace(" ", "");
             s
         };

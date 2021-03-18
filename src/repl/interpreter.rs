@@ -1,26 +1,27 @@
-use crate::clarity::analysis::AnalysisDatabase;
+use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
-use crate::clarity::contexts::{ContractContext, GlobalContext, OwnedEnvironment};
+use crate::clarity::contexts::{ContractContext, GlobalContext};
 use crate::clarity::contracts::Contract;
 use crate::clarity::costs::LimitedCostTracker;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::eval_all;
-use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier};
+use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 
 #[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
-    datastore: Datastore,
+    pub datastore: Datastore,
+    tx_sender: StandardPrincipalData,
 }
 
 impl ClarityInterpreter {
-    pub fn new() -> ClarityInterpreter {
+    pub fn new(tx_sender: StandardPrincipalData) -> ClarityInterpreter {
         let datastore = Datastore::new();
 
-        ClarityInterpreter { datastore }
+        ClarityInterpreter { datastore, tx_sender }
     }
 
     pub fn run(
@@ -173,8 +174,19 @@ impl ClarityInterpreter {
         Ok(format!("→ {}: {} µSTX", recipient, final_balance))
     }
 
-    pub fn set_tx_sender(&mut self,
-        tx_sender: PrincipalData,) -> Result<String, String> {
-            Ok(format!("tx-sender switched to {}", tx_sender))
-        }
+    pub fn set_tx_sender(&mut self, tx_sender: StandardPrincipalData) {
+        self.tx_sender = tx_sender;
+    }
+
+    pub fn get_tx_sender(&self) -> StandardPrincipalData {
+        self.tx_sender.clone()
+    }
+
+    pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
+        self.datastore.advance_chain_tip(count)
+    }
+
+    pub fn get_block_height(&mut self) -> u32 {
+        self.datastore.get_current_block_height()
+    }
 }
