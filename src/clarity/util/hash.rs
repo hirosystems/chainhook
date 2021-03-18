@@ -95,8 +95,8 @@ impl Hash160 {
     pub fn from_sha256(sha256_hash: &[u8; 32]) -> Hash160 {
         let mut rmd = Ripemd160::new();
         let mut ret = [0u8; 20];
-        rmd.input(sha256_hash);
-        ret.copy_from_slice(rmd.result().as_slice());
+        rmd.update(sha256_hash);
+        ret.copy_from_slice(rmd.finalize().as_slice());
         Hash160(ret)
     }
 
@@ -120,7 +120,7 @@ impl Sha512Trunc256Sum {
         Sha512Trunc256Sum::from(Sha512Trunc256::digest(data).as_slice())
     }
     pub fn from_hasher(hasher: Sha512Trunc256) -> Sha512Trunc256Sum {
-        Sha512Trunc256Sum::from(hasher.result().as_slice())
+        Sha512Trunc256Sum::from(hasher.finalize().as_slice())
     }
 }
 
@@ -128,8 +128,8 @@ impl Keccak256Hash {
     pub fn from_data(data: &[u8]) -> Keccak256Hash {
         let mut tmp = [0u8; 32];
         let mut digest = Keccak256::new();
-        digest.input(data);
-        tmp.copy_from_slice(digest.result().as_slice());
+        digest.update(data);
+        tmp.copy_from_slice(digest.finalize().as_slice());
         Keccak256Hash(tmp)
     }
 }
@@ -138,8 +138,8 @@ impl Sha256Sum {
     pub fn from_data(data: &[u8]) -> Sha256Sum {
         let mut tmp = [0u8; 32];
         let mut sha2_1 = Sha256::new();
-        sha2_1.input(data);
-        tmp.copy_from_slice(sha2_1.result().as_slice());
+        sha2_1.update(data);
+        tmp.copy_from_slice(sha2_1.finalize().as_slice());
         Sha256Sum(tmp)
     }
 }
@@ -149,12 +149,12 @@ impl DoubleSha256 {
         let mut tmp = [0u8; 32];
 
         let mut sha2 = Sha256::new();
-        sha2.input(data);
-        tmp.copy_from_slice(sha2.result().as_slice());
+        sha2.update(data);
+        tmp.copy_from_slice(sha2.finalize().as_slice());
 
         let mut sha2_2 = Sha256::new();
-        sha2_2.input(&tmp);
-        tmp.copy_from_slice(sha2_2.result().as_slice());
+        sha2_2.update(&tmp);
+        tmp.copy_from_slice(sha2_2.finalize().as_slice());
 
         DoubleSha256(tmp)
     }
