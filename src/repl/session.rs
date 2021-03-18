@@ -54,10 +54,6 @@ impl Session {
 
     pub fn start(&mut self) -> String {
         let mut output = Vec::<String>::new();
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
-        let light_blue = Colour::Cyan.bold();
-        let light_black = Colour::Black.bold();
 
         if self.settings.initial_contracts.len() > 0 {
             let mut initial_contracts = self.settings.initial_contracts.clone();
@@ -67,7 +63,7 @@ impl Session {
                     Err(ref mut result) => output.append(result),
                 };
             }
-            output.push(format!("{}", light_blue.paint("Initialized contracts")));
+            output.push(blue!("Initialized contracts"));
             self.get_contracts(&mut output);
         }
 
@@ -77,10 +73,7 @@ impl Session {
                 let recipient = match PrincipalData::parse(&account.address) {
                     Ok(recipient) => recipient,
                     _ => {
-                        output.push(format!(
-                            "{}",
-                            light_red.paint("Unable to parse address to credit")
-                        ));
+                        output.push(red!("Unable to parse address to credit"));
                         continue;
                     }
                 };
@@ -90,10 +83,10 @@ impl Session {
                     .credit_stx_balance(recipient, account.balance)
                 {
                     Ok(_) => {},
-                    Err(err) => output.push(format!("{}", light_red.paint(err))),
+                    Err(err) => output.push(red!(err)),
                 };
             }
-            output.push(format!("{}", light_blue.paint("Initialized balances")));
+            output.push(blue!("Initialized balances"));
             self.get_accounts(&mut output);
         }
 
@@ -129,9 +122,7 @@ impl Session {
         snippet: String,
         name: Option<String>,
     ) -> Result<Vec<String>, Vec<String>> {
-        let light_green = Colour::Green.bold();
         let light_red = Colour::Red.bold();
-        let light_black = Colour::Black.bold();
 
         let result = self.interpret(snippet.to_string(), name);
         let mut output = Vec::<String>::new();
@@ -140,13 +131,13 @@ impl Session {
             Ok((contract_name, result)) => {
                 if let Some(contract_name) = contract_name {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
-                    output.push(format!("{}", light_green.paint(snippet)));
+                    output.push(green!(snippet));
                 }
-                output.push(format!("{}", light_green.paint(result)));
+                output.push(green!(result));
                 Ok(output)
             }
             Err((message, diagnostic)) => {
-                output.push(format!("{}", light_red.paint(message)));
+                output.push(red!(message));
                 if let Some(diagnostic) = diagnostic {
                     if diagnostic.spans.len() > 0 {
                         let lines = snippet.lines();
@@ -291,30 +282,22 @@ impl Session {
 
     fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
         let args: Vec<_> = command.split(' ').collect();
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
 
         if args.len() != 2 {
-            output.push(format!(
-                "{}",
-                light_red.paint("Usage: ::advance_chain_tip <count>")
-            ));
+            output.push(red!("Usage: ::advance_chain_tip <count>"));
             return;
         }
 
         let count = match args[1].parse::<u32>() {
             Ok(count) => count,
             _ => {
-                output.push(format!(
-                    "{}",
-                    light_red.paint("Unable to parse count")
-                ));
+                output.push(red!("Unable to parse count"));
                 return;
             }
         };
 
         let new_height = self.advance_chain_tip(count);
-        output.push(format!("{}", light_green.paint(format!("{} blocks simulated, new height: {}", count, new_height))));
+        output.push(green!(format!("{} blocks simulated, new height: {}", count, new_height)));
     }
 
     pub fn advance_chain_tip(
@@ -326,30 +309,22 @@ impl Session {
 
     fn parse_and_set_tx_sender(&mut self, output: &mut Vec<String>, command: &str) {
         let args: Vec<_> = command.split(' ').collect();
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
 
         if args.len() != 2 {
-            output.push(format!(
-                "{}",
-                light_red.paint("Usage: ::set_tx_sender <address>")
-            ));
+            output.push(red!("Usage: ::set_tx_sender <address>"));
             return;
         }
 
         let tx_sender = match PrincipalData::parse_standard_principal(&args[1]) {
             Ok(address) => address,
             _ => {
-                output.push(format!(
-                    "{}",
-                    light_red.paint("Unable to parse the address")
-                ));
+                output.push(red!("Unable to parse the address"));
                 return;
             }
         };
 
         self.set_tx_sender(tx_sender.to_address());
-        output.push(format!("{}", light_green.paint(format!("tx-sender switched to {}", tx_sender))));
+        output.push(green!(format!("tx-sender switched to {}", tx_sender)));
     }
 
     pub fn set_tx_sender(&mut self, address: String) {
@@ -363,9 +338,8 @@ impl Session {
     }
 
     fn get_block_height(&mut self, output:&mut Vec<String>) {
-        let light_green = Colour::Green.bold();
         let height = self.interpreter.get_block_height();
-        output.push(format!("{}", light_green.paint(format!("Current height: {}", height))));
+        output.push(green!(format!("Current height: {}", height)));
     }
     
     fn get_accounts(&mut self, output:&mut Vec<String>) {
@@ -399,24 +373,16 @@ impl Session {
 
     fn mint_stx(&mut self, output: &mut Vec<String>, command: &str) {
         let args: Vec<_> = command.split(' ').collect();
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
 
         if args.len() != 3 {
-            output.push(format!(
-                "{}",
-                light_red.paint("Usage: ::mint_stx <recipient address> <amount>")
-            ));
+            output.push(red!("Usage: ::mint_stx <recipient address> <amount>"));
             return;
         }
 
         let recipient = match PrincipalData::parse(&args[1]) {
             Ok(address) => address,
             _ => {
-                output.push(format!(
-                    "{}",
-                    light_red.paint("Unable to parse the address")
-                ));
+                output.push(red!("Unable to parse the address"));
                 return;
             }
         };
@@ -424,17 +390,14 @@ impl Session {
         let amount: u64 = match args[2].parse() {
             Ok(recipient) => recipient,
             _ => {
-                output.push(format!(
-                    "{}",
-                    light_red.paint("Unable to parse the balance")
-                ));
+                output.push(red!("Unable to parse the balance"));
                 return;
             }
         };
 
         match self.interpreter.credit_stx_balance(recipient, amount) {
-            Ok(msg) => output.push(format!("{}", light_green.paint(msg))),
-            Err(err) => output.push(format!("{}", light_red.paint(err))),
+            Ok(msg) => output.push(green!(msg)),
+            Err(err) => output.push(red!(err)),
         };
     }
 

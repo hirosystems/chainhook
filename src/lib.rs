@@ -19,6 +19,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
+mod macros;
+
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 

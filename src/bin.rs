@@ -15,6 +15,9 @@ extern crate serde_derive;
 #[macro_use]
 extern crate prettytable;
 
+#[macro_use]
+mod macros;
+
 pub mod clarity;
 pub mod frontend;
 pub mod repl;

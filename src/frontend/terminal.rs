@@ -19,15 +19,12 @@ impl Terminal {
     }
 
     pub fn start(&mut self) {
-        let light_green = Colour::Green.bold();
-        let light_red = Colour::Red.bold();
-        let light_black = Colour::Black.bold();
 
-        println!("{}", light_green.paint(format!("clarity-repl v{}", VERSION.unwrap())));
-        println!("{}", light_black.paint("Enter \"::help\" for usage hints."));
+        println!("{}", green!(format!("clarity-repl v{}", VERSION.unwrap())));
+        println!("{}", black!("Enter \"::help\" for usage hints."));
         println!(
             "{}",
-            light_black.paint("Connected to a transient in-memory database.")
+            black!("Connected to a transient in-memory database.")
         );
 
         let res = self.session.start();
@@ -51,7 +48,7 @@ impl Terminal {
                     if ctrl_c_acc == 2 {
                         break;
                     } else {
-                        println!("Hit CTRL-C a second time to quit.");
+                        println!("{}", yellow!("Hit CTRL-C a second time to quit."));
                     }
                 }
                 Err(ReadlineError::Eof) => {
