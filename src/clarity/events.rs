@@ -274,7 +274,7 @@ impl SmartContractEventData {
         json!({
             "contract_identifier": self.key.0.to_string(),
             "topic": self.key.1,
-            "value": self.value,
+            "value": format!("{}", self.value),
         })
     }
 }

@@ -63,7 +63,7 @@ wasm-pack build --target web --release -- --no-default-features --features wasm
 
 - [x] Display documentation
 - [ ] Display cost analysis
-- [ ] Display events
+- [x] Display events
 - [x] Save snippets as contracts that can be `contract-call?` when public functions or traits are detected
 - [x] Ability to seed stx balances
 - [x] Test WASM builds in browser

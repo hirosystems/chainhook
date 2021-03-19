@@ -9,6 +9,7 @@ use crate::clarity::variables::NativeVariables;
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, VecDeque};
 use prettytable::{Table, Row, Cell};
+use serde_json::Value;
 
 use super::SessionSettings;
 
@@ -128,10 +129,16 @@ impl Session {
         let mut output = Vec::<String>::new();
 
         match result {
-            Ok((contract_name, result)) => {
+            Ok((contract_name, result, events)) => {
                 if let Some(contract_name) = contract_name {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));
+                }
+                if events.len() > 0 {
+                    output.push(black!("Events emitted"));
+                    for event in events.iter() {
+                        output.push(black!(format!("{}", event)));
+                    }
                 }
                 output.push(green!(result));
                 Ok(output)
@@ -193,7 +200,7 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
-    ) -> Result<(Option<String>, String), (String, Option<Diagnostic>)> {
+    ) -> Result<(Option<String>, String, Vec<Value>), (String, Option<Diagnostic>)> {
         let contract_name = match name {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
@@ -205,12 +212,12 @@ impl Session {
         };
 
         match self.interpreter.run(snippet, contract_identifier.clone()) {
-            Ok((contract_saved, res)) => {
+            Ok((contract_saved, res, events)) => {
                 if contract_saved {
                     self.contracts.push((contract_identifier.to_string(), res.clone()));
-                    Ok((Some(contract_name), res))
+                    Ok((Some(contract_name), res, events))
                 } else {
-                    Ok((None, res))
+                    Ok((None, res, events))
                 }
             }
             Err(res) => Err(res),

@@ -10,6 +10,7 @@ use crate::clarity::eval_all;
 use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
+use serde_json::Value;
 
 #[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
@@ -28,7 +29,7 @@ impl ClarityInterpreter {
         &mut self,
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
-    ) -> Result<(bool, String), (String, Option<Diagnostic>)> {
+    ) -> Result<(bool, String, Vec<Value>), (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
         let result = self.execute(contract_identifier, &mut ast, snippet, analysis)?;
@@ -84,7 +85,8 @@ impl ClarityInterpreter {
         contract_ast: &mut ContractAST,
         snippet: String,
         contract_analysis: ContractAnalysis,
-    ) -> Result<(bool, String), (String, Option<Diagnostic>)> {
+    ) -> Result<(bool, String, Vec<Value>), (String, Option<Diagnostic>)> {
+        let mut events = vec![];
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
 
@@ -102,6 +104,13 @@ impl ClarityInterpreter {
                 return Err((error, None));
             }
         };
+        
+        let mut emitted_events = global_context.event_batches
+            .iter()
+            .flat_map(|b| b.events.clone())
+            .map(|e| e.json_serialize())
+            .collect::<_>();
+        events.append(&mut emitted_events);
 
         let contract_saved =
             contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
@@ -144,7 +153,7 @@ impl ClarityInterpreter {
         global_context.commit().unwrap();
 
         if !contract_saved {
-            return Ok((false, format!("{}", value)));
+            return Ok((false, format!("{}", value), events));
         }
 
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
@@ -154,7 +163,7 @@ impl ClarityInterpreter {
             .unwrap();
         analysis_db.commit();
 
-        Ok((true, contract_synopsis.join("\n")))
+        Ok((true, contract_synopsis.join("\n"), events))
     }
 
     pub fn credit_stx_balance(
