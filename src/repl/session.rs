@@ -8,8 +8,10 @@ use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, VecDeque};
-use prettytable::{Table, Row, Cell};
 use serde_json::Value;
+
+#[cfg(feature = "cli")]
+use prettytable::{Table, Row, Cell};
 
 use super::SessionSettings;
 
@@ -56,18 +58,6 @@ impl Session {
     pub fn start(&mut self) -> String {
         let mut output = Vec::<String>::new();
 
-        if self.settings.initial_contracts.len() > 0 {
-            let mut initial_contracts = self.settings.initial_contracts.clone();
-            for contract in initial_contracts.drain(..) {
-                match self.formatted_interpretation(contract.code, contract.name) {
-                    Ok(_) => {},
-                    Err(ref mut result) => output.append(result),
-                };
-            }
-            output.push(blue!("Initialized contracts"));
-            self.get_contracts(&mut output);
-        }
-
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
@@ -87,6 +77,21 @@ impl Session {
                     Err(err) => output.push(red!(err)),
                 };
             }
+        }
+
+        if self.settings.initial_contracts.len() > 0 {
+            let mut initial_contracts = self.settings.initial_contracts.clone();
+            for contract in initial_contracts.drain(..) {
+                match self.formatted_interpretation(contract.code, contract.name) {
+                    Ok(_) => {},
+                    Err(ref mut result) => output.append(result),
+                };
+            }
+            output.push(blue!("Initialized contracts"));
+            self.get_contracts(&mut output);
+        }
+
+        if self.settings.initial_accounts.len() > 0 {
             output.push(blue!("Initialized balances"));
             self.get_accounts(&mut output);
         }
@@ -349,23 +354,50 @@ impl Session {
         output.push(green!(format!("Current height: {}", height)));
     }
     
-    fn get_accounts(&mut self, output:&mut Vec<String>) {
-        if self.settings.initial_accounts.len() > 0 {
+    fn get_account_name(&self, address: &String) -> Option<&String> {
+        for account in self.settings.initial_accounts.iter() {
+            if &account.address == address {
+                return Some(&account.name)
+            }
+        }
+        None
+    }
+
+    #[cfg(feature = "cli")]
+    fn get_accounts(&mut self, output: &mut Vec<String>) {
+        let accounts = self.interpreter.get_accounts();
+        if accounts.len() > 0 {
+            let tokens = self.interpreter.get_tokens();
+            let mut headers = vec!["Address".to_string()];
+            headers.append(&mut tokens.clone());
+            let mut headers_cells = vec![];
+            for header in headers.iter() {
+                headers_cells.push(Cell::new(&header));
+            }
             let mut table = Table::new();
-            table.add_row(row!["Name", "Address", "Balance"]);
-            let mut initial_accounts = self.settings.initial_accounts.clone();
-            for account in initial_accounts.drain(..) {
-                table.add_row(Row::new(vec![
-                    Cell::new(&account.name),
-                    Cell::new(&account.address),
-                    Cell::new(&format!("{}", account.balance))]));
+            table.add_row(Row::new(headers_cells));
+            for account in accounts.iter() {
+                let mut cells = vec![];
+                
+                if let Some(name) = self.get_account_name(account) {
+                    cells.push(Cell::new(&format!("{} ({})", account, name)));
+                } else {
+                    cells.push(Cell::new(account));
+                }
+
+                for token in tokens.iter() {
+                    let balance = self.interpreter.get_balance_for_account(account, token);
+                    cells.push(Cell::new(&format!("{}", balance)));
+                }
+                table.add_row(Row::new(cells));
             }
             output.push(format!("{}", table));
         }
     }
 
+    #[cfg(feature = "cli")]
     fn get_contracts(&mut self, output:&mut Vec<String>) {
-        if self.settings.initial_accounts.len() > 0 {
+        if self.settings.initial_contracts.len() > 0 {
             let mut table = Table::new();
             table.add_row(row!["Contract identifier", "Public functions"]);
             let mut initial_contracts = self.contracts.clone();
@@ -375,6 +407,26 @@ impl Session {
                     Cell::new(&contract.1)]));
             }
             output.push(format!("{}", table));
+        }
+    }
+
+    #[cfg(not(feature = "cli"))]
+    fn get_accounts(&mut self, output:&mut Vec<String>) {
+        if self.settings.initial_accounts.len() > 0 {
+            let mut initial_accounts = self.settings.initial_accounts.clone();
+            for account in initial_accounts.drain(..) {
+                output.push(format!("{}: {} ({})", account.address, account.balance, account.name));
+            }
+        }
+    }
+
+    #[cfg(not(feature = "cli"))]
+    fn get_contracts(&mut self, output:&mut Vec<String>) {
+        if self.settings.initial_contracts.len() > 0 {
+            let mut initial_contracts = self.contracts.clone();
+            for contract in initial_contracts.drain(..) {
+                output.push(format!("{}", contract.0));
+            }
         }
     }
 
@@ -422,7 +474,7 @@ impl Session {
         let help_accent_colour = Colour::Yellow.bold();
         let keyword = {
             let mut s = command.to_string();
-            s = s.replace("::doc", "");
+            s = s.replace("::describe_function", "");
             s = s.replace(" ", "");
             s
         };

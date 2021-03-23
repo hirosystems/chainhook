@@ -34,6 +34,8 @@ pub mod frontend;
 #[cfg(feature = "cli")]
 pub use frontend::Terminal;
 
+use repl::{Session, SessionSettings};
+
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn handle_command(command: &str) -> String {
