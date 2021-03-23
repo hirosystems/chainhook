@@ -85,6 +85,7 @@ impl ClarityInterpreter {
         Ok(contract_analysis)
     }
 
+    #[allow(unused_assignments)]
     pub fn execute(
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
