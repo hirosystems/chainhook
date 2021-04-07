@@ -94,7 +94,7 @@ macro_rules! black {
             use atty::Stream;
             use ansi_term::{Colour, Style};            
             if atty::is(Stream::Stdout) {
-                let colour = Colour::Black.bold();
+                let colour = Colour::Fixed(244);
                 format!(
                     "{}",
                     colour.paint($($arg)*)

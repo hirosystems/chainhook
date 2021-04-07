@@ -99,6 +99,47 @@ impl Session {
         output.join("\n")
     }
 
+    pub fn check(&mut self) -> Result<(), String> {
+        let mut output = Vec::<String>::new();
+
+        if self.settings.initial_accounts.len() > 0 {
+            let mut initial_accounts = self.settings.initial_accounts.clone();
+            for account in initial_accounts.drain(..) {
+                let recipient = match PrincipalData::parse(&account.address) {
+                    Ok(recipient) => recipient,
+                    _ => {
+                        output.push(red!("Unable to parse address to credit"));
+                        continue;
+                    }
+                };
+
+                match self
+                    .interpreter
+                    .credit_stx_balance(recipient, account.balance)
+                {
+                    Ok(_) => {},
+                    Err(err) => output.push(red!(err)),
+                };
+            }
+        }
+
+        if self.settings.initial_contracts.len() > 0 {
+            let mut initial_contracts = self.settings.initial_contracts.clone();
+            for contract in initial_contracts.drain(..) {
+                match self.formatted_interpretation(contract.code, contract.name) {
+                    Ok(_) => {},
+                    Err(ref mut result) => output.append(result),
+                };
+            }
+        }
+
+        match output.len() {
+            0 => Ok(()),
+            _ => Err(output.join("\n"))
+        }
+    }
+
+
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {
         let mut output = Vec::<String>::new();
         match command {
