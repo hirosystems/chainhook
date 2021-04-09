@@ -1036,14 +1036,14 @@ impl fmt::Display for Value {
             Value::Sequence(SequenceData::Buffer(vec_bytes)) => write!(f, "0x{}", &vec_bytes),
             Value::Sequence(SequenceData::String(string)) => write!(f, "{}", string),
             Value::Sequence(SequenceData::List(list_data)) => {
-                write!(f, "(")?;
+                write!(f, "[")?;
                 for (ix, v) in list_data.data.iter().enumerate() {
                     if ix > 0 {
-                        write!(f, " ")?;
+                        write!(f, ", ")?;
                     }
                     write!(f, "{}", v)?;
                 }
-                write!(f, ")")
+                write!(f, "]")
             }
         }
     }
@@ -1244,11 +1244,13 @@ impl TupleData {
 
 impl fmt::Display for TupleData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(tuple")?;
-        for (name, value) in self.data_map.iter() {
-            write!(f, " ")?;
-            write!(f, "({} {})", &**name, value)?;
+        write!(f, "{{")?;
+        for (i, (name, value)) in self.data_map.iter().enumerate() {
+            write!(f, "{}: {}", &**name, value)?;
+            if i < self.data_map.len() - 1 {
+                write!(f, ", ")?;
+            }
         }
-        write!(f, ")")
+        write!(f, "}}")
     }
 }
