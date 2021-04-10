@@ -7,7 +7,7 @@ use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContr
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use ansi_term::{Colour, Style};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, BTreeMap};
 use serde_json::Value;
 
 #[cfg(feature = "cli")]
@@ -81,12 +81,24 @@ impl Session {
 
         if self.settings.initial_contracts.len() > 0 {
             let mut initial_contracts = self.settings.initial_contracts.clone();
+            let default_tx_sender = self.interpreter.get_tx_sender();
             for contract in initial_contracts.drain(..) {
+                let deployer = {
+                    let address = match contract.deployer {
+                        Some(ref entry) => entry.clone(),
+                        None => format!("{}", StacksAddress::burn_address(false))
+                    };
+                    PrincipalData::parse_standard_principal(&address)
+                        .expect("Unable to parse deployer's address")
+                };
+
+                self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
             }
+            self.interpreter.set_tx_sender(default_tx_sender);
             output.push(blue!("Initialized contracts"));
             self.get_contracts(&mut output);
         }
@@ -148,7 +160,7 @@ impl Session {
             cmd if cmd.starts_with("::describe_function") => self.display_doc(&mut output, cmd),
             cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
             cmd if cmd.starts_with("::set_tx_sender") => self.parse_and_set_tx_sender(&mut output, cmd),
-            cmd if cmd.starts_with("::get_accounts") => self.get_accounts(&mut output),
+            cmd if cmd.starts_with("::get_assets_maps") => self.get_accounts(&mut output),
             cmd if cmd.starts_with("::get_contracts") => self.get_contracts(&mut output),
             cmd if cmd.starts_with("::get_block_height") => self.get_block_height(&mut output),
             cmd if cmd.starts_with("::advance_chain_tip") => self.parse_and_advance_chain_tip(&mut output, cmd),
@@ -315,7 +327,7 @@ impl Session {
         output.push(format!(
             "{}",
             help_colour
-                .paint("::get_accounts\t\t\t\tGet genesis accounts")
+                .paint("::get_assets_maps\t\t\t\tGet assets maps for active accounts")
         ));
         output.push(format!(
             "{}",
@@ -402,6 +414,10 @@ impl Session {
             }
         }
         None
+    }
+
+    pub fn get_assets_maps(&self) -> BTreeMap<String, BTreeMap<String, u128>> {
+        self.interpreter.get_assets_maps()
     }
 
     #[cfg(feature = "cli")]

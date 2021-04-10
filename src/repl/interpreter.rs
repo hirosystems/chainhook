@@ -304,6 +304,10 @@ impl ClarityInterpreter {
         };
     }
 
+    pub fn get_assets_maps(&self) -> BTreeMap<String, BTreeMap<String, u128>> {
+        self.tokens.clone()
+    }
+
     pub fn get_tokens(&self) -> Vec<String> {
         self.tokens.keys().cloned().collect()
     }
