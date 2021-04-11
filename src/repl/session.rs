@@ -137,12 +137,24 @@ impl Session {
 
         if self.settings.initial_contracts.len() > 0 {
             let mut initial_contracts = self.settings.initial_contracts.clone();
+            let default_tx_sender = self.interpreter.get_tx_sender();
             for contract in initial_contracts.drain(..) {
+                let deployer = {
+                    let address = match contract.deployer {
+                        Some(ref entry) => entry.clone(),
+                        None => format!("{}", StacksAddress::burn_address(false))
+                    };
+                    PrincipalData::parse_standard_principal(&address)
+                        .expect("Unable to parse deployer's address")
+                };
+
+                self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
             }
+            self.interpreter.set_tx_sender(default_tx_sender);
         }
 
         match output.len() {
