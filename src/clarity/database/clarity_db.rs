@@ -86,9 +86,10 @@ impl HeadersDB for NullHeadersDB {
 
     fn get_stacks_block_header_hash_for_block(
         &self,
-        _id_bhh: &StacksBlockId,
+        id_bhh: &StacksBlockId,
     ) -> Option<BlockHeaderHash> {
-        None
+        let header_hash = BlockHeaderHash(id_bhh.0.clone());
+        Some(header_hash)
     }
 
     fn get_burn_block_time_for_block(&self, id_bhh: &StacksBlockId) -> Option<u64> {
