@@ -202,12 +202,12 @@ impl ClarityInterpreter {
             value
         };
 
-        for (account, token, value) in accounts_to_debit.drain(..) {
-            self.debit_token(account, token, value);
-        }
-
         for (account, token, value) in accounts_to_credit.drain(..) {
             self.credit_token(account, token, value);
+        }
+
+        for (account, token, value) in accounts_to_debit.drain(..) {
+            self.debit_token(account, token, value);
         }
 
         if !contract_saved {
@@ -264,15 +264,9 @@ impl ClarityInterpreter {
         self.accounts.insert(account.clone());
         match self.tokens.entry(token) {
             Entry::Occupied(balances) => {
-                match balances.into_mut().entry(account) {
-                    Entry::Occupied(balance) => {
-                        let balance = balance.into_mut();
-                        balance.checked_add(value).unwrap();
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(value);
-                    }
-                };
+                balances.into_mut().entry(account)
+                    .and_modify(|e| { *e += value })
+                    .or_insert(value);
             }
             Entry::Vacant(v) => {
                 let mut balances = BTreeMap::new();
@@ -286,15 +280,9 @@ impl ClarityInterpreter {
         self.accounts.insert(account.clone());
         match self.tokens.entry(token) {
             Entry::Occupied(balances) => {
-                match balances.into_mut().entry(account) {
-                    Entry::Occupied(balance) => {
-                        let balance = balance.into_mut();
-                        balance.checked_sub(value).unwrap();
-                    }
-                    Entry::Vacant(v) => {
-                        v.insert(value);
-                    }
-                };
+                balances.into_mut().entry(account)
+                    .and_modify(|e| { *e -= value })
+                    .or_insert(value);
             }
             Entry::Vacant(v) => {
                 let mut balances = BTreeMap::new();
