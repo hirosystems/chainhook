@@ -388,7 +388,7 @@ impl<'a> ClarityDatabase<'a> {
     pub fn get_current_burnchain_block_height(&mut self) -> u32 {
         let cur_stacks_height = self.store.get_current_block_height();
         let cur_id_bhh = self.get_index_block_header_hash(cur_stacks_height);
-        self.get_burnchain_block_height(&cur_id_bhh).unwrap_or(0)
+        self.get_burnchain_block_height(&cur_id_bhh).unwrap_or(cur_stacks_height)
     }
 
     pub fn get_block_header_hash(&mut self, block_height: u32) -> BlockHeaderHash {

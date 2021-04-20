@@ -275,8 +275,13 @@ impl Session {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
         };
-        let tx_sender = self.interpreter.get_tx_sender().to_address();
-        let contract_identifier = {
+        let first_char = contract_name.chars().next().unwrap();
+
+        // Kludge for handling fully qualified contract_id vs sugared syntax
+        let contract_identifier = if first_char.to_string() == "S" {
+            QualifiedContractIdentifier::parse(&contract_name).unwrap()
+        } else {
+            let tx_sender = self.interpreter.get_tx_sender().to_address();
             let id = format!("{}.{}", tx_sender, contract_name);
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
