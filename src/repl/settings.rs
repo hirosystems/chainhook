@@ -16,6 +16,7 @@ pub struct Account {
 
 #[derive(Clone, Debug, Default)]
 pub struct SessionSettings {
+    pub include_boot_contracts: bool,
     pub initial_contracts: Vec<InitialContract>,
     pub initial_accounts: Vec<Account>,
     pub initial_deployer: Option<Account>,

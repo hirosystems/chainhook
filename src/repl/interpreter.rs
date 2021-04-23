@@ -13,6 +13,7 @@ use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContr
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::events::*;
+use super::ExecutionResult;
 use serde_json::Value;
 
 #[derive(Clone, Debug)]
@@ -35,7 +36,7 @@ impl ClarityInterpreter {
         &mut self,
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
-    ) -> Result<(bool, String, Vec<Value>), (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
         let result = self.execute(contract_identifier, &mut ast, snippet, analysis)?;
@@ -92,12 +93,13 @@ impl ClarityInterpreter {
         contract_ast: &mut ContractAST,
         snippet: String,
         contract_analysis: ContractAnalysis,
-    ) -> Result<(bool, String, Vec<Value>), (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+
+        let mut execution_result = ExecutionResult::default();
         let mut contract_saved = false;
         let mut serialized_events = vec![];
         let mut accounts_to_debit = vec![];
         let mut accounts_to_credit = vec![];
-        let mut contract_synopsis = vec![];
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let value = {
             let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
@@ -166,6 +168,7 @@ impl ClarityInterpreter {
                 contract_context.functions.len() > 0 || contract_context.defined_traits.len() > 0;
 
             if contract_saved {
+                let mut functions = BTreeMap::new();
                 for (name, defined_func) in contract_context.functions.iter() {
                     if !defined_func.is_public() {
                         continue;
@@ -178,10 +181,9 @@ impl ClarityInterpreter {
                         .map(|(n, t)| format!("({} {})", n.as_str(), t))
                         .collect();
 
-                    let func_sig = format!("({} {})", name.as_str(), args.join(" "));
-
-                    contract_synopsis.push(func_sig);
+                    functions.insert(name.to_string(), args);
                 }
+                execution_result.contract = Some((format!("{}", contract_identifier), functions));
 
                 for defined_trait in contract_context.defined_traits.iter() {}
 
@@ -202,6 +204,8 @@ impl ClarityInterpreter {
             value
         };
 
+        execution_result.events = serialized_events;
+
         for (account, token, value) in accounts_to_credit.drain(..) {
             self.credit_token(account, token, value);
         }
@@ -211,7 +215,8 @@ impl ClarityInterpreter {
         }
 
         if !contract_saved {
-            return Ok((false, format!("{}", value), serialized_events));
+            execution_result.result = Some(format!("{}", value));
+            return Ok(execution_result);
         }
 
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
@@ -221,7 +226,7 @@ impl ClarityInterpreter {
             .unwrap();
         analysis_db.commit();
 
-        Ok((true, contract_synopsis.join("\n"), serialized_events))
+        Ok(execution_result)
     }
 
     pub fn credit_stx_balance(

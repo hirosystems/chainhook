@@ -27,6 +27,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod clarity;
 pub mod repl;
+pub mod contracts;
 
 #[cfg(feature = "cli")]
 pub mod frontend;

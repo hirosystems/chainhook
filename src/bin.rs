@@ -21,6 +21,7 @@ mod macros;
 pub mod clarity;
 pub mod frontend;
 pub mod repl;
+pub mod contracts;
 
 use frontend::Terminal;
 use pico_args::Arguments;

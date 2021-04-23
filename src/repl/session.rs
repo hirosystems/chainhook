@@ -1,4 +1,4 @@
-use super::ClarityInterpreter;
+use super::{ClarityInterpreter, ExecutionResult};
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
 use crate::clarity::functions::define::DefineFunctions;
@@ -6,6 +6,7 @@ use crate::clarity::functions::NativeFunctions;
 use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
+use crate::contracts::{POX_CONTRACT, BNS_CONTRACT, COSTS_CONTRACT};
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, VecDeque, BTreeMap};
 use serde_json::Value;
@@ -29,7 +30,7 @@ pub struct Session {
     session_id: u32,
     started_at: u32,
     settings: SessionSettings,
-    contracts: Vec<(String, String)>,
+    contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
 }
@@ -49,7 +50,7 @@ impl Session {
             session_id: 0,
             started_at: 0,
             settings,
-            contracts: Vec::new(),
+            contracts: BTreeMap::new(),
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
         }
@@ -77,6 +78,32 @@ impl Session {
                     Err(err) => output.push(red!(err)),
                 };
             }
+        }
+
+        if self.settings.include_boot_contracts {
+            let default_tx_sender = self.interpreter.get_tx_sender();
+
+            let boot_testnet_address = "ST000000000000000000002AMW42H";
+            let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
+                .expect("Unable to parse deployer's address");            
+            self.interpreter.set_tx_sender(boot_testnet_deployer);
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+                .expect("Unable to deploy POX");
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+                .expect("Unable to deploy BNS");
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+                .expect("Unable to deploy COSTS");
+            let boot_mainnet_address = "SP000000000000000000002Q6VF78";
+            let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                .expect("Unable to parse deployer's address");            
+            self.interpreter.set_tx_sender(boot_mainnet_deployer);
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+                .expect("Unable to deploy POX");
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+                .expect("Unable to deploy BNS");
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+                .expect("Unable to deploy COSTS");
+            self.interpreter.set_tx_sender(default_tx_sender);
         }
 
         if self.settings.initial_contracts.len() > 0 {
@@ -113,6 +140,32 @@ impl Session {
 
     pub fn check(&mut self) -> Result<(), String> {
         let mut output = Vec::<String>::new();
+
+        if self.settings.include_boot_contracts {
+            let default_tx_sender = self.interpreter.get_tx_sender();
+
+            let boot_testnet_address = "ST000000000000000000002AMW42H";
+            let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
+                .expect("Unable to parse deployer's address");            
+            self.interpreter.set_tx_sender(boot_testnet_deployer);
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+                .expect("Unable to deploy POX");
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+                .expect("Unable to deploy BNS");
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+                .expect("Unable to deploy COSTS");
+            let boot_mainnet_address = "SP000000000000000000002Q6VF78";
+            let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                .expect("Unable to parse deployer's address");            
+            self.interpreter.set_tx_sender(boot_mainnet_deployer);
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+                .expect("Unable to deploy POX");
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+                .expect("Unable to deploy BNS");
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+                .expect("Unable to deploy COSTS");
+            self.interpreter.set_tx_sender(default_tx_sender);
+        }
 
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
@@ -199,18 +252,20 @@ impl Session {
         let mut output = Vec::<String>::new();
 
         match result {
-            Ok((contract_name, result, events)) => {
-                if let Some(contract_name) = contract_name {
+            Ok(result) => {
+                if let Some((contract_name, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));
                 }
-                if events.len() > 0 {
+                if result.events.len() > 0 {
                     output.push(black!("Events emitted"));
-                    for event in events.iter() {
+                    for event in result.events.iter() {
                         output.push(black!(format!("{}", event)));
                     }
                 }
-                output.push(green!(result));
+                if let Some(result) = result.result {
+                    output.push(green!(result));
+                }
                 Ok(output)
             }
             Err((message, diagnostic)) => {
@@ -270,7 +325,7 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
-    ) -> Result<(Option<String>, String, Vec<Value>), (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let contract_name = match name {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
@@ -287,13 +342,11 @@ impl Session {
         };
 
         match self.interpreter.run(snippet, contract_identifier.clone()) {
-            Ok((contract_saved, res, events)) => {
-                if contract_saved {
-                    self.contracts.push((contract_identifier.to_string(), res.clone()));
-                    Ok((Some(contract_name), res, events))
-                } else {
-                    Ok((None, res, events))
+            Ok(result) => {
+                if let Some((ref contract_identifier, ref contract)) = result.contract {
+                    self.contracts.insert(contract_identifier.clone(), contract.clone());
                 }
+                Ok(result)
             }
             Err(res) => Err(res),
         }
@@ -474,11 +527,25 @@ impl Session {
         if self.settings.initial_contracts.len() > 0 {
             let mut table = Table::new();
             table.add_row(row!["Contract identifier", "Public functions"]);
-            let mut initial_contracts = self.contracts.clone();
-            for contract in initial_contracts.drain(..) {
-                table.add_row(Row::new(vec![
-                    Cell::new(&contract.0),
-                    Cell::new(&contract.1)]));
+            let contracts = self.contracts.clone();
+            for (contract_id, methods) in contracts.iter() {
+                if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
+                    let mut formatted_methods = vec![];
+                    for (method_name, method_args) in methods.iter() {
+                        let formatted_args = if method_args.len() == 0 {
+                            format!("")
+                        } else if method_args.len() == 1 {
+                            format!(" {}", method_args.join(" "))
+                        } else {
+                            format!("\n    {}", method_args.join("\n    "))
+                        };
+                        formatted_methods.push(format!("({}{})", method_name, formatted_args));
+                    }
+                    let formatted_spec = format!("{}", formatted_methods.join("\n"));
+                    table.add_row(Row::new(vec![
+                        Cell::new(&contract_id),
+                        Cell::new(&formatted_spec)]));
+                }
             }
             output.push(format!("{}", table));
         }
