@@ -73,8 +73,9 @@ pub struct NullHeadersDB {}
 pub const NULL_HEADER_DB: NullHeadersDB = NullHeadersDB {};
 
 impl HeadersDB for NullHeadersDB {
-    fn get_burn_header_hash_for_block(&self, _bhh: &StacksBlockId) -> Option<BurnchainHeaderHash> {
-        None
+    fn get_burn_header_hash_for_block(&self, bhh: &StacksBlockId) -> Option<BurnchainHeaderHash> {
+        let burn_header_hash = BurnchainHeaderHash(bhh.0.clone());
+        Some(burn_header_hash)
     }
 
     fn get_vrf_seed_for_block(&self, _bhh: &StacksBlockId) -> Option<VRFSeed> {
