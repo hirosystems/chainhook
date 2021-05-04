@@ -23,6 +23,11 @@ use ripemd160::Ripemd160;
 use sha2::{Digest, Sha256, Sha512, Sha512Trunc256};
 use sha3::Keccak256;
 
+use serde::de::Deserialize;
+use serde::de::Error as de_Error;
+use serde::ser::Error as ser_Error;
+use serde::Serialize;
+
 // borrowed from Andrew Poelstra's rust-bitcoin library
 /// Convert a hexadecimal-encoded string to its corresponding bytes
 pub fn hex_bytes(s: &str) -> Result<Vec<u8>, HexError> {
@@ -61,7 +66,51 @@ pub fn bytes_to_hex(s: &Vec<u8>) -> String {
     to_hex(&s[..])
 }
 
-pub struct Hash160(pub [u8; 20]);
+
+macro_rules! impl_serde_json_hex_string {
+    ($name:ident, $len:expr) => {
+        pub struct $name {}
+        impl $name {
+            pub fn json_serialize<S: serde::Serializer>(
+                inst: &[u8; $len],
+                s: S,
+            ) -> Result<S::Ok, S::Error> {
+                let hex_inst = to_hex(inst);
+                s.serialize_str(&hex_inst.as_str())
+            }
+
+            pub fn json_deserialize<'de, D: serde::Deserializer<'de>>(
+                d: D,
+            ) -> Result<[u8; $len], D::Error> {
+                let hex_inst = String::deserialize(d)?;
+                let inst_bytes = hex_bytes(&hex_inst).map_err(de_Error::custom)?;
+
+                match inst_bytes.len() {
+                    $len => {
+                        let mut byte_slice = [0u8; $len];
+                        byte_slice.copy_from_slice(&inst_bytes);
+                        Ok(byte_slice)
+                    }
+                    _ => Err(de_Error::custom(format!(
+                        "Invalid hex string -- not {} bytes",
+                        $len
+                    ))),
+                }
+            }
+        }
+    };
+}
+
+impl_serde_json_hex_string!(Hash20, 20);
+
+#[derive(Serialize, Deserialize)]
+pub struct Hash160(
+    #[serde(
+        serialize_with = "Hash20::json_serialize",
+        deserialize_with = "Hash20::json_deserialize"
+    )]
+    pub [u8; 20],
+);
 impl_array_newtype!(Hash160, u8, 20);
 impl_array_hexstring_fmt!(Hash160);
 impl_byte_array_newtype!(Hash160, u8, 20);

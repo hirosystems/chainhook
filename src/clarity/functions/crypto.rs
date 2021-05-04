@@ -85,7 +85,7 @@ pub fn special_principal_of(
         _ => return Err(CheckErrors::TypeValueError(BUFF_33, param0).into()),
     };
 
-    if let Ok(pub_key) = Secp256k1PublicKey::from_slice(&pub_key, true) {
+    if let Ok(pub_key) = Secp256k1PublicKey::from_slice(&pub_key) {
         let version_testnet = 26;
         let addr = StacksAddress::from_public_key(version_testnet, pub_key).unwrap();
         let principal = addr.to_account_principal();

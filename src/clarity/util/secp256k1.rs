@@ -28,8 +28,15 @@ use serde::de::Error as de_Error;
 use serde::ser::Error as ser_Error;
 use serde::Serialize;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+pub const PUBLIC_KEY_SIZE: usize = 33;
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Secp256k1PublicKey {
+    // serde is broken for secp256k1, so do it ourselves
+    #[serde(
+        serialize_with = "secp256k1_pubkey_serialize",
+        deserialize_with = "secp256k1_pubkey_deserialize"
+    )]
     key: LibSecp256k1PublicKey,
     compressed: bool,
 }
@@ -41,11 +48,11 @@ pub struct Secp256k1PrivateKey {
 }
 
 impl Secp256k1PublicKey {
-    pub fn from_slice(data: &[u8], compressed: bool) -> Result<Secp256k1PublicKey, &'static str> {
-        let format = if compressed {
-            secp256k1::PublicKeyFormat::Compressed
+    pub fn from_slice(data: &[u8]) -> Result<Secp256k1PublicKey, &'static str> {
+        let (format, compressed) = if data.len() == PUBLIC_KEY_SIZE {
+            (secp256k1::PublicKeyFormat::Compressed, true)
         } else {
-            secp256k1::PublicKeyFormat::Full
+            (secp256k1::PublicKeyFormat::Full, false)
         };
         match LibSecp256k1PublicKey::parse_slice(data, Some(format))
         {
@@ -86,14 +93,6 @@ impl Secp256k1PublicKey {
     }
 }
 
-fn secp256k1_pubkey_serialize<S: serde::Serializer>(
-    pubk: &LibSecp256k1PublicKey,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    let key_hex = to_hex(&pubk.serialize().to_vec());
-    s.serialize_str(&key_hex.as_str())
-}
-
 pub fn secp256k1_recover(
     message_arr: &[u8],
     serialized_signature: &[u8],
@@ -123,4 +122,21 @@ pub fn secp256k1_verify(
     } else {
         Err(LibSecp256k1Error::InvalidPublicKey)
     }
+}
+
+fn secp256k1_pubkey_serialize<S: serde::Serializer>(
+    pubk: &LibSecp256k1PublicKey,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    let key_hex = to_hex(&pubk.serialize().to_vec());
+    s.serialize_str(&key_hex.as_str())
+}
+
+fn secp256k1_pubkey_deserialize<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<LibSecp256k1PublicKey, D::Error> {
+    let key_hex = String::deserialize(d)?;
+    let key_bytes = hex_bytes(&key_hex).map_err(de_Error::custom)?;
+
+    LibSecp256k1PublicKey::parse_slice(&key_bytes[..], None).map_err(de_Error::custom)
 }

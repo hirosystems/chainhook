@@ -1,3 +1,6 @@
+use crate::clarity::codec::Error as codec_error;
+use std::io::{Read, Write};
+use std::error;
 use crate::clarity::database::{ClarityDeserializable, ClaritySerializable};
 use crate::clarity::errors::{
     CheckErrors, Error as ClarityError, IncomparableError, InterpreterError, InterpreterResult,
@@ -12,100 +15,12 @@ use crate::clarity::types::{
 use crate::clarity::util::hash::{hex_bytes, to_hex};
 use crate::clarity::util::retry::BoundReader;
 
+use crate::clarity::codec::StacksMessageCodec;
 use serde_json::Value as JSONValue;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 
-use std::io::{self, Read, Write};
-use std::{error, fmt};
-
-pub enum NetError {
-    /// Failed to encode
-    SerializeError(String),
-    /// Failed to read
-    ReadError(io::Error),
-    /// Failed to decode
-    DeserializeError(String),
-    /// Filaed to write
-    WriteError(io::Error),
-    /// Underflow -- not enough bytes to form the message
-    UnderflowError(String),
-    /// Overflow -- message too big
-    OverflowError(String),
-    /// Wrong protocol family
-    WrongProtocolFamily,
-    /// Array is too big
-    ArrayTooLong,
-    /// Receive timed out
-    RecvTimeout,
-    /// Error signing a message
-    SigningError(String),
-    /// Error verifying a message
-    VerifyingError(String),
-    /// Read stream is drained.  Try again
-    TemporarilyDrained,
-    /// Read stream has reached EOF (socket closed, end-of-file reached, etc.)
-    PermanentlyDrained,
-    /// Failed to read from the FS
-    FilesystemError,
-    /// Socket mutex was poisoned
-    SocketMutexPoisoned,
-    /// Socket not instantiated
-    SocketNotConnectedToPeer,
-    /// Not connected to peer
-    ConnectionBroken,
-    /// Connection could not be (re-)established
-    ConnectionError,
-    /// Too many outgoing messages
-    OutboxOverflow,
-    /// Too many incoming messages
-    InboxOverflow,
-    /// Send error
-    SendError(String),
-    /// Recv error
-    RecvError(String),
-    /// Invalid message
-    InvalidMessage,
-    /// Invalid network handle
-    InvalidHandle,
-    /// Invalid handshake
-    InvalidHandshake,
-    /// Stale neighbor
-    StaleNeighbor,
-    /// No such neighbor
-    NoSuchNeighbor,
-    /// Failed to bind
-    BindError,
-    /// Failed to poll
-    PollError,
-    /// Failed to accept
-    AcceptError,
-    /// Failed to register socket with poller
-    RegisterError,
-    /// Failed to query socket metadata
-    SocketError,
-    /// server is not bound to a socket
-    NotConnected,
-    /// Remote peer is not connected
-    PeerNotConnected,
-    /// Too many peers
-    TooManyPeers,
-    /// Peer already connected
-    AlreadyConnected(usize),
-    /// Message already in progress
-    InProgress,
-    /// Peer is blacklisted
-    Blacklisted,
-    /// Data URL is not known
-    NoDataUrl,
-    /// Peer is transmitting too fast
-    PeerThrottled,
-    /// Error resolving a DNS name
-    LookupError(String),
-    // Catch-all for chainstate errors that don't map cleanly into network errors
-    // ChainstateError(String),
-}
 /// Errors that may occur in serialization or deserialization
 /// If deserialization failed because the described type is a bad type and
 ///   a CheckError is thrown, it gets wrapped in BadTypeError.
@@ -118,16 +33,6 @@ pub enum SerializationError {
     BadTypeError(CheckErrors),
     DeserializationError(String),
     DeserializeExpected(TypeSignature),
-}
-
-/// Helper trait for various primitive types that make up Stacks messages
-pub trait StacksMessageCodec {
-    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), NetError>
-    where
-        Self: Sized;
-    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<Self, NetError>
-    where
-        Self: Sized;
 }
 
 impl std::fmt::Display for SerializationError {
@@ -339,14 +244,14 @@ impl PrincipalData {
 }
 
 impl StacksMessageCodec for PrincipalData {
-    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), NetError> {
+    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), codec_error> {
         self.inner_consensus_serialize(fd)
-            .map_err(NetError::WriteError)
+            .map_err(codec_error::WriteError)
     }
 
-    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<PrincipalData, NetError> {
+    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<PrincipalData, codec_error> {
         PrincipalData::inner_consensus_deserialize(fd)
-            .map_err(|e| NetError::DeserializeError(e.to_string()))
+            .map_err(|e| codec_error::DeserializeError(e.to_string()))
     }
 }
 

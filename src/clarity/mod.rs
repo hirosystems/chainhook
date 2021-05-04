@@ -7,6 +7,9 @@ pub mod errors;
 pub mod util;
 
 #[macro_use]
+pub mod codec;
+
+#[macro_use]
 pub mod costs;
 
 pub mod contracts;

@@ -97,7 +97,7 @@ impl error::Error for HexError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize, Hash)]
 pub struct StacksAddress {
     pub version: u8,
     pub bytes: hash::Hash160,
