@@ -2,6 +2,8 @@
 pub mod macros;
 pub mod transaction;
 
+pub use transaction::StacksTransaction;
+
 use std::{io, mem, fmt, error};
 use std::io::{Read, Write};
 use std::io::prelude::*;
