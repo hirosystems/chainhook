@@ -147,6 +147,47 @@ impl StacksAddress {
             bytes: Hash160([0u8; 20]),
         }
     }
+
+    /// Generate an address from a given address hash mode, signature threshold, and list of public
+    /// keys.  Only return an address if the combination given is supported.
+    /// The version is may be arbitrary.
+    pub fn from_public_keys(
+        version: u8,
+        hash_mode: &AddressHashMode,
+        num_sigs: usize,
+        pubkeys: &Vec<Secp256k1PublicKey>,
+    ) -> Option<StacksAddress> {
+        // must be sufficient public keys
+        if pubkeys.len() < num_sigs {
+            return None;
+        }
+    
+        // address hash mode must be consistent with the number of keys
+        match *hash_mode {
+            AddressHashMode::SerializeP2PKH | AddressHashMode::SerializeP2WPKH => {
+                // must be a single public key, and must require one signature
+                if num_sigs != 1 || pubkeys.len() != 1 {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    
+        // if segwit, then keys must all be compressed
+        match *hash_mode {
+            AddressHashMode::SerializeP2WPKH | AddressHashMode::SerializeP2WSH => {
+                for pubkey in pubkeys {
+                    if !pubkey.compressed() {
+                        return None;
+                    }
+                }
+            }
+            _ => {}
+        }
+    
+        let hash_bits = public_keys_to_address_hash(hash_mode, num_sigs, pubkeys);
+        Some(StacksAddress::new(version, hash_bits))
+    }
 }
 
 impl std::fmt::Display for StacksAddress {

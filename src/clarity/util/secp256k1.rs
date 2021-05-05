@@ -21,6 +21,8 @@ use secp256k1::PublicKey as LibSecp256k1PublicKey;
 use secp256k1::SecretKey as LibSecp256k1PrivateKey;
 use secp256k1::Signature as LibSecp256k1Signature;
 
+use crate::clarity::codec::transaction::RecoverableSignature;
+
 use super::hash::{hex_bytes, to_hex};
 
 use serde::de::Deserialize;
@@ -90,6 +92,66 @@ impl Secp256k1PublicKey {
         } else {
             self.key.serialize().to_vec()
         }
+    }
+
+    pub fn from_private(privk: &Secp256k1PrivateKey) -> Secp256k1PublicKey {
+        let key = LibSecp256k1PublicKey::from_secret_key(&privk.key);
+        Secp256k1PublicKey {
+            key,
+            compressed: privk.compress_public,
+        }
+    }
+
+    /// recover message and signature to public key (will be compressed)
+    pub fn recover_to_pubkey(
+        msg: &[u8],
+        sig: &RecoverableSignature,
+    ) -> Result<Secp256k1PublicKey, &'static str> {
+
+        let secp256k1_sig = secp256k1_recover(msg, sig.as_bytes())
+            .map_err(|_e| "Invalid signature: failed to recover public key")?;
+
+        Secp256k1PublicKey::from_slice(&secp256k1_sig)
+    }    
+}
+
+impl Secp256k1PrivateKey {
+
+    pub fn from_slice(data: &[u8]) -> Result<Secp256k1PrivateKey, &'static str> {
+        if data.len() < 32 {
+            return Err("Invalid private key: shorter than 32 bytes");
+        }
+        if data.len() > 33 {
+            return Err("Invalid private key: greater than 33 bytes");
+        }
+        let compress_public = if data.len() == 33 {
+            // compressed byte tag?
+            if data[32] != 0x01 {
+                return Err("Invalid private key: invalid compressed byte marker");
+            }
+            true
+        } else {
+            false
+        };
+        
+        match LibSecp256k1PrivateKey::parse_slice(&data) {
+            Ok(privkey_res) => Ok(Secp256k1PrivateKey {
+                key: privkey_res,
+                compress_public: compress_public,
+            }),
+            Err(_e) => Err("Invalid private key: failed to load"),
+        }
+    }
+
+    pub fn compress_public(&self) -> bool {
+        self.compress_public
+    }
+
+    pub fn sign(&self, data_hash: &[u8]) -> Result<RecoverableSignature, &'static str> {
+        let message = LibSecp256k1Message::parse_slice(data_hash).unwrap();
+        let (sig, recid) = secp256k1::sign(&message, &self.key);
+        let rec_sig = RecoverableSignature::from_secp256k1_recoverable(&sig, recid);
+        Ok(rec_sig)
     }
 }
 

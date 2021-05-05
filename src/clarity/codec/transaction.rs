@@ -4,10 +4,11 @@ use crate::clarity::types::{
 };
 use crate::clarity::types::serialization::SerializationError;
 use crate::clarity::util::StacksAddress;
+use crate::clarity::util::address::AddressHashMode;
 use crate::clarity::util::hash::{Hash160, hex_bytes, to_hex};
 use super::StacksString;
 use secp256k1::{Signature, RecoveryId};
-use crate::clarity::util::secp256k1::Secp256k1PublicKey;
+use crate::clarity::util::secp256k1::{Secp256k1PublicKey, Secp256k1PrivateKey};
 use serde::{Deserialize, Serialize};
 use super::{read_next, read_next_exact, write_next, Error as CodecError, StacksMessageCodec};
 use std::convert::TryFrom;
@@ -16,7 +17,12 @@ use std::io::{Read, Write};
 use std::io::prelude::*;
 use crate::clarity::util::retry::BoundReader;
 use crate::clarity::codec::{MAX_TRANSACTION_LEN, MAX_MESSAGE_LEN};
+use crate::clarity::util::hash::Sha512Trunc256Sum;
 
+pub const C32_ADDRESS_VERSION_MAINNET_SINGLESIG: u8 = 22; // P
+pub const C32_ADDRESS_VERSION_MAINNET_MULTISIG: u8 = 20; // M
+pub const C32_ADDRESS_VERSION_TESTNET_SINGLESIG: u8 = 26; // T
+pub const C32_ADDRESS_VERSION_TESTNET_MULTISIG: u8 = 21; // N
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StacksTransaction {
@@ -311,7 +317,29 @@ impl StacksPublicKeyBuffer {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Txid(pub [u8; 32]);
+impl_array_newtype!(Txid, u8, 32);
+impl_array_hexstring_fmt!(Txid);
+impl_byte_array_newtype!(Txid, u8, 32);
+
+impl Txid {
+    /// A Stacks transaction ID is a sha512/256 hash (not a double-sha256 hash)
+    pub fn from_stacks_tx(txdata: &[u8]) -> Txid {
+        let h = Sha512Trunc256Sum::from_data(txdata);
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(h.as_bytes());
+        Txid(bytes)
+    }
+
+    /// A sighash is calculated the same way as a txid
+    pub fn from_sighash_bytes(txdata: &[u8]) -> Txid {
+        Txid::from_stacks_tx(txdata)
+    }
+}
+
 impl StacksTransaction {
+
     pub fn tx_len(&self) -> u64 {
         let mut tx_bytes = vec![];
         self.consensus_serialize(&mut tx_bytes)
@@ -398,26 +426,6 @@ impl TransactionPublicKeyEncoding {
             x if x == TransactionPublicKeyEncoding::Uncompressed as u8 => {
                 Some(TransactionPublicKeyEncoding::Uncompressed)
             }
-            _ => None,
-        }
-    }
-}
-
-impl SinglesigHashMode {
-    pub fn from_u8(n: u8) -> Option<SinglesigHashMode> {
-        match n {
-            x if x == SinglesigHashMode::P2PKH as u8 => Some(SinglesigHashMode::P2PKH),
-            x if x == SinglesigHashMode::P2WPKH as u8 => Some(SinglesigHashMode::P2WPKH),
-            _ => None,
-        }
-    }
-}
-
-impl MultisigHashMode {
-    pub fn from_u8(n: u8) -> Option<MultisigHashMode> {
-        match n {
-            x if x == MultisigHashMode::P2SH as u8 => Some(MultisigHashMode::P2SH),
-            x if x == MultisigHashMode::P2WSH as u8 => Some(MultisigHashMode::P2WSH),
             _ => None,
         }
     }
@@ -1019,4 +1027,1311 @@ impl StacksMessageCodec for StacksTransaction {
         StacksTransaction::consensus_deserialize_with_len(fd).map(|(result, _)| result)
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub struct StacksTransactionSigner {
+    pub tx: StacksTransaction,
+    pub sighash: Txid,
+    origin_done: bool,
+    check_oversign: bool,
+    check_overlap: bool,
+}
 
+impl StacksTransaction {
+    /// Create a new, unsigned transaction and an empty STX fee with no post-conditions.
+    pub fn new(
+        version: TransactionVersion,
+        auth: TransactionAuth,
+        payload: TransactionPayload,
+    ) -> StacksTransaction {
+        let anchor_mode = match payload {
+            _ => TransactionAnchorMode::Any,
+        };
+
+        StacksTransaction {
+            version: version,
+            chain_id: 0,
+            auth: auth,
+            anchor_mode: anchor_mode,
+            post_condition_mode: TransactionPostConditionMode::Deny,
+            post_conditions: vec![],
+            payload: payload,
+        }
+    }
+
+    /// Get fee rate
+    pub fn get_tx_fee(&self) -> u64 {
+        self.auth.get_tx_fee()
+    }
+
+    /// Set fee rate
+    pub fn set_tx_fee(&mut self, tx_fee: u64) -> () {
+        self.auth.set_tx_fee(tx_fee);
+    }
+
+    /// Get origin nonce
+    pub fn get_origin_nonce(&self) -> u64 {
+        self.auth.get_origin_nonce()
+    }
+
+    /// get sponsor nonce
+    pub fn get_sponsor_nonce(&self) -> Option<u64> {
+        self.auth.get_sponsor_nonce()
+    }
+
+    /// set origin nonce
+    pub fn set_origin_nonce(&mut self, n: u64) -> () {
+        self.auth.set_origin_nonce(n);
+    }
+
+    /// set sponsor nonce
+    pub fn set_sponsor_nonce(&mut self, n: u64) -> Result<(), CodecError> {
+        self.auth.set_sponsor_nonce(n)
+    }
+
+    /// Set anchor mode
+    pub fn set_anchor_mode(&mut self, anchor_mode: TransactionAnchorMode) -> () {
+        self.anchor_mode = anchor_mode;
+    }
+
+    /// Set post-condition mode
+    pub fn set_post_condition_mode(&mut self, postcond_mode: TransactionPostConditionMode) -> () {
+        self.post_condition_mode = postcond_mode;
+    }
+
+    /// Add a post-condition
+    pub fn add_post_condition(&mut self, post_condition: TransactionPostCondition) -> () {
+        self.post_conditions.push(post_condition);
+    }
+
+    /// a txid of a stacks transaction is its sha512/256 hash
+    pub fn txid(&self) -> Txid {
+        let mut bytes = vec![];
+        self.consensus_serialize(&mut bytes)
+            .expect("BUG: failed to serialize to a vec");
+        Txid::from_stacks_tx(&bytes)
+    }
+
+    /// Get a mutable reference to the internal auth structure
+    pub fn borrow_auth(&mut self) -> &mut TransactionAuth {
+        &mut self.auth
+    }
+
+    /// Get an immutable reference to the internal auth structure
+    pub fn auth(&self) -> &TransactionAuth {
+        &self.auth
+    }
+
+    /// begin signing the transaction.
+    /// If this is a sponsored transaction, then the origin only commits to knowing that it is
+    /// sponsored.  It does _not_ commit to the sponsored fields, so set them all to sentinel
+    /// values.
+    /// Return the initial sighash.
+    fn sign_begin(&self) -> Txid {
+        let mut tx = self.clone();
+        tx.auth = tx.auth.into_initial_sighash_auth();
+        tx.txid()
+    }
+
+    /// begin verifying a transaction.
+    /// return the initial sighash
+    fn verify_begin(&self) -> Txid {
+        let mut tx = self.clone();
+        tx.auth = tx.auth.into_initial_sighash_auth();
+        tx.txid()
+    }
+
+    /// Sign a sighash and append the signature and public key to the given spending condition.
+    /// Returns the next sighash
+    fn sign_and_append(
+        condition: &mut TransactionSpendingCondition,
+        cur_sighash: &Txid,
+        auth_flag: &TransactionAuthFlags,
+        privk: &Secp256k1PrivateKey,
+    ) -> Result<Txid, CodecError> {
+        let (next_sig, next_sighash) = TransactionSpendingCondition::next_signature(
+            cur_sighash,
+            auth_flag,
+            condition.tx_fee(),
+            condition.nonce(),
+            privk,
+        )?;
+        match condition {
+            TransactionSpendingCondition::Multisig(ref mut cond) => {
+                cond.push_signature(
+                    if privk.compress_public() {
+                        TransactionPublicKeyEncoding::Compressed
+                    } else {
+                        TransactionPublicKeyEncoding::Uncompressed
+                    },
+                    next_sig,
+                );
+                Ok(next_sighash)
+            }
+            TransactionSpendingCondition::Singlesig(ref mut cond) => {
+                cond.set_signature(next_sig);
+                Ok(next_sighash)
+            }
+        }
+    }
+
+    /// Pop the last auth field
+    fn pop_auth_field(
+        condition: &mut TransactionSpendingCondition,
+    ) -> Option<TransactionAuthField> {
+        match condition {
+            TransactionSpendingCondition::Multisig(ref mut cond) => cond.pop_auth_field(),
+            TransactionSpendingCondition::Singlesig(ref mut cond) => cond.pop_signature(),
+        }
+    }
+
+    /// Append a public key to a multisig condition
+    fn append_pubkey(
+        condition: &mut TransactionSpendingCondition,
+        pubkey: &Secp256k1PublicKey,
+    ) -> Result<(), CodecError> {
+        match condition {
+            TransactionSpendingCondition::Multisig(ref mut cond) => {
+                cond.push_public_key(pubkey.clone());
+                Ok(())
+            }
+            _ => Err(CodecError::SigningError(
+                "Not a multisig condition".to_string(),
+            )),
+        }
+    }
+
+    /// Append the next signature from the origin account authorization.
+    /// Return the next sighash.
+    pub fn sign_next_origin(
+        &mut self,
+        cur_sighash: &Txid,
+        privk: &Secp256k1PrivateKey,
+    ) -> Result<Txid, CodecError> {
+        let next_sighash = match self.auth {
+            TransactionAuth::Standard(ref mut origin_condition) => {
+                StacksTransaction::sign_and_append(
+                    origin_condition,
+                    cur_sighash,
+                    &TransactionAuthFlags::AuthStandard,
+                    privk,
+                )?
+            }
+            TransactionAuth::Sponsored(ref mut origin_condition, _) => {
+                StacksTransaction::sign_and_append(
+                    origin_condition,
+                    cur_sighash,
+                    &TransactionAuthFlags::AuthStandard,
+                    privk,
+                )?
+            }
+        };
+        Ok(next_sighash)
+    }
+
+    /// Append the next public key to the origin account authorization.
+    pub fn append_next_origin(&mut self, pubk: &Secp256k1PublicKey) -> Result<(), CodecError> {
+        match self.auth {
+            TransactionAuth::Standard(ref mut origin_condition) => {
+                StacksTransaction::append_pubkey(origin_condition, pubk)
+            }
+            TransactionAuth::Sponsored(ref mut origin_condition, _) => {
+                StacksTransaction::append_pubkey(origin_condition, pubk)
+            }
+        }
+    }
+
+    /// Append the next signature from the sponsoring account.
+    /// Return the next sighash
+    pub fn sign_next_sponsor(
+        &mut self,
+        cur_sighash: &Txid,
+        privk: &Secp256k1PrivateKey,
+    ) -> Result<Txid, CodecError> {
+        let next_sighash = match self.auth {
+            TransactionAuth::Standard(_) => {
+                // invalid
+                return Err(CodecError::SigningError(
+                    "Cannot sign standard authorization with a sponsoring private key".to_string(),
+                ));
+            }
+            TransactionAuth::Sponsored(_, ref mut sponsor_condition) => {
+                StacksTransaction::sign_and_append(
+                    sponsor_condition,
+                    cur_sighash,
+                    &TransactionAuthFlags::AuthSponsored,
+                    privk,
+                )?
+            }
+        };
+        Ok(next_sighash)
+    }
+
+    /// Append the next public key to the sponsor account authorization.
+    pub fn append_next_sponsor(&mut self, pubk: &Secp256k1PublicKey) -> Result<(), CodecError> {
+        match self.auth {
+            TransactionAuth::Standard(_) => Err(CodecError::SigningError(
+                "Cannot appned a public key to the sponsor of a standard auth condition"
+                    .to_string(),
+            )),
+            TransactionAuth::Sponsored(_, ref mut sponsor_condition) => {
+                StacksTransaction::append_pubkey(sponsor_condition, pubk)
+            }
+        }
+    }
+
+    /// Verify this transaction's signatures
+    pub fn verify(&self) -> Result<(), CodecError> {
+        self.auth.verify(&self.verify_begin())
+    }
+
+    /// Verify the transaction's origin signatures only.
+    /// Used by sponsors to get the next sig-hash to sign.
+    pub fn verify_origin(&self) -> Result<Txid, CodecError> {
+        self.auth.verify_origin(&self.verify_begin())
+    }
+
+    /// Get the origin account's address
+    pub fn origin_address(&self) -> StacksAddress {
+        match (&self.version, &self.auth) {
+            (&TransactionVersion::Mainnet, &TransactionAuth::Standard(ref origin_condition)) => {
+                origin_condition.address_mainnet()
+            }
+            (&TransactionVersion::Testnet, &TransactionAuth::Standard(ref origin_condition)) => {
+                origin_condition.address_testnet()
+            }
+            (
+                &TransactionVersion::Mainnet,
+                &TransactionAuth::Sponsored(ref origin_condition, ref _unused),
+            ) => origin_condition.address_mainnet(),
+            (
+                &TransactionVersion::Testnet,
+                &TransactionAuth::Sponsored(ref origin_condition, ref _unused),
+            ) => origin_condition.address_testnet(),
+        }
+    }
+
+    /// Get the sponsor account's address, if this transaction is sponsored
+    pub fn sponsor_address(&self) -> Option<StacksAddress> {
+        match (&self.version, &self.auth) {
+            (&TransactionVersion::Mainnet, &TransactionAuth::Standard(ref _unused)) => None,
+            (&TransactionVersion::Testnet, &TransactionAuth::Standard(ref _unused)) => None,
+            (
+                &TransactionVersion::Mainnet,
+                &TransactionAuth::Sponsored(ref _unused, ref sponsor_condition),
+            ) => Some(sponsor_condition.address_mainnet()),
+            (
+                &TransactionVersion::Testnet,
+                &TransactionAuth::Sponsored(ref _unused, ref sponsor_condition),
+            ) => Some(sponsor_condition.address_testnet()),
+        }
+    }
+
+    /// Get a copy of the origin spending condition
+    pub fn get_origin(&self) -> TransactionSpendingCondition {
+        self.auth.origin().clone()
+    }
+
+    /// Get a copy of the sending condition that will pay the tx fee
+    pub fn get_payer(&self) -> TransactionSpendingCondition {
+        match self.auth.sponsor() {
+            Some(ref tsc) => (*tsc).clone(),
+            None => self.auth.origin().clone(),
+        }
+    }
+
+    /// Is this a mainnet transaction?  false means 'testnet'
+    pub fn is_mainnet(&self) -> bool {
+        match self.version {
+            TransactionVersion::Mainnet => true,
+            _ => false,
+        }
+    }
+}
+
+impl TransactionSpendingCondition {
+    pub fn new_singlesig_p2pkh(pubkey: Secp256k1PublicKey) -> Option<TransactionSpendingCondition> {
+        let key_encoding = if pubkey.compressed() {
+            TransactionPublicKeyEncoding::Compressed
+        } else {
+            TransactionPublicKeyEncoding::Uncompressed
+        };
+        let signer_addr =
+            StacksAddress::from_public_keys(0, &AddressHashMode::SerializeP2PKH, 1, &vec![pubkey])?;
+
+        Some(TransactionSpendingCondition::Singlesig(
+            SinglesigSpendingCondition {
+                signer: signer_addr.bytes.clone(),
+                nonce: 0,
+                tx_fee: 0,
+                hash_mode: SinglesigHashMode::P2PKH,
+                key_encoding: key_encoding,
+                signature: RecoverableSignature::empty(),
+            },
+        ))
+    }
+
+    pub fn new_singlesig_p2wpkh(pubkey: Secp256k1PublicKey) -> Option<TransactionSpendingCondition> {
+        let signer_addr = StacksAddress::from_public_keys(
+            0,
+            &AddressHashMode::SerializeP2WPKH,
+            1,
+            &vec![pubkey],
+        )?;
+
+        Some(TransactionSpendingCondition::Singlesig(
+            SinglesigSpendingCondition {
+                signer: signer_addr.bytes.clone(),
+                nonce: 0,
+                tx_fee: 0,
+                hash_mode: SinglesigHashMode::P2WPKH,
+                key_encoding: TransactionPublicKeyEncoding::Compressed,
+                signature: RecoverableSignature::empty(),
+            },
+        ))
+    }
+
+    pub fn new_multisig_p2sh(
+        num_sigs: u16,
+        pubkeys: Vec<Secp256k1PublicKey>,
+    ) -> Option<TransactionSpendingCondition> {
+        let signer_addr = StacksAddress::from_public_keys(
+            0,
+            &AddressHashMode::SerializeP2SH,
+            num_sigs as usize,
+            &pubkeys,
+        )?;
+
+        Some(TransactionSpendingCondition::Multisig(
+            MultisigSpendingCondition {
+                signer: signer_addr.bytes.clone(),
+                nonce: 0,
+                tx_fee: 0,
+                hash_mode: MultisigHashMode::P2SH,
+                fields: vec![],
+                signatures_required: num_sigs,
+            },
+        ))
+    }
+
+    pub fn new_multisig_p2wsh(
+        num_sigs: u16,
+        pubkeys: Vec<Secp256k1PublicKey>,
+    ) -> Option<TransactionSpendingCondition> {
+        let signer_addr = StacksAddress::from_public_keys(
+            0,
+            &AddressHashMode::SerializeP2WSH,
+            num_sigs as usize,
+            &pubkeys,
+        )?;
+
+        Some(TransactionSpendingCondition::Multisig(
+            MultisigSpendingCondition {
+                signer: signer_addr.bytes.clone(),
+                nonce: 0,
+                tx_fee: 0,
+                hash_mode: MultisigHashMode::P2WSH,
+                fields: vec![],
+                signatures_required: num_sigs,
+            },
+        ))
+    }
+
+    /// When committing to the fact that a transaction is sponsored, the origin doesn't know
+    /// anything else.  Instead, it commits to this sentinel value as its sponsor.
+    /// It is intractable to calculate a private key that could generate this.
+    pub fn new_initial_sighash() -> TransactionSpendingCondition {
+        TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
+            signer: Hash160([0u8; 20]),
+            nonce: 0,
+            tx_fee: 0,
+            hash_mode: SinglesigHashMode::P2PKH,
+            key_encoding: TransactionPublicKeyEncoding::Compressed,
+            signature: RecoverableSignature::empty(),
+        })
+    }
+
+    pub fn num_signatures(&self) -> u16 {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => {
+                if data.signature != RecoverableSignature::empty() {
+                    1
+                } else {
+                    0
+                }
+            }
+            TransactionSpendingCondition::Multisig(ref data) => {
+                let mut num_sigs: u16 = 0;
+                for field in data.fields.iter() {
+                    if field.is_signature() {
+                        num_sigs = num_sigs
+                            .checked_add(1)
+                            .expect("Unreasonable amount of signatures"); // something is seriously wrong if this fails
+                    }
+                }
+                num_sigs
+            }
+        }
+    }
+
+    pub fn signatures_required(&self) -> u16 {
+        match *self {
+            TransactionSpendingCondition::Singlesig(_) => 1,
+            TransactionSpendingCondition::Multisig(ref multisig_data) => {
+                multisig_data.signatures_required
+            }
+        }
+    }
+
+    pub fn nonce(&self) -> u64 {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => data.nonce,
+            TransactionSpendingCondition::Multisig(ref data) => data.nonce,
+        }
+    }
+
+    pub fn tx_fee(&self) -> u64 {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => data.tx_fee,
+            TransactionSpendingCondition::Multisig(ref data) => data.tx_fee,
+        }
+    }
+
+    pub fn set_nonce(&mut self, n: u64) -> () {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref mut singlesig_data) => {
+                singlesig_data.nonce = n;
+            }
+            TransactionSpendingCondition::Multisig(ref mut multisig_data) => {
+                multisig_data.nonce = n;
+            }
+        }
+    }
+
+    pub fn set_tx_fee(&mut self, tx_fee: u64) -> () {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref mut singlesig_data) => {
+                singlesig_data.tx_fee = tx_fee;
+            }
+            TransactionSpendingCondition::Multisig(ref mut multisig_data) => {
+                multisig_data.tx_fee = tx_fee;
+            }
+        }
+    }
+
+    pub fn get_tx_fee(&self) -> u64 {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref singlesig_data) => singlesig_data.tx_fee,
+            TransactionSpendingCondition::Multisig(ref multisig_data) => multisig_data.tx_fee,
+        }
+    }
+
+    /// Get the mainnet account address of the spending condition
+    pub fn address_mainnet(&self) -> StacksAddress {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => data.address_mainnet(),
+            TransactionSpendingCondition::Multisig(ref data) => data.address_mainnet(),
+        }
+    }
+
+    /// Get the mainnet account address of the spending condition
+    pub fn address_testnet(&self) -> StacksAddress {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => data.address_testnet(),
+            TransactionSpendingCondition::Multisig(ref data) => data.address_testnet(),
+        }
+    }
+
+    /// Clear fee rate, nonces, signatures, and public keys
+    pub fn clear(&mut self) -> () {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref mut singlesig_data) => {
+                singlesig_data.tx_fee = 0;
+                singlesig_data.nonce = 0;
+                singlesig_data.signature = RecoverableSignature::empty();
+            }
+            TransactionSpendingCondition::Multisig(ref mut multisig_data) => {
+                multisig_data.tx_fee = 0;
+                multisig_data.nonce = 0;
+                multisig_data.fields.clear();
+            }
+        }
+    }
+
+    pub fn make_sighash_presign(
+        cur_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+        tx_fee: u64,
+        nonce: u64,
+    ) -> Txid {
+        // new hash combines the previous hash and all the new data this signature will add.  This
+        // includes:
+        // * the previous hash
+        // * the auth flag
+        // * the fee rate (big-endian 8-byte number)
+        // * nonce (big-endian 8-byte number)
+        let new_tx_hash_bits_len = 32 + 1 + 8 + 8;
+        let mut new_tx_hash_bits = Vec::with_capacity(new_tx_hash_bits_len as usize);
+
+        new_tx_hash_bits.extend_from_slice(cur_sighash.as_bytes());
+        new_tx_hash_bits.extend_from_slice(&[*cond_code as u8]);
+        new_tx_hash_bits.extend_from_slice(&tx_fee.to_be_bytes());
+        new_tx_hash_bits.extend_from_slice(&nonce.to_be_bytes());
+
+        assert!(new_tx_hash_bits.len() == new_tx_hash_bits_len as usize);
+
+        let next_sighash = Txid::from_sighash_bytes(&new_tx_hash_bits);
+        next_sighash
+    }
+
+    pub fn make_sighash_postsign(
+        cur_sighash: &Txid,
+        pubkey: &Secp256k1PublicKey,
+        sig: &RecoverableSignature,
+    ) -> Txid {
+        // new hash combines the previous hash and all the new data this signature will add.  This
+        // includes:
+        // * the public key compression flag
+        // * the signature
+        let new_tx_hash_bits_len = 32 + 1 + MESSAGE_SIGNATURE_ENCODED_SIZE;
+        let mut new_tx_hash_bits = Vec::with_capacity(new_tx_hash_bits_len as usize);
+        let pubkey_encoding = if pubkey.compressed() {
+            TransactionPublicKeyEncoding::Compressed
+        } else {
+            TransactionPublicKeyEncoding::Uncompressed
+        };
+
+        new_tx_hash_bits.extend_from_slice(cur_sighash.as_bytes());
+        new_tx_hash_bits.extend_from_slice(&[pubkey_encoding as u8]);
+        new_tx_hash_bits.extend_from_slice(sig.as_bytes());
+
+        assert!(new_tx_hash_bits.len() == new_tx_hash_bits_len as usize);
+
+        let next_sighash = Txid::from_sighash_bytes(&new_tx_hash_bits);
+        next_sighash
+    }
+
+    /// Linear-complexity signing algorithm -- we sign a rolling hash over all data committed to by
+    /// the previous signer (instead of naively re-serializing the transaction each time), as well
+    /// as over new data provided by this key (excluding its own public key or signature, which
+    /// are authenticated by the spending condition's key hash).
+    /// Calculates and returns the next signature and sighash, which the subsequent private key
+    /// must sign.
+    pub fn next_signature(
+        cur_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+        tx_fee: u64,
+        nonce: u64,
+        privk: &Secp256k1PrivateKey,
+    ) -> Result<(RecoverableSignature, Txid), CodecError> {
+        let sighash_presign = TransactionSpendingCondition::make_sighash_presign(
+            cur_sighash,
+            cond_code,
+            tx_fee,
+            nonce,
+        );
+
+        // sign the current hash
+        let sig = privk
+            .sign(sighash_presign.as_bytes())
+            .map_err(|se| CodecError::SigningError(se.to_string()))?;
+
+        let pubk = Secp256k1PublicKey::from_private(privk);
+        let next_sighash =
+            TransactionSpendingCondition::make_sighash_postsign(&sighash_presign, &pubk, &sig);
+
+        Ok((sig, next_sighash))
+    }
+
+    /// Linear-complexity verifying algorithm -- we verify a rolling hash over all data committed
+    /// to by order of signers (instead of re-serializing the tranasction each time).
+    /// Calculates the next sighash and public key, which the next verifier must verify.
+    /// Used by StacksTransaction::verify*
+    pub fn next_verification(
+        cur_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+        tx_fee: u64,
+        nonce: u64,
+        key_encoding: &TransactionPublicKeyEncoding,
+        sig: &RecoverableSignature,
+    ) -> Result<(Secp256k1PublicKey, Txid), CodecError> {
+        let sighash_presign = TransactionSpendingCondition::make_sighash_presign(
+            cur_sighash,
+            cond_code,
+            tx_fee,
+            nonce,
+        );
+
+        // verify the current signature
+        let mut pubk = Secp256k1PublicKey::recover_to_pubkey(sighash_presign.as_bytes(), sig)
+            .map_err(|ve| CodecError::SigningError(ve.to_string()))?;
+
+        match key_encoding {
+            TransactionPublicKeyEncoding::Compressed => pubk.set_compressed(true),
+            TransactionPublicKeyEncoding::Uncompressed => pubk.set_compressed(false),
+        };
+
+        // what's the next sighash going to be?
+        let next_sighash =
+            TransactionSpendingCondition::make_sighash_postsign(&sighash_presign, &pubk, sig);
+        Ok((pubk, next_sighash))
+    }
+
+    /// Verify all signatures
+    pub fn verify(
+        &self,
+        initial_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+    ) -> Result<Txid, CodecError> {
+        match *self {
+            TransactionSpendingCondition::Singlesig(ref data) => {
+                data.verify(initial_sighash, cond_code)
+            }
+            TransactionSpendingCondition::Multisig(ref data) => {
+                data.verify(initial_sighash, cond_code)
+            }
+        }
+    }
+}
+
+impl TransactionAuth {
+    pub fn from_p2pkh(privk: &Secp256k1PrivateKey) -> Option<TransactionAuth> {
+        match TransactionSpendingCondition::new_singlesig_p2pkh(Secp256k1PublicKey::from_private(
+            privk,
+        )) {
+            Some(auth) => Some(TransactionAuth::Standard(auth)),
+            None => None,
+        }
+    }
+
+    pub fn from_p2sh(privks: &Vec<Secp256k1PrivateKey>, num_sigs: u16) -> Option<TransactionAuth> {
+        let mut pubks = vec![];
+        for privk in privks.iter() {
+            pubks.push(Secp256k1PublicKey::from_private(privk));
+        }
+
+        match TransactionSpendingCondition::new_multisig_p2sh(num_sigs, pubks) {
+            Some(auth) => Some(TransactionAuth::Standard(auth)),
+            None => None,
+        }
+    }
+
+    pub fn from_p2wpkh(privk: &Secp256k1PrivateKey) -> Option<TransactionAuth> {
+        match TransactionSpendingCondition::new_singlesig_p2wpkh(Secp256k1PublicKey::from_private(
+            privk,
+        )) {
+            Some(auth) => Some(TransactionAuth::Standard(auth)),
+            None => None,
+        }
+    }
+
+    pub fn from_p2wsh(privks: &Vec<Secp256k1PrivateKey>, num_sigs: u16) -> Option<TransactionAuth> {
+        let mut pubks = vec![];
+        for privk in privks.iter() {
+            pubks.push(Secp256k1PublicKey::from_private(privk));
+        }
+
+        match TransactionSpendingCondition::new_multisig_p2wsh(num_sigs, pubks) {
+            Some(auth) => Some(TransactionAuth::Standard(auth)),
+            None => None,
+        }
+    }
+
+    /// merge two standard auths into a sponsored auth.
+    /// build them with the above helper methods
+    pub fn into_sponsored(self, sponsor_auth: TransactionAuth) -> Option<TransactionAuth> {
+        match (self, sponsor_auth) {
+            (TransactionAuth::Standard(sc), TransactionAuth::Standard(sp)) => {
+                Some(TransactionAuth::Sponsored(sc, sp))
+            }
+            (_, _) => None,
+        }
+    }
+
+    /// Directly set the sponsor spending condition
+    pub fn set_sponsor(
+        &mut self,
+        sponsor_spending_cond: TransactionSpendingCondition,
+    ) -> Result<(), CodecError> {
+        match *self {
+            TransactionAuth::Sponsored(_, ref mut ssc) => {
+                *ssc = sponsor_spending_cond;
+                Ok(())
+            }
+            _ => Err(CodecError::GenericError("IncompatibleSpendingConditionError".into())),
+        }
+    }
+
+    pub fn is_standard(&self) -> bool {
+        match *self {
+            TransactionAuth::Standard(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_sponsored(&self) -> bool {
+        match *self {
+            TransactionAuth::Sponsored(_, _) => true,
+            _ => false,
+        }
+    }
+
+    /// When beginning to sign a sponsored transaction, the origin account will not commit to any
+    /// information about the sponsor (only that it is sponsored).  It does so by using sentinel
+    /// sponsored account information.
+    pub fn into_initial_sighash_auth(self) -> TransactionAuth {
+        match self {
+            TransactionAuth::Standard(mut origin) => {
+                origin.clear();
+                TransactionAuth::Standard(origin)
+            }
+            TransactionAuth::Sponsored(mut origin, _) => {
+                origin.clear();
+                TransactionAuth::Sponsored(
+                    origin,
+                    TransactionSpendingCondition::new_initial_sighash(),
+                )
+            }
+        }
+    }
+
+    pub fn origin(&self) -> &TransactionSpendingCondition {
+        match *self {
+            TransactionAuth::Standard(ref s) => s,
+            TransactionAuth::Sponsored(ref s, _) => s,
+        }
+    }
+
+    pub fn get_origin_nonce(&self) -> u64 {
+        self.origin().nonce()
+    }
+
+    pub fn set_origin_nonce(&mut self, n: u64) -> () {
+        match *self {
+            TransactionAuth::Standard(ref mut s) => s.set_nonce(n),
+            TransactionAuth::Sponsored(ref mut s, _) => s.set_nonce(n),
+        }
+    }
+
+    pub fn sponsor(&self) -> Option<&TransactionSpendingCondition> {
+        match *self {
+            TransactionAuth::Standard(_) => None,
+            TransactionAuth::Sponsored(_, ref s) => Some(s),
+        }
+    }
+
+    pub fn get_sponsor_nonce(&self) -> Option<u64> {
+        match self.sponsor() {
+            None => None,
+            Some(s) => Some(s.nonce()),
+        }
+    }
+
+    pub fn set_sponsor_nonce(&mut self, n: u64) -> Result<(), CodecError> {
+        match *self {
+            TransactionAuth::Standard(_) => Err(CodecError::GenericError("IncompatibleSpendingConditionError".into())),
+            TransactionAuth::Sponsored(_, ref mut s) => {
+                s.set_nonce(n);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn set_tx_fee(&mut self, tx_fee: u64) -> () {
+        match *self {
+            TransactionAuth::Standard(ref mut s) => s.set_tx_fee(tx_fee),
+            TransactionAuth::Sponsored(_, ref mut s) => s.set_tx_fee(tx_fee),
+        }
+    }
+
+    pub fn get_tx_fee(&self) -> u64 {
+        match *self {
+            TransactionAuth::Standard(ref s) => s.get_tx_fee(),
+            TransactionAuth::Sponsored(_, ref s) => s.get_tx_fee(),
+        }
+    }
+
+    pub fn verify_origin(&self, initial_sighash: &Txid) -> Result<Txid, CodecError> {
+        match *self {
+            TransactionAuth::Standard(ref origin_condition) => {
+                origin_condition.verify(initial_sighash, &TransactionAuthFlags::AuthStandard)
+            }
+            TransactionAuth::Sponsored(ref origin_condition, _) => {
+                origin_condition.verify(initial_sighash, &TransactionAuthFlags::AuthStandard)
+            }
+        }
+    }
+
+    pub fn verify(&self, initial_sighash: &Txid) -> Result<(), CodecError> {
+        let origin_sighash = self.verify_origin(initial_sighash)?;
+        match *self {
+            TransactionAuth::Standard(_) => Ok(()),
+            TransactionAuth::Sponsored(_, ref sponsor_condition) => sponsor_condition
+                .verify(&origin_sighash, &TransactionAuthFlags::AuthSponsored)
+                .and_then(|_sigh| Ok(())),
+        }
+    }
+
+    /// Clear out all transaction auth fields, nonces, and fee rates from the spending condition(s).
+    pub fn clear(&mut self) -> () {
+        match *self {
+            TransactionAuth::Standard(ref mut origin_condition) => {
+                origin_condition.clear();
+            }
+            TransactionAuth::Sponsored(ref mut origin_condition, ref mut sponsor_condition) => {
+                origin_condition.clear();
+                sponsor_condition.clear();
+            }
+        }
+    }
+}
+
+impl MultisigSpendingCondition {
+    pub fn push_signature(
+        &mut self,
+        key_encoding: TransactionPublicKeyEncoding,
+        signature: RecoverableSignature,
+    ) -> () {
+        self.fields
+            .push(TransactionAuthField::Signature(key_encoding, signature));
+    }
+
+    pub fn push_public_key(&mut self, public_key: Secp256k1PublicKey) -> () {
+        self.fields
+            .push(TransactionAuthField::PublicKey(public_key));
+    }
+
+    pub fn pop_auth_field(&mut self) -> Option<TransactionAuthField> {
+        self.fields.pop()
+    }
+
+    pub fn address_mainnet(&self) -> StacksAddress {
+        StacksAddress {
+            version: C32_ADDRESS_VERSION_MAINNET_MULTISIG,
+            bytes: self.signer.clone(),
+        }
+    }
+
+    pub fn address_testnet(&self) -> StacksAddress {
+        StacksAddress {
+            version: C32_ADDRESS_VERSION_TESTNET_MULTISIG,
+            bytes: self.signer.clone(),
+        }
+    }
+
+    /// Authenticate a spending condition against an initial sighash.
+    /// In doing so, recover all public keys and verify that they hash to the signer
+    /// via the given hash mode.
+    pub fn verify(
+        &self,
+        initial_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+    ) -> Result<Txid, CodecError> {
+        let mut pubkeys = vec![];
+        let mut cur_sighash = initial_sighash.clone();
+        let mut num_sigs: u16 = 0;
+        let mut have_uncompressed = false;
+        for field in self.fields.iter() {
+            let pubkey = match field {
+                TransactionAuthField::PublicKey(ref pubkey) => {
+                    if !pubkey.compressed() {
+                        have_uncompressed = true;
+                    }
+                    pubkey.clone()
+                }
+                TransactionAuthField::Signature(ref pubkey_encoding, ref sigbuf) => {
+                    if *pubkey_encoding == TransactionPublicKeyEncoding::Uncompressed {
+                        have_uncompressed = true;
+                    }
+
+                    let (pubkey, next_sighash) = TransactionSpendingCondition::next_verification(
+                        &cur_sighash,
+                        cond_code,
+                        self.tx_fee,
+                        self.nonce,
+                        pubkey_encoding,
+                        sigbuf,
+                    )?;
+                    cur_sighash = next_sighash;
+                    num_sigs = num_sigs
+                        .checked_add(1)
+                        .ok_or(CodecError::SigningError("Too many signatures".to_string()))?;
+                    pubkey
+                }
+            };
+            pubkeys.push(pubkey);
+        }
+
+        if num_sigs != self.signatures_required {
+            return Err(CodecError::SigningError(
+                "Incorrect number of signatures".to_string(),
+            ));
+        }
+
+        if have_uncompressed && self.hash_mode == MultisigHashMode::P2WSH {
+            return Err(CodecError::SigningError(
+                "Uncompressed keys are not allowed in this hash mode".to_string(),
+            ));
+        }
+
+        let addr_bytes = match StacksAddress::from_public_keys(
+            0,
+            &self.hash_mode.to_address_hash_mode(),
+            self.signatures_required as usize,
+            &pubkeys,
+        ) {
+            Some(a) => a.bytes,
+            None => {
+                return Err(CodecError::SigningError(
+                    "Failed to generate address from public keys".to_string(),
+                ));
+            }
+        };
+
+        if addr_bytes != self.signer {
+            return Err(CodecError::SigningError(format!(
+                "Signer hash does not equal hash of public key(s): {} != {}",
+                addr_bytes, self.signer
+            )));
+        }
+
+        Ok(cur_sighash)
+    }
+}
+
+impl SinglesigSpendingCondition {
+    pub fn set_signature(&mut self, signature: RecoverableSignature) -> () {
+        self.signature = signature;
+    }
+
+    pub fn pop_signature(&mut self) -> Option<TransactionAuthField> {
+        if self.signature == RecoverableSignature::empty() {
+            return None;
+        }
+
+        let ret = self.signature.clone();
+        self.signature = RecoverableSignature::empty();
+
+        return Some(TransactionAuthField::Signature(
+            self.key_encoding.clone(),
+            ret,
+        ));
+    }
+
+    pub fn address_mainnet(&self) -> StacksAddress {
+        let version = match self.hash_mode {
+            SinglesigHashMode::P2PKH => C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
+            SinglesigHashMode::P2WPKH => C32_ADDRESS_VERSION_MAINNET_MULTISIG,
+        };
+        StacksAddress {
+            version: version,
+            bytes: self.signer.clone(),
+        }
+    }
+
+    pub fn address_testnet(&self) -> StacksAddress {
+        let version = match self.hash_mode {
+            SinglesigHashMode::P2PKH => C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
+            SinglesigHashMode::P2WPKH => C32_ADDRESS_VERSION_TESTNET_MULTISIG,
+        };
+        StacksAddress {
+            version: version,
+            bytes: self.signer.clone(),
+        }
+    }
+
+    /// Authenticate a spending condition against an initial sighash.
+    /// In doing so, recover all public keys and verify that they hash to the signer
+    /// via the given hash mode.
+    /// Returns the final sighash
+    pub fn verify(
+        &self,
+        initial_sighash: &Txid,
+        cond_code: &TransactionAuthFlags,
+    ) -> Result<Txid, CodecError> {
+        let (pubkey, next_sighash) = TransactionSpendingCondition::next_verification(
+            initial_sighash,
+            cond_code,
+            self.tx_fee,
+            self.nonce,
+            &self.key_encoding,
+            &self.signature,
+        )?;
+        let addr_bytes = match StacksAddress::from_public_keys(
+            0,
+            &self.hash_mode.to_address_hash_mode(),
+            1,
+            &vec![pubkey],
+        ) {
+            Some(a) => a.bytes,
+            None => {
+                return Err(CodecError::SigningError(
+                    "Failed to generate address from public key".to_string(),
+                ));
+            }
+        };
+
+        if addr_bytes != self.signer {
+            return Err(CodecError::SigningError(format!(
+                "Signer hash does not equal hash of public key(s): {} != {}",
+                &addr_bytes, &self.signer
+            )));
+        }
+
+        Ok(next_sighash)
+    }
+}
+
+impl TransactionAuthField {
+    pub fn is_public_key(&self) -> bool {
+        match *self {
+            TransactionAuthField::PublicKey(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_signature(&self) -> bool {
+        match *self {
+            TransactionAuthField::Signature(_, _) => true,
+            _ => false,
+        }
+    }
+
+    pub fn as_public_key(&self) -> Option<Secp256k1PublicKey> {
+        match *self {
+            TransactionAuthField::PublicKey(ref pubk) => Some(pubk.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_signature(&self) -> Option<(TransactionPublicKeyEncoding, RecoverableSignature)> {
+        match *self {
+            TransactionAuthField::Signature(ref key_fmt, ref sig) => {
+                Some((key_fmt.clone(), sig.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    // TODO: enforce u8; 32
+    pub fn get_public_key(&self, sighash_bytes: &[u8]) -> Result<Secp256k1PublicKey, CodecError> {
+        match *self {
+            TransactionAuthField::PublicKey(ref pubk) => Ok(pubk.clone()),
+            TransactionAuthField::Signature(ref key_fmt, ref sig) => {
+                let mut pubk = Secp256k1PublicKey::recover_to_pubkey(sighash_bytes, sig)
+                    .map_err(|e| CodecError::SigningError(e.to_string()))?;
+                pubk.set_compressed(if *key_fmt == TransactionPublicKeyEncoding::Compressed {
+                    true
+                } else {
+                    false
+                });
+                Ok(pubk)
+            }
+        }
+    }
+}
+
+impl SinglesigHashMode {
+    pub fn to_address_hash_mode(&self) -> AddressHashMode {
+        match *self {
+            SinglesigHashMode::P2PKH => AddressHashMode::SerializeP2PKH,
+            SinglesigHashMode::P2WPKH => AddressHashMode::SerializeP2WPKH,
+        }
+    }
+
+    pub fn from_address_hash_mode(hm: AddressHashMode) -> Option<SinglesigHashMode> {
+        match hm {
+            AddressHashMode::SerializeP2PKH => Some(SinglesigHashMode::P2PKH),
+            AddressHashMode::SerializeP2WPKH => Some(SinglesigHashMode::P2WPKH),
+            _ => None,
+        }
+    }
+
+    pub fn from_u8(n: u8) -> Option<SinglesigHashMode> {
+        match n {
+            x if x == SinglesigHashMode::P2PKH as u8 => Some(SinglesigHashMode::P2PKH),
+            x if x == SinglesigHashMode::P2WPKH as u8 => Some(SinglesigHashMode::P2WPKH),
+            _ => None,
+        }
+    }
+}
+
+impl MultisigHashMode {
+    pub fn to_address_hash_mode(&self) -> AddressHashMode {
+        match *self {
+            MultisigHashMode::P2SH => AddressHashMode::SerializeP2SH,
+            MultisigHashMode::P2WSH => AddressHashMode::SerializeP2WSH,
+        }
+    }
+
+    pub fn from_address_hash_mode(hm: AddressHashMode) -> Option<MultisigHashMode> {
+        match hm {
+            AddressHashMode::SerializeP2SH => Some(MultisigHashMode::P2SH),
+            AddressHashMode::SerializeP2WSH => Some(MultisigHashMode::P2WSH),
+            _ => None,
+        }
+    }
+
+    pub fn from_u8(n: u8) -> Option<MultisigHashMode> {
+        match n {
+            x if x == MultisigHashMode::P2SH as u8 => Some(MultisigHashMode::P2SH),
+            x if x == MultisigHashMode::P2WSH as u8 => Some(MultisigHashMode::P2WSH),
+            _ => None,
+        }
+    }
+}
+
+impl StacksTransactionSigner {
+    pub fn new(tx: &StacksTransaction) -> StacksTransactionSigner {
+        StacksTransactionSigner {
+            tx: tx.clone(),
+            sighash: tx.sign_begin(),
+            origin_done: false,
+            check_oversign: true,
+            check_overlap: true,
+        }
+    }
+
+    pub fn new_sponsor(
+        tx: &StacksTransaction,
+        spending_condition: TransactionSpendingCondition,
+    ) -> Result<StacksTransactionSigner, CodecError> {
+        if !tx.auth.is_sponsored() {
+            return Err(CodecError::GenericError("IncompatibleSpendingConditionError".into()));
+        }
+        let mut new_tx = tx.clone();
+        new_tx.auth.set_sponsor(spending_condition)?;
+        let origin_sighash = new_tx.verify_origin()?;
+
+        Ok(StacksTransactionSigner {
+            tx: new_tx,
+            sighash: origin_sighash,
+            origin_done: true,
+            check_oversign: true,
+            check_overlap: true,
+        })
+    }
+
+    pub fn resume(&mut self, tx: &StacksTransaction) -> () {
+        self.tx = tx.clone()
+    }
+
+    pub fn disable_checks(&mut self) -> () {
+        self.check_oversign = false;
+        self.check_overlap = false;
+    }
+
+    pub fn sign_origin(&mut self, privk: &Secp256k1PrivateKey) -> Result<(), CodecError> {
+        if self.check_overlap && self.origin_done {
+            // can't sign another origin private key since we started signing sponsors
+            return Err(CodecError::SigningError(
+                "Cannot sign origin after sponsor key".to_string(),
+            ));
+        }
+
+        match self.tx.auth {
+            TransactionAuth::Standard(ref origin_condition) => {
+                if self.check_oversign
+                    && origin_condition.num_signatures() >= origin_condition.signatures_required()
+                {
+                    return Err(CodecError::SigningError(
+                        "Origin would have too many signatures".to_string(),
+                    ));
+                }
+            }
+            TransactionAuth::Sponsored(ref origin_condition, _) => {
+                if self.check_oversign
+                    && origin_condition.num_signatures() >= origin_condition.signatures_required()
+                {
+                    return Err(CodecError::SigningError(
+                        "Origin would have too many signatures".to_string(),
+                    ));
+                }
+            }
+        }
+
+        let next_sighash = self.tx.sign_next_origin(&self.sighash, privk)?;
+        self.sighash = next_sighash;
+        Ok(())
+    }
+
+    pub fn append_origin(&mut self, pubk: &Secp256k1PublicKey) -> Result<(), CodecError> {
+        if self.check_overlap && self.origin_done {
+            // can't append another origin key
+            return Err(CodecError::SigningError(
+                "Cannot append public key to origin after sponsor key".to_string(),
+            ));
+        }
+
+        self.tx.append_next_origin(pubk)
+    }
+
+    pub fn sign_sponsor(&mut self, privk: &Secp256k1PrivateKey) -> Result<(), CodecError> {
+        match self.tx.auth {
+            TransactionAuth::Sponsored(_, ref sponsor_condition) => {
+                if self.check_oversign
+                    && sponsor_condition.num_signatures() >= sponsor_condition.signatures_required()
+                {
+                    return Err(CodecError::SigningError(
+                        "Sponsor would have too many signatures".to_string(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+
+        let next_sighash = self.tx.sign_next_sponsor(&self.sighash, privk)?;
+        self.sighash = next_sighash;
+        self.origin_done = true;
+        Ok(())
+    }
+
+    pub fn append_sponsor(&mut self, pubk: &Secp256k1PublicKey) -> Result<(), CodecError> {
+        self.tx.append_next_sponsor(pubk)
+    }
+
+    pub fn pop_origin_auth_field(&mut self) -> Option<TransactionAuthField> {
+        match self.tx.auth {
+            TransactionAuth::Standard(ref mut origin_condition) => {
+                StacksTransaction::pop_auth_field(origin_condition)
+            }
+            TransactionAuth::Sponsored(ref mut origin_condition, _) => {
+                StacksTransaction::pop_auth_field(origin_condition)
+            }
+        }
+    }
+
+    pub fn pop_sponsor_auth_field(&mut self) -> Option<TransactionAuthField> {
+        match self.tx.auth {
+            TransactionAuth::Sponsored(_, ref mut sponsor_condition) => {
+                StacksTransaction::pop_auth_field(sponsor_condition)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn complete(&self) -> bool {
+        match self.tx.auth {
+            TransactionAuth::Standard(ref origin_condition) => {
+                origin_condition.num_signatures() >= origin_condition.signatures_required()
+            }
+            TransactionAuth::Sponsored(ref origin_condition, ref sponsored_condition) => {
+                origin_condition.num_signatures() >= origin_condition.signatures_required()
+                    && sponsored_condition.num_signatures()
+                        >= sponsored_condition.signatures_required()
+                    && (self.origin_done || !self.check_overlap)
+            }
+        }
+    }
+
+    pub fn get_tx_incomplete(&self) -> StacksTransaction {
+        self.tx.clone()
+    }
+
+    pub fn get_tx(&self) -> Option<StacksTransaction> {
+        if self.complete() {
+            Some(self.tx.clone())
+        } else {
+            None
+        }
+    }
+}
