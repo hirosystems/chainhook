@@ -9,7 +9,7 @@ use crate::clarity::costs::LimitedCostTracker;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::eval_all;
-use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
+use crate::clarity::types::{self, PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::events::*;
@@ -48,8 +48,24 @@ impl ClarityInterpreter {
         Ok(result)
     }
 
+    pub fn detect_dependencies(
+        &self,
+        contract_id: String,
+        snippet: String
+    ) -> Result<BTreeSet<String>, String> {
+        let contract_id = QualifiedContractIdentifier::parse(&contract_id)
+            .unwrap();
+        let ast = match self.build_ast(contract_id, snippet.clone()) {
+            Err(e) => return Err(format!("{:?}", e)),
+            Ok(ast) => ast,
+        };
+
+        let deps = ContractCallDetector::run_pass(&ast);
+        Ok(deps)
+    }
+
     pub fn build_ast(
-        &mut self,
+        &self,
         contract_identifier: QualifiedContractIdentifier,
         snippet: String,
     ) -> Result<ContractAST, (String, Option<Diagnostic>)> {
@@ -319,4 +335,49 @@ impl ClarityInterpreter {
         }
     }
 
+}
+
+use crate::clarity::representations::SymbolicExpressionType::{
+    Atom, AtomValue, Field, List, LiteralValue, TraitReference,
+};
+use crate::clarity::representations::{
+    SymbolicExpression
+};
+
+pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<String>) {
+    for (i, expression) in exprs.iter().enumerate() {
+        if let Some(exprs) = expression.match_list() {
+            traverse(exprs, deps);
+        } else if let Some(atom) = expression.match_atom() {
+            if atom.as_str() == "contract-call?" {
+                if let Some(types::Value::Principal(PrincipalData::Contract(ref contract_id))) = exprs[i+1].match_literal_value() {
+                    deps.insert(format!("{}", contract_id));
+                }
+            } else if atom.as_str() == "use-trait" {
+                let contract_id = exprs[i+2]
+                    .match_field()
+                    .unwrap()
+                    .clone()
+                    .contract_identifier;
+                deps.insert(format!("{}", contract_id));
+            } else if atom.as_str() == "impl-trait" {
+                let contract_id = exprs[i+1]
+                    .match_field()
+                    .unwrap()
+                    .clone()
+                    .contract_identifier;
+                deps.insert(format!("{}", contract_id));
+            }
+        };
+    }
+}
+
+pub struct ContractCallDetector;
+
+impl ContractCallDetector {
+    pub fn run_pass(contract_ast: &ContractAST) -> BTreeSet<String> {
+        let mut contract_calls = BTreeSet::new();
+        traverse(contract_ast.expressions.as_slice(), &mut contract_calls);
+        contract_calls
+    }
 }

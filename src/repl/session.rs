@@ -8,13 +8,14 @@ use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::contracts::{POX_CONTRACT, BNS_CONTRACT, COSTS_CONTRACT};
 use ansi_term::{Colour, Style};
-use std::collections::{HashMap, VecDeque, BTreeMap};
+use std::collections::{HashMap, BTreeSet, VecDeque, BTreeMap};
 use serde_json::Value;
 
 #[cfg(feature = "cli")]
 use prettytable::{Table, Row, Cell};
 
 use super::SessionSettings;
+use super::settings::InitialLink;
 
 enum Command {
     LoadLocalContract(String),
@@ -56,8 +57,128 @@ impl Session {
         }
     }
 
+    fn retrieve_contract(&mut self, link: &InitialLink) -> Result<(String, BTreeSet<String>), String> {
+        let contract_id = &link.contract_id;
+        let components: Vec<&str> = contract_id.split('.').collect();
+        let contract_deployer = components.first().expect("");
+        let contract_name = components.last().expect("");
+        let stacks_node_addr = match &link.stacks_node_addr {
+            Some(addr) => addr.clone(),
+            None => if contract_id.starts_with("SP") {
+                "https://stacks-node-api.mainnet.stacks.co".to_string()
+            } else {
+                "https://stacks-node-api.testnet.stacks.co".to_string()
+            }
+        };
+
+        #[derive(Deserialize, Debug)]
+        struct Contract {
+            source: String,
+            publish_height: u32,
+        }
+
+        let request_url = format!(
+            "{host}/v2/contracts/source/{addr}/{name}?proof=0",
+            host = stacks_node_addr,
+            addr = contract_deployer,
+            name = contract_name
+        );
+
+        let response: Contract = reqwest::blocking::get(&request_url)
+            .expect("Unable to retrieve contract")
+            .json()
+            .expect("Unable to parse contract");
+        let code = response.source.to_string();
+        let deps = self.interpreter.detect_dependencies(contract_id.to_string(), code.clone())
+            .unwrap();
+        Ok((code, deps))
+    }
+
+    pub fn resolve_link(&mut self, link: &InitialLink) -> Result<Vec<(String, String, Vec<String>)>, String> {
+        let mut resolved_link = Vec::new();
+
+        let mut handled: HashMap<String, String> = HashMap::new();
+        let mut dependencies: HashMap<String, Vec<String>> = HashMap::new();
+        let mut queue = VecDeque::new();
+        queue.push_front(link.clone());
+        
+        while let Some(initial_link) = queue.pop_front() {
+            let contract_id = &initial_link.contract_id;
+            let components: Vec<&str> = contract_id.split('.').collect();
+            let contract_deployer = components.first().expect("");
+            let contract_name = components.last().expect("");
+    
+            // Extract principal from contract_id
+            let (contract_code, deps) = match handled.get(contract_id) {
+                Some(entry) => (entry.clone(), BTreeSet::new()),
+                None => {
+                    let (contract_code, deps) = self.retrieve_contract(&initial_link)
+                        .expect("Unable to get contract");
+                    handled.insert(contract_id.to_string(), contract_code.clone());
+                    (contract_code, deps)
+                }
+            };
+
+            if deps.len() > 0 {
+                dependencies.insert(contract_id.to_string(), deps.clone().into_iter().collect());
+                for contract_id in deps.into_iter() {
+                    queue.push_back(InitialLink {
+                        contract_id,
+                        cache: initial_link.cache.clone(),
+                        stacks_node_addr: initial_link.stacks_node_addr.clone(),
+                    });
+                }
+                queue.push_back(initial_link);
+            } else {
+                let deps = match dependencies.get(contract_id) {
+                    Some(deps) => deps.clone(),
+                    None => vec![],
+                };
+                resolved_link.push((contract_id.to_string(), contract_code, deps));
+            }
+        }
+
+        Ok(resolved_link)
+    }
+
     pub fn start(&mut self) -> String {
         let mut output = Vec::<String>::new();
+
+        if self.settings.initial_links.len() > 0 {
+            let initial_links = self.settings.initial_links.clone();
+            let default_tx_sender = self.interpreter.get_tx_sender();
+
+            let mut all_contracts = Vec::new();
+            let mut indexed = BTreeSet::new();
+            for link in initial_links.iter() {
+                let contracts = self.resolve_link(link).unwrap();
+                for (contract_id, code, _) in contracts.into_iter() {
+                    if !indexed.contains(&contract_id) {
+                        indexed.insert(contract_id.clone());
+                        all_contracts.push((contract_id, code));
+                    }
+                }
+            }
+            for (contract_id, code) in all_contracts.into_iter() {
+                let components: Vec<&str> = contract_id.split('.').collect();
+                let contract_deployer = components.first().expect("");
+                let contract_name = components.last().expect("");
+
+                let deployer = {
+                    PrincipalData::parse_standard_principal(&contract_deployer)
+                        .expect("Unable to parse deployer's address")
+                };
+
+                self.interpreter.set_tx_sender(deployer);
+                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string())) {
+                    Ok(_) => {},
+                    Err(ref mut result) => output.append(result),
+                };
+            }
+
+            self.interpreter.set_tx_sender(default_tx_sender);
+            output.push(blue!("Initial links"));
+        }
 
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
