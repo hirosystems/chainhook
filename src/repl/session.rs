@@ -170,7 +170,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string())) {
+                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -208,21 +208,21 @@ impl Session {
             let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
                 .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
                 .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
                 .expect("Unable to deploy COSTS");
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
                 .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
                 .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
                 .expect("Unable to deploy COSTS");
             self.interpreter.set_tx_sender(default_tx_sender);
         }
@@ -241,7 +241,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name) {
+                match self.formatted_interpretation(contract.code, contract.name, true) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -269,21 +269,21 @@ impl Session {
             let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
                 .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
                 .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
                 .expect("Unable to deploy COSTS");
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()))
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
                 .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()))
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
                 .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()))
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
                 .expect("Unable to deploy COSTS");
             self.interpreter.set_tx_sender(default_tx_sender);
         }
@@ -323,7 +323,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name) {
+                match self.formatted_interpretation(contract.code, contract.name, true) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -347,13 +347,14 @@ impl Session {
             cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
             cmd if cmd.starts_with("::set_tx_sender") => self.parse_and_set_tx_sender(&mut output, cmd),
             cmd if cmd.starts_with("::get_assets_maps") => self.get_accounts(&mut output),
+            cmd if cmd.starts_with("::get_costs") => self.get_costs(&mut output, cmd),
             cmd if cmd.starts_with("::get_contracts") => self.get_contracts(&mut output),
             cmd if cmd.starts_with("::get_block_height") => self.get_block_height(&mut output),
             cmd if cmd.starts_with("::advance_chain_tip") => self.parse_and_advance_chain_tip(&mut output, cmd),
 
             snippet => {
-                let mut result = match self.formatted_interpretation(snippet.to_string(), None) {
-                    Ok(result) => result,
+                let mut result = match self.formatted_interpretation(snippet.to_string(), None, true) {
+                    Ok((result, _)) => result,
                     Err(result) => result,
                 };
                 output.append(&mut result);
@@ -366,15 +367,16 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
-    ) -> Result<Vec<String>, Vec<String>> {
+        cost_track: bool,
+    ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
 
-        let result = self.interpret(snippet.to_string(), name);
+        let result = self.interpret(snippet.to_string(), name, cost_track);
         let mut output = Vec::<String>::new();
 
         match result {
             Ok(result) => {
-                if let Some((contract_name, _)) = result.contract {
+                if let Some((ref contract_name, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));
                 }
@@ -384,10 +386,10 @@ impl Session {
                         output.push(black!(format!("{}", event)));
                     }
                 }
-                if let Some(result) = result.result {
+                if let Some(ref result) = result.result {
                     output.push(green!(result));
                 }
-                Ok(output)
+                Ok((output, result))
             }
             Err((message, diagnostic)) => {
                 output.push(red!(message));
@@ -446,6 +448,7 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
+        cost_track: bool,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let contract_name = match name {
             Some(name) => name,
@@ -462,7 +465,7 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self.interpreter.run(snippet, contract_identifier.clone()) {
+        match self.interpreter.run(snippet, contract_identifier.clone(), cost_track) {
             Ok(result) => {
                 if let Some((ref contract_identifier, ref contract)) = result.contract {
                     self.contracts.insert(contract_identifier.clone(), contract.clone());
@@ -518,7 +521,12 @@ impl Session {
         output.push(format!(
             "{}",
             help_colour
-                .paint("::get_assets_maps\t\t\t\tGet assets maps for active accounts")
+                .paint("::get_assets_maps\t\t\tGet assets maps for active accounts")
+        ));
+        output.push(format!(
+            "{}",
+            help_colour
+                .paint("::get_costs <expr>\t\t\tDisplay the cost analysis")
         ));
         output.push(format!(
             "{}",
@@ -612,6 +620,32 @@ impl Session {
     }
 
     #[cfg(feature = "cli")]
+    pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let snippet = cmd.to_string().split_off("::get_costs ".len());
+        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true) {
+            Ok((output, result)) => (output, result.cost.clone()),
+            Err(output) => (output, None),
+        };
+
+        if let Some(cost) = cost {
+            let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];
+            let mut headers_cells = vec![];
+            for header in headers.iter() {
+                headers_cells.push(Cell::new(&header));
+            }
+            let mut table = Table::new();
+            table.add_row(Row::new(headers_cells));
+            table.add_row(Row::new(vec![Cell::new("Runtime"), Cell::new(&cost.total.runtime.to_string()), Cell::new(&cost.limit.runtime.to_string())]));
+            table.add_row(Row::new(vec![Cell::new("Read count"), Cell::new(&cost.total.read_count.to_string()), Cell::new(&cost.limit.read_count.to_string())]));
+            table.add_row(Row::new(vec![Cell::new("Read length (bytes)"), Cell::new(&cost.total.read_length.to_string()), Cell::new(&cost.limit.read_length.to_string())]));
+            table.add_row(Row::new(vec![Cell::new("Write count"), Cell::new(&cost.total.write_count.to_string()), Cell::new(&cost.limit.write_count.to_string())]));
+            table.add_row(Row::new(vec![Cell::new("Write length (bytes)"), Cell::new(&cost.total.write_length.to_string()), Cell::new(&cost.limit.write_length.to_string())]));
+            output.push(format!("{}", table));
+        }
+        output.append(&mut result);
+    }
+
+    #[cfg(feature = "cli")]
     fn get_accounts(&mut self, output: &mut Vec<String>) {
         let accounts = self.interpreter.get_accounts();
         if accounts.len() > 0 {
@@ -670,6 +704,20 @@ impl Session {
             }
             output.push(format!("{}", table));
         }
+    }
+
+    #[cfg(not(feature = "cli"))]
+    pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let snippet = cmd.to_string().split_off("::get_costs ".len());
+        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true) {
+            Ok((output, result)) => (output, result.cost.clone()),
+            Err(output) => (output, None),
+        };
+
+        if let Some(cost) = cost {
+            output.push(format!("Execution: {:?}\nLimit: {:?}", cost.total, cost.limit));
+        }
+        output.append(&mut result);
     }
 
     #[cfg(not(feature = "cli"))]

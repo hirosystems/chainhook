@@ -5,7 +5,7 @@ use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::contexts::{ContractContext, GlobalContext};
 use crate::clarity::contracts::Contract;
-use crate::clarity::costs::LimitedCostTracker;
+use crate::clarity::costs::{LimitedCostTracker, ExecutionCost};
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::eval_all;
@@ -13,8 +13,16 @@ use crate::clarity::types::{self, PrincipalData, StandardPrincipalData, Qualifie
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::events::*;
-use super::ExecutionResult;
+use crate::repl::{CostSynthesis, ExecutionResult};
 use serde_json::Value;
+
+pub const BLOCK_LIMIT_MAINNET: ExecutionCost = ExecutionCost {
+    write_length: 15_000_000,
+    write_count: 7_750,
+    read_length: 100_000_000,
+    read_count: 7_750,
+    runtime: 5_000_000_000,
+};
 
 #[derive(Clone, Debug)]
 pub struct ClarityInterpreter {
@@ -36,10 +44,11 @@ impl ClarityInterpreter {
         &mut self,
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
+        cost_track: bool
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
-        let result = self.execute(contract_identifier, &mut ast, snippet, analysis)?;
+        let result = self.execute(contract_identifier, &mut ast, snippet, analysis, cost_track)?;
 
         // todo: instead of just returning the value, we should be returning:
         // - value
@@ -109,6 +118,7 @@ impl ClarityInterpreter {
         contract_ast: &mut ContractAST,
         snippet: String,
         contract_analysis: ContractAnalysis,
+        cost_track: bool,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
 
         let mut execution_result = ExecutionResult::default();
@@ -118,9 +128,13 @@ impl ClarityInterpreter {
         let mut accounts_to_credit = vec![];
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let value = {
-            let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
-
-            let mut global_context = GlobalContext::new(false, conn, LimitedCostTracker::new_free());
+            let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
+            let cost_tracker = if cost_track {
+                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn).unwrap()
+            } else {
+                LimitedCostTracker::new_free()
+            };
+            let mut global_context = GlobalContext::new(false, conn, cost_tracker);
             global_context.begin();
 
             let result = global_context
@@ -134,6 +148,10 @@ impl ClarityInterpreter {
                     return Err((error, None));
                 }
             };
+
+            if cost_track {
+                execution_result.cost = Some(CostSynthesis::from_cost_tracker(&global_context.cost_track));
+            }
             
             let mut emitted_events = global_context.event_batches
                 .iter()
