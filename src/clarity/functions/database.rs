@@ -134,9 +134,7 @@ pub fn special_contract_call(
         _ => return Err(CheckErrors::ContractCallExpectName.into()),
     };
 
-    let contract_principal = Value::Principal(PrincipalData::Contract(
-        env.contract_context.contract_identifier.clone(),
-    ));
+    let contract_principal = env.contract_context.contract_identifier.clone().into();
 
     let mut nested_env = env.nest_with_caller(contract_principal);
     let result = if nested_env.short_circuit_contract_call(
@@ -430,11 +428,10 @@ pub fn special_get_block_info(
         _ => return Ok(Value::none()),
     };
 
-    // TODO disabling
-    // let current_block_height = env.global_context.database.get_current_block_height();
-    // if height_value >= current_block_height {
-    //     return Ok(Value::none());
-    // }
+    let current_block_height = env.global_context.database.get_current_block_height();
+    if height_value >= current_block_height {
+        return Ok(Value::none());
+    }
 
     let result = match block_info_prop {
         BlockInfoProperty::Time => {

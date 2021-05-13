@@ -134,7 +134,7 @@ impl Secp256k1PrivateKey {
             false
         };
         
-        match LibSecp256k1PrivateKey::parse_slice(&data) {
+        match LibSecp256k1PrivateKey::parse_slice(&data[0..32]) {
             Ok(privkey_res) => Ok(Secp256k1PrivateKey {
                 key: privkey_res,
                 compress_public: compress_public,

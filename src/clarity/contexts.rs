@@ -41,8 +41,8 @@ pub struct Environment<'a, 'b> {
     pub global_context: &'a mut GlobalContext<'b>,
     pub contract_context: &'a ContractContext,
     pub call_stack: &'a mut CallStack,
-    pub sender: Option<Value>,
-    pub caller: Option<Value>,
+    pub sender: Option<PrincipalData>,
+    pub caller: Option<PrincipalData>,
 }
 
 pub struct OwnedEnvironment<'a> {
@@ -462,7 +462,10 @@ impl<'a> OwnedEnvironment<'a> {
         }
     }
 
-    pub fn get_exec_environment<'b>(&'b mut self, sender: Option<Value>) -> Environment<'b, 'a> {
+    pub fn get_exec_environment<'b>(
+        &'b mut self,
+        sender: Option<PrincipalData>,
+    ) -> Environment<'b, 'a> {
         Environment::new(
             &mut self.context,
             &self.default_contract,
@@ -474,7 +477,7 @@ impl<'a> OwnedEnvironment<'a> {
 
     pub fn execute_in_env<F, A, E>(
         &mut self,
-        sender: Value,
+        sender: PrincipalData,
         f: F,
     ) -> std::result::Result<(A, AssetMap, Vec<StacksTransactionEvent>), E>
     where
@@ -506,10 +509,9 @@ impl<'a> OwnedEnvironment<'a> {
         contract_identifier: QualifiedContractIdentifier,
         contract_content: &str,
     ) -> Result<((), AssetMap, Vec<StacksTransactionEvent>)> {
-        self.execute_in_env(
-            Value::from(contract_identifier.issuer.clone()),
-            |exec_env| exec_env.initialize_contract(contract_identifier, contract_content),
-        )
+        self.execute_in_env(contract_identifier.issuer.clone().into(), |exec_env| {
+            exec_env.initialize_contract(contract_identifier, contract_content)
+        })
     }
 
     pub fn initialize_contract_from_ast(
@@ -518,21 +520,18 @@ impl<'a> OwnedEnvironment<'a> {
         contract_content: &ContractAST,
         contract_string: &str,
     ) -> Result<((), AssetMap, Vec<StacksTransactionEvent>)> {
-        self.execute_in_env(
-            Value::from(contract_identifier.issuer.clone()),
-            |exec_env| {
-                exec_env.initialize_contract_from_ast(
-                    contract_identifier,
-                    contract_content,
-                    contract_string,
-                )
-            },
-        )
+        self.execute_in_env(contract_identifier.issuer.clone().into(), |exec_env| {
+            exec_env.initialize_contract_from_ast(
+                contract_identifier,
+                contract_content,
+                contract_string,
+            )
+        })
     }
 
     pub fn execute_transaction(
         &mut self,
-        sender: Value,
+        sender: PrincipalData,
         contract_identifier: QualifiedContractIdentifier,
         tx_name: &str,
         args: &[SymbolicExpression],
@@ -548,7 +547,7 @@ impl<'a> OwnedEnvironment<'a> {
         to: &PrincipalData,
         amount: u128,
     ) -> Result<(Value, AssetMap, Vec<StacksTransactionEvent>)> {
-        self.execute_in_env(Value::Principal(from.clone()), |exec_env| {
+        self.execute_in_env(from.clone(), |exec_env| {
             exec_env.stx_transfer(from, to, amount)
         })
     }
@@ -559,7 +558,7 @@ impl<'a> OwnedEnvironment<'a> {
         program: &str,
     ) -> Result<(Value, AssetMap, Vec<StacksTransactionEvent>)> {
         self.execute_in_env(
-            Value::from(QualifiedContractIdentifier::transient().issuer),
+            QualifiedContractIdentifier::transient().issuer.into(),
             |exec_env| exec_env.eval_raw(program),
         )
     }
@@ -570,7 +569,7 @@ impl<'a> OwnedEnvironment<'a> {
         program: &str,
     ) -> Result<(Value, AssetMap, Vec<StacksTransactionEvent>)> {
         self.execute_in_env(
-            Value::from(QualifiedContractIdentifier::transient().issuer),
+            QualifiedContractIdentifier::transient().issuer.into(),
             |exec_env| exec_env.eval_read_only(contract, program),
         )
     }
@@ -585,6 +584,10 @@ impl<'a> OwnedEnvironment<'a> {
         let event_batch = event_batch.ok_or(InterpreterError::FailedToConstructEventBatch)?;
 
         Ok((asset_map, event_batch))
+    }
+
+    pub fn get_cost_total(&self) -> ExecutionCost {
+        self.context.cost_track.get_total()
     }
 
     /// Destroys this environment, returning ownership of its database reference.
@@ -673,22 +676,9 @@ impl<'a, 'b> Environment<'a, 'b> {
         global_context: &'a mut GlobalContext<'b>,
         contract_context: &'a ContractContext,
         call_stack: &'a mut CallStack,
-        sender: Option<Value>,
-        caller: Option<Value>,
+        sender: Option<PrincipalData>,
+        caller: Option<PrincipalData>,
     ) -> Environment<'a, 'b> {
-        if let Some(ref sender) = sender {
-            if let Value::Principal(_) = sender {
-            } else {
-                panic!("Tried to construct environment with bad sender {}", sender);
-            }
-        }
-        if let Some(ref caller) = caller {
-            if let Value::Principal(_) = caller {
-            } else {
-                panic!("Tried to construct environment with bad caller {}", caller);
-            }
-        }
-
         Environment {
             global_context,
             contract_context,
@@ -698,7 +688,7 @@ impl<'a, 'b> Environment<'a, 'b> {
         }
     }
 
-    pub fn nest_as_principal<'c>(&'c mut self, sender: Value) -> Environment<'c, 'b> {
+    pub fn nest_as_principal<'c>(&'c mut self, sender: PrincipalData) -> Environment<'c, 'b> {
         Environment::new(
             self.global_context,
             self.contract_context,
@@ -708,7 +698,7 @@ impl<'a, 'b> Environment<'a, 'b> {
         )
     }
 
-    pub fn nest_with_caller<'c>(&'c mut self, caller: Value) -> Environment<'c, 'b> {
+    pub fn nest_with_caller<'c>(&'c mut self, caller: PrincipalData) -> Environment<'c, 'b> {
         Environment::new(
             self.global_context,
             self.contract_context,
@@ -835,7 +825,7 @@ impl<'a, 'b> Environment<'a, 'b> {
 
             match res {
                 Ok(value) => {
-                    let sender_principal = self.sender.clone().map(|v| v.expect_principal());
+                    // handle_contract_call_special_cases(&mut self.global_context, self.sender.as_ref(), contract_identifier, tx_name, &value)?;
                     Ok(value)
                 },
                 Err(e) => Err(e)
@@ -890,12 +880,12 @@ impl<'a, 'b> Environment<'a, 'b> {
         let result = self
             .global_context
             .database
-            .set_block_hash(bhh)
+            .set_block_hash(bhh, false)
             .and_then(|prior_bhh| {
                 let result = eval(closure, self, local);
                 self.global_context
                     .database
-                    .set_block_hash(prior_bhh)
+                    .set_block_hash(prior_bhh, true)
                     .expect(
                     "ERROR: Failed to restore prior active block after time-shifted evaluation.",
                 );

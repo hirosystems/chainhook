@@ -677,7 +677,7 @@ impl<'a> ClarityTransactionConnection<'a> {
             |vm_env| {
                 vm_env
                     .execute_transaction(
-                        Value::Principal(sender.clone()),
+                        sender.clone(),
                         contract.clone(),
                         public_function,
                         &expr_args,

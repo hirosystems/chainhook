@@ -140,8 +140,9 @@ impl<'a> ClarityDatabase<'a> {
         self.store.rollback();
     }
 
-    pub fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
-        self.store.set_block_hash(bhh)
+    pub fn set_block_hash(&mut self, bhh: StacksBlockId,         query_pending_data: bool,
+    ) -> Result<StacksBlockId> {
+        self.store.set_block_hash(bhh, query_pending_data)
     }
 
     pub fn put<T: ClaritySerializable>(&mut self, key: &str, value: &T) {

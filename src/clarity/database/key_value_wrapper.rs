@@ -289,9 +289,19 @@ impl<'a> RollbackWrapper<'a> {
     ///    wrapper's pending data on reads. This is set to `false` during (at-block ...) closures,
     ///    and `true` otherwise.
     ///
-    pub fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
-        self.query_pending_data = true;
-        self.store.set_block_hash(bhh)
+    pub fn set_block_hash(
+        &mut self,
+        bhh: StacksBlockId,
+        query_pending_data: bool,
+    ) -> Result<StacksBlockId> {
+        self.store.set_block_hash(bhh).and_then(|x| {
+            // use and_then so that query_pending_data is only set once set_block_hash succeeds
+            //  this doesn't matter in practice, because a set_block_hash failure always aborts
+            //  the transaction with a runtime error (destroying its environment), but it's much
+            //  better practice to do this, especially if the abort behavior changes in the future.
+            self.query_pending_data = query_pending_data;
+            Ok(x)
+        })
     }
 
     pub fn get<T>(&mut self, key: &str) -> Option<T>
@@ -401,6 +411,36 @@ impl<'a> RollbackWrapper<'a> {
             None => self.store.get_metadata(contract, key),
         }
     }
+
+    // Not required at the moment
+    // Throws a NoSuchContract error if contract doesn't exist,
+    //   returns None if there is no such metadata field.
+    // pub fn get_metadata_manual(
+    //     &mut self,
+    //     at_height: u32,
+    //     contract: &QualifiedContractIdentifier,
+    //     key: &str,
+    // ) -> Result<Option<String>> {
+    //     self.stack
+    //         .last()
+    //         .expect("ERROR: Clarity VM attempted GET on non-nested context.");
+
+    //     // This is THEORETICALLY a spurious clone, but it's hard to turn something like
+    //     //  (&A, &B) into &(A, B).
+    //     let metadata_key = (contract.clone(), key.to_string());
+    //     let lookup_result = if self.query_pending_data {
+    //         self.metadata_lookup_map
+    //             .get(&metadata_key)
+    //             .and_then(|x| x.last().cloned())
+    //     } else {
+    //         None
+    //     };
+
+    //     match lookup_result {
+    //         Some(x) => Ok(Some(x)),
+    //         None => self.store.get_metadata_manual(at_height, contract, key),
+    //     }
+    // }
 
     pub fn has_entry(&mut self, key: &str) -> bool {
         self.stack
