@@ -46,10 +46,10 @@ use repl::settings::InitialLink;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub async fn init_session(fetch_contract: &str) -> String {
+pub async fn init_session(fetch_contract: String) -> String {
 
-    let mut session = unsafe { match WASM_GLOBAL_CONTEXT.session.take() {
-        Some(session) => session,
+    let (session, output) = unsafe { match WASM_GLOBAL_CONTEXT.session.take() {
+        Some(session) => (session, "".to_string()),
         None => {
             let initial_links = if fetch_contract == "null" {
                 vec![]
@@ -64,16 +64,15 @@ pub async fn init_session(fetch_contract: &str) -> String {
             settings.include_boot_contracts = vec!["costs".into()];
             settings.initial_links = initial_links;
             let mut session = Session::new(settings);
-            session.start_wasm().await;
-            session
+            let output = session.start_wasm().await;
+            (session, output)
         }
     }};
 
     unsafe {
         WASM_GLOBAL_CONTEXT.session = Some(session);
     }
-
-    output_lines.join("\n").to_string()
+    output
 }
 
 #[cfg(feature = "wasm")]
