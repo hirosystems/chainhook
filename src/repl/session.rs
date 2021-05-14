@@ -888,11 +888,9 @@ impl Session {
 
     #[cfg(not(feature = "cli"))]
     fn get_contracts(&mut self, output:&mut Vec<String>) {
-        if self.contracts.len() > 0 {
-            for (contract_id, methods) in contracts.iter() {
-                if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
-                    output.push(format!("{}", contract.0));
-                }
+        for (contract_id, methods) in self.contracts.iter() {
+            if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
+                output.push(format!("{}", contract_id));
             }
         }
     }
