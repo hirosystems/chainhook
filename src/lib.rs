@@ -41,8 +41,9 @@ use repl::{Session, SessionSettings};
 #[wasm_bindgen]
 pub fn handle_command(command: &str) -> String {
     let mut settings = SessionSettings::default();
-    settings.include_boot_contracts = true;
+    settings.include_boot_contracts = vec!["costs".into()];
     let mut session = Session::new(settings);
+    session.start();
     let output_lines = session.handle_command(command);
     output_lines.join("\n").to_string()
 }

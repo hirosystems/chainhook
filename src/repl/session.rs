@@ -203,29 +203,43 @@ impl Session {
             }
         }
 
-        if self.settings.include_boot_contracts {
+        if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
             let boot_testnet_address = "ST000000000000000000002AMW42H";
             let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-                .expect("Unable to parse deployer's address");            
+                .expect("Unable to parse deployer's address");
+
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
-                .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
-                .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
-                .expect("Unable to deploy COSTS");
+            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                    .expect("Unable to deploy POX");
+            }
+            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                    .expect("Unable to deploy BNS");
+            }
+            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                    .expect("Unable to deploy COSTS");
+            }
+
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
-                .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
-                .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
-                .expect("Unable to deploy COSTS");
+            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                    .expect("Unable to deploy POX");
+            }
+            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                    .expect("Unable to deploy BNS");
+            }
+            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                    .expect("Unable to deploy COSTS");
+            }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
@@ -264,29 +278,43 @@ impl Session {
     pub fn check(&mut self) -> Result<(), String> {
         let mut output = Vec::<String>::new();
 
-        if self.settings.include_boot_contracts {
+        if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
             let boot_testnet_address = "ST000000000000000000002AMW42H";
             let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-                .expect("Unable to parse deployer's address");            
+                .expect("Unable to parse deployer's address");
+
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
-                .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
-                .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
-                .expect("Unable to deploy COSTS");
+            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                    .expect("Unable to deploy POX");
+            }
+            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                    .expect("Unable to deploy BNS");
+            }
+            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                    .expect("Unable to deploy COSTS");
+            }
+
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
-                .expect("Unable to deploy POX");
-            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
-                .expect("Unable to deploy BNS");
-            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
-                .expect("Unable to deploy COSTS");
+            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                    .expect("Unable to deploy POX");
+            }
+            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                    .expect("Unable to deploy BNS");
+            }
+            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                    .expect("Unable to deploy COSTS");
+            }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 

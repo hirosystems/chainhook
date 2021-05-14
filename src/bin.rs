@@ -33,7 +33,7 @@ fn main() {
     let subcommand = args.subcommand().unwrap().unwrap_or_default();
 
     let mut settings = SessionSettings::default();
-    settings.include_boot_contracts = true;
+    settings.include_boot_contracts = vec!["costs".into()];
 
     let mut terminal = Terminal::new(settings);
     terminal.start();
