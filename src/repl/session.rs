@@ -735,8 +735,7 @@ impl Session {
     #[cfg(not(feature = "cli"))]
     fn get_contracts(&mut self, output:&mut Vec<String>) {
         if self.settings.initial_contracts.len() > 0 {
-            let mut initial_contracts = self.contracts.clone();
-            for contract in initial_contracts.drain(..) {
+            for contract in self.contracts.iter() {
                 output.push(format!("{}", contract.0));
             }
         }
