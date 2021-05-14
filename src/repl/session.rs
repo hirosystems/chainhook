@@ -9,6 +9,7 @@ use crate::clarity::variables::NativeVariables;
 use crate::contracts::{POX_CONTRACT, BNS_CONTRACT, COSTS_CONTRACT};
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, BTreeSet, VecDeque, BTreeMap};
+use std::sync::{Arc, Mutex};
 use serde_json::Value;
 
 #[cfg(feature = "cli")]
@@ -17,6 +18,8 @@ use prettytable::{Table, Row, Cell};
 use super::SessionSettings;
 use super::settings::InitialLink;
 
+#[cfg(feature = "wasm")]
+use reqwest_wasm as reqwest;
 enum Command {
     LoadLocalContract(String),
     LoadDeployContract(String),
@@ -825,7 +828,7 @@ impl Session {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default, Clone)]
 struct Contract {
     source: String,
     publish_height: u32,
@@ -842,10 +845,33 @@ fn fetch_contract(request_url: String) -> Contract {
 
 #[cfg(feature = "wasm")]
 fn fetch_contract(request_url: String) -> Contract {
-    Contract {
-        source: "".to_string(),
-        publish_height: 0,
-    }
+    let result_writer = Arc::new(Mutex::new(Contract::default()));
+    let result_reader = result_writer.clone();
+    let url = request_url.clone();
+    let future = async move {
+        let result = reqwest::get(&url).await.unwrap();
+        let contract: Contract = result.json().await.unwrap();
+        match result_writer.lock() {
+            Ok(ref mut c) => {
+                c.source = contract.source.clone();
+                c.publish_height = contract.publish_height;
+            }
+            _ => unreachable!()
+        };
+    };
+    async_std::task::block_on(future);
+
+    let contract = match result_reader.lock() {
+        Ok(ref c) => {
+            Contract {
+                source: c.source.clone(),
+                publish_height: c.publish_height.clone(),
+            }
+        }
+        _ => unreachable!()
+    };
+
+    contract
 }
 
 fn build_api_reference() -> HashMap<String, String> {

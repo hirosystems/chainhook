@@ -1,0 +1,3 @@
+#V2
+::get_contracts
+(+ 2 2)

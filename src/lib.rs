@@ -33,15 +33,7 @@ struct GlobalContext {
     session: Option<Session>,
 }
 
-impl GlobalContext {
-    pub fn new() -> Self {
-        Self {
-            session: None
-        }
-    }   
-}
-
-static mut WASM_GLOBAL_CONTEXT: GlobalContext = GlobalContext::new();
+static mut WASM_GLOBAL_CONTEXT: GlobalContext = GlobalContext { session: None };
 
 #[cfg(feature = "cli")]
 pub mod frontend;
@@ -50,6 +42,7 @@ pub mod frontend;
 pub use frontend::Terminal;
 
 use repl::{Session, SessionSettings};
+use repl::settings::InitialLink;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
@@ -58,6 +51,15 @@ pub fn handle_command(fetch_contract: &str, command: &str) -> String {
     let mut session = unsafe { match WASM_GLOBAL_CONTEXT.session.take() {
         Some(session) => session,
         None => {
+            let initial_links = if fetch_contract == "" {
+                vec![]
+            } else {
+                vec![InitialLink {
+                    contract_id: fetch_contract.to_string(),
+                    stacks_node_addr: None,
+                    cache: None,
+                }]
+            };
             let mut settings = SessionSettings::default();
             settings.include_boot_contracts = vec!["costs".into()];
             let mut session = Session::new(settings);
