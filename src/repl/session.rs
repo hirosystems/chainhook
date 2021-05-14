@@ -835,7 +835,7 @@ impl Session {
 
     #[cfg(feature = "cli")]
     fn get_contracts(&mut self, output:&mut Vec<String>) {
-        if self.settings.initial_contracts.len() > 0 {
+        if self.contracts.len() > 0 {
             let mut table = Table::new();
             table.add_row(row!["Contract identifier", "Public functions"]);
             let contracts = self.contracts.clone();
@@ -888,9 +888,11 @@ impl Session {
 
     #[cfg(not(feature = "cli"))]
     fn get_contracts(&mut self, output:&mut Vec<String>) {
-        if self.settings.initial_contracts.len() > 0 {
-            for contract in self.contracts.iter() {
-                output.push(format!("{}", contract.0));
+        if self.contracts.len() > 0 {
+            for (contract_id, methods) in contracts.iter() {
+                if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
+                    output.push(format!("{}", contract.0));
+                }
             }
         }
     }
