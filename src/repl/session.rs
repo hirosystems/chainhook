@@ -71,12 +71,6 @@ impl Session {
             }
         };
 
-        #[derive(Deserialize, Debug)]
-        struct Contract {
-            source: String,
-            publish_height: u32,
-        }
-
         let request_url = format!(
             "{host}/v2/contracts/source/{addr}/{name}?proof=0",
             host = stacks_node_addr,
@@ -84,10 +78,18 @@ impl Session {
             name = contract_name
         );
 
-        let response: Contract = reqwest::blocking::get(&request_url)
-            .expect("Unable to retrieve contract")
-            .json()
-            .expect("Unable to parse contract");
+        let response = async_std::task::block_on(fetch_contract(request_url));
+        
+        // let rt = runtime::Runtime::new().unwrap();
+        // let response: Contract = rt.block_on(async {
+        //     reqwest::get(&request_url)
+        //         .await
+        //         .expect("Unable to retrieve contract")
+        //         .json()
+        //         .await
+        //         .expect("Unable to parse contract")
+        // });
+        
         let code = response.source.to_string();
         let deps = self.interpreter.detect_dependencies(contract_id.to_string(), code.clone())
             .unwrap();
@@ -794,6 +796,22 @@ impl Session {
         };
         output.push(result);
     }
+}
+
+#[derive(Deserialize, Debug)]
+struct Contract {
+    source: String,
+    publish_height: u32,
+}
+
+async fn fetch_contract(request_url: String) -> Contract {
+    let response: Contract = reqwest::get(&request_url)
+        .await
+        .expect("Unable to retrieve contract")
+        .json()
+        .await
+        .expect("Unable to parse contract");
+    return response;
 }
 
 fn build_api_reference() -> HashMap<String, String> {
