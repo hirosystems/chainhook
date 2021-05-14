@@ -803,12 +803,21 @@ struct Contract {
     publish_height: u32,
 }
 
+#[cfg(feature = "cli")]
 fn fetch_contract(request_url: String) -> Contract {
     let response: Contract = reqwest::blocking::get(&request_url)
         .expect("Unable to retrieve contract")
         .json()
         .expect("Unable to parse contract");
     return response;
+}
+
+#[cfg(feature = "wasm")]
+fn fetch_contract(request_url: String) -> Contract {
+    Contract {
+        source: "".to_string(),
+        publish_height: 0,
+    }
 }
 
 fn build_api_reference() -> HashMap<String, String> {
