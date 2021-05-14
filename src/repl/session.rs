@@ -78,7 +78,7 @@ impl Session {
             name = contract_name
         );
 
-        let response = async_std::task::block_on(fetch_contract(request_url));
+        let response = fetch_contract(request_url);
         
         // let rt = runtime::Runtime::new().unwrap();
         // let response: Contract = rt.block_on(async {
@@ -803,12 +803,10 @@ struct Contract {
     publish_height: u32,
 }
 
-async fn fetch_contract(request_url: String) -> Contract {
-    let response: Contract = reqwest::get(&request_url)
-        .await
+fn fetch_contract(request_url: String) -> Contract {
+    let response: Contract = reqwest::blocking::get(&request_url)
         .expect("Unable to retrieve contract")
         .json()
-        .await
         .expect("Unable to parse contract");
     return response;
 }
