@@ -60,7 +60,7 @@ impl Session {
         }
     }
 
-    fn retrieve_contract(&mut self, link: &InitialLink) -> Result<(String, BTreeSet<String>), String> {
+    async fn retrieve_contract(&mut self, link: &InitialLink) -> Result<(String, BTreeSet<String>), String> {
         let contract_id = &link.contract_id;
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
@@ -81,17 +81,7 @@ impl Session {
             name = contract_name
         );
 
-        let response = fetch_contract(request_url);
-        
-        // let rt = runtime::Runtime::new().unwrap();
-        // let response: Contract = rt.block_on(async {
-        //     reqwest::get(&request_url)
-        //         .await
-        //         .expect("Unable to retrieve contract")
-        //         .json()
-        //         .await
-        //         .expect("Unable to parse contract")
-        // });
+        let response = fetch_contract(request_url).await;
         
         let code = response.source.to_string();
         let deps = self.interpreter.detect_dependencies(contract_id.to_string(), code.clone())
@@ -99,7 +89,7 @@ impl Session {
         Ok((code, deps))
     }
 
-    pub fn resolve_link(&mut self, link: &InitialLink) -> Result<Vec<(String, String, Vec<String>)>, String> {
+    pub async fn resolve_link(&mut self, link: &InitialLink) -> Result<Vec<(String, String, Vec<String>)>, String> {
         let mut resolved_link = Vec::new();
 
         let mut handled: HashMap<String, String> = HashMap::new();
@@ -118,6 +108,7 @@ impl Session {
                 Some(entry) => (entry.clone(), BTreeSet::new()),
                 None => {
                     let (contract_code, deps) = self.retrieve_contract(&initial_link)
+                        .await
                         .expect("Unable to get contract");
                     handled.insert(contract_id.to_string(), contract_code.clone());
                     (contract_code, deps)
@@ -156,7 +147,7 @@ impl Session {
             let mut all_contracts = Vec::new();
             let mut indexed = BTreeSet::new();
             for link in initial_links.iter() {
-                let contracts = self.resolve_link(link).unwrap();
+                let contracts = async_std::task::block_on(async { self.resolve_link(link).await.unwrap() });
                 for (contract_id, code, _) in contracts.into_iter() {
                     if !indexed.contains(&contract_id) {
                         indexed.insert(contract_id.clone());
@@ -834,44 +825,96 @@ struct Contract {
     publish_height: u32,
 }
 
-#[cfg(feature = "cli")]
-fn fetch_contract(request_url: String) -> Contract {
-    let response: Contract = reqwest::blocking::get(&request_url)
+async fn fetch_contract(request_url: String) -> Contract {
+    let response: Contract = reqwest::get(&request_url)
+        .await
         .expect("Unable to retrieve contract")
         .json()
+        .await
         .expect("Unable to parse contract");
     return response;
 }
 
-#[cfg(feature = "wasm")]
-fn fetch_contract(request_url: String) -> Contract {
-    let result_writer = Arc::new(Mutex::new(Contract::default()));
-    let result_reader = result_writer.clone();
-    let url = request_url.clone();
-    let future = async move {
-        let result = reqwest::get(&url).await.unwrap();
-        let contract: Contract = result.json().await.unwrap();
-        match result_writer.lock() {
-            Ok(ref mut c) => {
-                c.source = contract.source.clone();
-                c.publish_height = contract.publish_height;
-            }
-            _ => unreachable!()
-        };
-    };
-    async_std::task::block_on(future);
+#[cfg(feature = "wasm")] 
+pub async fn start_wasm(&mut self) -> String {
+    let mut output = Vec::<String>::new();
 
-    let contract = match result_reader.lock() {
-        Ok(ref c) => {
-            Contract {
-                source: c.source.clone(),
-                publish_height: c.publish_height.clone(),
+    if self.settings.initial_links.len() > 0 {
+        let initial_links = self.settings.initial_links.clone();
+        let default_tx_sender = self.interpreter.get_tx_sender();
+
+        let mut all_contracts = Vec::new();
+        let mut indexed = BTreeSet::new();
+        for link in initial_links.iter() {
+            let contracts = self.resolve_link(link).await.unwrap();
+            for (contract_id, code, _) in contracts.into_iter() {
+                if !indexed.contains(&contract_id) {
+                    indexed.insert(contract_id.clone());
+                    all_contracts.push((contract_id, code));
+                }
             }
         }
-        _ => unreachable!()
-    };
+        for (contract_id, code) in all_contracts.into_iter() {
+            let components: Vec<&str> = contract_id.split('.').collect();
+            let contract_deployer = components.first().expect("");
+            let contract_name = components.last().expect("");
 
-    contract
+            let deployer = {
+                PrincipalData::parse_standard_principal(&contract_deployer)
+                    .expect("Unable to parse deployer's address")
+            };
+
+            self.interpreter.set_tx_sender(deployer);
+            match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true) {
+                Ok(_) => {},
+                Err(ref mut result) => output.append(result),
+            };
+        }
+
+        self.interpreter.set_tx_sender(default_tx_sender);
+        output.push(blue!("Initial links"));
+    }
+
+    if !self.settings.include_boot_contracts.is_empty() {
+        let default_tx_sender = self.interpreter.get_tx_sender();
+
+        let boot_testnet_address = "ST000000000000000000002AMW42H";
+        let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
+            .expect("Unable to parse deployer's address");
+
+        self.interpreter.set_tx_sender(boot_testnet_deployer);
+        if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                .expect("Unable to deploy POX");
+        }
+        if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                .expect("Unable to deploy BNS");
+        }
+        if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                .expect("Unable to deploy COSTS");
+        }
+
+        let boot_mainnet_address = "SP000000000000000000002Q6VF78";
+        let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
+            .expect("Unable to parse deployer's address");            
+        self.interpreter.set_tx_sender(boot_mainnet_deployer);
+        if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
+            self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                .expect("Unable to deploy POX");
+        }
+        if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
+            self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                .expect("Unable to deploy BNS");
+        }
+        if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
+            self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                .expect("Unable to deploy COSTS");
+        }
+        self.interpreter.set_tx_sender(default_tx_sender);
+    }
+    output.join("\n")
 }
 
 fn build_api_reference() -> HashMap<String, String> {
