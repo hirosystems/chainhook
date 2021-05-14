@@ -32,8 +32,8 @@ fn main() {
     let mut args = Arguments::from_env();
     let subcommand = args.subcommand().unwrap().unwrap_or_default();
 
-    let settings = SessionSettings::default();
-    // todo(ludo): use env to seed contracts / notebooks
+    let mut settings = SessionSettings::default();
+    settings.include_boot_contracts = true;
 
     let mut terminal = Terminal::new(settings);
     terminal.start();
