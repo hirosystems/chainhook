@@ -137,6 +137,7 @@ impl Session {
         Ok(resolved_link)
     }
 
+    #[cfg(not(feature = "wasm"))] 
     pub fn start(&mut self) -> String {
         let mut output = Vec::<String>::new();
 
@@ -353,7 +354,7 @@ impl Session {
                     }
                 }
             }
-            for (contract_id, code) in linked_contracts.into_iter() {
+            for (contract_id, code) in linked_contracts.iter() {
                 let components: Vec<&str> = contract_id.split('.').collect();
                 let contract_deployer = components.first().expect("");
                 let contract_name = components.last().expect("");
@@ -375,7 +376,7 @@ impl Session {
         }
 
 
-        for (contract_id, code) in linked_contracts.into_iter() {
+        for (contract_id, code) in linked_contracts.iter() {
             let components: Vec<&str> = contract_id.split('.').collect();
             let contract_deployer = components.first().expect("");
             let contract_name = components.last().expect("");

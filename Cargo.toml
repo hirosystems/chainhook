@@ -37,6 +37,7 @@ reqwest = { version = "0.11", features = ["json", "rustls"], optional = true }
 
 # WASM
 wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4.24", optional = true }
 reqwest-wasm = { version = "0.11", features = ["json"], optional = true }
 
 [lib]
@@ -55,7 +56,7 @@ path = "src/bin.rs"
 [features]
 default = ["cli"]
 cli = ["pico-args", "rustyline", "prettytable-rs", "reqwest", "tokio"]
-wasm = ["wasm-bindgen", "reqwest-wasm"]
+wasm = ["wasm-bindgen", "reqwest-wasm", "wasm-bindgen-futures"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
