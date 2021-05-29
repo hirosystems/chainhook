@@ -3,12 +3,12 @@ use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
-use crate::clarity::contexts::{ContractContext, GlobalContext};
+use crate::clarity::contexts::{ContractContext, GlobalContext, CallStack, Environment, LocalContext};
 use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{LimitedCostTracker, ExecutionCost};
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
-use crate::clarity::eval_all;
+use crate::clarity::{eval_all, eval};
 use crate::clarity::types::{self, PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
@@ -128,6 +128,8 @@ impl ClarityInterpreter {
         let mut accounts_to_credit = vec![];
         let mut contract_context = ContractContext::new(contract_identifier.clone());
         let value = {
+            let tx_sender: PrincipalData = self.tx_sender.clone().into();
+
             let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
             let cost_tracker = if cost_track {
                 LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn).unwrap()
@@ -137,8 +139,38 @@ impl ClarityInterpreter {
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
             global_context.begin();
 
-            let result = global_context
-                .execute(|g| eval_all(&contract_ast.expressions, &mut contract_context, g));
+            let result = global_context.execute(|g| {
+                // If we have more than one instruction
+                if contract_ast.expressions.len() == 1 && !snippet.contains("(define-") {                    
+                    let context = LocalContext::new();                
+                    let mut call_stack = CallStack::new();
+                    let mut env = Environment::new(
+                        g, &mut contract_context, &mut call_stack, Some(tx_sender.clone()), Some(tx_sender.clone()));
+
+                    let result = match contract_ast.expressions[0].expr {
+                        List(ref expression) => match expression[0].expr {
+                            Atom(ref name) if name.to_string() == "contract-call?" => {
+                                let contract_identifier = match expression[1].match_literal_value().unwrap().clone().expect_principal() {
+                                    PrincipalData::Contract(contract_identifier) => contract_identifier,
+                                    _ => unreachable!()
+                                };
+                                let method = expression[2].match_atom().unwrap().to_string();
+                                let mut args = vec![];
+                                for arg in expression[3..].iter() {
+                                    let evaluated_arg = eval(arg, &mut env, &context)?;
+                                    args.push(SymbolicExpression::atom_value(evaluated_arg));
+                                }
+                                env.execute_contract(&contract_identifier, &method, &args, false).unwrap()
+                            },
+                            _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap()
+                        },
+                        _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap()
+                    };
+                    Ok(Some(result))    
+                } else {
+                    eval_all(&contract_ast.expressions, &mut contract_context, g)
+                }
+            });
 
             let value = match result {
                 Ok(Some(value)) => format!("{}", value),

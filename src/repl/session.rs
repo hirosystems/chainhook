@@ -218,7 +218,6 @@ impl Session {
             }
 
             self.interpreter.set_tx_sender(default_tx_sender);
-            self.get_contracts(&mut output);
         }
 
         if self.settings.initial_accounts.len() > 0 {
