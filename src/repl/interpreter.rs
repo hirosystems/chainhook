@@ -13,6 +13,7 @@ use crate::clarity::types::{self, PrincipalData, StandardPrincipalData, Qualifie
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::events::*;
+use crate::clarity::coverage::TestCoverageReport;
 use crate::repl::{CostSynthesis, ExecutionResult};
 use serde_json::Value;
 
@@ -44,11 +45,12 @@ impl ClarityInterpreter {
         &mut self,
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
-        cost_track: bool
+        cost_track: bool,
+        coverage_reporter: Option<TestCoverageReport>
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
-        let result = self.execute(contract_identifier, &mut ast, snippet, analysis, cost_track)?;
+        let result = self.execute(contract_identifier, &mut ast, snippet, analysis, cost_track, coverage_reporter)?;
 
         // todo: instead of just returning the value, we should be returning:
         // - value
@@ -119,6 +121,7 @@ impl ClarityInterpreter {
         snippet: String,
         contract_analysis: ContractAnalysis,
         cost_track: bool,
+        coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
 
         let mut execution_result = ExecutionResult::default();
@@ -137,6 +140,7 @@ impl ClarityInterpreter {
                 LimitedCostTracker::new_free()
             };
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
+            global_context.coverage_reporting = coverage_reporter;
             global_context.begin();
 
             let result = global_context.execute(|g| {
@@ -171,6 +175,8 @@ impl ClarityInterpreter {
                     eval_all(&contract_ast.expressions, &mut contract_context, g)
                 }
             });
+
+            execution_result.coverage = global_context.coverage_reporting.take();
 
             let value = match result {
                 Ok(Some(value)) => format!("{}", value),
@@ -249,7 +255,7 @@ impl ClarityInterpreter {
 
                     functions.insert(name.to_string(), args);
                 }
-                execution_result.contract = Some((format!("{}", contract_identifier), functions));
+                execution_result.contract = Some((format!("{}", contract_identifier), functions, contract_ast.clone()));
 
                 for defined_trait in contract_context.defined_traits.iter() {}
 

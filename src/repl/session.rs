@@ -5,7 +5,9 @@ use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
 use crate::clarity::util::StacksAddress;
+use crate::clarity::ast::ContractAST;
 use crate::clarity::variables::NativeVariables;
+use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
 use crate::contracts::{POX_CONTRACT, BNS_CONTRACT, COSTS_CONTRACT};
 use ansi_term::{Colour, Style};
 use std::collections::{HashMap, BTreeSet, VecDeque, BTreeMap};
@@ -33,10 +35,12 @@ enum Command {
 pub struct Session {
     session_id: u32,
     started_at: u32,
-    settings: SessionSettings,
+    pub settings: SessionSettings,
     contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+    pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
     interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
+    pub coverage_reports: Vec<TestCoverageReport>,
 }
 
 impl Session {
@@ -54,9 +58,11 @@ impl Session {
             session_id: 0,
             started_at: 0,
             settings,
+            asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
+            coverage_reports: vec![],
         }
     }
 
@@ -150,15 +156,15 @@ impl Session {
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
 
@@ -167,15 +173,15 @@ impl Session {
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -210,7 +216,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true) {
+                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true, None) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -255,13 +261,12 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name, true) {
+                match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
             }
             self.interpreter.set_tx_sender(default_tx_sender);
-
         }
 
         for (contract_id, code) in linked_contracts.into_iter() {
@@ -275,6 +280,7 @@ impl Session {
             };
             self.settings.initial_contracts.push(InitialContract {
                 code: code.to_string(),
+                path: "".into(),
                 name: Some(contract_id.to_string()),
                 deployer: Some(deployer.to_string())
             });
@@ -306,15 +312,15 @@ impl Session {
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
 
@@ -323,15 +329,15 @@ impl Session {
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -364,7 +370,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true) {
+                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true, None) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -386,6 +392,7 @@ impl Session {
             };
             self.settings.initial_contracts.push(InitialContract {
                 code: code.to_string(),
+                path: "".into(),
                 name: Some(contract_id.to_string()),
                 deployer: Some(deployer.to_string())
             });
@@ -395,7 +402,6 @@ impl Session {
             output.push(blue!("Contracts"));
             self.get_contracts(&mut output);
         }
-
 
         output.join("\n")
     }
@@ -412,15 +418,15 @@ impl Session {
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
 
@@ -429,15 +435,15 @@ impl Session {
                 .expect("Unable to parse deployer's address");            
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
             if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false)
+                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
                     .expect("Unable to deploy POX");
             }
             if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false)
+                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
                     .expect("Unable to deploy BNS");
             }
             if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false)
+                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
                     .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -478,7 +484,7 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name, true) {
+                match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
                     Ok(_) => {},
                     Err(ref mut result) => output.append(result),
                 };
@@ -508,7 +514,7 @@ impl Session {
             cmd if cmd.starts_with("::advance_chain_tip") => self.parse_and_advance_chain_tip(&mut output, cmd),
 
             snippet => {
-                let mut result = match self.formatted_interpretation(snippet.to_string(), None, true) {
+                let mut result = match self.formatted_interpretation(snippet.to_string(), None, true, None) {
                     Ok((result, _)) => result,
                     Err(result) => result,
                 };
@@ -523,15 +529,16 @@ impl Session {
         snippet: String,
         name: Option<String>,
         cost_track: bool,
+        test_name: Option<String>,
     ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
 
-        let result = self.interpret(snippet.to_string(), name, cost_track);
+        let result = self.interpret(snippet.to_string(), name, cost_track, test_name);
         let mut output = Vec::<String>::new();
 
         match result {
             Ok(result) => {
-                if let Some((ref contract_name, _)) = result.contract {
+                if let Some((ref contract_name, _, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));
                 }
@@ -604,12 +611,21 @@ impl Session {
         snippet: String,
         name: Option<String>,
         cost_track: bool,
+        test_name: Option<String>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+
         let contract_name = match name {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
         };
         let first_char = contract_name.chars().next().unwrap();
+
+        let report = if let Some(test_name) = test_name {
+            let coverage = TestCoverageReport::new(test_name.into());
+            Some(coverage)
+        } else {
+            None
+        };
 
         // Kludge for handling fully qualified contract_id vs sugared syntax
         let contract_identifier = if first_char.to_string() == "S" {
@@ -620,10 +636,14 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self.interpreter.run(snippet, contract_identifier.clone(), cost_track) {
+        match self.interpreter.run(snippet, contract_identifier.clone(), cost_track, report) {
             Ok(result) => {
-                if let Some((ref contract_identifier, ref contract)) = result.contract {
-                    self.contracts.insert(contract_identifier.clone(), contract.clone());
+                if let Some(ref coverage) = result.coverage {
+                    self.coverage_reports.push(coverage.clone());
+                }
+                if let Some((ref contract_identifier_str, ref contract, ref ast)) = result.contract {
+                    self.asts.insert(contract_identifier.clone(), ast.clone());
+                    self.contracts.insert(contract_identifier_str.clone(), contract.clone());
                 }
                 Ok(result)
             }
@@ -777,7 +797,7 @@ impl Session {
     #[cfg(feature = "cli")]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true) {
+        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
             Ok((output, result)) => (output, result.cost.clone()),
             Err(output) => (output, None),
         };
@@ -864,7 +884,7 @@ impl Session {
     #[cfg(not(feature = "cli"))]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true) {
+        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
             Ok((output, result)) => (output, result.cost.clone()),
             Err(output) => (output, None),
         };

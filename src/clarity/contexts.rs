@@ -20,6 +20,7 @@ use crate::clarity::errors::{
 };
 use crate::clarity::representations::{ClarityName, ContractName, SymbolicExpression};
 use crate::clarity::stx_transfer_consolidated;
+use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::types::signatures::FunctionSignature;
 use crate::clarity::types::{
     AssetIdentifier, PrincipalData, QualifiedContractIdentifier, TraitIdentifier, TypeSignature,
@@ -89,6 +90,7 @@ pub struct GlobalContext<'a> {
     read_only: Vec<bool>,
     pub cost_track: LimitedCostTracker,
     pub mainnet: bool,
+    pub coverage_reporting: Option<TestCoverageReport>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1192,6 +1194,7 @@ impl<'a> GlobalContext<'a> {
             asset_maps: Vec::new(),
             event_batches: Vec::new(),
             mainnet,
+            coverage_reporting: None,
         }
     }
 

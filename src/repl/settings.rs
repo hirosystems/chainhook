@@ -1,7 +1,10 @@
+use crate::clarity::coverage::CoverageReporter;
+
 #[derive(Clone, Debug)]
 pub struct InitialContract {
     pub code: String,
     pub name: Option<String>,
+    pub path: String,
     pub deployer: Option<String>,
 }
 
