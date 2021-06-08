@@ -211,7 +211,7 @@ const MOD_API: SimpleFunctionAPI = SimpleFunctionAPI {
     snippet: "mod ${1:expr-1} ${2:expr-2}",
     signature: "(mod i1 i2)",
     description: "Returns the integer remainder from integer dividing `i1` by `i2`. In the event of a division by zero, throws a runtime error.",
-    example: "(mod 2 3) ;; Returns 0
+    example: "(mod 2 3) ;; Returns 2
 (mod 5 2) ;; Returns 1
 (mod 7 1) ;; Returns 0
 "
@@ -487,7 +487,7 @@ inputted value.",
 const MAP_API: SpecialAPI = SpecialAPI {
     input_type: "Function(A, B, ..., N) -> X, (list A1 A2 ... Am), (list B1 B2 ... Bm), ..., (list N1 N2 ... Nm)",
     snippet: "map ${1:func} ${2:list})",
-    output_type: "(list X",
+    output_type: "(list X)",
     signature: "(map func list-A list-B ... list-N)",
     description: "The `map` function applies the input function `func` to each element of the
 input lists, and outputs a list containing the _outputs_ from those function applications.",
@@ -499,7 +499,7 @@ input lists, and outputs a list containing the _outputs_ from those function app
 const FILTER_API: SpecialAPI = SpecialAPI {
     input_type: "Function(A) -> bool, (list A)",
     snippet: "filter ${1:func} ${2:list})",
-    output_type: "(list A",
+    output_type: "(list A)",
     signature: "(filter func list)",
     description: "The `filter` function applies the input function `func` to each element of the
 input list, and returns the same list with any elements removed for which the `func` returned `false`.",
@@ -520,8 +520,9 @@ has to be a literal function name.",
 (fold * (list 2 2 2) 0) ;; Returns 0
 ;; calculates (- 11 (- 7 (- 3 2)))
 (fold - (list 3 7 11) 2) ;; Returns 5 
-(fold concat \"cdef\" \"ab\")   ;; Returns \"fedcab\"
-(fold concat (list \"cd\" \"ef\") \"ab\")   ;; Returns \"efcdab\"",
+(define-private (concat-string (a (string-ascii 20)) (b (string-ascii 20))) (unwrap-panic (as-max-len? (concat a b) u20)))
+(fold concat-string \"cdef\" \"ab\")   ;; Returns \"fedcab\"
+(fold concat-string (list \"cd\" \"ef\") \"ab\")   ;; Returns \"efcdab\"",
 };
 
 const CONCAT_API: SpecialAPI = SpecialAPI {
@@ -547,7 +548,7 @@ and outputs a list of the same type with max_len += 1.",
 const ASSERTS_MAX_LEN_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list, uint",
     snippet: "as-max-len? ${1:buffer} ${2:max-len})",
-    output_type: "(optional buff|list",
+    output_type: "(optional buff|list)",
     signature: "(as-max-len? buffer u10)",
     description: "The `as-max-len?` function takes a length N (must be a literal) and a buffer or list argument, which must be typed as a list
 or buffer of length M and outputs that same list or buffer, but typed with max length N.
@@ -572,7 +573,7 @@ const LEN_API: SpecialAPI = SpecialAPI {
 const ELEMENT_AT_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list A, uint",
     snippet: "element-at ${1:sequence} ${2:index})",
-    output_type: "(optional buff|A",
+    output_type: "(optional buff|A)",
     signature: "(element-at sequence index)",
     description:
         "The `element-at` function returns the element at `index` in the provided sequence.
@@ -589,7 +590,7 @@ For strings and buffers, this function will return 1-length strings or buffers."
 const INDEX_OF_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list A, buff|A",
     snippet: "index-of ${1:sequence} ${2:item})",
-    output_type: "(optional uint",
+    output_type: "(optional uint)",
     signature: "(index-of sequence item)",
     description: "The `index-of` function returns the first index at which `item` can be
 found in the provided sequence (using `is-eq` checks).
@@ -607,7 +608,7 @@ function returns `none`.",
 const LIST_API: SpecialAPI = SpecialAPI {
     input_type: "A, ...",
     snippet: "list ${1:expr-1} ${2:expr-2})",
-    output_type: "(list A",
+    output_type: "(list A)",
     signature: "(list expr1 expr2 expr3 ...)",
     description: "The `list` function constructs a list composed of the inputted values. Each
 supplied value must be of the same type.",
@@ -638,7 +639,7 @@ nodes configured for development (as opposed to production mining nodes), this f
 const FETCH_ENTRY_API: SpecialAPI = SpecialAPI {
     input_type: "MapName, tuple",
     snippet: "map-get? ${1:map-name} ${2:key-tuple})",
-    output_type: "(optional (tuple)",
+    output_type: "(optional (tuple))",
     signature: "(map-get? map-name key-tuple)",
     description: "The `map-get?` function looks up and returns an entry from a contract's data map.
 The value is looked up using `key-tuple`.
@@ -706,7 +707,7 @@ If a value did not exist for this key in the data map, the function returns `fal
 const TUPLE_CONS_API: SpecialAPI = SpecialAPI {
     input_type: "(key-name A), (key-name-2 B), ...",
     snippet: "tuple (${1:key-1} ${2:val-1}))",
-    output_type: "(tuple (key-name A) (key-name-2 B) ...",
+    output_type: "(tuple (key-name A) (key-name-2 B) ...)",
     signature: "(tuple (key0 expr0) (key1 expr1) ...)",
     description: "The `tuple` special form constructs a typed tuple from the supplied key and expression pairs.
 A `get` function can use typed tuples as input to select specific values from a given tuple.
@@ -749,7 +750,7 @@ const TUPLE_MERGE_API: SpecialAPI = SpecialAPI {
 const HASH160_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
     snippet: "hash160 ${1:buff})",
-    output_type: "(buff 20",
+    output_type: "(buff 20)",
     signature: "(hash160 value)",
     description: "The `hash160` function computes `RIPEMD160(SHA256(x))` of the inputted value.
 If an integer (128 bit) is supplied the hash is computed over the little-endian representation of the
@@ -760,7 +761,7 @@ integer.",
 const SHA256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
     snippet: "sha256 ${1:buff})",
-    output_type: "(buff 32",
+    output_type: "(buff 32)",
     signature: "(sha256 value)",
     description: "The `sha256` function computes `SHA256(x)` of the inputted value.
 If an integer (128 bit) is supplied the hash is computed over the little-endian representation of the
@@ -771,7 +772,7 @@ integer.",
 const SHA512_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
     snippet: "sha512 ${1:buff})",
-    output_type: "(buff 64",
+    output_type: "(buff 64)",
     signature: "(sha512 value)",
     description: "The `sha512` function computes `SHA512(x)` of the inputted value.
 If an integer (128 bit) is supplied the hash is computed over the little-endian representation of the
@@ -782,7 +783,7 @@ integer.",
 const SHA512T256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
     snippet: "sha512/256 ${1:buff})",
-    output_type: "(buff 32",
+    output_type: "(buff 32)",
     signature: "(sha512/256 value)",
     description: "The `sha512/256` function computes `SHA512/256(x)` (the SHA512 algorithm with the 512/256 initialization vector, truncated
 to 256 bits) of the inputted value.
@@ -794,7 +795,7 @@ integer.",
 const KECCAK256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
     snippet: "keccak256 ${1:buff})",
-    output_type: "(buff 32",
+    output_type: "(buff 32)",
     signature: "(keccak256 value)",
     description: "The `keccak256` function computes `KECCAK256(value)` of the inputted value.
 Note that this differs from the `NIST SHA-3` (that is, FIPS 202) standard. If an integer (128 bit)
@@ -805,7 +806,7 @@ is supplied the hash is computed over the little-endian representation of the in
 const SECP256K1RECOVER_API: SpecialAPI = SpecialAPI {
     input_type: "(buff 32), (buff 65)",
     snippet: "secp256k1-recover? ${1:message-hash} ${2:signature})",
-    output_type: "(response (buff 33) uint",
+    output_type: "(response (buff 33) uint)",
     signature: "(secp256k1-recover? message-hash signature)",
     description: "The `secp256k1-recover?` function recovers the public key used to sign the message  which sha256 is `message-hash`
     with the provided `signature`.
@@ -840,7 +841,7 @@ The signature includes 64 bytes plus an optional additional recovery id (00..03)
 const CONTRACT_CALL_API: SpecialAPI = SpecialAPI {
     input_type: "ContractName, PublicFunctionName, Arg0, ...",
     snippet: "contract-call? ${1:contract-principal} ${2:func} ${3:arg1})",
-    output_type: "(response A B",
+    output_type: "(response A B)",
     signature: "(contract-call? .contract-name function-name arg0 arg1 ...)",
     description: "The `contract-call?` function executes the given public function of the given contract.
 You _may not_ use this function to call a public function defined in the current contract. If the public
@@ -868,7 +869,7 @@ const CONTRACT_OF_API: SpecialAPI = SpecialAPI {
 const PRINCIPAL_OF_API: SpecialAPI = SpecialAPI {
     input_type: "(buff 33)",
     snippet: "principal-of? ${1:public-key})",
-    output_type: "(response principal uint",
+    output_type: "(response principal uint)",
     signature: "(principal-of? public-key)",
     description: "The `principal-of?` function returns the principal derived from the provided public key.
     If the `public-key` is invalid, it will return the error code `(err u1).`.
@@ -1051,9 +1052,9 @@ is untyped, you should use `unwrap-panic` or `unwrap-err-panic` instead of `matc
 
 (define-private (add-or-pass-err (x (response int (string-ascii 10))) (to-add int))
   (match x
-   value (+ to-add value)
+   value (ok (+ to-add value))
    err-value (err err-value)))
-(add-or-pass-err (ok 5) 20) ;; Returns 25
+(add-or-pass-err (ok 5) 20) ;; Returns (ok 25)
 (add-or-pass-err (err \"ERROR\") 20) ;; Returns (err \"ERROR\")
 ",
 };
@@ -1077,7 +1078,7 @@ a `(some ...)` option, it returns the inner value of the option. If the second a
 const CONS_OK_API: SpecialAPI = SpecialAPI {
     input_type: "A",
     snippet: "ok ${1:value})",
-    output_type: "(response A B",
+    output_type: "(response A B)",
     signature: "(ok value)",
     description: "The `ok` function constructs a response type from the input value. Use `ok` for
 creating return values in public functions. An _ok_ value indicates that any database changes during
@@ -1088,7 +1089,7 @@ the processing of the function should materialize.",
 const CONS_ERR_API: SpecialAPI = SpecialAPI {
     input_type: "A",
     snippet: "err ${1:value})",
-    output_type: "(response A B",
+    output_type: "(response A B)",
     signature: "(err value)",
     description: "The `err` function constructs a response type from the input value. Use `err` for
 creating return values in public functions. An _err_ value indicates that any database changes during
@@ -1099,7 +1100,7 @@ the processing of the function should be rolled back.",
 const CONS_SOME_API: SpecialAPI = SpecialAPI {
     input_type: "A",
     snippet: "some ${1:value})",
-    output_type: "(optional A",
+    output_type: "(optional A)",
     signature: "(some value)",
     description: "The `some` function constructs a `optional` type from the input value.",
     example: "(some 1) ;; Returns (some 1)
@@ -1162,7 +1163,7 @@ and `false` if it is a `none`.",
 const GET_BLOCK_INFO_API: SpecialAPI = SpecialAPI {
     input_type: "BlockInfoPropertyName, BlockHeightInt",
     snippet: "get-block-info? ${1:prop} ${2:block-height})",
-    output_type: "(optional buff) | (optional uint",
+    output_type: "(optional buff) | (optional uint)",
     signature: "(get-block-info? prop-name block-height-expr)",
     description: "The `get-block-info?` function fetches data for a block of the given block height. The
 value and type returned are determined by the specified `BlockInfoPropertyName`. If the provided `BlockHeightInt` does
@@ -1309,16 +1310,14 @@ be invoked by other contracts via `contract-call?`.",
 };
 
 const DEFINE_MAP_API: DefineAPI = DefineAPI {
-    input_type: "MapName, KeyTupleDefinition, MapTupleDefinition",
+    input_type: "MapName, TypeDefinition, TypeDefinition",
     snippet: "define-map ${1:map-name} {{ ${2:key-name-1}: ${3:key-type-1} }} {{ ${4:val-name-1}: ${5:vals-type-1} }})",
     output_type: "Not Applicable",
-    signature: "(define-map map-name ((key-name-0 key-type-0) ...) ((val-name-0 val-type-0) ...))",
+    signature: "(define-map map-name key-type value-type)",
     description: "`define-map` is used to define a new datamap for use in a smart contract. Such
 maps are only modifiable by the current smart contract.
 
-Maps are defined with a key tuple type and value tuple type. These are defined using a list
-of name and type pairs, e.g., a key type might be `((id int))`, which is a tuple with a single \"id\"
-field of type `int`.
+Maps are defined with a key type and value type, often these types are tuple types.
 
 Like other kinds of definition statements, `define-map` may only be used at the top level of a smart contract
 definition (i.e., you cannot put a define statement in the middle of a function body).",
@@ -1415,13 +1414,17 @@ definition (i.e., you cannot put such a statement in the middle of a function bo
 ",
     example: "
 (impl-trait 'SPAXYA5XS51713FDTQ8H94EJ4V579CXMTRNBZKSF.token-a.token-trait)
+(define-public (get-balance (account principal))
+  (ok u0))
+(define-public (transfer? (from principal) (to principal) (amount uint))
+  (ok u0))
 "
 };
 
 const MINT_TOKEN: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal",
     snippet: "ft-mint? ${1:token-name} ${2:amount} ${3:recipient})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(ft-mint? token-name amount recipient)",
     description: "`ft-mint?` is used to increase the token balance for the `recipient` principal for a token
 type defined using `define-fungible-token`. The increased token balance is _not_ transfered from another principal, but
@@ -1439,7 +1442,7 @@ returns `(ok true)`.
 const MINT_ASSET: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal",
     snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:recipient})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(nft-mint? asset-class asset-identifier recipient)",
     description: "`nft-mint?` is used to instantiate an asset and set that asset's owner to the `recipient` principal.
 The asset must have been defined using `define-non-fungible-token`, and the supplied `asset-identifier` must be of the same type specified in
@@ -1460,7 +1463,7 @@ Otherwise, on successfuly mint, it returns `(ok true)`.
 const GET_OWNER: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A",
     snippet: "nft-get-owner? ${1:asset-name} ${2:asset-identifier})",
-    output_type: "(optional principal",
+    output_type: "(optional principal)",
     signature: "(nft-get-owner? asset-class asset-identifier)",
     description: "`nft-get-owner?` returns the owner of an asset, identified by `asset-identifier`, or `none` if the asset does not exist.
 The asset type must have been defined using `define-non-fungible-token`, and the supplied `asset-identifier` must be of the same type specified in
@@ -1490,7 +1493,7 @@ The token type must have been defined using `define-fungible-token`.",
 const TOKEN_TRANSFER: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal, principal",
     snippet: "ft-transfer? ${1:token-name} ${2:amount} ${3:sender} ${4:recipient})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(ft-transfer? token-name amount sender recipient)",
     description: "`ft-transfer?` is used to increase the token balance for the `recipient` principal for a token
 type defined using `define-fungible-token` by debiting the `sender` principal.
@@ -1513,7 +1516,7 @@ one of the following error codes:
 const ASSET_TRANSFER: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal, principal",
     snippet: "nft-transfer? ${1:asset-name} ${2:asset-identifier} ${3:sender} ${4:recipient})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(nft-transfer? asset-class asset-identifier sender recipient)",
     description: "`nft-transfer?` is used to change the owner of an asset identified by `asset-identifier`
 from `sender` to `recipient`. The `asset-class` must have been defined by `define-non-fungible-token` and `asset-identifier`
@@ -1552,7 +1555,7 @@ The token type must have been defined using `define-fungible-token`.",
 const BURN_TOKEN: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal",
     snippet: "ft-burn? ${1:asset-name} ${2:amount} ${3:sender})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(ft-burn? token-name amount sender)",
     description: "`ft-burn?` is used to decrease the token balance for the `sender` principal for a token
 type defined using `define-fungible-token`. The decreased token balance is _not_ transfered to another principal, but
@@ -1571,7 +1574,7 @@ returns `(ok true)`.
 const BURN_ASSET: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal",
     snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:sender})",
-    output_type: "(response bool uint",
+    output_type: "(response bool uint)",
     signature: "(nft-burn? asset-class asset-identifier recipient)",
     description: "`nft-burn?` is used to burn an asset and remove that asset's owner from the `recipient` principal.
 The asset must have been defined using `define-non-fungible-token`, and the supplied `asset-identifier` must be of the same type specified in
