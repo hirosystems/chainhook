@@ -69,10 +69,6 @@ impl CoverageReporter {
             test_names.insert(report.test_name.to_string());
         }
 
-        // let functions = 
-
-        // let mut consolidated_reports = HashMap::new();
-        let filename = format!("lcov-report");
         let mut out = File::create(filename)?;
 
         for (index, test_name) in test_names.iter().enumerate() {
