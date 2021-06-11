@@ -1,4 +1,5 @@
 use super::{ClarityInterpreter, ExecutionResult};
+use crate::clarity::analysis::ContractAnalysis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
 use crate::clarity::functions::define::DefineFunctions;
@@ -144,8 +145,9 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))] 
-    pub fn start(&mut self) -> String {
+    pub fn start(&mut self) -> (String, Vec<(ContractAnalysis, String)>) {
         let mut output = Vec::<String>::new();
+        let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -262,7 +264,10 @@ impl Session {
 
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
-                    Ok(_) => {},
+                    Ok((_, result)) => {
+                        let contract = result.contract.unwrap();
+                        contracts.push((contract.4.clone(), contract.1.clone()))
+                    },
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -296,7 +301,7 @@ impl Session {
             self.get_accounts(&mut output);
         }
 
-        output.join("\n")
+        (output.join("\n"), contracts)
     }
 
     #[cfg(feature = "wasm")] 
@@ -538,7 +543,7 @@ impl Session {
 
         match result {
             Ok(result) => {
-                if let Some((ref contract_name, _, _)) = result.contract {
+                if let Some((ref contract_name, _, _, _, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));
                 }
@@ -641,7 +646,7 @@ impl Session {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
                 }
-                if let Some((ref contract_identifier_str, ref contract, ref ast)) = result.contract {
+                if let Some((ref contract_identifier_str, ref source, ref contract, ref ast, ref analysis)) = result.contract {
                     self.asts.insert(contract_identifier.clone(), ast.clone());
                     self.contracts.insert(contract_identifier_str.clone(), contract.clone());
                 }

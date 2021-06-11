@@ -255,7 +255,7 @@ impl ClarityInterpreter {
 
                     functions.insert(name.to_string(), args);
                 }
-                execution_result.contract = Some((format!("{}", contract_identifier), functions, contract_ast.clone()));
+                execution_result.contract = Some((contract_identifier.to_string(), snippet.clone(), functions, contract_ast.clone(), contract_analysis.clone()));
 
                 for defined_trait in contract_context.defined_traits.iter() {}
 

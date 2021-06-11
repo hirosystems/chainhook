@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
+use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::coverage::TestCoverageReport;
 use serde_json::Value;
@@ -14,7 +15,7 @@ pub use settings::SessionSettings;
 
 #[derive(Default)]
 pub struct ExecutionResult {
-    pub contract: Option<(String, BTreeMap<String, Vec<String>>, ContractAST)>,
+    pub contract: Option<(String, String, BTreeMap<String, Vec<String>>, ContractAST, ContractAnalysis)>,
     pub result: Option<String>,
     pub events: Vec<Value>,
     pub cost: Option<CostSynthesis>,

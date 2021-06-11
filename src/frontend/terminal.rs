@@ -27,7 +27,7 @@ impl Terminal {
             black!("Connected to a transient in-memory database.")
         );
 
-        let res = self.session.start();
+        let (res, _) = self.session.start();
         println!("{}", res);
 
         let mut editor = Editor::<()>::new();
