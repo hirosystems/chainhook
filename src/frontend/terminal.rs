@@ -6,7 +6,7 @@ use rustyline::Editor;
 use std::io::{stdin, stdout, Write};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-
+const HISTORY_FILE: Option<&'static str> = option_env!("CLARITY_REPL_HISTORY_FILE");
 pub struct Terminal {
     session: Session,
 }
@@ -19,13 +19,9 @@ impl Terminal {
     }
 
     pub fn start(&mut self) {
-
         println!("{}", green!(format!("clarity-repl v{}", VERSION.unwrap())));
         println!("{}", black!("Enter \"::help\" for usage hints."));
-        println!(
-            "{}",
-            black!("Connected to a transient in-memory database.")
-        );
+        println!("{}", black!("Connected to a transient in-memory database."));
 
         let (res, _) = self.session.start();
         println!("{}", res);
@@ -61,6 +57,8 @@ impl Terminal {
                 }
             }
         }
-        editor.save_history("history.txt").unwrap();
+        editor
+            .save_history(HISTORY_FILE.unwrap_or("history.txt"))
+            .unwrap();
     }
 }
