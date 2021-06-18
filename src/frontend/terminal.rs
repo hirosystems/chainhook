@@ -46,25 +46,23 @@ impl Terminal {
         println!("{}", res);
         let mut editor = Editor::<()>::new();
         let mut ctrl_c_acc = 0;
-        let mut input_buffer = String::new();
+        let mut input_buffer = vec![];
         let mut prompt = String::from(">> ");
         loop {
             let readline = editor.readline(prompt.as_str());
             match readline {
                 Ok(command) => {
                     ctrl_c_acc = 0;
-                    if !input_buffer.is_empty() {
-                        input_buffer.push_str("\n");
-                    }
-                    input_buffer.push_str(&command);
-                    match complete_input(&input_buffer) {
+                    input_buffer.push(command);
+                    let input = input_buffer.join("\n");
+                    match complete_input(&input) {
                         Ok(None) => {
-                            let output = self.session.handle_command(&input_buffer);
+                            let output = self.session.handle_command(&input);
                             for line in output {
                                 println!("{}", line);
                             }
                             prompt = String::from(">> ");
-                            editor.add_history_entry(input_buffer.as_str());
+                            editor.add_history_entry(&input);
                             input_buffer.clear();
                         }
                         Ok(Some(str)) => {
@@ -72,11 +70,7 @@ impl Terminal {
                         }
                         Err((expected, got)) => {
                             println!("Error: expected closing {}, got {}", expected, got);
-                            if input_buffer.len() == command.len() {
-                                input_buffer.clear();
-                            } else {
-                                input_buffer.truncate(input_buffer.len() - command.len() - 1);
-                            }
+                            input_buffer.pop();
                         }
                     }
                 }
