@@ -419,7 +419,7 @@ fn make_for_simple_native(
 
 const EQUALS_API: SpecialAPI = SpecialAPI {
     input_type: "A, A, ...",
-    snippet: "is-eq ${1:expr-1} ${2:expr-2})",
+    snippet: "is-eq ${1:expr-1} ${2:expr-2}",
     output_type: "bool",
     signature: "(is-eq v1 v2...)",
     description: "Compares the inputted values, returning `true` if they are all equal. Note that 
@@ -433,7 +433,7 @@ is-eq _must_ be the same type.",
 
 const IF_API: SpecialAPI = SpecialAPI {
     input_type: "bool, A, A",
-    snippet: "if ${1:condition} ${2:expr-if-true} ${3:expr-if-false})",
+    snippet: "if ${1:condition} ${2:expr-if-true} ${3:expr-if-false}",
     output_type: "A",
     signature: "(if bool1 expr1 expr2)",
     description: "The `if` function admits a boolean argument and two expressions
@@ -446,7 +446,7 @@ which must return the same type. In the case that the boolean input is `true`, t
 
 const LET_API: SpecialAPI = SpecialAPI {
     input_type: "((name2 AnyType) (name2 AnyType) ...), AnyType, ... A",
-    snippet: "let ((${1:name-1} ${2:val-1})) ${3:expr-1})",
+    snippet: "let ((${1:name-1} ${2:val-1})) ${3:expr-1}",
     output_type: "A",
     signature: "(let ((name1 expr1) (name2 expr2) ...) expr-body1 expr-body2 ... expr-body-last)",
     description: "The `let` function accepts a list of `variable name` and `expression` pairs,
@@ -461,7 +461,7 @@ Note: intermediary statements returning a response type must be checked",
 
 const FETCH_VAR_API: SpecialAPI = SpecialAPI {
     input_type: "VarName",
-    snippet: "var-get ${1:var})",
+    snippet: "var-get ${1:var}",
     output_type: "A",
     signature: "(var-get var-name)",
     description: "The `var-get` function looks up and returns an entry from a contract's data map.
@@ -472,7 +472,7 @@ The value is looked up using `var-name`.",
 
 const SET_VAR_API: SpecialAPI = SpecialAPI {
     input_type: "VarName, AnyType",
-    snippet: "var-set ${1:var} ${2:value})",
+    snippet: "var-set ${1:var} ${2:value}",
     output_type: "bool",
     signature: "(var-set var-name expr1)",
     description: "The `var-set` function sets the value associated with the input variable to the
@@ -486,7 +486,7 @@ inputted value.",
 
 const MAP_API: SpecialAPI = SpecialAPI {
     input_type: "Function(A, B, ..., N) -> X, (list A1 A2 ... Am), (list B1 B2 ... Bm), ..., (list N1 N2 ... Nm)",
-    snippet: "map ${1:func} ${2:list})",
+    snippet: "map ${1:func} ${2:list}",
     output_type: "(list X)",
     signature: "(map func list-A list-B ... list-N)",
     description: "The `map` function applies the input function `func` to each element of the
@@ -498,7 +498,7 @@ input lists, and outputs a list containing the _outputs_ from those function app
 
 const FILTER_API: SpecialAPI = SpecialAPI {
     input_type: "Function(A) -> bool, (list A)",
-    snippet: "filter ${1:func} ${2:list})",
+    snippet: "filter ${1:func} ${2:list}",
     output_type: "(list A)",
     signature: "(filter func list)",
     description: "The `filter` function applies the input function `func` to each element of the
@@ -508,7 +508,7 @@ input list, and returns the same list with any elements removed for which the `f
 
 const FOLD_API: SpecialAPI = SpecialAPI {
     input_type: "Function(A, B) -> B, (list A), B",
-    snippet: "fold ${1:func} ${2:list} ${2:initial-value})",
+    snippet: "fold ${1:func} ${2:list} ${2:initial-value}",
     output_type: "B",
     signature: "(fold func list initial-value)",
     description: "The `fold` special form applies the input function `func` to each element of the
@@ -527,7 +527,7 @@ has to be a literal function name.",
 
 const CONCAT_API: SpecialAPI = SpecialAPI {
     input_type: "(buff, buff)|(list, list)",
-    snippet: "concat ${1:iterable-1} ${2:iterable-2})",
+    snippet: "concat ${1:iterable-1} ${2:iterable-2}",
     output_type: "buff|list",
     signature: "(concat buff-a buff-b)",
     description: "The `concat` function takes two buffers or two lists with the same entry type,
@@ -537,7 +537,7 @@ and returns a concatenated buffer or list of the same entry type, with max_len =
 
 const APPEND_API: SpecialAPI = SpecialAPI {
     input_type: "list A, A",
-    snippet: "concat ${1:list} ${2:element})",
+    snippet: "concat ${1:list} ${2:element}",
     output_type: "list",
     signature: "(append (list 1 2 3 4) 5)",
     description: "The `append` function takes a list and another value with the same entry type,
@@ -547,7 +547,7 @@ and outputs a list of the same type with max_len += 1.",
 
 const ASSERTS_MAX_LEN_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list, uint",
-    snippet: "as-max-len? ${1:buffer} ${2:max-len})",
+    snippet: "as-max-len? ${1:buffer} ${2:max-len}",
     output_type: "(optional buff|list)",
     signature: "(as-max-len? buffer u10)",
     description: "The `as-max-len?` function takes a length N (must be a literal) and a buffer or list argument, which must be typed as a list
@@ -561,7 +561,7 @@ or equal to the supplied max-len, it returns `(some <sequence>)`, otherwise it r
 
 const LEN_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list",
-    snippet: "len ${1:iterable})",
+    snippet: "len ${1:iterable}",
     output_type: "uint",
     signature: "(len buffer)",
     description: "The `len` function returns the length of a given buffer or list.",
@@ -572,7 +572,7 @@ const LEN_API: SpecialAPI = SpecialAPI {
 
 const ELEMENT_AT_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list A, uint",
-    snippet: "element-at ${1:sequence} ${2:index})",
+    snippet: "element-at ${1:sequence} ${2:index}",
     output_type: "(optional buff|A)",
     signature: "(element-at sequence index)",
     description:
@@ -589,7 +589,7 @@ For strings and buffers, this function will return 1-length strings or buffers."
 
 const INDEX_OF_API: SpecialAPI = SpecialAPI {
     input_type: "buff|list A, buff|A",
-    snippet: "index-of ${1:sequence} ${2:item})",
+    snippet: "index-of ${1:sequence} ${2:item}",
     output_type: "(optional uint)",
     signature: "(index-of sequence item)",
     description: "The `index-of` function returns the first index at which `item` can be
@@ -607,7 +607,7 @@ function returns `none`.",
 
 const LIST_API: SpecialAPI = SpecialAPI {
     input_type: "A, ...",
-    snippet: "list ${1:expr-1} ${2:expr-2})",
+    snippet: "list ${1:expr-1} ${2:expr-2}",
     output_type: "(list A)",
     signature: "(list expr1 expr2 expr3 ...)",
     description: "The `list` function constructs a list composed of the inputted values. Each
@@ -617,7 +617,7 @@ supplied value must be of the same type.",
 
 const BEGIN_API: SpecialAPI = SpecialAPI {
     input_type: "AnyType, ... A",
-    snippet: "begin ${1:expr-1} ${2:expr-2})",
+    snippet: "begin ${1:expr-1} ${2:expr-2}",
     output_type: "A",
     signature: "(begin expr1 expr2 expr3 ... expr-last)",
     description: "The `begin` function evaluates each of its input expressions, returning the
@@ -628,7 +628,7 @@ Note: intermediary statements returning a response type must be checked.",
 
 const PRINT_API: SpecialAPI = SpecialAPI {
     input_type: "A",
-    snippet: "print ${1:expr})",
+    snippet: "print ${1:expr}",
     output_type: "A",
     signature: "(print expr)",
     description: "The `print` function evaluates and returns its input expression. On Stacks Core
@@ -638,7 +638,7 @@ nodes configured for development (as opposed to production mining nodes), this f
 
 const FETCH_ENTRY_API: SpecialAPI = SpecialAPI {
     input_type: "MapName, tuple",
-    snippet: "map-get? ${1:map-name} ${2:key-tuple})",
+    snippet: "map-get? ${1:map-name} ${2:key-tuple}",
     output_type: "(optional (tuple))",
     signature: "(map-get? map-name key-tuple)",
     description: "The `map-get?` function looks up and returns an entry from a contract's data map.
@@ -654,7 +654,7 @@ it returns `(some value)`.",
 
 const SET_ENTRY_API: SpecialAPI = SpecialAPI {
     input_type: "MapName, tuple_A, tuple_B",
-    snippet: "map-set ${1:map-name} ${2:key-tuple} ${3:value-tuple})",
+    snippet: "map-set ${1:map-name} ${2:key-tuple} ${3:value-tuple}",
     output_type: "bool",
     signature: "(map-set map-name key-tuple value-tuple)",
     description: "The `map-set` function sets the value associated with the input key to the
@@ -671,7 +671,7 @@ and therefore the maximum size of a value that may be inserted into a map is MAX
 
 const INSERT_ENTRY_API: SpecialAPI = SpecialAPI {
     input_type: "MapName, tuple_A, tuple_B",
-    snippet: "map-insert ${1:map-name} ${2:key-tuple} ${3:value-tuple})",
+    snippet: "map-insert ${1:map-name} ${2:key-tuple} ${3:value-tuple}",
     output_type: "bool",
     signature: "(map-insert map-name key-tuple value-tuple)",
     description: "The `map-insert` function sets the value associated with the input key to the
@@ -690,7 +690,7 @@ and therefore the maximum size of a value that may be inserted into a map is MAX
 
 const DELETE_ENTRY_API: SpecialAPI = SpecialAPI {
     input_type: "MapName, tuple",
-    snippet: "map-delete ${1:map-name} ${2:key-tuple})",
+    snippet: "map-delete ${1:map-name} ${2:key-tuple}",
     output_type: "bool",
     signature: "(map-delete map-name key-tuple)",
     description: "The `map-delete` function removes the value associated with the input key for
@@ -706,7 +706,7 @@ If a value did not exist for this key in the data map, the function returns `fal
 
 const TUPLE_CONS_API: SpecialAPI = SpecialAPI {
     input_type: "(key-name A), (key-name-2 B), ...",
-    snippet: "tuple (${1:key-1} ${2:val-1}))",
+    snippet: "tuple (${1:key-1} ${2:val-1})",
     output_type: "(tuple (key-name A) (key-name-2 B) ...)",
     signature: "(tuple (key0 expr0) (key1 expr1) ...)",
     description: "The `tuple` special form constructs a typed tuple from the supplied key and expression pairs.
@@ -721,7 +721,7 @@ There is a shorthand using curly brackets of the form {key0: expr0, key1: expr, 
 
 const TUPLE_GET_API: SpecialAPI = SpecialAPI {
     input_type: "KeyName, (tuple) | (optional (tuple))",
-    snippet: "get ${1:key-name} ${2:tuple})",
+    snippet: "get ${1:key-name} ${2:tuple}",
     output_type: "A",
     signature: "(get key-name tuple)",
     description: "The `get` function fetches the value associated with a given key from the supplied typed tuple.
@@ -737,7 +737,7 @@ the tuple. If the supplied option is a `(none)` option, get returns `(none)`.",
 
 const TUPLE_MERGE_API: SpecialAPI = SpecialAPI {
     input_type: "tuple, tuple",
-    snippet: "merge ${1:tuple-1} ${2:tuple-2})",
+    snippet: "merge ${1:tuple-1} ${2:tuple-2}",
     output_type: "tuple",
     signature: "(merge tuple { key1: val1 })",
     description: "The `merge` function returns a new tuple with the combined fields, without mutating the supplied tuples.",
@@ -749,7 +749,7 @@ const TUPLE_MERGE_API: SpecialAPI = SpecialAPI {
 
 const HASH160_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
-    snippet: "hash160 ${1:buff})",
+    snippet: "hash160 ${1:buff}",
     output_type: "(buff 20)",
     signature: "(hash160 value)",
     description: "The `hash160` function computes `RIPEMD160(SHA256(x))` of the inputted value.
@@ -760,7 +760,7 @@ integer.",
 
 const SHA256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
-    snippet: "sha256 ${1:buff})",
+    snippet: "sha256 ${1:buff}",
     output_type: "(buff 32)",
     signature: "(sha256 value)",
     description: "The `sha256` function computes `SHA256(x)` of the inputted value.
@@ -771,7 +771,7 @@ integer.",
 
 const SHA512_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
-    snippet: "sha512 ${1:buff})",
+    snippet: "sha512 ${1:buff}",
     output_type: "(buff 64)",
     signature: "(sha512 value)",
     description: "The `sha512` function computes `SHA512(x)` of the inputted value.
@@ -782,7 +782,7 @@ integer.",
 
 const SHA512T256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
-    snippet: "sha512/256 ${1:buff})",
+    snippet: "sha512/256 ${1:buff}",
     output_type: "(buff 32)",
     signature: "(sha512/256 value)",
     description: "The `sha512/256` function computes `SHA512/256(x)` (the SHA512 algorithm with the 512/256 initialization vector, truncated
@@ -794,7 +794,7 @@ integer.",
 
 const KECCAK256_API: SpecialAPI = SpecialAPI {
     input_type: "buff|uint|int",
-    snippet: "keccak256 ${1:buff})",
+    snippet: "keccak256 ${1:buff}",
     output_type: "(buff 32)",
     signature: "(keccak256 value)",
     description: "The `keccak256` function computes `KECCAK256(value)` of the inputted value.
@@ -805,7 +805,7 @@ is supplied the hash is computed over the little-endian representation of the in
 
 const SECP256K1RECOVER_API: SpecialAPI = SpecialAPI {
     input_type: "(buff 32), (buff 65)",
-    snippet: "secp256k1-recover? ${1:message-hash} ${2:signature})",
+    snippet: "secp256k1-recover? ${1:message-hash} ${2:signature}",
     output_type: "(response (buff 33) uint)",
     signature: "(secp256k1-recover? message-hash signature)",
     description: "The `secp256k1-recover?` function recovers the public key used to sign the message  which sha256 is `message-hash`
@@ -820,7 +820,7 @@ const SECP256K1RECOVER_API: SpecialAPI = SpecialAPI {
 
 const SECP256K1VERIFY_API: SpecialAPI = SpecialAPI {
     input_type: "(buff 32), (buff 64) | (buff 65), (buff 33)",
-    snippet: "secp256k1-verify ${1:message-hash} ${2:signature} ${3:public-key}))",
+    snippet: "secp256k1-verify ${1:message-hash} ${2:signature} ${3:public-key})",
     output_type: "bool",
     signature: "(secp256k1-verify message-hash signature public-key)",
     description: "The `secp256k1-verify` function verifies that the provided signature of the message-hash
@@ -840,7 +840,7 @@ The signature includes 64 bytes plus an optional additional recovery id (00..03)
 
 const CONTRACT_CALL_API: SpecialAPI = SpecialAPI {
     input_type: "ContractName, PublicFunctionName, Arg0, ...",
-    snippet: "contract-call? ${1:contract-principal} ${2:func} ${3:arg1})",
+    snippet: "contract-call? ${1:contract-principal} ${2:func} ${3:arg1}",
     output_type: "(response A B)",
     signature: "(contract-call? .contract-name function-name arg0 arg1 ...)",
     description: "The `contract-call?` function executes the given public function of the given contract.
@@ -868,7 +868,7 @@ const CONTRACT_OF_API: SpecialAPI = SpecialAPI {
 
 const PRINCIPAL_OF_API: SpecialAPI = SpecialAPI {
     input_type: "(buff 33)",
-    snippet: "principal-of? ${1:public-key})",
+    snippet: "principal-of? ${1:public-key}",
     output_type: "(response principal uint)",
     signature: "(principal-of? public-key)",
     description: "The `principal-of?` function returns the principal derived from the provided public key.
@@ -879,7 +879,7 @@ const PRINCIPAL_OF_API: SpecialAPI = SpecialAPI {
 
 const AT_BLOCK: SpecialAPI = SpecialAPI {
     input_type: "(buff 32), A",
-    snippet: "at-block ${1:id-header-hash} ${2:expr})",
+    snippet: "at-block ${1:id-header-hash} ${2:expr}",
     output_type: "A",
     signature: "(at-block id-block-hash expr)",
     description: "The `at-block` function evaluates the expression `expr` _as if_ it were evaluated at the end of the
@@ -899,7 +899,7 @@ The function returns the result of evaluating `expr`.
 
 const AS_CONTRACT_API: SpecialAPI = SpecialAPI {
     input_type: "A",
-    snippet: "as-contract ${1:expr})",
+    snippet: "as-contract ${1:expr}",
     output_type: "A",
     signature: "(as-contract expr)",
     description: "The `as-contract` function switches the current context's `tx-sender` value to the _contract's_
@@ -909,7 +909,7 @@ principal and executes `expr` with that context. It returns the resulting value 
 
 const ASSERTS_API: SpecialAPI = SpecialAPI {
     input_type: "bool, C",
-    snippet: "asserts! ${1:boolean-expr} (err ${2:thrown}))",
+    snippet: "asserts! ${1:boolean-expr} (err ${2:thrown})",
     output_type: "bool",
     signature: "(asserts! bool-expr thrown-value)",
     description: "The `asserts!` function admits a boolean argument and asserts its evaluation:
@@ -921,7 +921,7 @@ control-flow.",
 
 const EXPECTS_API: SpecialAPI = SpecialAPI {
     input_type: "(optional A) | (response A B), C",
-    snippet: "unwrap! ${1:algebraic-expr} (err ${2:thrown}))",
+    snippet: "unwrap! ${1:algebraic-expr} (err ${2:thrown})",
     output_type: "A",
     signature: "(unwrap! option-input thrown-value)",
     description: "The `unwrap!` function attempts to 'unpack' the first argument: if the argument is
@@ -942,7 +942,7 @@ option. If the argument is a response type, and the argument is an `(ok ...)` re
 
 const TRY_API: SpecialAPI = SpecialAPI {
     input_type: "(optional A) | (response A B)",
-    snippet: "try! ${1:algebraic-expr})",
+    snippet: "try! ${1:algebraic-expr}",
     output_type: "A",
     signature: "(try! option-input)",
     description: "The `try!` function attempts to 'unpack' the first argument: if the argument is
@@ -967,7 +967,7 @@ option. If the argument is a response type, and the argument is an `(ok ...)` re
 
 const UNWRAP_API: SpecialAPI = SpecialAPI {
     input_type: "(optional A) | (response A B)",
-    snippet: "unwrap-panic ${1:algebraic-expr})",
+    snippet: "unwrap-panic ${1:algebraic-expr}",
     output_type: "A",
     signature: "(unwrap-panic option-input)",
     description: "The `unwrap` function attempts to 'unpack' its argument: if the argument is
@@ -985,7 +985,7 @@ option. If the argument is a response type, and the argument is an `(ok ...)` re
 
 const UNWRAP_ERR_API: SpecialAPI = SpecialAPI {
     input_type: "(response A B)",
-    snippet: "unwrap-err-panic ${1:algebraic-expr})",
+    snippet: "unwrap-err-panic ${1:algebraic-expr}",
     output_type: "B",
     signature: "(unwrap-err-panic response-input)",
     description:
@@ -999,7 +999,7 @@ If the supplied argument is an `(ok ...)` value,
 
 const EXPECTS_ERR_API: SpecialAPI = SpecialAPI {
     input_type: "(response A B), C",
-    snippet: "unwrap-err! ${1:algebraic-expr} (err ${2:thrown}))",
+    snippet: "unwrap-err! ${1:algebraic-expr} (err ${2:thrown})",
     output_type: "B",
     signature: "(unwrap-err! response-input thrown-value)",
     description: "The `unwrap-err!` function attempts to 'unpack' the first argument: if the argument
@@ -1012,7 +1012,7 @@ If the supplied argument is an `(ok ...)` value,
 const MATCH_API: SpecialAPI = SpecialAPI {
     input_type:
         "(optional A) name expression expression | (response A B) name expression name expression",
-    snippet: "match ${1:algebraic-expr} ${2:some-binding-name} ${3:some-branch} ${4:none-branch})",
+    snippet: "match ${1:algebraic-expr} ${2:some-binding-name} ${3:some-branch} ${4:none-branch}",
     output_type: "C",
     signature: "(match opt-input some-binding-name some-branch none-branch) |
 (match-resp input ok-binding-name ok-branch err-binding-name err-branch)",
@@ -1061,7 +1061,7 @@ is untyped, you should use `unwrap-panic` or `unwrap-err-panic` instead of `matc
 
 const DEFAULT_TO_API: SpecialAPI = SpecialAPI {
     input_type: "A, (optional A)",
-    snippet: "default-to ${1:default-value} ${2:option-value})",
+    snippet: "default-to ${1:default-value} ${2:option-value}",
     output_type: "A",
     signature: "(default-to default-value option-value)",
     description: "The `default-to` function attempts to 'unpack' the second argument: if the argument is
@@ -1077,7 +1077,7 @@ a `(some ...)` option, it returns the inner value of the option. If the second a
 
 const CONS_OK_API: SpecialAPI = SpecialAPI {
     input_type: "A",
-    snippet: "ok ${1:value})",
+    snippet: "ok ${1:value}",
     output_type: "(response A B)",
     signature: "(ok value)",
     description: "The `ok` function constructs a response type from the input value. Use `ok` for
@@ -1088,7 +1088,7 @@ the processing of the function should materialize.",
 
 const CONS_ERR_API: SpecialAPI = SpecialAPI {
     input_type: "A",
-    snippet: "err ${1:value})",
+    snippet: "err ${1:value}",
     output_type: "(response A B)",
     signature: "(err value)",
     description: "The `err` function constructs a response type from the input value. Use `err` for
@@ -1099,7 +1099,7 @@ the processing of the function should be rolled back.",
 
 const CONS_SOME_API: SpecialAPI = SpecialAPI {
     input_type: "A",
-    snippet: "some ${1:value})",
+    snippet: "some ${1:value}",
     output_type: "(optional A)",
     signature: "(some value)",
     description: "The `some` function constructs a `optional` type from the input value.",
@@ -1109,7 +1109,7 @@ const CONS_SOME_API: SpecialAPI = SpecialAPI {
 
 const IS_OK_API: SpecialAPI = SpecialAPI {
     input_type: "(response A B)",
-    snippet: "is-ok ${1:expr})",
+    snippet: "is-ok ${1:expr}",
     output_type: "bool",
     signature: "(is-ok value)",
     description:
@@ -1121,7 +1121,7 @@ and `false` if it was an `err`.",
 
 const IS_NONE_API: SpecialAPI = SpecialAPI {
     input_type: "(optional A)",
-    snippet: "is-none ${1:expr})",
+    snippet: "is-none ${1:expr}",
     output_type: "bool",
     signature: "(is-none value)",
     description:
@@ -1136,7 +1136,7 @@ and `false` if it is a `(some ...)`.",
 
 const IS_ERR_API: SpecialAPI = SpecialAPI {
     input_type: "(response A B)",
-    snippet: "is-err ${1:expr})",
+    snippet: "is-err ${1:expr}",
     output_type: "bool",
     signature: "(is-err value)",
     description:
@@ -1148,7 +1148,7 @@ and `false` if it was an `ok`.",
 
 const IS_SOME_API: SpecialAPI = SpecialAPI {
     input_type: "(optional A)",
-    snippet: "is-some ${1:expr})",
+    snippet: "is-some ${1:expr}",
     output_type: "bool",
     signature: "(is-some value)",
     description: "`is-some` tests a supplied option value, returning `true` if the option value is `(some ...)`,
@@ -1162,7 +1162,7 @@ and `false` if it is a `none`.",
 
 const GET_BLOCK_INFO_API: SpecialAPI = SpecialAPI {
     input_type: "BlockInfoPropertyName, BlockHeightInt",
-    snippet: "get-block-info? ${1:prop} ${2:block-height})",
+    snippet: "get-block-info? ${1:prop} ${2:block-height}",
     output_type: "(optional buff) | (optional uint)",
     signature: "(get-block-info? prop-name block-height-expr)",
     description: "The `get-block-info?` function fetches data for a block of the given block height. The
@@ -1188,7 +1188,7 @@ The `id-header-hash` is the block identifier value that must be used as input to
 
 const DEFINE_TOKEN_API: DefineAPI = DefineAPI {
     input_type: "TokenName, <uint>",
-    snippet: "define-fungible-token ${1:token-name} ${2:total-supply})",
+    snippet: "define-fungible-token ${1:token-name} ${2:total-supply}",
     output_type: "Not Applicable",
     signature: "(define-fungible-token token-name <total-supply>)",
     description: "`define-fungible-token` is used to define a new fungible token class for use in the current contract.
@@ -1209,7 +1209,7 @@ Tokens defined using `define-fungible-token` may be used in `ft-transfer?`, `ft-
 
 const DEFINE_ASSET_API: DefineAPI = DefineAPI {
     input_type: "AssetName, TypeSignature",
-    snippet: "define-non-fungible-token ${1:nft-name} ${2:nft-identifier-type})",
+    snippet: "define-non-fungible-token ${1:nft-name} ${2:nft-identifier-type}",
     output_type: "Not Applicable",
     signature: "(define-non-fungible-token asset-name asset-identifier-type)",
     description: "`define-non-fungible-token` is used to define a new non-fungible token class for use in the current contract.
@@ -1227,7 +1227,7 @@ Assets defined using `define-non-fungible-token` may be used in `nft-transfer?`,
 
 const DEFINE_PUBLIC_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-public ${1:func-name} ${2:body})",
+    snippet: "define-public ${1:func-name} ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-public (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-public` is used to define a _public_ function and transaction for a smart contract. Public
@@ -1249,7 +1249,7 @@ contracts via `contract-call?`.",
 
 const DEFINE_CONSTANT_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-constant ${1:name} ${2:exprs})",
+    snippet: "define-constant ${1:name} ${2:exprs}",
     output_type: "Not Applicable",
     signature: "(define-constant name expression)",
     description: "`define-constant` is used to define a private constant value in a smart contract.
@@ -1268,7 +1268,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const DEFINE_PRIVATE_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-private ${1:func-name} ${2:body})",
+    snippet: "define-private ${1:func-name} ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-private (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-private` is used to define _private_ functions for a smart contract. Private
@@ -1290,7 +1290,7 @@ Private functions may return any type.",
 
 const DEFINE_READ_ONLY_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-read-only ${1:func-name} ${2:body})",
+    snippet: "define-read-only ${1:func-name} ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-read-only (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-read-only` is used to define a _public read-only_ function for a smart contract. Such
@@ -1311,7 +1311,7 @@ be invoked by other contracts via `contract-call?`.",
 
 const DEFINE_MAP_API: DefineAPI = DefineAPI {
     input_type: "MapName, TypeDefinition, TypeDefinition",
-    snippet: "define-map ${1:map-name} {{ ${2:key-name-1}: ${3:key-type-1} }} {{ ${4:val-name-1}: ${5:vals-type-1} }})",
+    snippet: "define-map ${1:map-name} {{ ${2:key-name-1}: ${3:key-type-1} }} {{ ${4:val-name-1}: ${5:vals-type-1} }}",
     output_type: "Not Applicable",
     signature: "(define-map map-name key-type value-type)",
     description: "`define-map` is used to define a new datamap for use in a smart contract. Such
@@ -1335,7 +1335,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const DEFINE_DATA_VAR_API: DefineAPI = DefineAPI {
     input_type: "VarName, TypeDefinition, Value",
-    snippet: "define-data-var ${1:name} ${2:type} ${3:value})",
+    snippet: "define-data-var ${1:name} ${2:type} ${3:value}",
     output_type: "Not Applicable",
     signature: "(define-data-var var-name type value)",
     description: "`define-data-var` is used to define a new persisted variable for use in a smart contract. Such
@@ -1356,7 +1356,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const DEFINE_TRAIT_API: DefineAPI = DefineAPI {
     input_type: "VarName, [MethodSignature]",
-    snippet: "define-trait ${1:trait-name} ${2:trait-definition})",
+    snippet: "define-trait ${1:trait-name} ${2:trait-definition}",
     output_type: "Not Applicable",
     signature: "(define-trait trait-name ((func1-name (arg1-type arg2-type ...) (return-type))))",
     description: "`define-trait` is used to define a new trait definition for use in a smart contract. Other contracts
@@ -1377,7 +1377,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const USE_TRAIT_API: DefineAPI = DefineAPI {
     input_type: "VarName, TraitIdentifier",
-    snippet: "use-trait ${1:trait-alias} ${2:trait-identifier})",
+    snippet: "use-trait ${1:trait-alias} ${2:trait-identifier}",
     output_type: "Not Applicable",
     signature: "(use-trait trait-alias trait-identifier)",
     description: "`use-trait` is used to bring a trait, defined in another contract, to the current contract. Subsequent
@@ -1399,7 +1399,7 @@ definition (i.e., you cannot put such a statement in the middle of a function bo
 
 const IMPL_TRAIT_API: DefineAPI = DefineAPI {
     input_type: "TraitIdentifier",
-    snippet: "impl-trait ${2:trait-identifier})",
+    snippet: "impl-trait ${2:trait-identifier}",
     output_type: "Not Applicable",
     signature: "(impl-trait trait-identifier)",
     description: "`impl-trait` can be use for asserting that a contract is fully implementing a given trait.
@@ -1423,7 +1423,7 @@ definition (i.e., you cannot put such a statement in the middle of a function bo
 
 const MINT_TOKEN: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal",
-    snippet: "ft-mint? ${1:token-name} ${2:amount} ${3:recipient})",
+    snippet: "ft-mint? ${1:token-name} ${2:amount} ${3:recipient}",
     output_type: "(response bool uint)",
     signature: "(ft-mint? token-name amount recipient)",
     description: "`ft-mint?` is used to increase the token balance for the `recipient` principal for a token
@@ -1441,7 +1441,7 @@ returns `(ok true)`.
 
 const MINT_ASSET: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal",
-    snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:recipient})",
+    snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:recipient}",
     output_type: "(response bool uint)",
     signature: "(nft-mint? asset-class asset-identifier recipient)",
     description: "`nft-mint?` is used to instantiate an asset and set that asset's owner to the `recipient` principal.
@@ -1462,7 +1462,7 @@ Otherwise, on successfuly mint, it returns `(ok true)`.
 
 const GET_OWNER: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A",
-    snippet: "nft-get-owner? ${1:asset-name} ${2:asset-identifier})",
+    snippet: "nft-get-owner? ${1:asset-name} ${2:asset-identifier}",
     output_type: "(optional principal)",
     signature: "(nft-get-owner? asset-class asset-identifier)",
     description: "`nft-get-owner?` returns the owner of an asset, identified by `asset-identifier`, or `none` if the asset does not exist.
@@ -1478,7 +1478,7 @@ that definition.",
 
 const GET_BALANCE: SpecialAPI = SpecialAPI {
     input_type: "TokenName, principal",
-    snippet: "ft-get-balance ${1:token-name} ${2:principal})",
+    snippet: "ft-get-balance ${1:token-name} ${2:principal}",
     output_type: "uint",
     signature: "(ft-get-balance token-name principal)",
     description: "`ft-get-balance` returns `token-name` balance of the principal `principal`.
@@ -1492,7 +1492,7 @@ The token type must have been defined using `define-fungible-token`.",
 
 const TOKEN_TRANSFER: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal, principal",
-    snippet: "ft-transfer? ${1:token-name} ${2:amount} ${3:sender} ${4:recipient})",
+    snippet: "ft-transfer? ${1:token-name} ${2:amount} ${3:sender} ${4:recipient}",
     output_type: "(response bool uint)",
     signature: "(ft-transfer? token-name amount sender recipient)",
     description: "`ft-transfer?` is used to increase the token balance for the `recipient` principal for a token
@@ -1515,7 +1515,7 @@ one of the following error codes:
 
 const ASSET_TRANSFER: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal, principal",
-    snippet: "nft-transfer? ${1:asset-name} ${2:asset-identifier} ${3:sender} ${4:recipient})",
+    snippet: "nft-transfer? ${1:asset-name} ${2:asset-identifier} ${3:sender} ${4:recipient}",
     output_type: "(response bool uint)",
     signature: "(nft-transfer? asset-class asset-identifier sender recipient)",
     description: "`nft-transfer?` is used to change the owner of an asset identified by `asset-identifier`
@@ -1540,7 +1540,7 @@ one of the following error codes:
 
 const GET_TOKEN_SUPPLY: SpecialAPI = SpecialAPI {
     input_type: "TokenName",
-    snippet: "ft-get-supply ${1:token-name})",
+    snippet: "ft-get-supply ${1:token-name}",
     output_type: "uint",
     signature: "(ft-get-supply token-name)",
     description: "`ft-get-balance` returns `token-name` circulating supply.
@@ -1554,7 +1554,7 @@ The token type must have been defined using `define-fungible-token`.",
 
 const BURN_TOKEN: SpecialAPI = SpecialAPI {
     input_type: "TokenName, uint, principal",
-    snippet: "ft-burn? ${1:asset-name} ${2:amount} ${3:sender})",
+    snippet: "ft-burn? ${1:asset-name} ${2:amount} ${3:sender}",
     output_type: "(response bool uint)",
     signature: "(ft-burn? token-name amount sender)",
     description: "`ft-burn?` is used to decrease the token balance for the `sender` principal for a token
@@ -1573,7 +1573,7 @@ returns `(ok true)`.
 
 const BURN_ASSET: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal",
-    snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:sender})",
+    snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:sender}",
     output_type: "(response bool uint)",
     signature: "(nft-burn? asset-class asset-identifier recipient)",
     description: "`nft-burn?` is used to burn an asset and remove that asset's owner from the `recipient` principal.
