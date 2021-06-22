@@ -6,6 +6,7 @@ use rustyline::Editor;
 use std::io::{stdin, stdout, Write};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+const HISTORY_FILE: Option<&'static str> = option_env!("CLARITY_REPL_HISTORY_FILE");
 
 fn complete_input(str: &str) -> Result<Option<char>, (char, char)> {
     let mut brackets = vec![];
@@ -92,6 +93,8 @@ impl Terminal {
                 }
             }
         }
-        editor.save_history("history.txt").unwrap();
+        editor
+            .save_history(HISTORY_FILE.unwrap_or("history.txt"))
+            .unwrap();
     }
 }
