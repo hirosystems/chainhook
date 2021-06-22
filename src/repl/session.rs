@@ -37,9 +37,9 @@ pub struct Session {
     session_id: u32,
     started_at: u32,
     pub settings: SessionSettings,
-    contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+    pub contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
-    interpreter: ClarityInterpreter,
+    pub interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
 }
@@ -411,8 +411,9 @@ impl Session {
         output.join("\n")
     }
 
-    pub fn check(&mut self) -> Result<(), String> {
+    pub fn check(&mut self) -> Result<Vec<(ContractAnalysis, String, String)>, String> {
         let mut output = Vec::<String>::new();
+        let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -479,6 +480,12 @@ impl Session {
             let mut initial_contracts = self.settings.initial_contracts.clone();
             let default_tx_sender = self.interpreter.get_tx_sender();
             for contract in initial_contracts.drain(..) {
+                if let Some(ref scoping_contract) = self.settings.scoping_contract {
+                    if contract.path.eq(scoping_contract) {
+                        break;
+                    }
+                }
+
                 let deployer = {
                     let address = match contract.deployer {
                         Some(ref entry) => entry.clone(),
@@ -490,7 +497,10 @@ impl Session {
 
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
-                    Ok(_) => {},
+                    Ok((_, result)) => {
+                        let analysis_result = result.contract.unwrap();
+                        contracts.push((analysis_result.4.clone(), analysis_result.1.clone(), contract.path.clone()))
+                    },
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -498,7 +508,7 @@ impl Session {
         }
 
         match output.len() {
-            0 => Ok(()),
+            0 => Ok(contracts),
             _ => Err(output.join("\n"))
         }
     }

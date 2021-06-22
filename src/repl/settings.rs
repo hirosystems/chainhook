@@ -1,4 +1,6 @@
-use crate::clarity::coverage::CoverageReporter;
+use std::convert::TryInto;
+
+use crate::clarity::{coverage::CoverageReporter, types::{StandardPrincipalData, PrincipalData, QualifiedContractIdentifier}, util::StacksAddress};
 
 #[derive(Clone, Debug)]
 pub struct InitialContract {
@@ -6,6 +8,28 @@ pub struct InitialContract {
     pub name: Option<String>,
     pub path: String,
     pub deployer: Option<String>,
+}
+
+impl InitialContract {
+
+    pub fn get_contract_identifier(&self, is_mainnet: bool) -> Option<QualifiedContractIdentifier> {
+        match self.name {
+            Some(ref name) => Some(QualifiedContractIdentifier {
+                issuer: self.get_deployer_principal(is_mainnet).into(),
+                name: name.to_string().try_into().unwrap(),
+            }),
+            _ => None
+        }
+    }
+
+    pub fn get_deployer_principal(&self, is_mainnet: bool) -> StandardPrincipalData {
+        let address = match self.deployer {
+            Some(ref entry) => entry.clone(),
+            None => format!("{}", StacksAddress::burn_address(is_mainnet))
+        };
+        PrincipalData::parse_standard_principal(&address)
+            .expect("Unable to parse deployer's address")
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -31,4 +55,5 @@ pub struct SessionSettings {
     pub initial_contracts: Vec<InitialContract>,
     pub initial_accounts: Vec<Account>,
     pub initial_deployer: Option<Account>,
+    pub scoping_contract: Option<String>,
 }
