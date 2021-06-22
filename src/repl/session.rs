@@ -265,6 +265,9 @@ impl Session {
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
                     Ok((_, result)) => {
+                        if result.contract.is_none() {
+                            continue;
+                        }
                         let contract = result.contract.unwrap();
                         contracts.push((contract.4.clone(), contract.1.clone()))
                     },
@@ -498,6 +501,9 @@ impl Session {
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
                     Ok((_, result)) => {
+                        if result.contract.is_none() {
+                            continue;
+                        }
                         let analysis_result = result.contract.unwrap();
                         contracts.push((analysis_result.4.clone(), analysis_result.1.clone(), contract.path.clone()))
                     },
