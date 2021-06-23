@@ -171,7 +171,7 @@ impl NFTTransferEventData {
             "asset_identifier": format!("{}", self.asset_identifier),
             "sender": format!("{}",self.sender),
             "recipient": format!("{}",self.recipient),
-            "value": self.value,
+            "value": format!("{}", self.value),
         })
     }
 }
@@ -187,8 +187,8 @@ impl NFTMintEventData {
     pub fn json_serialize(&self) -> serde_json::Value {
         json!({
             "asset_identifier": format!("{}", self.asset_identifier),
-            "recipient": format!("{}",self.recipient),
-            "value": self.value,
+            "recipient": format!("{}", self.recipient),
+            "value": format!("{}", self.value),
         })
     }
 }
@@ -205,7 +205,7 @@ impl NFTBurnEventData {
         json!({
             "asset_identifier": format!("{}", self.asset_identifier),
             "sender": format!("{}",self.sender),
-            "value": self.value,
+            "value": format!("{}", self.value),
         })
     }
 }
