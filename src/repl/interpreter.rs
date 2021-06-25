@@ -63,7 +63,7 @@ impl ClarityInterpreter {
         &self,
         contract_id: String,
         snippet: String
-    ) -> Result<BTreeSet<String>, String> {
+    ) -> Result<BTreeSet<QualifiedContractIdentifier>, String> {
         let contract_id = QualifiedContractIdentifier::parse(&contract_id)
             .unwrap();
         let ast = match self.build_ast(contract_id, snippet.clone()) {
@@ -97,7 +97,7 @@ impl ClarityInterpreter {
     ) -> Result<ContractAnalysis, (String, Option<Diagnostic>)> {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
 
-        let contract_analysis = match analysis::run_analysis(
+        let mut contract_analysis = match analysis::run_analysis(
             &contract_identifier,
             &mut contract_ast.expressions,
             &mut analysis_db,
@@ -110,6 +110,12 @@ impl ClarityInterpreter {
                 return Err((message, Some(error.diagnostic)));
             }
         };
+
+        let deps = ContractCallDetector::run_pass(&contract_ast);
+        for dep in deps.into_iter() {
+            contract_analysis.add_dependency(dep);
+        }
+
         Ok(contract_analysis)
     }
 
@@ -400,14 +406,14 @@ use crate::clarity::representations::{
     SymbolicExpression
 };
 
-pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<String>) {
+pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<QualifiedContractIdentifier>) {
     for (i, expression) in exprs.iter().enumerate() {
         if let Some(exprs) = expression.match_list() {
             traverse(exprs, deps);
         } else if let Some(atom) = expression.match_atom() {
             if atom.as_str() == "contract-call?" {
                 if let Some(types::Value::Principal(PrincipalData::Contract(ref contract_id))) = exprs[i+1].match_literal_value() {
-                    deps.insert(format!("{}", contract_id));
+                    deps.insert(contract_id.clone());
                 }
             } else if atom.as_str() == "use-trait" {
                 let contract_id = exprs[i+2]
@@ -415,14 +421,14 @@ pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<String>) {
                     .unwrap()
                     .clone()
                     .contract_identifier;
-                deps.insert(format!("{}", contract_id));
+                deps.insert(contract_id);
             } else if atom.as_str() == "impl-trait" {
                 let contract_id = exprs[i+1]
                     .match_field()
                     .unwrap()
                     .clone()
                     .contract_identifier;
-                deps.insert(format!("{}", contract_id));
+                deps.insert(contract_id);
             }
         };
     }
@@ -431,7 +437,7 @@ pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<String>) {
 pub struct ContractCallDetector;
 
 impl ContractCallDetector {
-    pub fn run_pass(contract_ast: &ContractAST) -> BTreeSet<String> {
+    pub fn run_pass(contract_ast: &ContractAST) -> BTreeSet<QualifiedContractIdentifier> {
         let mut contract_calls = BTreeSet::new();
         traverse(contract_ast.expressions.as_slice(), &mut contract_calls);
         contract_calls

@@ -38,6 +38,7 @@ pub struct ContractAnalysis {
     pub implemented_traits: BTreeSet<TraitIdentifier>,
     pub contract_interface: Option<ContractInterface>,
     pub is_cost_contract_eligible: bool,
+    pub dependencies: Vec<QualifiedContractIdentifier>,
     #[serde(skip)]
     pub expressions: Vec<SymbolicExpression>,
     #[serde(skip)]
@@ -69,6 +70,7 @@ impl ContractAnalysis {
             non_fungible_tokens: BTreeMap::new(),
             cost_track: Some(cost_track),
             is_cost_contract_eligible: false,
+            dependencies: Vec::new(),
         }
     }
 
@@ -135,6 +137,10 @@ impl ContractAnalysis {
 
     pub fn add_implemented_trait(&mut self, trait_identifier: TraitIdentifier) {
         self.implemented_traits.insert(trait_identifier);
+    }
+
+    pub fn add_dependency(&mut self, dependency: QualifiedContractIdentifier) {
+        self.dependencies.push(dependency);
     }
 
     pub fn get_public_function_type(&self, name: &str) -> Option<&FunctionType> {

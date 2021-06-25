@@ -26,6 +26,7 @@ pub fn build_contract_interface(contract_analysis: &ContractAnalysis) -> Contrac
         cost_track: _,
         contract_interface: _,
         is_cost_contract_eligible: _,
+        dependencies: _,
     } = contract_analysis;
 
     contract_interface
