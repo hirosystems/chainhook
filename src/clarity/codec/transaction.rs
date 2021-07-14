@@ -10,7 +10,7 @@ use crate::clarity::util::hash::{hex_bytes, to_hex, Hash160};
 use crate::clarity::util::retry::BoundReader;
 use crate::clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
 use crate::clarity::util::StacksAddress;
-use secp256k1::{RecoveryId, Signature};
+use libsecp256k1::{RecoveryId, Signature};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::io;

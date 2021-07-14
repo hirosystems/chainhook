@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use secp256k1;
-use secp256k1::Error as LibSecp256k1Error;
-use secp256k1::Message as LibSecp256k1Message;
-use secp256k1::PublicKey as LibSecp256k1PublicKey;
-use secp256k1::SecretKey as LibSecp256k1PrivateKey;
-use secp256k1::Signature as LibSecp256k1Signature;
+use libsecp256k1;
+use libsecp256k1::Error as LibSecp256k1Error;
+use libsecp256k1::Message as LibSecp256k1Message;
+use libsecp256k1::PublicKey as LibSecp256k1PublicKey;
+use libsecp256k1::SecretKey as LibSecp256k1PrivateKey;
+use libsecp256k1::Signature as LibSecp256k1Signature;
 
 use crate::clarity::codec::transaction::RecoverableSignature;
 
@@ -52,9 +52,9 @@ pub struct Secp256k1PrivateKey {
 impl Secp256k1PublicKey {
     pub fn from_slice(data: &[u8]) -> Result<Secp256k1PublicKey, &'static str> {
         let (format, compressed) = if data.len() == PUBLIC_KEY_SIZE {
-            (secp256k1::PublicKeyFormat::Compressed, true)
+            (libsecp256k1::PublicKeyFormat::Compressed, true)
         } else {
-            (secp256k1::PublicKeyFormat::Full, false)
+            (libsecp256k1::PublicKeyFormat::Full, false)
         };
         match LibSecp256k1PublicKey::parse_slice(data, Some(format)) {
             Ok(pubkey_res) => Ok(Secp256k1PublicKey {
@@ -146,7 +146,7 @@ impl Secp256k1PrivateKey {
 
     pub fn sign(&self, data_hash: &[u8]) -> Result<RecoverableSignature, &'static str> {
         let message = LibSecp256k1Message::parse_slice(data_hash).unwrap();
-        let (sig, recid) = secp256k1::sign(&message, &self.key);
+        let (sig, recid) = libsecp256k1::sign(&message, &self.key);
         let rec_sig = RecoverableSignature::from_secp256k1_recoverable(&sig, recid);
         Ok(rec_sig)
     }
@@ -156,10 +156,10 @@ pub fn secp256k1_recover(
     message_arr: &[u8],
     serialized_signature: &[u8],
 ) -> Result<[u8; 33], LibSecp256k1Error> {
-    let recovery_id = secp256k1::RecoveryId::parse(serialized_signature[64] as u8)?;
+    let recovery_id = libsecp256k1::RecoveryId::parse(serialized_signature[64] as u8)?;
     let message = LibSecp256k1Message::parse_slice(message_arr)?;
-    let signature = LibSecp256k1Signature::parse_slice(&serialized_signature[..64])?;
-    let recovered_pub_key = secp256k1::recover(&message, &signature, &recovery_id)?;
+    let signature = LibSecp256k1Signature::parse_standard_slice(&serialized_signature[..64])?;
+    let recovered_pub_key = libsecp256k1::recover(&message, &signature, &recovery_id)?;
     Ok(recovered_pub_key.serialize_compressed())
 }
 
@@ -169,13 +169,13 @@ pub fn secp256k1_verify(
     pubkey_arr: &[u8],
 ) -> Result<(), LibSecp256k1Error> {
     let message = LibSecp256k1Message::parse_slice(message_arr)?;
-    let signature = LibSecp256k1Signature::parse_slice(&serialized_signature[..64])?; // ignore 65th byte if present
+    let signature = LibSecp256k1Signature::parse_standard_slice(&serialized_signature[..64])?; // ignore 65th byte if present
     let pubkey = LibSecp256k1PublicKey::parse_slice(
         pubkey_arr,
-        Some(secp256k1::PublicKeyFormat::Compressed),
+        Some(libsecp256k1::PublicKeyFormat::Compressed),
     )?;
 
-    let res = secp256k1::verify(&message, &signature, &pubkey);
+    let res = libsecp256k1::verify(&message, &signature, &pubkey);
     if res {
         Ok(())
     } else {
