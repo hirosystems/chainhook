@@ -1,6 +1,4 @@
 use crate::clarity::codec::Error as codec_error;
-use std::io::{Read, Write};
-use std::error;
 use crate::clarity::database::{ClarityDeserializable, ClaritySerializable};
 use crate::clarity::errors::{
     CheckErrors, Error as ClarityError, IncomparableError, InterpreterError, InterpreterResult,
@@ -14,6 +12,8 @@ use crate::clarity::types::{
 };
 use crate::clarity::util::hash::{hex_bytes, to_hex};
 use crate::clarity::util::retry::BoundReader;
+use std::error;
+use std::io::{Read, Write};
 
 use crate::clarity::codec::StacksMessageCodec;
 use serde_json::Value as JSONValue;

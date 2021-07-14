@@ -4,11 +4,11 @@ use std::{
     io::Write,
 };
 
-use serde_json::Value as JsonValue;
-use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::ast::ContractAST;
-use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::functions::define::DefineFunctionsParsed;
+use crate::clarity::representations::SymbolicExpression;
+use crate::clarity::types::QualifiedContractIdentifier;
+use serde_json::Value as JsonValue;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct CoverageReporter {
@@ -31,7 +31,6 @@ pub struct ContractCoverageReport {
 }
 
 impl CoverageReporter {
-
     pub fn new() -> CoverageReporter {
         CoverageReporter {
             reports: vec![],
@@ -52,16 +51,23 @@ impl CoverageReporter {
         self.reports.append(&mut reports.clone());
     }
 
-    pub fn write_lcov_file<P: AsRef<std::path::Path> + Copy>(&self, filename: P) -> std::io::Result<()> {
+    pub fn write_lcov_file<P: AsRef<std::path::Path> + Copy>(
+        &self,
+        filename: P,
+    ) -> std::io::Result<()> {
         let mut filtered_asts = HashMap::new();
         for (contract_id, ast) in self.asts.iter() {
             let contract_name = contract_id.name.to_string();
             if self.contract_paths.get(&contract_name).is_some() {
                 filtered_asts.insert(
-                    contract_name, 
-                    (contract_id, self.retrieve_functions(&ast.expressions), self.filter_executable_lines(&ast.expressions))
-                );    
-            }  
+                    contract_name,
+                    (
+                        contract_id,
+                        self.retrieve_functions(&ast.expressions),
+                        self.filter_executable_lines(&ast.expressions),
+                    ),
+                );
+            }
         }
 
         let mut test_names = BTreeSet::new();
@@ -76,7 +82,9 @@ impl CoverageReporter {
                 writeln!(out, "TN:{}", test_name)?;
                 writeln!(out, "SF:{}", contract_path)?;
 
-                if let Some((contract_id, functions, executable_lines)) = filtered_asts.get(contract_name) {
+                if let Some((contract_id, functions, executable_lines)) =
+                    filtered_asts.get(contract_name)
+                {
                     for (function, line_start, line_end) in functions.iter() {
                         writeln!(out, "FN:{},{}", line_start, function)?;
                     }
@@ -89,10 +97,11 @@ impl CoverageReporter {
                                 let mut local_function_hits = BTreeSet::new();
 
                                 for line in executable_lines.iter() {
-
                                     let count = contract.execution_counts.get(line).unwrap_or(&0);
 
-                                    if let Some(line_count) = consolidated_execution_counts.get_mut(line) {
+                                    if let Some(line_count) =
+                                        consolidated_execution_counts.get_mut(line)
+                                    {
                                         *line_count += *count;
                                     } else {
                                         consolidated_execution_counts.insert(*line, *count);
@@ -125,7 +134,7 @@ impl CoverageReporter {
                     }
                     writeln!(out, "FNF:{}", functions.len())?;
                     writeln!(out, "FNH:{}", function_hits.len())?;
-           
+
                     for (line_number, count) in consolidated_execution_counts.iter() {
                         writeln!(out, "DA:{},{}", line_number, count)?;
                     }
@@ -140,21 +149,21 @@ impl CoverageReporter {
     fn retrieve_functions(&self, exprs: &Vec<SymbolicExpression>) -> Vec<(String, u32, u32)> {
         let mut functions = vec![];
         for cur_expr in exprs.iter() {
-            if let Some(define_expr) = DefineFunctionsParsed::try_parse(cur_expr).ok().flatten()
-            {
+            if let Some(define_expr) = DefineFunctionsParsed::try_parse(cur_expr).ok().flatten() {
                 match define_expr {
                     DefineFunctionsParsed::PrivateFunction { signature, body }
                     | DefineFunctionsParsed::PublicFunction { signature, body }
                     | DefineFunctionsParsed::ReadOnlyFunction { signature, body } => {
-                        let expr = signature
-                            .get(0)
-                            .expect("Invalid function signature");
-                        let function_name = expr.match_atom()
-                            .expect("Invalid function signature");
+                        let expr = signature.get(0).expect("Invalid function signature");
+                        let function_name = expr.match_atom().expect("Invalid function signature");
 
-                        functions.push((function_name.to_string(), cur_expr.span.start_line, cur_expr.span.end_line));
+                        functions.push((
+                            function_name.to_string(),
+                            cur_expr.span.start_line,
+                            cur_expr.span.end_line,
+                        ));
                     }
-                    _ => {},
+                    _ => {}
                 }
                 continue;
             }
@@ -225,7 +234,6 @@ impl CoverageReporter {
 }
 
 impl TestCoverageReport {
-
     pub fn new(test_name: String) -> TestCoverageReport {
         TestCoverageReport {
             test_name,
@@ -240,10 +248,11 @@ impl TestCoverageReport {
     ) {
         let mut contract_report = match self.contracts_coverage.remove(contract) {
             Some(e) => e,
-            _ => ContractCoverageReport::new()
+            _ => ContractCoverageReport::new(),
         };
         contract_report.report_eval(expr);
-        self.contracts_coverage.insert(contract.clone(), contract_report);
+        self.contracts_coverage
+            .insert(contract.clone(), contract_report);
     }
 }
 
@@ -256,10 +265,7 @@ impl ContractCoverageReport {
         }
     }
 
-    pub fn report_eval(
-        &mut self,
-        expr: &SymbolicExpression,
-    ) {
+    pub fn report_eval(&mut self, expr: &SymbolicExpression) {
         if expr.match_list().is_some() {
             // don't count the whole list expression: wait until we've eval'ed the
             //   list components

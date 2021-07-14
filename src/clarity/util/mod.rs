@@ -161,7 +161,7 @@ impl StacksAddress {
         if pubkeys.len() < num_sigs {
             return None;
         }
-    
+
         // address hash mode must be consistent with the number of keys
         match *hash_mode {
             AddressHashMode::SerializeP2PKH | AddressHashMode::SerializeP2WPKH => {
@@ -172,7 +172,7 @@ impl StacksAddress {
             }
             _ => {}
         }
-    
+
         // if segwit, then keys must all be compressed
         match *hash_mode {
             AddressHashMode::SerializeP2WPKH | AddressHashMode::SerializeP2WSH => {
@@ -184,7 +184,7 @@ impl StacksAddress {
             }
             _ => {}
         }
-    
+
         let hash_bits = public_keys_to_address_hash(hash_mode, num_sigs, pubkeys);
         Some(StacksAddress::new(version, hash_bits))
     }

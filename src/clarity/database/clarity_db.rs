@@ -140,7 +140,10 @@ impl<'a> ClarityDatabase<'a> {
         self.store.rollback();
     }
 
-    pub fn set_block_hash(&mut self, bhh: StacksBlockId,         query_pending_data: bool,
+    pub fn set_block_hash(
+        &mut self,
+        bhh: StacksBlockId,
+        query_pending_data: bool,
     ) -> Result<StacksBlockId> {
         self.store.set_block_hash(bhh, query_pending_data)
     }
@@ -390,7 +393,8 @@ impl<'a> ClarityDatabase<'a> {
     pub fn get_current_burnchain_block_height(&mut self) -> u32 {
         let cur_stacks_height = self.store.get_current_block_height();
         let cur_id_bhh = self.get_index_block_header_hash(cur_stacks_height);
-        self.get_burnchain_block_height(&cur_id_bhh).unwrap_or(cur_stacks_height)
+        self.get_burnchain_block_height(&cur_id_bhh)
+            .unwrap_or(cur_stacks_height)
     }
 
     pub fn get_block_header_hash(&mut self, block_height: u32) -> BlockHeaderHash {

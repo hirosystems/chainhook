@@ -1,25 +1,25 @@
 use super::{ClarityInterpreter, ExecutionResult};
 use crate::clarity::analysis::ContractAnalysis;
-use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
+use crate::clarity::ast::ContractAST;
+use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
-use crate::clarity::types::{PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
+use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use crate::clarity::util::StacksAddress;
-use crate::clarity::ast::ContractAST;
 use crate::clarity::variables::NativeVariables;
-use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
-use crate::contracts::{POX_CONTRACT, BNS_CONTRACT, COSTS_CONTRACT};
+use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
+use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
-use std::collections::{HashMap, BTreeSet, VecDeque, BTreeMap};
-use std::sync::{Arc, Mutex};
 use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "cli")]
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use super::SessionSettings;
 use super::settings::InitialLink;
+use super::SessionSettings;
 
 #[cfg(feature = "wasm")]
 use reqwest_wasm as reqwest;
@@ -49,7 +49,7 @@ impl Session {
         let tx_sender = {
             let address = match settings.initial_deployer {
                 Some(ref entry) => entry.address.clone(),
-                None => format!("{}", StacksAddress::burn_address(false))
+                None => format!("{}", StacksAddress::burn_address(false)),
             };
             PrincipalData::parse_standard_principal(&address)
                 .expect("Unable to parse deployer's address")
@@ -67,17 +67,22 @@ impl Session {
         }
     }
 
-    async fn retrieve_contract(&mut self, link: &InitialLink) -> Result<(String, BTreeSet<QualifiedContractIdentifier>), String> {
+    async fn retrieve_contract(
+        &mut self,
+        link: &InitialLink,
+    ) -> Result<(String, BTreeSet<QualifiedContractIdentifier>), String> {
         let contract_id = &link.contract_id;
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
         let contract_name = components.last().expect("");
         let stacks_node_addr = match &link.stacks_node_addr {
             Some(addr) => addr.clone(),
-            None => if contract_id.starts_with("SP") {
-                "https://stacks-node-api.mainnet.stacks.co".to_string()
-            } else {
-                "https://stacks-node-api.testnet.stacks.co".to_string()
+            None => {
+                if contract_id.starts_with("SP") {
+                    "https://stacks-node-api.mainnet.stacks.co".to_string()
+                } else {
+                    "https://stacks-node-api.testnet.stacks.co".to_string()
+                }
             }
         };
 
@@ -89,32 +94,38 @@ impl Session {
         );
 
         let response = fetch_contract(request_url).await;
-        
+
         let code = response.source.to_string();
-        let deps = self.interpreter.detect_dependencies(contract_id.to_string(), code.clone())
+        let deps = self
+            .interpreter
+            .detect_dependencies(contract_id.to_string(), code.clone())
             .unwrap();
         Ok((code, deps))
     }
 
-    pub async fn resolve_link(&mut self, link: &InitialLink) -> Result<Vec<(String, String, Vec<String>)>, String> {
+    pub async fn resolve_link(
+        &mut self,
+        link: &InitialLink,
+    ) -> Result<Vec<(String, String, Vec<String>)>, String> {
         let mut resolved_link = Vec::new();
 
         let mut handled: HashMap<String, String> = HashMap::new();
         let mut dependencies: HashMap<String, Vec<String>> = HashMap::new();
         let mut queue = VecDeque::new();
         queue.push_front(link.clone());
-        
+
         while let Some(initial_link) = queue.pop_front() {
             let contract_id = &initial_link.contract_id;
             let components: Vec<&str> = contract_id.split('.').collect();
             let contract_deployer = components.first().expect("");
             let contract_name = components.last().expect("");
-    
+
             // Extract principal from contract_id
             let (contract_code, deps) = match handled.get(contract_id) {
                 Some(entry) => (entry.clone(), BTreeSet::new()),
                 None => {
-                    let (contract_code, deps) = self.retrieve_contract(&initial_link)
+                    let (contract_code, deps) = self
+                        .retrieve_contract(&initial_link)
                         .await
                         .expect("Unable to get contract");
                     handled.insert(contract_id.to_string(), contract_code.clone());
@@ -123,7 +134,10 @@ impl Session {
             };
 
             if deps.len() > 0 {
-                dependencies.insert(contract_id.to_string(), deps.clone().into_iter().map(|c| format!("{}", c)).collect());
+                dependencies.insert(
+                    contract_id.to_string(),
+                    deps.clone().into_iter().map(|c| format!("{}", c)).collect(),
+                );
                 for contract_id in deps.into_iter() {
                     queue.push_back(InitialLink {
                         contract_id: contract_id.to_string(),
@@ -144,7 +158,7 @@ impl Session {
         Ok(resolved_link)
     }
 
-    #[cfg(not(feature = "wasm"))] 
+    #[cfg(not(feature = "wasm"))]
     pub fn start(&mut self) -> (String, Vec<(ContractAnalysis, String)>) {
         let mut output = Vec::<String>::new();
         let mut contracts = vec![];
@@ -153,38 +167,94 @@ impl Session {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
             let boot_testnet_address = "ST000000000000000000002AMW42H";
-            let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-                .expect("Unable to parse deployer's address");
+            let boot_testnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_testnet_address)
+                    .expect("Unable to parse deployer's address");
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
-            let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
-                .expect("Unable to parse deployer's address");            
+            let boot_mainnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                    .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
@@ -218,11 +288,15 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true, None) {
-                    Ok(_) => {},
+                match self.formatted_interpretation(
+                    code.to_string(),
+                    Some(contract_name.to_string()),
+                    true,
+                    None,
+                ) {
+                    Ok(_) => {}
                     Err(ref mut result) => output.append(result),
                 };
-
             }
 
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -243,7 +317,7 @@ impl Session {
                     .interpreter
                     .credit_stx_balance(recipient, account.balance)
                 {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => output.push(red!(err)),
                 };
             }
@@ -256,21 +330,26 @@ impl Session {
                 let deployer = {
                     let address = match contract.deployer {
                         Some(ref entry) => entry.clone(),
-                        None => format!("{}", StacksAddress::burn_address(false))
+                        None => format!("{}", StacksAddress::burn_address(false)),
                     };
                     PrincipalData::parse_standard_principal(&address)
                         .expect("Unable to parse deployer's address")
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
+                match self.formatted_interpretation(
+                    contract.code,
+                    contract.name,
+                    true,
+                    Some("Deployment".into()),
+                ) {
                     Ok((_, result)) => {
                         if result.contract.is_none() {
                             continue;
                         }
                         let contract = result.contract.unwrap();
                         contracts.push((contract.4.clone(), contract.1.clone()))
-                    },
+                    }
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -290,7 +369,7 @@ impl Session {
                 code: code.to_string(),
                 path: "".into(),
                 name: Some(contract_id.to_string()),
-                deployer: Some(deployer.to_string())
+                deployer: Some(deployer.to_string()),
             });
         }
 
@@ -307,7 +386,7 @@ impl Session {
         (output.join("\n"), contracts)
     }
 
-    #[cfg(feature = "wasm")] 
+    #[cfg(feature = "wasm")]
     pub async fn start_wasm(&mut self) -> String {
         let mut output = Vec::<String>::new();
 
@@ -315,38 +394,94 @@ impl Session {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
             let boot_testnet_address = "ST000000000000000000002AMW42H";
-            let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-                .expect("Unable to parse deployer's address");
+            let boot_testnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_testnet_address)
+                    .expect("Unable to parse deployer's address");
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
-            let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
-                .expect("Unable to parse deployer's address");            
+            let boot_mainnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                    .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
@@ -378,8 +513,13 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(code.to_string(), Some(contract_name.to_string()), true, None) {
-                    Ok(_) => {},
+                match self.formatted_interpretation(
+                    code.to_string(),
+                    Some(contract_name.to_string()),
+                    true,
+                    None,
+                ) {
+                    Ok(_) => {}
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -387,7 +527,6 @@ impl Session {
             self.interpreter.set_tx_sender(default_tx_sender);
             self.get_contracts(&mut output);
         }
-
 
         for (contract_id, code) in linked_contracts.iter() {
             let components: Vec<&str> = contract_id.split('.').collect();
@@ -402,7 +541,7 @@ impl Session {
                 code: code.to_string(),
                 path: "".into(),
                 name: Some(contract_id.to_string()),
-                deployer: Some(deployer.to_string())
+                deployer: Some(deployer.to_string()),
             });
         }
 
@@ -422,38 +561,94 @@ impl Session {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
             let boot_testnet_address = "ST000000000000000000002AMW42H";
-            let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-                .expect("Unable to parse deployer's address");
+            let boot_testnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_testnet_address)
+                    .expect("Unable to parse deployer's address");
 
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
-            let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
-                .expect("Unable to parse deployer's address");            
+            let boot_mainnet_deployer =
+                PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                    .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self.settings.include_boot_contracts.contains(&"pox".to_string()) {
-                self.formatted_interpretation(POX_CONTRACT.to_string(), Some("pox".to_string()), false, None)
-                    .expect("Unable to deploy POX");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"pox".to_string())
+            {
+                self.formatted_interpretation(
+                    POX_CONTRACT.to_string(),
+                    Some("pox".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy POX");
             }
-            if self.settings.include_boot_contracts.contains(&"bns".to_string()) {
-                self.formatted_interpretation(BNS_CONTRACT.to_string(), Some("bns".to_string()), false, None)
-                    .expect("Unable to deploy BNS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"bns".to_string())
+            {
+                self.formatted_interpretation(
+                    BNS_CONTRACT.to_string(),
+                    Some("bns".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy BNS");
             }
-            if self.settings.include_boot_contracts.contains(&"costs".to_string()) {
-                self.formatted_interpretation(COSTS_CONTRACT.to_string(), Some("costs".to_string()), false, None)
-                    .expect("Unable to deploy COSTS");
+            if self
+                .settings
+                .include_boot_contracts
+                .contains(&"costs".to_string())
+            {
+                self.formatted_interpretation(
+                    COSTS_CONTRACT.to_string(),
+                    Some("costs".to_string()),
+                    false,
+                    None,
+                )
+                .expect("Unable to deploy COSTS");
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
@@ -473,7 +668,7 @@ impl Session {
                     .interpreter
                     .credit_stx_balance(recipient, account.balance)
                 {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => output.push(red!(err)),
                 };
             }
@@ -492,21 +687,30 @@ impl Session {
                 let deployer = {
                     let address = match contract.deployer {
                         Some(ref entry) => entry.clone(),
-                        None => format!("{}", StacksAddress::burn_address(false))
+                        None => format!("{}", StacksAddress::burn_address(false)),
                     };
                     PrincipalData::parse_standard_principal(&address)
                         .expect("Unable to parse deployer's address")
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(contract.code, contract.name, true, Some("Deployment".into())) {
+                match self.formatted_interpretation(
+                    contract.code,
+                    contract.name,
+                    true,
+                    Some("Deployment".into()),
+                ) {
                     Ok((_, result)) => {
                         if result.contract.is_none() {
                             continue;
                         }
                         let analysis_result = result.contract.unwrap();
-                        contracts.push((analysis_result.4.clone(), analysis_result.1.clone(), contract.path.clone()))
-                    },
+                        contracts.push((
+                            analysis_result.4.clone(),
+                            analysis_result.1.clone(),
+                            contract.path.clone(),
+                        ))
+                    }
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -515,10 +719,9 @@ impl Session {
 
         match output.len() {
             0 => Ok(contracts),
-            _ => Err(output.join("\n"))
+            _ => Err(output.join("\n")),
         }
     }
-
 
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {
         let mut output = Vec::<String>::new();
@@ -527,18 +730,23 @@ impl Session {
             cmd if cmd.starts_with("::list_functions") => self.display_functions(&mut output),
             cmd if cmd.starts_with("::describe_function") => self.display_doc(&mut output, cmd),
             cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
-            cmd if cmd.starts_with("::set_tx_sender") => self.parse_and_set_tx_sender(&mut output, cmd),
+            cmd if cmd.starts_with("::set_tx_sender") => {
+                self.parse_and_set_tx_sender(&mut output, cmd)
+            }
             cmd if cmd.starts_with("::get_assets_maps") => self.get_accounts(&mut output),
             cmd if cmd.starts_with("::get_costs") => self.get_costs(&mut output, cmd),
             cmd if cmd.starts_with("::get_contracts") => self.get_contracts(&mut output),
             cmd if cmd.starts_with("::get_block_height") => self.get_block_height(&mut output),
-            cmd if cmd.starts_with("::advance_chain_tip") => self.parse_and_advance_chain_tip(&mut output, cmd),
+            cmd if cmd.starts_with("::advance_chain_tip") => {
+                self.parse_and_advance_chain_tip(&mut output, cmd)
+            }
 
             snippet => {
-                let mut result = match self.formatted_interpretation(snippet.to_string(), None, true, None) {
-                    Ok((result, _)) => result,
-                    Err(result) => result,
-                };
+                let mut result =
+                    match self.formatted_interpretation(snippet.to_string(), None, true, None) {
+                        Ok((result, _)) => result,
+                        Err(result) => result,
+                    };
                 output.append(&mut result);
             }
         }
@@ -595,14 +803,17 @@ impl Session {
                                     let (begin, end) =
                                         match (line_index == first_line, line_index == last_line) {
                                             (true, true) => (
-                                                span.start_column.saturating_sub(1) as usize ,
+                                                span.start_column.saturating_sub(1) as usize,
                                                 span.end_column.saturating_sub(1) as usize,
                                             ), // One line
-                                            (true, false) => {
-                                                (span.start_column.saturating_sub(1) as usize, line.len().saturating_sub(1))
-                                            } // Multiline, first line
+                                            (true, false) => (
+                                                span.start_column.saturating_sub(1) as usize,
+                                                line.len().saturating_sub(1),
+                                            ), // Multiline, first line
                                             (false, false) => (0, line.len().saturating_sub(1)), // Multiline, in between
-                                            (false, true) => (0, span.end_column.saturating_sub(1) as usize), // Multiline, last line
+                                            (false, true) => {
+                                                (0, span.end_column.saturating_sub(1) as usize)
+                                            } // Multiline, last line
                                         };
 
                                     let error_style = light_red.underline();
@@ -634,7 +845,6 @@ impl Session {
         cost_track: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
-
         let contract_name = match name {
             Some(name) => name,
             None => format!("contract-{}", self.contracts.len()),
@@ -657,14 +867,25 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self.interpreter.run(snippet, contract_identifier.clone(), cost_track, report) {
+        match self
+            .interpreter
+            .run(snippet, contract_identifier.clone(), cost_track, report)
+        {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
                 }
-                if let Some((ref contract_identifier_str, ref source, ref contract, ref ast, ref analysis)) = result.contract {
+                if let Some((
+                    ref contract_identifier_str,
+                    ref source,
+                    ref contract,
+                    ref ast,
+                    ref analysis,
+                )) = result.contract
+                {
                     self.asts.insert(contract_identifier.clone(), ast.clone());
-                    self.contracts.insert(contract_identifier_str.clone(), contract.clone());
+                    self.contracts
+                        .insert(contract_identifier_str.clone(), contract.clone());
                 }
                 Ok(result)
             }
@@ -695,8 +916,9 @@ impl Session {
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::list_functions\t\t\tDisplay all the native functions available in clarity")
+            help_colour.paint(
+                "::list_functions\t\t\tDisplay all the native functions available in clarity"
+            )
         ));
         output.push(format!(
             "{}",
@@ -711,23 +933,19 @@ impl Session {
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::set_tx_sender <principal>\t\tSet tx-sender variable to principal")
+            help_colour.paint("::set_tx_sender <principal>\t\tSet tx-sender variable to principal")
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::get_assets_maps\t\t\tGet assets maps for active accounts")
+            help_colour.paint("::get_assets_maps\t\t\tGet assets maps for active accounts")
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::get_costs <expr>\t\t\tDisplay the cost analysis")
+            help_colour.paint("::get_costs <expr>\t\t\tDisplay the cost analysis")
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::get_contracts\t\t\t\tGet contracts")
+            help_colour.paint("::get_contracts\t\t\t\tGet contracts")
         ));
         output.push(format!(
             "{}",
@@ -735,8 +953,7 @@ impl Session {
         ));
         output.push(format!(
             "{}",
-            help_colour
-                .paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
+            help_colour.paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
         ));
     }
 
@@ -757,13 +974,13 @@ impl Session {
         };
 
         let new_height = self.advance_chain_tip(count);
-        output.push(green!(format!("{} blocks simulated, new height: {}", count, new_height)));
+        output.push(green!(format!(
+            "{} blocks simulated, new height: {}",
+            count, new_height
+        )));
     }
 
-    pub fn advance_chain_tip(
-        &mut self,
-        count: u32,
-    ) -> u32 {
+    pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
         self.interpreter.advance_chain_tip(count)
     }
 
@@ -788,8 +1005,8 @@ impl Session {
     }
 
     pub fn set_tx_sender(&mut self, address: String) {
-        let tx_sender = PrincipalData::parse_standard_principal(&address)
-            .expect("Unable to parse address");
+        let tx_sender =
+            PrincipalData::parse_standard_principal(&address).expect("Unable to parse address");
         self.interpreter.set_tx_sender(tx_sender)
     }
 
@@ -797,15 +1014,15 @@ impl Session {
         self.interpreter.get_tx_sender().to_address()
     }
 
-    fn get_block_height(&mut self, output:&mut Vec<String>) {
+    fn get_block_height(&mut self, output: &mut Vec<String>) {
         let height = self.interpreter.get_block_height();
         output.push(green!(format!("Current height: {}", height)));
     }
-    
+
     fn get_account_name(&self, address: &String) -> Option<&String> {
         for account in self.settings.initial_accounts.iter() {
             if &account.address == address {
-                return Some(&account.name)
+                return Some(&account.name);
             }
         }
         None
@@ -831,11 +1048,31 @@ impl Session {
             }
             let mut table = Table::new();
             table.add_row(Row::new(headers_cells));
-            table.add_row(Row::new(vec![Cell::new("Runtime"), Cell::new(&cost.total.runtime.to_string()), Cell::new(&cost.limit.runtime.to_string())]));
-            table.add_row(Row::new(vec![Cell::new("Read count"), Cell::new(&cost.total.read_count.to_string()), Cell::new(&cost.limit.read_count.to_string())]));
-            table.add_row(Row::new(vec![Cell::new("Read length (bytes)"), Cell::new(&cost.total.read_length.to_string()), Cell::new(&cost.limit.read_length.to_string())]));
-            table.add_row(Row::new(vec![Cell::new("Write count"), Cell::new(&cost.total.write_count.to_string()), Cell::new(&cost.limit.write_count.to_string())]));
-            table.add_row(Row::new(vec![Cell::new("Write length (bytes)"), Cell::new(&cost.total.write_length.to_string()), Cell::new(&cost.limit.write_length.to_string())]));
+            table.add_row(Row::new(vec![
+                Cell::new("Runtime"),
+                Cell::new(&cost.total.runtime.to_string()),
+                Cell::new(&cost.limit.runtime.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Read count"),
+                Cell::new(&cost.total.read_count.to_string()),
+                Cell::new(&cost.limit.read_count.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Read length (bytes)"),
+                Cell::new(&cost.total.read_length.to_string()),
+                Cell::new(&cost.limit.read_length.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Write count"),
+                Cell::new(&cost.total.write_count.to_string()),
+                Cell::new(&cost.limit.write_count.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Write length (bytes)"),
+                Cell::new(&cost.total.write_length.to_string()),
+                Cell::new(&cost.limit.write_length.to_string()),
+            ]));
             output.push(format!("{}", table));
         }
         output.append(&mut result);
@@ -856,7 +1093,7 @@ impl Session {
             table.add_row(Row::new(headers_cells));
             for account in accounts.iter() {
                 let mut cells = vec![];
-                
+
                 if let Some(name) = self.get_account_name(account) {
                     cells.push(Cell::new(&format!("{} ({})", account, name)));
                 } else {
@@ -874,13 +1111,16 @@ impl Session {
     }
 
     #[cfg(feature = "cli")]
-    fn get_contracts(&mut self, output:&mut Vec<String>) {
+    fn get_contracts(&mut self, output: &mut Vec<String>) {
         if self.contracts.len() > 0 {
             let mut table = Table::new();
             table.add_row(row!["Contract identifier", "Public functions"]);
             let contracts = self.contracts.clone();
             for (contract_id, methods) in contracts.iter() {
-                if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
+                if !contract_id.ends_with(".pox")
+                    && !contract_id.ends_with(".bns")
+                    && !contract_id.ends_with(".costs")
+                {
                     let mut formatted_methods = vec![];
                     for (method_name, method_args) in methods.iter() {
                         let formatted_args = if method_args.len() == 0 {
@@ -895,7 +1135,8 @@ impl Session {
                     let formatted_spec = format!("{}", formatted_methods.join("\n"));
                     table.add_row(Row::new(vec![
                         Cell::new(&contract_id),
-                        Cell::new(&formatted_spec)]));
+                        Cell::new(&formatted_spec),
+                    ]));
                 }
             }
             output.push(format!("{}", table));
@@ -911,25 +1152,34 @@ impl Session {
         };
 
         if let Some(cost) = cost {
-            output.push(format!("Execution: {:?}\nLimit: {:?}", cost.total, cost.limit));
+            output.push(format!(
+                "Execution: {:?}\nLimit: {:?}",
+                cost.total, cost.limit
+            ));
         }
         output.append(&mut result);
     }
 
     #[cfg(not(feature = "cli"))]
-    fn get_accounts(&mut self, output:&mut Vec<String>) {
+    fn get_accounts(&mut self, output: &mut Vec<String>) {
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
-                output.push(format!("{}: {} ({})", account.address, account.balance, account.name));
+                output.push(format!(
+                    "{}: {} ({})",
+                    account.address, account.balance, account.name
+                ));
             }
         }
     }
 
     #[cfg(not(feature = "cli"))]
-    fn get_contracts(&mut self, output:&mut Vec<String>) {
+    fn get_contracts(&mut self, output: &mut Vec<String>) {
         for (contract_id, methods) in self.contracts.iter() {
-            if !contract_id.ends_with(".pox") && !contract_id.ends_with(".bns") && !contract_id.ends_with(".costs") {
+            if !contract_id.ends_with(".pox")
+                && !contract_id.ends_with(".bns")
+                && !contract_id.ends_with(".costs")
+            {
                 output.push(format!("{}", contract_id));
             }
         }

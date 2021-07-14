@@ -56,8 +56,7 @@ impl Secp256k1PublicKey {
         } else {
             (secp256k1::PublicKeyFormat::Full, false)
         };
-        match LibSecp256k1PublicKey::parse_slice(data, Some(format))
-        {
+        match LibSecp256k1PublicKey::parse_slice(data, Some(format)) {
             Ok(pubkey_res) => Ok(Secp256k1PublicKey {
                 key: pubkey_res,
                 compressed,
@@ -107,16 +106,14 @@ impl Secp256k1PublicKey {
         msg: &[u8],
         sig: &RecoverableSignature,
     ) -> Result<Secp256k1PublicKey, &'static str> {
-
         let secp256k1_sig = secp256k1_recover(msg, sig.as_bytes())
             .map_err(|_e| "Invalid signature: failed to recover public key")?;
 
         Secp256k1PublicKey::from_slice(&secp256k1_sig)
-    }    
+    }
 }
 
 impl Secp256k1PrivateKey {
-
     pub fn from_slice(data: &[u8]) -> Result<Secp256k1PrivateKey, &'static str> {
         if data.len() < 32 {
             return Err("Invalid private key: shorter than 32 bytes");
@@ -133,7 +130,7 @@ impl Secp256k1PrivateKey {
         } else {
             false
         };
-        
+
         match LibSecp256k1PrivateKey::parse_slice(&data[0..32]) {
             Ok(privkey_res) => Ok(Secp256k1PrivateKey {
                 key: privkey_res,

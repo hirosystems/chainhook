@@ -1,23 +1,21 @@
-use crate::clarity::representations::{ClarityName, ContractName};
-use crate::clarity::types::{
-    AssetIdentifier, PrincipalData, QualifiedContractIdentifier, Value
-};
-use crate::clarity::types::serialization::SerializationError;
-use crate::clarity::util::StacksAddress;
-use crate::clarity::util::address::AddressHashMode;
-use crate::clarity::util::hash::{Hash160, hex_bytes, to_hex};
 use super::StacksString;
-use secp256k1::{Signature, RecoveryId};
-use crate::clarity::util::secp256k1::{Secp256k1PublicKey, Secp256k1PrivateKey};
-use serde::{Deserialize, Serialize};
 use super::{read_next, read_next_exact, write_next, Error as CodecError, StacksMessageCodec};
+use crate::clarity::codec::{MAX_MESSAGE_LEN, MAX_TRANSACTION_LEN};
+use crate::clarity::representations::{ClarityName, ContractName};
+use crate::clarity::types::serialization::SerializationError;
+use crate::clarity::types::{AssetIdentifier, PrincipalData, QualifiedContractIdentifier, Value};
+use crate::clarity::util::address::AddressHashMode;
+use crate::clarity::util::hash::Sha512Trunc256Sum;
+use crate::clarity::util::hash::{hex_bytes, to_hex, Hash160};
+use crate::clarity::util::retry::BoundReader;
+use crate::clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
+use crate::clarity::util::StacksAddress;
+use secp256k1::{RecoveryId, Signature};
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::io;
-use std::io::{Read, Write};
 use std::io::prelude::*;
-use crate::clarity::util::retry::BoundReader;
-use crate::clarity::codec::{MAX_TRANSACTION_LEN, MAX_MESSAGE_LEN};
-use crate::clarity::util::hash::Sha512Trunc256Sum;
+use std::io::{Read, Write};
 
 pub const C32_ADDRESS_VERSION_MAINNET_SINGLESIG: u8 = 22; // P
 pub const C32_ADDRESS_VERSION_MAINNET_MULTISIG: u8 = 20; // M
@@ -162,14 +160,12 @@ pub enum TransactionPostConditionMode {
     Deny = 0x02,  // deny any other changes not specified
 }
 
-
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 pub enum NonfungibleConditionCode {
     Sent = 0x10,
     NotSent = 0x11,
 }
-
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
@@ -339,7 +335,6 @@ impl Txid {
 }
 
 impl StacksTransaction {
-
     pub fn tx_len(&self) -> u64 {
         let mut tx_bytes = vec![];
         self.consensus_serialize(&mut tx_bytes)
@@ -576,7 +571,6 @@ impl StacksMessageCodec for TransactionPayload {
         Ok(payload)
     }
 }
-
 
 impl StacksMessageCodec for AssetInfo {
     fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), CodecError> {
@@ -822,7 +816,9 @@ impl StacksMessageCodec for SinglesigSpendingCondition {
         Ok(())
     }
 
-    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<SinglesigSpendingCondition, CodecError> {
+    fn consensus_deserialize<R: Read>(
+        fd: &mut R,
+    ) -> Result<SinglesigSpendingCondition, CodecError> {
         let hash_mode_u8: u8 = read_next(fd)?;
         let hash_mode = SinglesigHashMode::from_u8(hash_mode_u8).ok_or(
             CodecError::DeserializeError(format!(
@@ -877,11 +873,12 @@ impl StacksMessageCodec for MultisigSpendingCondition {
 
     fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<MultisigSpendingCondition, CodecError> {
         let hash_mode_u8: u8 = read_next(fd)?;
-        let hash_mode =
-            MultisigHashMode::from_u8(hash_mode_u8).ok_or(CodecError::DeserializeError(format!(
+        let hash_mode = MultisigHashMode::from_u8(hash_mode_u8).ok_or(
+            CodecError::DeserializeError(format!(
                 "Failed to parse multisig spending condition: unknown hash mode {}",
                 hash_mode_u8
-            )))?;
+            )),
+        )?;
 
         let bytes: Vec<u8> = read_next_exact::<_, u8>(fd, 20)?;
         let signer = Hash160::from_data(&bytes);
@@ -1370,7 +1367,9 @@ impl TransactionSpendingCondition {
         ))
     }
 
-    pub fn new_singlesig_p2wpkh(pubkey: Secp256k1PublicKey) -> Option<TransactionSpendingCondition> {
+    pub fn new_singlesig_p2wpkh(
+        pubkey: Secp256k1PublicKey,
+    ) -> Option<TransactionSpendingCondition> {
         let signer_addr = StacksAddress::from_public_keys(
             0,
             &AddressHashMode::SerializeP2WPKH,
@@ -1757,7 +1756,9 @@ impl TransactionAuth {
                 *ssc = sponsor_spending_cond;
                 Ok(())
             }
-            _ => Err(CodecError::GenericError("IncompatibleSpendingConditionError".into())),
+            _ => Err(CodecError::GenericError(
+                "IncompatibleSpendingConditionError".into(),
+            )),
         }
     }
 
@@ -1828,7 +1829,9 @@ impl TransactionAuth {
 
     pub fn set_sponsor_nonce(&mut self, n: u64) -> Result<(), CodecError> {
         match *self {
-            TransactionAuth::Standard(_) => Err(CodecError::GenericError("IncompatibleSpendingConditionError".into())),
+            TransactionAuth::Standard(_) => Err(CodecError::GenericError(
+                "IncompatibleSpendingConditionError".into(),
+            )),
             TransactionAuth::Sponsored(_, ref mut s) => {
                 s.set_nonce(n);
                 Ok(())
@@ -2196,7 +2199,9 @@ impl StacksTransactionSigner {
         spending_condition: TransactionSpendingCondition,
     ) -> Result<StacksTransactionSigner, CodecError> {
         if !tx.auth.is_sponsored() {
-            return Err(CodecError::GenericError("IncompatibleSpendingConditionError".into()));
+            return Err(CodecError::GenericError(
+                "IncompatibleSpendingConditionError".into(),
+            ));
         }
         let mut new_tx = tx.clone();
         new_tx.auth.set_sponsor(spending_condition)?;

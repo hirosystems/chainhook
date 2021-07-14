@@ -1,19 +1,23 @@
-use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
-use crate::clarity::contexts::{ContractContext, GlobalContext, CallStack, Environment, LocalContext};
+use crate::clarity::contexts::{
+    CallStack, ContractContext, Environment, GlobalContext, LocalContext,
+};
 use crate::clarity::contracts::Contract;
-use crate::clarity::costs::{LimitedCostTracker, ExecutionCost};
+use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
+use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
-use crate::clarity::{eval_all, eval};
-use crate::clarity::types::{self, PrincipalData, StandardPrincipalData, QualifiedContractIdentifier};
+use crate::clarity::events::*;
+use crate::clarity::types::{
+    self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData,
+};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
-use crate::clarity::events::*;
-use crate::clarity::coverage::TestCoverageReport;
+use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
+use crate::clarity::{eval, eval_all};
 use crate::repl::{CostSynthesis, ExecutionResult};
 use serde_json::Value;
 
@@ -38,7 +42,12 @@ impl ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
-        ClarityInterpreter { datastore, tx_sender, accounts, tokens }
+        ClarityInterpreter {
+            datastore,
+            tx_sender,
+            accounts,
+            tokens,
+        }
     }
 
     pub fn run(
@@ -46,11 +55,18 @@ impl ClarityInterpreter {
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
-        coverage_reporter: Option<TestCoverageReport>
+        coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
-        let result = self.execute(contract_identifier, &mut ast, snippet, analysis, cost_track, coverage_reporter)?;
+        let result = self.execute(
+            contract_identifier,
+            &mut ast,
+            snippet,
+            analysis,
+            cost_track,
+            coverage_reporter,
+        )?;
 
         // todo: instead of just returning the value, we should be returning:
         // - value
@@ -62,10 +78,9 @@ impl ClarityInterpreter {
     pub fn detect_dependencies(
         &self,
         contract_id: String,
-        snippet: String
+        snippet: String,
     ) -> Result<BTreeSet<QualifiedContractIdentifier>, String> {
-        let contract_id = QualifiedContractIdentifier::parse(&contract_id)
-            .unwrap();
+        let contract_id = QualifiedContractIdentifier::parse(&contract_id).unwrap();
         let ast = match self.build_ast(contract_id, snippet.clone()) {
             Err(e) => return Err(format!("{:?}", e)),
             Ok(ast) => ast,
@@ -129,7 +144,6 @@ impl ClarityInterpreter {
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
-
         let mut execution_result = ExecutionResult::default();
         let mut contract_saved = false;
         let mut serialized_events = vec![];
@@ -151,18 +165,30 @@ impl ClarityInterpreter {
 
             let result = global_context.execute(|g| {
                 // If we have more than one instruction
-                if contract_ast.expressions.len() == 1 && !snippet.contains("(define-") {                    
-                    let context = LocalContext::new();                
+                if contract_ast.expressions.len() == 1 && !snippet.contains("(define-") {
+                    let context = LocalContext::new();
                     let mut call_stack = CallStack::new();
                     let mut env = Environment::new(
-                        g, &mut contract_context, &mut call_stack, Some(tx_sender.clone()), Some(tx_sender.clone()));
+                        g,
+                        &mut contract_context,
+                        &mut call_stack,
+                        Some(tx_sender.clone()),
+                        Some(tx_sender.clone()),
+                    );
 
                     let result = match contract_ast.expressions[0].expr {
                         List(ref expression) => match expression[0].expr {
                             Atom(ref name) if name.to_string() == "contract-call?" => {
-                                let contract_identifier = match expression[1].match_literal_value().unwrap().clone().expect_principal() {
-                                    PrincipalData::Contract(contract_identifier) => contract_identifier,
-                                    _ => unreachable!()
+                                let contract_identifier = match expression[1]
+                                    .match_literal_value()
+                                    .unwrap()
+                                    .clone()
+                                    .expect_principal()
+                                {
+                                    PrincipalData::Contract(contract_identifier) => {
+                                        contract_identifier
+                                    }
+                                    _ => unreachable!(),
                                 };
                                 let method = expression[2].match_atom().unwrap().to_string();
                                 let mut args = vec![];
@@ -170,13 +196,14 @@ impl ClarityInterpreter {
                                     let evaluated_arg = eval(arg, &mut env, &context)?;
                                     args.push(SymbolicExpression::atom_value(evaluated_arg));
                                 }
-                                env.execute_contract(&contract_identifier, &method, &args, false).unwrap()
-                            },
-                            _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap()
+                                env.execute_contract(&contract_identifier, &method, &args, false)
+                                    .unwrap()
+                            }
+                            _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap(),
                         },
-                        _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap()
+                        _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap(),
                     };
-                    Ok(Some(result))    
+                    Ok(Some(result))
                 } else {
                     eval_all(&contract_ast.expressions, &mut contract_context, g)
                 }
@@ -194,46 +221,110 @@ impl ClarityInterpreter {
             };
 
             if cost_track {
-                execution_result.cost = Some(CostSynthesis::from_cost_tracker(&global_context.cost_track));
+                execution_result.cost =
+                    Some(CostSynthesis::from_cost_tracker(&global_context.cost_track));
             }
-            
-            let mut emitted_events = global_context.event_batches
+
+            let mut emitted_events = global_context
+                .event_batches
                 .iter()
                 .flat_map(|b| b.events.clone())
                 .collect::<Vec<_>>();
 
             for event in emitted_events.drain(..) {
                 match event {
-                    StacksTransactionEvent::STXEvent(STXEventType::STXTransferEvent(ref event_data)) => {
-                        accounts_to_debit.push((event_data.sender.to_string(), "STX".to_string(), event_data.amount.clone()));
-                        accounts_to_credit.push((event_data.recipient.to_string(), "STX".to_string(), event_data.amount.clone()));
-                    },
-                    StacksTransactionEvent::STXEvent(STXEventType::STXMintEvent(ref event_data)) => {
-                        accounts_to_credit.push((event_data.recipient.to_string(), "STX".to_string(), event_data.amount.clone()));
-                    },
-                    StacksTransactionEvent::STXEvent(STXEventType::STXBurnEvent(ref event_data)) => {
-                        accounts_to_debit.push((event_data.sender.to_string(), "STX".to_string(), event_data.amount.clone()));
-                    },
-                    StacksTransactionEvent::FTEvent(FTEventType::FTTransferEvent(ref event_data)) => {
-                        accounts_to_credit.push((event_data.recipient.to_string(), event_data.asset_identifier.sugared(), event_data.amount.clone()));
-                        accounts_to_debit.push((event_data.sender.to_string(), event_data.asset_identifier.sugared(), event_data.amount.clone()));
-                    },
+                    StacksTransactionEvent::STXEvent(STXEventType::STXTransferEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            "STX".to_string(),
+                            event_data.amount.clone(),
+                        ));
+                        accounts_to_credit.push((
+                            event_data.recipient.to_string(),
+                            "STX".to_string(),
+                            event_data.amount.clone(),
+                        ));
+                    }
+                    StacksTransactionEvent::STXEvent(STXEventType::STXMintEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_credit.push((
+                            event_data.recipient.to_string(),
+                            "STX".to_string(),
+                            event_data.amount.clone(),
+                        ));
+                    }
+                    StacksTransactionEvent::STXEvent(STXEventType::STXBurnEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            "STX".to_string(),
+                            event_data.amount.clone(),
+                        ));
+                    }
+                    StacksTransactionEvent::FTEvent(FTEventType::FTTransferEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_credit.push((
+                            event_data.recipient.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            event_data.amount.clone(),
+                        ));
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            event_data.amount.clone(),
+                        ));
+                    }
                     StacksTransactionEvent::FTEvent(FTEventType::FTMintEvent(ref event_data)) => {
-                        accounts_to_credit.push((event_data.recipient.to_string(), event_data.asset_identifier.sugared(), event_data.amount.clone()));
-                    },
+                        accounts_to_credit.push((
+                            event_data.recipient.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            event_data.amount.clone(),
+                        ));
+                    }
                     StacksTransactionEvent::FTEvent(FTEventType::FTBurnEvent(ref event_data)) => {
-                        accounts_to_debit.push((event_data.sender.to_string(), event_data.asset_identifier.sugared(), event_data.amount.clone()));
-                    },
-                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTTransferEvent(ref event_data)) => {
-                        accounts_to_credit.push((event_data.recipient.to_string(), event_data.asset_identifier.sugared(), 1));
-                        accounts_to_debit.push((event_data.sender.to_string(), event_data.asset_identifier.sugared(), 1));
-                    },
-                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTMintEvent(ref event_data)) => {
-                        accounts_to_debit.push((event_data.recipient.to_string(), event_data.asset_identifier.sugared(), 1));
-                    },
-                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTBurnEvent(ref event_data)) => {
-                        accounts_to_debit.push((event_data.sender.to_string(), event_data.asset_identifier.sugared(), 1));
-                    },
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            event_data.amount.clone(),
+                        ));
+                    }
+                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTTransferEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_credit.push((
+                            event_data.recipient.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            1,
+                        ));
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            1,
+                        ));
+                    }
+                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTMintEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_debit.push((
+                            event_data.recipient.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            1,
+                        ));
+                    }
+                    StacksTransactionEvent::NFTEvent(NFTEventType::NFTBurnEvent(
+                        ref event_data,
+                    )) => {
+                        accounts_to_debit.push((
+                            event_data.sender.to_string(),
+                            event_data.asset_identifier.sugared(),
+                            1,
+                        ));
+                    }
                     // StacksTransactionEvent::SmartContractEvent(event_data) => ,
                     // StacksTransactionEvent::STXEvent(STXEventType::STXLockEvent(event_data)) => ,
                     _ => {}
@@ -261,7 +352,13 @@ impl ClarityInterpreter {
 
                     functions.insert(name.to_string(), args);
                 }
-                execution_result.contract = Some((contract_identifier.to_string(), snippet.clone(), functions, contract_ast.clone(), contract_analysis.clone()));
+                execution_result.contract = Some((
+                    contract_identifier.to_string(),
+                    snippet.clone(),
+                    functions,
+                    contract_ast.clone(),
+                    contract_analysis.clone(),
+                ));
 
                 for defined_trait in contract_context.defined_traits.iter() {}
 
@@ -314,7 +411,8 @@ impl ClarityInterpreter {
     ) -> Result<String, String> {
         let final_balance = {
             let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
-            let mut global_context = GlobalContext::new(false, conn, LimitedCostTracker::new_free());
+            let mut global_context =
+                GlobalContext::new(false, conn, LimitedCostTracker::new_free());
             global_context.begin();
             let mut cur_balance = global_context.database.get_stx_balance_snapshot(&recipient);
             cur_balance.credit(amount as u128);
@@ -347,8 +445,10 @@ impl ClarityInterpreter {
         self.accounts.insert(account.clone());
         match self.tokens.entry(token) {
             Entry::Occupied(balances) => {
-                balances.into_mut().entry(account)
-                    .and_modify(|e| { *e += value })
+                balances
+                    .into_mut()
+                    .entry(account)
+                    .and_modify(|e| *e += value)
                     .or_insert(value);
             }
             Entry::Vacant(v) => {
@@ -363,8 +463,10 @@ impl ClarityInterpreter {
         self.accounts.insert(account.clone());
         match self.tokens.entry(token) {
             Entry::Occupied(balances) => {
-                balances.into_mut().entry(account)
-                    .and_modify(|e| { *e -= value })
+                balances
+                    .into_mut()
+                    .entry(account)
+                    .and_modify(|e| *e -= value)
                     .or_insert(value);
             }
             Entry::Vacant(v) => {
@@ -396,14 +498,11 @@ impl ClarityInterpreter {
             _ => 0,
         }
     }
-
 }
 
+use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::representations::SymbolicExpressionType::{
     Atom, AtomValue, Field, List, LiteralValue, TraitReference,
-};
-use crate::clarity::representations::{
-    SymbolicExpression
 };
 
 pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<QualifiedContractIdentifier>) {
@@ -412,18 +511,20 @@ pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<QualifiedContr
             traverse(exprs, deps);
         } else if let Some(atom) = expression.match_atom() {
             if atom.as_str() == "contract-call?" {
-                if let Some(types::Value::Principal(PrincipalData::Contract(ref contract_id))) = exprs[i+1].match_literal_value() {
+                if let Some(types::Value::Principal(PrincipalData::Contract(ref contract_id))) =
+                    exprs[i + 1].match_literal_value()
+                {
                     deps.insert(contract_id.clone());
                 }
             } else if atom.as_str() == "use-trait" {
-                let contract_id = exprs[i+2]
+                let contract_id = exprs[i + 2]
                     .match_field()
                     .unwrap()
                     .clone()
                     .contract_identifier;
                 deps.insert(contract_id);
             } else if atom.as_str() == "impl-trait" {
-                let contract_id = exprs[i+1]
+                let contract_id = exprs[i + 1]
                     .match_field()
                     .unwrap()
                     .clone()

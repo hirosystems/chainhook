@@ -1,15 +1,10 @@
 #[allow(unused_macros)]
 macro_rules! impl_byte_array_message_codec {
-
     ($thing:ident, $len:expr) => {
         // use $crate::clarity::codec::{StacksMessageCodec, Error as codec_error};
 
         impl StacksMessageCodec for $thing {
-
-            fn consensus_serialize<W: std::io::Write>(
-                &self,
-                fd: &mut W,
-            ) -> Result<(), CodecError> {
+            fn consensus_serialize<W: std::io::Write>(&self, fd: &mut W) -> Result<(), CodecError> {
                 fd.write_all(self.as_bytes())
                     .map_err(CodecError::WriteError)
             }

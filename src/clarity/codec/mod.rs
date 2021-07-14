@@ -4,21 +4,25 @@ pub mod transaction;
 
 pub use transaction::StacksTransaction;
 
-use std::{io, mem, fmt, error};
-use std::io::{Read, Write};
+use std::convert::TryFrom;
 use std::io::prelude::*;
+use std::io::{Read, Write};
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::convert::TryFrom;
+use std::{error, fmt, io, mem};
 
-use crate::clarity::ast::parser::{lex, LexItem, CONTRACT_MAX_NAME_LENGTH, CONTRACT_MIN_NAME_LENGTH};
-use crate::clarity::representations::{ClarityName, ContractName, MAX_STRING_LEN as CLARITY_MAX_STRING_LENGTH};
+use crate::clarity::ast::parser::{
+    lex, LexItem, CONTRACT_MAX_NAME_LENGTH, CONTRACT_MIN_NAME_LENGTH,
+};
+use crate::clarity::representations::{
+    ClarityName, ContractName, MAX_STRING_LEN as CLARITY_MAX_STRING_LENGTH,
+};
 use crate::clarity::types::{PrincipalData, Value};
 
-use crate::clarity::util::retry::BoundReader;
 use crate::clarity::util::hash::Hash160;
-use crate::clarity::util::StacksAddress;
+use crate::clarity::util::retry::BoundReader;
 use crate::clarity::util::secp256k1::Secp256k1PublicKey;
+use crate::clarity::util::StacksAddress;
 
 pub const HASH160_ENCODED_SIZE: u32 = 20;
 pub const BURNCHAIN_HEADER_HASH_ENCODED_SIZE: u32 = 32;
@@ -186,8 +190,7 @@ macro_rules! impl_stacks_message_codec_for_int {
     ($typ:ty; $array:expr) => {
         impl StacksMessageCodec for $typ {
             fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), Error> {
-                fd.write_all(&self.to_be_bytes())
-                    .map_err(Error::WriteError)
+                fd.write_all(&self.to_be_bytes()).map_err(Error::WriteError)
             }
             fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<Self, Error> {
                 let mut buf = $array;
@@ -350,9 +353,7 @@ impl StacksMessageCodec for StacksString {
 
         // must encode a valid string
         let s = String::from_utf8(bytes.clone()).map_err(|_e| {
-            Error::DeserializeError(
-                "Invalid Stacks string: could not build from utf8".to_string(),
-            )
+            Error::DeserializeError("Invalid Stacks string: could not build from utf8".to_string())
         })?;
 
         if !StacksString::is_valid_string(&s) {
@@ -376,8 +377,7 @@ impl StacksMessageCodec for ClarityName {
             ));
         }
         write_next(fd, &(self.as_bytes().len() as u8))?;
-        fd.write_all(self.as_bytes())
-            .map_err(Error::WriteError)?;
+        fd.write_all(self.as_bytes()).map_err(Error::WriteError)?;
         Ok(())
     }
 
@@ -417,8 +417,7 @@ impl StacksMessageCodec for ContractName {
             )));
         }
         write_next(fd, &(self.as_bytes().len() as u8))?;
-        fd.write_all(self.as_bytes())
-            .map_err(Error::WriteError)?;
+        fd.write_all(self.as_bytes()).map_err(Error::WriteError)?;
         Ok(())
     }
 

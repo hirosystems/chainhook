@@ -26,8 +26,8 @@ mod macros;
 use wasm_bindgen::prelude::*;
 
 pub mod clarity;
-pub mod repl;
 pub mod contracts;
+pub mod repl;
 
 struct GlobalContext {
     session: Option<Session>,
@@ -41,33 +41,34 @@ pub mod frontend;
 #[cfg(feature = "cli")]
 pub use frontend::Terminal;
 
-use repl::{Session, SessionSettings};
 use repl::settings::InitialLink;
+use repl::{Session, SessionSettings};
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub async fn init_session(fetch_contract: String) -> String {
-
-    let (session, output) = unsafe { match WASM_GLOBAL_CONTEXT.session.take() {
-        Some(session) => (session, "".to_string()),
-        None => {
-            let initial_links = if fetch_contract == "null" {
-                vec![]
-            } else {
-                vec![InitialLink {
-                    contract_id: fetch_contract.to_string(),
-                    stacks_node_addr: None,
-                    cache: None,
-                }]
-            };
-            let mut settings = SessionSettings::default();
-            settings.include_boot_contracts = vec!["costs".into()];
-            settings.initial_links = initial_links;
-            let mut session = Session::new(settings);
-            let output = session.start_wasm().await;
-            (session, output)
+    let (session, output) = unsafe {
+        match WASM_GLOBAL_CONTEXT.session.take() {
+            Some(session) => (session, "".to_string()),
+            None => {
+                let initial_links = if fetch_contract == "null" {
+                    vec![]
+                } else {
+                    vec![InitialLink {
+                        contract_id: fetch_contract.to_string(),
+                        stacks_node_addr: None,
+                        cache: None,
+                    }]
+                };
+                let mut settings = SessionSettings::default();
+                settings.include_boot_contracts = vec!["costs".into()];
+                settings.initial_links = initial_links;
+                let mut session = Session::new(settings);
+                let output = session.start_wasm().await;
+                (session, output)
+            }
         }
-    }};
+    };
 
     unsafe {
         WASM_GLOBAL_CONTEXT.session = Some(session);
@@ -78,13 +79,12 @@ pub async fn init_session(fetch_contract: String) -> String {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn handle_command(command: &str) -> String {
-
-    let mut session = unsafe { match WASM_GLOBAL_CONTEXT.session.take() {
-        Some(session) => session,
-        None => {
-            return "Error: session lost".to_string()
+    let mut session = unsafe {
+        match WASM_GLOBAL_CONTEXT.session.take() {
+            Some(session) => session,
+            None => return "Error: session lost".to_string(),
         }
-    }};
+    };
 
     let output_lines = session.handle_command(command);
 

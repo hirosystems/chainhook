@@ -66,7 +66,6 @@ pub fn bytes_to_hex(s: &Vec<u8>) -> String {
     to_hex(&s[..])
 }
 
-
 macro_rules! impl_serde_json_hex_string {
     ($name:ident, $len:expr) => {
         pub struct $name {}

@@ -12,11 +12,11 @@ use crate::clarity::contexts::{ContractContext, Environment, GlobalContext, Owne
 use crate::clarity::costs::cost_functions::ClarityCostFunction;
 use crate::clarity::database::{ClarityDatabase, NullBackingStore};
 use crate::clarity::errors::{Error, InterpreterResult};
-use crate::clarity::types::{Value::UInt, PrincipalData, TupleData};
-use crate::clarity::types::{QualifiedContractIdentifier, TypeSignature, NONE};
-use crate::clarity::{ast, eval_all, ClarityName, SymbolicExpression, Value};
 use crate::clarity::types::signatures::TupleTypeSignature;
 use crate::clarity::types::{FunctionType, FunctionType::Fixed};
+use crate::clarity::types::{PrincipalData, TupleData, Value::UInt};
+use crate::clarity::types::{QualifiedContractIdentifier, TypeSignature, NONE};
+use crate::clarity::{ast, eval_all, ClarityName, SymbolicExpression, Value};
 
 type Result<T> = std::result::Result<T, CostErrors>;
 
@@ -330,7 +330,7 @@ fn load_cost_functions(
     apply_updates: bool,
 ) -> Result<CostStateSummary> {
     if mainnet == false {
-        return Ok(CostStateSummary::empty())
+        return Ok(CostStateSummary::empty());
     }
 
     let last_processed_count = clarity_db
@@ -390,7 +390,9 @@ fn load_cost_functions(
         ) {
             Ok(x) => x,
             Err(_) => {
-                println!("Confirmed cost proposal invalid: function-name is not a valid function name");
+                println!(
+                    "Confirmed cost proposal invalid: function-name is not a valid function name"
+                );
                 continue;
             }
         };
@@ -492,7 +494,9 @@ fn load_cost_functions(
                         }
                         for arg in &cost_func_type.args {
                             if &arg.signature != &TypeSignature::UIntType {
-                                println!("Confirmed cost proposal invalid: contains non uint argument");
+                                println!(
+                                    "Confirmed cost proposal invalid: contains non uint argument"
+                                );
                                 continue;
                             }
                         }
@@ -502,7 +506,9 @@ fn load_cost_functions(
                     }
                 }
                 None => {
-                    println!("Confirmed cost proposal invalid: contract-name not a published contract");
+                    println!(
+                        "Confirmed cost proposal invalid: contract-name not a published contract"
+                    );
                     continue;
                 }
             }

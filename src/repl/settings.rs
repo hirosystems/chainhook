@@ -1,6 +1,10 @@
 use std::convert::TryInto;
 
-use crate::clarity::{coverage::CoverageReporter, types::{StandardPrincipalData, PrincipalData, QualifiedContractIdentifier}, util::StacksAddress};
+use crate::clarity::{
+    coverage::CoverageReporter,
+    types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData},
+    util::StacksAddress,
+};
 
 #[derive(Clone, Debug)]
 pub struct InitialContract {
@@ -11,21 +15,20 @@ pub struct InitialContract {
 }
 
 impl InitialContract {
-
     pub fn get_contract_identifier(&self, is_mainnet: bool) -> Option<QualifiedContractIdentifier> {
         match self.name {
             Some(ref name) => Some(QualifiedContractIdentifier {
                 issuer: self.get_deployer_principal(is_mainnet).into(),
                 name: name.to_string().try_into().unwrap(),
             }),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn get_deployer_principal(&self, is_mainnet: bool) -> StandardPrincipalData {
         let address = match self.deployer {
             Some(ref entry) => entry.clone(),
-            None => format!("{}", StacksAddress::burn_address(is_mainnet))
+            None => format!("{}", StacksAddress::burn_address(is_mainnet)),
         };
         PrincipalData::parse_standard_principal(&address)
             .expect("Unable to parse deployer's address")
@@ -50,6 +53,7 @@ pub struct Account {
 
 #[derive(Clone, Debug, Default)]
 pub struct SessionSettings {
+    pub node: String,
     pub include_boot_contracts: Vec<String>,
     pub initial_links: Vec<InitialLink>,
     pub initial_contracts: Vec<InitialContract>,

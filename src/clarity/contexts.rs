@@ -11,6 +11,7 @@ use crate::clarity::costs::cost_functions::ClarityCostFunction;
 use crate::clarity::costs::{
     cost_functions, runtime_cost, CostErrors, CostTracker, ExecutionCost, LimitedCostTracker,
 };
+use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::structures::{
     DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
 };
@@ -20,7 +21,6 @@ use crate::clarity::errors::{
 };
 use crate::clarity::representations::{ClarityName, ContractName, SymbolicExpression};
 use crate::clarity::stx_transfer_consolidated;
-use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::types::signatures::FunctionSignature;
 use crate::clarity::types::{
     AssetIdentifier, PrincipalData, QualifiedContractIdentifier, TraitIdentifier, TypeSignature,
