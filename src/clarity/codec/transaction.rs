@@ -123,7 +123,18 @@ pub enum TransactionPayload {
     TokenTransfer(PrincipalData, u64, TokenTransferMemo),
     ContractCall(TransactionContractCall),
     SmartContract(TransactionSmartContract),
+    PoisonMicroblock,
+    Coinbase(CoinbasePayload),
 }
+
+/// A coinbase commits to 32 bytes of control-plane information
+pub struct CoinbasePayload(pub [u8; 32]);
+impl_byte_array_message_codec!(CoinbasePayload, 32);
+impl_array_newtype!(CoinbasePayload, u8, 32);
+impl_array_hexstring_fmt!(CoinbasePayload);
+impl_byte_array_newtype!(CoinbasePayload, u8, 32);
+impl_byte_array_serde!(CoinbasePayload);
+pub const CONIBASE_PAYLOAD_ENCODED_SIZE: u32 = 32;
 
 pub struct TokenTransferMemo(pub [u8; 34]); // same length as it is in stacks v1
 impl_byte_array_message_codec!(TokenTransferMemo, 34);
@@ -539,6 +550,9 @@ impl StacksMessageCodec for TransactionPayload {
                 write_next(fd, &(TransactionPayloadID::SmartContract as u8))?;
                 sc.consensus_serialize(fd)?;
             }
+            _ => {
+                unreachable!()
+            }
         }
         Ok(())
     }
@@ -559,6 +573,13 @@ impl StacksMessageCodec for TransactionPayload {
             x if x == TransactionPayloadID::SmartContract as u8 => {
                 let payload: TransactionSmartContract = read_next(fd)?;
                 TransactionPayload::SmartContract(payload)
+            }
+            x if x == TransactionPayloadID::PoisonMicroblock as u8 => {
+                TransactionPayload::PoisonMicroblock
+            }
+            x if x == TransactionPayloadID::Coinbase as u8 => {
+                let payload: CoinbasePayload = read_next(fd)?;
+                TransactionPayload::Coinbase(payload)
             }
             _ => {
                 return Err(CodecError::DeserializeError(format!(
@@ -827,8 +848,7 @@ impl StacksMessageCodec for SinglesigSpendingCondition {
             )),
         )?;
 
-        let bytes: Vec<u8> = read_next_exact::<_, u8>(fd, 20)?;
-        let signer = Hash160::from_data(&bytes);
+        let signer: Hash160 = read_next(fd)?;
         let nonce: u64 = read_next(fd)?;
         let tx_fee: u64 = read_next(fd)?;
 
@@ -880,8 +900,7 @@ impl StacksMessageCodec for MultisigSpendingCondition {
             )),
         )?;
 
-        let bytes: Vec<u8> = read_next_exact::<_, u8>(fd, 20)?;
-        let signer = Hash160::from_data(&bytes);
+        let signer: Hash160 = read_next(fd)?;
         let nonce: u64 = read_next(fd)?;
         let tx_fee: u64 = read_next(fd)?;
         let fields: Vec<TransactionAuthField> = {

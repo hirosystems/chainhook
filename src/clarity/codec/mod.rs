@@ -457,8 +457,7 @@ impl StacksMessageCodec for StacksAddress {
 
     fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<StacksAddress, Error> {
         let version: u8 = read_next(fd)?;
-        let bytes: Vec<u8> = read_next_exact::<_, u8>(fd, 20)?;
-        let hash160 = Hash160::from_data(&bytes);
+        let hash160: Hash160 = read_next(fd)?;
         Ok(StacksAddress {
             version: version,
             bytes: hash160,
