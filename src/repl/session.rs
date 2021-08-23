@@ -42,6 +42,7 @@ pub struct Session {
     pub interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
+    pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
 }
 
 impl Session {
@@ -64,6 +65,7 @@ impl Session {
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
+            initial_contracts_analysis: vec![],
         }
     }
 
@@ -159,18 +161,18 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    pub fn start(&mut self) -> (String, Vec<(ContractAnalysis, String)>) {
-        let mut output = Vec::<String>::new();
+    pub fn start(&mut self) -> Result<(String, Vec<(ContractAnalysis, String, String)>), String> {
+        let mut output_err = Vec::<String>::new();
         let mut contracts = vec![];
-
+    
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
-
+    
             let boot_testnet_address = "ST000000000000000000002AMW42H";
             let boot_testnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_testnet_address)
                     .expect("Unable to parse deployer's address");
-
+    
             self.interpreter.set_tx_sender(boot_testnet_deployer);
             if self
                 .settings
@@ -211,7 +213,7 @@ impl Session {
                 )
                 .expect("Unable to deploy COSTS");
             }
-
+    
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_mainnet_address)
@@ -295,34 +297,34 @@ impl Session {
                     None,
                 ) {
                     Ok(_) => {}
-                    Err(ref mut result) => output.append(result),
+                    Err(ref mut result) => output_err.append(result),
                 };
             }
-
+    
             self.interpreter.set_tx_sender(default_tx_sender);
         }
-
+    
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
                 let recipient = match PrincipalData::parse(&account.address) {
                     Ok(recipient) => recipient,
                     _ => {
-                        output.push(red!("Unable to parse address to credit"));
+                        output_err.push(red!("Unable to parse address to credit"));
                         continue;
                     }
                 };
-
+    
                 match self
                     .interpreter
                     .credit_stx_balance(recipient, account.balance)
                 {
                     Ok(_) => {}
-                    Err(err) => output.push(red!(err)),
+                    Err(err) => output_err.push(red!(err)),
                 };
             }
         }
-
+    
         if self.settings.initial_contracts.len() > 0 {
             let mut initial_contracts = self.settings.initial_contracts.clone();
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -335,7 +337,7 @@ impl Session {
                     PrincipalData::parse_standard_principal(&address)
                         .expect("Unable to parse deployer's address")
                 };
-
+    
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(
                     contract.code,
@@ -347,20 +349,24 @@ impl Session {
                         if result.contract.is_none() {
                             continue;
                         }
-                        let contract = result.contract.unwrap();
-                        contracts.push((contract.4.clone(), contract.1.clone()))
+                        let analysis_result = result.contract.unwrap();
+                        contracts.push((
+                            analysis_result.4.clone(),
+                            analysis_result.1.clone(),
+                            contract.path.clone(),
+                        ))
                     }
-                    Err(ref mut result) => output.append(result),
+                    Err(ref mut result) => output_err.append(result),
                 };
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
-
+    
         for (contract_id, code) in linked_contracts.into_iter() {
             let components: Vec<&str> = contract_id.split('.').collect();
             let contract_deployer = components.first().expect("");
             let contract_name = components.last().expect("");
-
+    
             let deployer = {
                 PrincipalData::parse_standard_principal(&contract_deployer)
                     .expect("Unable to parse deployer's address")
@@ -372,18 +378,24 @@ impl Session {
                 deployer: Some(deployer.to_string()),
             });
         }
-
+    
+        let mut output = vec![];
         if !self.settings.initial_contracts.is_empty() {
             output.push(blue!("Contracts"));
             self.get_contracts(&mut output);
         }
-
+    
         if self.settings.initial_accounts.len() > 0 {
             output.push(blue!("Initialized balances"));
             self.get_accounts(&mut output);
         }
-
-        (output.join("\n"), contracts)
+    
+        self.initial_contracts_analysis.append(&mut contracts.clone());
+    
+        match output_err.len() {
+            0 => Ok((output.join("\n"), contracts)),
+            _ => Err(output_err.join("\n")),
+        }
     }
 
     #[cfg(feature = "wasm")]
@@ -551,176 +563,6 @@ impl Session {
         }
 
         output.join("\n")
-    }
-
-    pub fn check(&mut self) -> Result<Vec<(ContractAnalysis, String, String)>, String> {
-        let mut output = Vec::<String>::new();
-        let mut contracts = vec![];
-
-        if !self.settings.include_boot_contracts.is_empty() {
-            let default_tx_sender = self.interpreter.get_tx_sender();
-
-            let boot_testnet_address = "ST000000000000000000002AMW42H";
-            let boot_testnet_deployer =
-                PrincipalData::parse_standard_principal(&boot_testnet_address)
-                    .expect("Unable to parse deployer's address");
-
-            self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
-
-            let boot_mainnet_address = "SP000000000000000000002Q6VF78";
-            let boot_mainnet_deployer =
-                PrincipalData::parse_standard_principal(&boot_mainnet_address)
-                    .expect("Unable to parse deployer's address");
-            self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
-            self.interpreter.set_tx_sender(default_tx_sender);
-        }
-
-        if self.settings.initial_accounts.len() > 0 {
-            let mut initial_accounts = self.settings.initial_accounts.clone();
-            for account in initial_accounts.drain(..) {
-                let recipient = match PrincipalData::parse(&account.address) {
-                    Ok(recipient) => recipient,
-                    _ => {
-                        output.push(red!("Unable to parse address to credit"));
-                        continue;
-                    }
-                };
-
-                match self
-                    .interpreter
-                    .credit_stx_balance(recipient, account.balance)
-                {
-                    Ok(_) => {}
-                    Err(err) => output.push(red!(err)),
-                };
-            }
-        }
-
-        if self.settings.initial_contracts.len() > 0 {
-            let mut initial_contracts = self.settings.initial_contracts.clone();
-            let default_tx_sender = self.interpreter.get_tx_sender();
-            for contract in initial_contracts.drain(..) {
-                if let Some(ref scoping_contract) = self.settings.scoping_contract {
-                    if contract.path.eq(scoping_contract) {
-                        break;
-                    }
-                }
-
-                let deployer = {
-                    let address = match contract.deployer {
-                        Some(ref entry) => entry.clone(),
-                        None => format!("{}", StacksAddress::burn_address(false)),
-                    };
-                    PrincipalData::parse_standard_principal(&address)
-                        .expect("Unable to parse deployer's address")
-                };
-
-                self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(
-                    contract.code,
-                    contract.name,
-                    true,
-                    Some("Deployment".into()),
-                ) {
-                    Ok((_, result)) => {
-                        if result.contract.is_none() {
-                            continue;
-                        }
-                        let analysis_result = result.contract.unwrap();
-                        contracts.push((
-                            analysis_result.4.clone(),
-                            analysis_result.1.clone(),
-                            contract.path.clone(),
-                        ))
-                    }
-                    Err(ref mut result) => output.append(result),
-                };
-            }
-            self.interpreter.set_tx_sender(default_tx_sender);
-        }
-
-        match output.len() {
-            0 => Ok(contracts),
-            _ => Err(output.join("\n")),
-        }
     }
 
     pub fn handle_command(&mut self, command: &str) -> Vec<String> {

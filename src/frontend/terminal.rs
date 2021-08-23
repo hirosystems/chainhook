@@ -28,7 +28,7 @@ fn complete_input(str: &str) -> Result<Option<char>, (char, char)> {
 }
 
 pub struct Terminal {
-    session: Session,
+    pub session: Session,
 }
 
 impl Terminal {
@@ -43,8 +43,14 @@ impl Terminal {
         println!("{}", black!("Enter \"::help\" for usage hints."));
         println!("{}", black!("Connected to a transient in-memory database."));
 
-        let (res, _) = self.session.start();
-        println!("{}", res);
+        let output = match self.session.start() {
+            Ok((output, _)) => output,
+            Err(e) => {
+                println!("{}", e);
+                std::process::exit(1);
+            }
+        };
+        println!("{}", output);
         let mut editor = Editor::<()>::new();
         let mut ctrl_c_acc = 0;
         let mut input_buffer = vec![];
