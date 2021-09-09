@@ -6,6 +6,8 @@ use crate::clarity::{
     util::StacksAddress,
 };
 
+use super::OutputMode;
+
 #[derive(Clone, Debug)]
 pub struct InitialContract {
     pub code: String,
@@ -60,4 +62,5 @@ pub struct SessionSettings {
     pub initial_accounts: Vec<Account>,
     pub initial_deployer: Option<Account>,
     pub scoping_contract: Option<String>,
+    pub output_mode: OutputMode,
 }

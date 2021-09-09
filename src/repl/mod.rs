@@ -8,12 +8,30 @@ use std::collections::BTreeMap;
 pub mod interpreter;
 pub mod session;
 pub mod settings;
+pub mod command;
 
 pub use interpreter::ClarityInterpreter;
 pub use session::Session;
 pub use settings::SessionSettings;
+pub use command::*;
 
-#[derive(Default)]
+
+#[derive(Debug, Copy, Clone)]
+pub enum OutputMode {
+    Console,
+    Json,
+}
+
+impl OutputMode {
+    pub fn switch(output_mode: &Self) -> Self {
+        match output_mode {
+            Self::Console => Self::Json,
+            Self::Json => Self::Console
+        }
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct ExecutionResult {
     pub contract: Option<(
         String,
@@ -28,7 +46,7 @@ pub struct ExecutionResult {
     pub coverage: Option<TestCoverageReport>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Debug)]
 pub struct CostSynthesis {
     pub total: ExecutionCost,
     pub limit: ExecutionCost,

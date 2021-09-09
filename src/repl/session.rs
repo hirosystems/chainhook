@@ -1,4 +1,13 @@
-use super::{ClarityInterpreter, ExecutionResult};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
+use std::{fs, str::FromStr};
+
+use ansi_term::{Colour, Style};
+use anyhow::{Context, Result};
+use serde_json::Value;
+use tracing::{error, event, info, info_span, span, Level};
+use tracing_subscriber::prelude::*;
+
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
@@ -10,16 +19,32 @@ use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
-use ansi_term::{Colour, Style};
-use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+
+use super::{ClarityInterpreter, ExecutionResult, OutputMode};
 
 #[cfg(feature = "cli")]
 use prettytable::{Cell, Row, Table};
 
 use super::settings::InitialLink;
 use super::SessionSettings;
+
+impl Default for OutputMode {
+    fn default() -> Self {
+        OutputMode::Json
+    }
+}
+
+impl FromStr for OutputMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "json" => Ok(Self::Json),
+            "console" => Ok(Self::Console),
+            _ => Err(format!("Unknown output format {}", s)),
+        }
+    }
+}
 
 #[cfg(feature = "wasm")]
 use reqwest_wasm as reqwest;
@@ -32,16 +57,47 @@ enum Command {
     CloseSession,
 }
 
+pub type Contracts = BTreeMap<String, BTreeMap<String, Vec<String>>>;
+
+/// Get **only** user `Contracts`
+pub trait GetUserContracts {
+    fn get_user_contracts(&self) -> Self;
+}
+
+use std::path::Path;
+
+impl GetUserContracts for Contracts {
+    fn get_user_contracts(&self) -> Self {
+        let mut user_contracts = Contracts::new();
+        for (contract_id, methods) in self.iter() {
+            let ext = std::path::Path::new(contract_id)
+                .extension()
+                .unwrap()
+                .to_str()
+                .unwrap();
+
+            match ext {
+                "bns" | "pox" | "costs" => continue,
+                _ => {
+                    user_contracts.insert(contract_id.to_owned(), methods.clone());
+                }
+            }
+        }
+        user_contracts
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Session {
     session_id: u32,
     started_at: u32,
     pub settings: SessionSettings,
-    pub contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
+    pub contracts: Contracts,
     pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
     pub interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
+    pub output_mode: OutputMode,
 }
 
 impl Session {
@@ -55,6 +111,7 @@ impl Session {
                 .expect("Unable to parse deployer's address")
         };
 
+        let output_mode = settings.output_mode.clone();
         Session {
             session_id: 0,
             started_at: 0,
@@ -64,6 +121,7 @@ impl Session {
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
+            output_mode,
         }
     }
 
@@ -159,10 +217,8 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    pub fn start(&mut self) -> (String, Vec<(ContractAnalysis, String)>) {
-        let mut output = Vec::<String>::new();
-        let mut contracts = vec![];
-
+    pub fn start(&mut self) -> Vec<(ContractAnalysis, String)> {
+       let mut contracts = vec![];
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
@@ -295,7 +351,7 @@ impl Session {
                     None,
                 ) {
                     Ok(_) => {}
-                    Err(ref mut result) => output.append(result),
+                    Err(ref mut result) => error!("{:?}", result),
                 };
             }
 
@@ -303,12 +359,12 @@ impl Session {
         }
 
         if self.settings.initial_accounts.len() > 0 {
-            let mut initial_accounts = self.settings.initial_accounts.clone();
-            for account in initial_accounts.drain(..) {
-                let recipient = match PrincipalData::parse(&account.address) {
+            let initial_accounts = self.settings.initial_accounts.clone();
+            for account in initial_accounts.into_iter() {
+                let recipient = match PrincipalData::from_str(&account.address) {
                     Ok(recipient) => recipient,
                     _ => {
-                        output.push(red!("Unable to parse address to credit"));
+                        error!("Unable to parse address to credit");
                         continue;
                     }
                 };
@@ -318,7 +374,7 @@ impl Session {
                     .credit_stx_balance(recipient, account.balance)
                 {
                     Ok(_) => {}
-                    Err(err) => output.push(red!(err)),
+                    Err(err) => error!("{}", err),
                 };
             }
         }
@@ -350,7 +406,7 @@ impl Session {
                         let contract = result.contract.unwrap();
                         contracts.push((contract.4.clone(), contract.1.clone()))
                     }
-                    Err(ref mut result) => output.append(result),
+                    Err(err) => error!("{:?}", err),
                 };
             }
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -374,16 +430,15 @@ impl Session {
         }
 
         if !self.settings.initial_contracts.is_empty() {
-            output.push(blue!("Contracts"));
-            self.get_contracts(&mut output);
+            let user_contracts = self.contracts.get_user_contracts();
         }
 
-        if self.settings.initial_accounts.len() > 0 {
-            output.push(blue!("Initialized balances"));
-            self.get_accounts(&mut output);
-        }
+        // if self.settings.initial_accounts.len() > 0 {
+        //     output.push(blue!("Initialized balances"));
+        //     self.interpreter.get_accounts();
+        // }
 
-        (output.join("\n"), contracts)
+        contracts
     }
 
     #[cfg(feature = "wasm")]
@@ -554,7 +609,7 @@ impl Session {
     }
 
     pub fn check(&mut self) -> Result<Vec<(ContractAnalysis, String, String)>, String> {
-        let mut output = Vec::<String>::new();
+        let mut error_output = Vec::<String>::new();
         let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
@@ -656,10 +711,10 @@ impl Session {
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
-                let recipient = match PrincipalData::parse(&account.address) {
+                let recipient = match PrincipalData::from_str(&account.address) {
                     Ok(recipient) => recipient,
                     _ => {
-                        output.push(red!("Unable to parse address to credit"));
+                        error_output.push(red!("Unable to parse address to credit"));
                         continue;
                     }
                 };
@@ -669,7 +724,7 @@ impl Session {
                     .credit_stx_balance(recipient, account.balance)
                 {
                     Ok(_) => {}
-                    Err(err) => output.push(red!(err)),
+                    Err(err) => error_output.push(red!(err)),
                 };
             }
         }
@@ -711,46 +766,16 @@ impl Session {
                             contract.path.clone(),
                         ))
                     }
-                    Err(ref mut result) => output.append(result),
+                    Err(ref mut result) => error_output.append(result),
                 };
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
-        match output.len() {
+        match error_output.len() {
             0 => Ok(contracts),
-            _ => Err(output.join("\n")),
+            _ => Err(error_output.join("\n")),
         }
-    }
-
-    pub fn handle_command(&mut self, command: &str) -> Vec<String> {
-        let mut output = Vec::<String>::new();
-        match command {
-            "::help" => self.display_help(&mut output),
-            cmd if cmd.starts_with("::list_functions") => self.display_functions(&mut output),
-            cmd if cmd.starts_with("::describe_function") => self.display_doc(&mut output, cmd),
-            cmd if cmd.starts_with("::mint_stx") => self.mint_stx(&mut output, cmd),
-            cmd if cmd.starts_with("::set_tx_sender") => {
-                self.parse_and_set_tx_sender(&mut output, cmd)
-            }
-            cmd if cmd.starts_with("::get_assets_maps") => self.get_accounts(&mut output),
-            cmd if cmd.starts_with("::get_costs") => self.get_costs(&mut output, cmd),
-            cmd if cmd.starts_with("::get_contracts") => self.get_contracts(&mut output),
-            cmd if cmd.starts_with("::get_block_height") => self.get_block_height(&mut output),
-            cmd if cmd.starts_with("::advance_chain_tip") => {
-                self.parse_and_advance_chain_tip(&mut output, cmd)
-            }
-
-            snippet => {
-                let mut result =
-                    match self.formatted_interpretation(snippet.to_string(), None, true, None) {
-                        Ok((result, _)) => result,
-                        Err(result) => result,
-                    };
-                output.append(&mut result);
-            }
-        }
-        output
     }
 
     pub fn formatted_interpretation(
@@ -769,12 +794,12 @@ impl Session {
             Ok(result) => {
                 if let Some((ref contract_name, _, _, _, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
-                    output.push(green!(snippet));
+                    output.push(snippet);
                 }
                 if result.events.len() > 0 {
-                    output.push(black!("Events emitted"));
+                    output.push("Events emitted".into());
                     for event in result.events.iter() {
-                        output.push(black!(format!("{}", event)));
+                        output.push(format!("{}", event));
                     }
                 }
                 if let Some(ref result) = result.result {
@@ -907,7 +932,8 @@ impl Session {
         keys
     }
 
-    fn display_help(&self, output: &mut Vec<String>) {
+    fn display_help(&self) -> Vec<String> {
+        let mut output = Vec::new();
         let help_colour = Colour::Yellow;
         let coming_soon_colour = Colour::Black.bold();
         output.push(format!(
@@ -955,6 +981,8 @@ impl Session {
             "{}",
             help_colour.paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
         ));
+
+        output
     }
 
     fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
@@ -1000,245 +1028,14 @@ impl Session {
             }
         };
 
-        self.set_tx_sender(tx_sender.to_address());
+        self.set_tx_sender(tx_sender.clone());
         output.push(green!(format!("tx-sender switched to {}", tx_sender)));
     }
 
-    pub fn set_tx_sender(&mut self, address: String) {
-        let tx_sender =
-            PrincipalData::parse_standard_principal(&address).expect("Unable to parse address");
-        self.interpreter.set_tx_sender(tx_sender)
+    pub fn set_tx_sender<T: Into<StandardPrincipalData>>(&mut self, address: T) {
+        self.interpreter.set_tx_sender(address.into())
     }
 
-    pub fn get_tx_sender(&self) -> String {
-        self.interpreter.get_tx_sender().to_address()
-    }
-
-    fn get_block_height(&mut self, output: &mut Vec<String>) {
-        let height = self.interpreter.get_block_height();
-        output.push(green!(format!("Current height: {}", height)));
-    }
-
-    fn get_account_name(&self, address: &String) -> Option<&String> {
-        for account in self.settings.initial_accounts.iter() {
-            if &account.address == address {
-                return Some(&account.name);
-            }
-        }
-        None
-    }
-
-    pub fn get_assets_maps(&self) -> BTreeMap<String, BTreeMap<String, u128>> {
-        self.interpreter.get_assets_maps()
-    }
-
-    #[cfg(feature = "cli")]
-    pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
-        let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
-            Ok((output, result)) => (output, result.cost.clone()),
-            Err(output) => (output, None),
-        };
-
-        if let Some(cost) = cost {
-            let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];
-            let mut headers_cells = vec![];
-            for header in headers.iter() {
-                headers_cells.push(Cell::new(&header));
-            }
-            let mut table = Table::new();
-            table.add_row(Row::new(headers_cells));
-            table.add_row(Row::new(vec![
-                Cell::new("Runtime"),
-                Cell::new(&cost.total.runtime.to_string()),
-                Cell::new(&cost.limit.runtime.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Read count"),
-                Cell::new(&cost.total.read_count.to_string()),
-                Cell::new(&cost.limit.read_count.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Read length (bytes)"),
-                Cell::new(&cost.total.read_length.to_string()),
-                Cell::new(&cost.limit.read_length.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Write count"),
-                Cell::new(&cost.total.write_count.to_string()),
-                Cell::new(&cost.limit.write_count.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Write length (bytes)"),
-                Cell::new(&cost.total.write_length.to_string()),
-                Cell::new(&cost.limit.write_length.to_string()),
-            ]));
-            output.push(format!("{}", table));
-        }
-        output.append(&mut result);
-    }
-
-    #[cfg(feature = "cli")]
-    fn get_accounts(&mut self, output: &mut Vec<String>) {
-        let accounts = self.interpreter.get_accounts();
-        if accounts.len() > 0 {
-            let tokens = self.interpreter.get_tokens();
-            let mut headers = vec!["Address".to_string()];
-            headers.append(&mut tokens.clone());
-            let mut headers_cells = vec![];
-            for header in headers.iter() {
-                headers_cells.push(Cell::new(&header));
-            }
-            let mut table = Table::new();
-            table.add_row(Row::new(headers_cells));
-            for account in accounts.iter() {
-                let mut cells = vec![];
-
-                if let Some(name) = self.get_account_name(account) {
-                    cells.push(Cell::new(&format!("{} ({})", account, name)));
-                } else {
-                    cells.push(Cell::new(account));
-                }
-
-                for token in tokens.iter() {
-                    let balance = self.interpreter.get_balance_for_account(account, token);
-                    cells.push(Cell::new(&format!("{}", balance)));
-                }
-                table.add_row(Row::new(cells));
-            }
-            output.push(format!("{}", table));
-        }
-    }
-
-    #[cfg(feature = "cli")]
-    fn get_contracts(&mut self, output: &mut Vec<String>) {
-        if self.contracts.len() > 0 {
-            let mut table = Table::new();
-            table.add_row(row!["Contract identifier", "Public functions"]);
-            let contracts = self.contracts.clone();
-            for (contract_id, methods) in contracts.iter() {
-                if !contract_id.ends_with(".pox")
-                    && !contract_id.ends_with(".bns")
-                    && !contract_id.ends_with(".costs")
-                {
-                    let mut formatted_methods = vec![];
-                    for (method_name, method_args) in methods.iter() {
-                        let formatted_args = if method_args.len() == 0 {
-                            format!("")
-                        } else if method_args.len() == 1 {
-                            format!(" {}", method_args.join(" "))
-                        } else {
-                            format!("\n    {}", method_args.join("\n    "))
-                        };
-                        formatted_methods.push(format!("({}{})", method_name, formatted_args));
-                    }
-                    let formatted_spec = format!("{}", formatted_methods.join("\n"));
-                    table.add_row(Row::new(vec![
-                        Cell::new(&contract_id),
-                        Cell::new(&formatted_spec),
-                    ]));
-                }
-            }
-            output.push(format!("{}", table));
-        }
-    }
-
-    #[cfg(not(feature = "cli"))]
-    pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
-        let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
-            Ok((output, result)) => (output, result.cost.clone()),
-            Err(output) => (output, None),
-        };
-
-        if let Some(cost) = cost {
-            output.push(format!(
-                "Execution: {:?}\nLimit: {:?}",
-                cost.total, cost.limit
-            ));
-        }
-        output.append(&mut result);
-    }
-
-    #[cfg(not(feature = "cli"))]
-    fn get_accounts(&mut self, output: &mut Vec<String>) {
-        if self.settings.initial_accounts.len() > 0 {
-            let mut initial_accounts = self.settings.initial_accounts.clone();
-            for account in initial_accounts.drain(..) {
-                output.push(format!(
-                    "{}: {} ({})",
-                    account.address, account.balance, account.name
-                ));
-            }
-        }
-    }
-
-    #[cfg(not(feature = "cli"))]
-    fn get_contracts(&mut self, output: &mut Vec<String>) {
-        for (contract_id, methods) in self.contracts.iter() {
-            if !contract_id.ends_with(".pox")
-                && !contract_id.ends_with(".bns")
-                && !contract_id.ends_with(".costs")
-            {
-                output.push(format!("{}", contract_id));
-            }
-        }
-    }
-
-    fn mint_stx(&mut self, output: &mut Vec<String>, command: &str) {
-        let args: Vec<_> = command.split(' ').collect();
-
-        if args.len() != 3 {
-            output.push(red!("Usage: ::mint_stx <recipient address> <amount>"));
-            return;
-        }
-
-        let recipient = match PrincipalData::parse(&args[1]) {
-            Ok(address) => address,
-            _ => {
-                output.push(red!("Unable to parse the address"));
-                return;
-            }
-        };
-
-        let amount: u64 = match args[2].parse() {
-            Ok(recipient) => recipient,
-            _ => {
-                output.push(red!("Unable to parse the balance"));
-                return;
-            }
-        };
-
-        match self.interpreter.credit_stx_balance(recipient, amount) {
-            Ok(msg) => output.push(green!(msg)),
-            Err(err) => output.push(red!(err)),
-        };
-    }
-
-    fn display_functions(&self, output: &mut Vec<String>) {
-        let help_colour = Colour::Yellow;
-        let api_reference_index = self.get_api_reference_index();
-        output.push(format!(
-            "{}",
-            help_colour.paint(api_reference_index.join("\n"))
-        ));
-    }
-
-    fn display_doc(&self, output: &mut Vec<String>, command: &str) {
-        let help_colour = Colour::Yellow;
-        let help_accent_colour = Colour::Yellow.bold();
-        let keyword = {
-            let mut s = command.to_string();
-            s = s.replace("::describe_function", "");
-            s = s.replace(" ", "");
-            s
-        };
-        let result = match self.lookup_api_reference(&keyword) {
-            Some(doc) => format!("{}", help_colour.paint(doc)),
-            None => format!("{}", help_colour.paint("Function unknown")),
-        };
-        output.push(result);
-    }
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -1257,7 +1054,7 @@ async fn fetch_contract(request_url: String) -> Contract {
     return response;
 }
 
-fn build_api_reference() -> HashMap<String, String> {
+pub fn build_api_reference() -> HashMap<String, String> {
     let mut api_reference = HashMap::new();
     for func in NativeFunctions::ALL.iter() {
         let api = make_api_reference(&func);

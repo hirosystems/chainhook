@@ -1,12 +1,27 @@
-use crate::repl::{settings::SessionSettings, Session};
+use std::io::{stdin, stdout, Write};
+use std::str::FromStr;
 
 use ansi_term::{Colour, Style};
+use prettytable::{format, Table};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-use std::io::{stdin, stdout, Write};
+use serde::Serialize;
+
+use crate::repl::{self, CommandResult};
+use crate::repl::{settings::SessionSettings, OutputMode, ReplCommand, Session};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const HISTORY_FILE: Option<&'static str> = option_env!("CLARITY_REPL_HISTORY_FILE");
+
+struct Prompt {
+    promt: String,
+}
+
+impl Prompt {
+    pub fn prompty(&self) -> &str {
+        &*self.promt
+    }
+}
 
 fn complete_input(str: &str) -> Result<Option<char>, (char, char)> {
     let mut brackets = vec![];
@@ -43,12 +58,24 @@ impl Terminal {
         println!("{}", black!("Enter \"::help\" for usage hints."));
         println!("{}", black!("Connected to a transient in-memory database."));
 
-        let (res, _) = self.session.start();
-        println!("{}", res);
+        let _ = self.session.start();
+        println!("\n{}", blue!("Contracts"));
+        let comm = ReplCommand::GetContracts.execute(&mut self.session).map(self.session.output_mode).map_err(|e| format!("{}", e));
+        match comm {
+            Ok(res) => println!("{}", res),
+            Err(e) => println!("{}", Colour::Red.paint(e)),
+        }
+        println!("{}", blue!("Initialized balances"));
+        let comm = ReplCommand::GetAssetsMaps.execute(&mut self.session).map(self.session.output_mode).map_err(|e| format!("{}", e));
+        match comm {
+            Ok(res) => println!("{}", res),
+            Err(e) => println!("{}", Colour::Red.paint(e)),
+        }
+
         let mut editor = Editor::<()>::new();
         let mut ctrl_c_acc = 0;
         let mut input_buffer = vec![];
-        let mut prompt = String::from(">> ");
+        let mut prompt = ">> ".to_owned();
         loop {
             let readline = editor.readline(prompt.as_str());
             match readline {
@@ -58,11 +85,18 @@ impl Terminal {
                     let input = input_buffer.join("\n");
                     match complete_input(&input) {
                         Ok(None) => {
-                            let output = self.session.handle_command(&input);
-                            for line in output {
-                                println!("{}", line);
+                            let repl_command = ReplCommand::from_str(&input);
+
+                            let res = repl_command
+                                .and_then(|command| Ok(command.execute(&mut self.session)))
+                                .and_then(|c| c.map(self.session.output_mode))
+                                .map_err(|e| format!("{}", e));
+
+                            match res {
+                                Ok(res) => println!("{}", res),
+                                Err(e) => println!("{}", Colour::Red.paint(e)),
                             }
-                            prompt = String::from(">> ");
+                            prompt = ">> ".to_owned();
                             editor.add_history_entry(&input);
                             input_buffer.clear();
                         }

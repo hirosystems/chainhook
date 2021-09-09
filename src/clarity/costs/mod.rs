@@ -865,17 +865,24 @@ impl CostTracker for &mut LimitedCostTracker {
 
 #[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct ExecutionCost {
-    pub write_length: u64,
-    pub write_count: u64,
-    pub read_length: u64,
-    pub read_count: u64,
     pub runtime: u64,
+    pub read_count: u64,
+    pub read_length: u64,
+    pub write_count: u64,
+    pub write_length: u64,
 }
+
+impl ExecutionCost {
+    pub fn to_vec(&self) -> Vec<u64> {
+        vec![self.runtime, self.read_count, self.read_length, self.write_count, self.write_length]
+    }
+}
+
 
 impl fmt::Display for ExecutionCost {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{\"runtime\": {}, \"write_len\": {}, \"write_cnt\": {}, \"read_len\": {}, \"read_cnt\": {}}}",
-               self.runtime, self.write_length, self.write_count, self.read_length, self.read_count)
+        write!(f, "{{\"runtime\": {}, \"read_cnt\": {}, \"read_len\": {}, \"write_cnt\": {}, \"write_len\": {}}}",
+               self.runtime, self.read_count, self.write_count, self.read_length, self.write_length)
     }
 }
 

@@ -2,14 +2,16 @@ pub mod serialization;
 pub mod signatures;
 
 use serde::{Deserialize, Serialize};
+use serde_json::from_str;
 use std::collections::BTreeMap;
 use std::convert::{TryFrom, TryInto};
+use std::str::FromStr;
 use std::{char, str};
 use std::{cmp, fmt};
 
 use regex::Regex;
 
-use super::errors::{
+use super::errors::{ Error,
     CheckErrors, IncomparableError, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
 };
 use super::functions::define::DefineFunctions;
@@ -65,6 +67,12 @@ impl StandardPrincipalData {
     }
 }
 
+impl TryFrom<String> for StandardPrincipalData {
+    type Error = crate::clarity::Error;
+    fn try_from(s: String) -> Result<Self> {
+        PrincipalData::parse_standard_principal(&s)
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct QualifiedContractIdentifier {
     pub issuer: StandardPrincipalData,
@@ -120,6 +128,24 @@ pub enum PrincipalData {
     Contract(QualifiedContractIdentifier),
 }
 
+impl FromStr for PrincipalData {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+         // be permissive about leading single-quote
+         let literal = if s.starts_with("'") {
+            &s[1..]
+        } else {
+            s
+        };
+
+        if literal.contains(".") {
+            PrincipalData::parse_qualified_contract_principal(literal)
+        } else {
+            PrincipalData::parse_standard_principal(literal).map(PrincipalData::from)
+        }
+    }
+}
 pub enum ContractIdentifier {
     Relative(ContractName),
     Qualified(QualifiedContractIdentifier),
@@ -1057,27 +1083,14 @@ impl PrincipalData {
         }
     }
 
-    pub fn parse(literal: &str) -> Result<PrincipalData> {
-        // be permissive about leading single-quote
-        let literal = if literal.starts_with("'") {
-            &literal[1..]
-        } else {
-            literal
-        };
-
-        if literal.contains(".") {
-            PrincipalData::parse_qualified_contract_principal(literal)
-        } else {
-            PrincipalData::parse_standard_principal(literal).map(PrincipalData::from)
-        }
-    }
 
     pub fn parse_qualified_contract_principal(literal: &str) -> Result<PrincipalData> {
         let contract_id = QualifiedContractIdentifier::parse(literal)?;
         Ok(PrincipalData::Contract(contract_id))
     }
 
-    pub fn parse_standard_principal(literal: &str) -> Result<StandardPrincipalData> {
+    pub fn parse_standard_principal<T: AsRef<str>>(literal: T) -> Result<StandardPrincipalData> {
+        let literal = literal.as_ref();
         let (version, data) = c32::c32_address_decode(&literal)
             .map_err(|x| RuntimeErrorType::ParseError(format!("Invalid principal literal")))?;
         if data.len() != 20 {
