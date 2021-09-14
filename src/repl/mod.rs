@@ -28,7 +28,7 @@ pub struct ExecutionResult {
     pub coverage: Option<TestCoverageReport>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CostSynthesis {
     pub total: ExecutionCost,
     pub limit: ExecutionCost,

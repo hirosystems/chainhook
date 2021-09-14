@@ -9,6 +9,7 @@ use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, Standard
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
+use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
 use serde_json::Value;
@@ -33,6 +34,15 @@ enum Command {
 }
 
 #[derive(Clone, Debug)]
+pub struct CostsReport {
+    pub test_name: String,
+    pub contract_id: String,
+    pub method: String,
+    pub args: Vec<String>,
+    pub cost_result: CostSynthesis,
+}
+
+#[derive(Clone, Debug)]
 pub struct Session {
     session_id: u32,
     started_at: u32,
@@ -42,6 +52,7 @@ pub struct Session {
     pub interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
+    pub costs_reports: Vec<CostsReport>,
     pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
 }
 
@@ -65,6 +76,7 @@ impl Session {
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
+            costs_reports: vec![],
             initial_contracts_analysis: vec![],
         }
     }
@@ -681,6 +693,45 @@ impl Session {
         }
     }
 
+    pub fn invoke_contract_call(
+        &mut self,
+        contract: &str,
+        method: &str,
+        args: &Vec<String>,
+        sender: &str,
+        test_name: String,
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+        let initial_tx_sender = self.get_tx_sender();
+        // Kludge for handling fully qualified contract_id vs sugared syntax
+        let first_char = contract.chars().next().unwrap();
+        let contract_id = if first_char.to_string() == "S" {
+            contract.to_string()
+        } else {
+            format!("{}.{}", initial_tx_sender, contract,)
+        };
+
+        let snippet = format!(
+            "(contract-call? '{} {} {})",
+            contract_id,
+            method,
+            args.join(" ")
+        );
+
+        self.set_tx_sender(sender.into());
+        let result = self.interpret(snippet, None, true, Some(test_name.clone()))?;
+        if let Some(ref cost) = result.cost {
+            self.costs_reports.push(CostsReport {
+                test_name,
+                contract_id,
+                method: method.to_string(),
+                args: args.to_vec(),
+                cost_result: cost.clone(),
+            });
+        }
+        self.set_tx_sender(initial_tx_sender);
+        Ok(result)
+    }
+
     pub fn interpret(
         &mut self,
         snippet: String,
@@ -688,9 +739,9 @@ impl Session {
         cost_track: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
-        let contract_name = match name {
-            Some(name) => name,
-            None => format!("contract-{}", self.contracts.len()),
+        let (contract_name, is_tx) = match name {
+            Some(name) => (name, false),
+            None => (format!("contract-{}", self.contracts.len()), true),
         };
         let first_char = contract_name.chars().next().unwrap();
 
