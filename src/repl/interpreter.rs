@@ -198,8 +198,13 @@ impl ClarityInterpreter {
                                     let evaluated_arg = eval(arg, &mut env, &context)?;
                                     args.push(SymbolicExpression::atom_value(evaluated_arg));
                                 }
-                                env.execute_contract(&contract_identifier, &method, &args, false)
-                                    .unwrap()
+                                let res = env.execute_contract(
+                                    &contract_identifier,
+                                    &method,
+                                    &args,
+                                    false,
+                                )?;
+                                res
                             }
                             _ => eval(&contract_ast.expressions[0], &mut env, &context).unwrap(),
                         },
