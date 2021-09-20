@@ -96,7 +96,7 @@ impl Terminal {
                             let res = repl_command
                                 .and_then(|command| Ok(command.execute(&mut self.session)))
                                 .and_then(|c| c?.map(self.session.output_mode))
-                                .map_err(|e| format!("{}", e));
+                                .map_err(|e| e.map(self.session.output_mode));
 
                             match res {
                                 Ok(res) => println!("{}", res),

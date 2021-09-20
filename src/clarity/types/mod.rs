@@ -67,12 +67,6 @@ impl StandardPrincipalData {
     }
 }
 
-impl TryFrom<String> for StandardPrincipalData {
-    type Error = crate::clarity::Error;
-    fn try_from(s: String) -> Result<Self> {
-        PrincipalData::parse_standard_principal(&s)
-    }
-}
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct QualifiedContractIdentifier {
     pub issuer: StandardPrincipalData,

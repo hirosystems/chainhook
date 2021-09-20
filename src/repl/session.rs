@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 use std::{fs, str::FromStr};
 
@@ -18,6 +19,7 @@ use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, Standard
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
+use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 
 use super::{ClarityInterpreter, ExecutionResult, OutputMode};
@@ -88,6 +90,15 @@ impl GetUserContracts for Contracts {
 }
 
 #[derive(Clone, Debug)]
+pub struct CostsReport {
+    pub test_name: String,
+    pub contract_id: String,
+    pub method: String,
+    pub args: Vec<String>,
+    pub cost_result: CostSynthesis,
+}
+
+#[derive(Clone, Debug)]
 pub struct Session {
     session_id: u32,
     started_at: u32,
@@ -95,8 +106,9 @@ pub struct Session {
     pub contracts: Contracts,
     pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
     pub interpreter: ClarityInterpreter,
-    api_reference: HashMap<String, String>,
+    pub api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
+    pub costs_reports: Vec<CostsReport>,
     pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
     pub output_mode: OutputMode,
 }
@@ -122,6 +134,7 @@ impl Session {
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
+            costs_reports: vec![],
             initial_contracts_analysis: vec![],
             output_mode,
         }
@@ -219,9 +232,7 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    // pub fn start(&mut self) -> Vec<(ContractAnalysis, String)> {
     pub fn start(&mut self) -> anyhow::Result<(String, Vec<(ContractAnalysis, String, String)>)> {
-
        let mut contracts = vec![];
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -356,6 +367,7 @@ impl Session {
                 ) {
                     Ok(_) => {}
                     Err(ref mut result) => error!("{:?}", result),
+
                 };
             }
 
@@ -868,16 +880,55 @@ impl Session {
         }
     }
 
-    pub fn interpret<T: AsRef<str>>(
+    pub fn invoke_contract_call(
+        &mut self,
+        contract: &str,
+        method: &str,
+        args: &Vec<String>,
+        sender: &str,
+        test_name: String,
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+        let initial_tx_sender = self.interpreter.get_tx_sender();
+        // Kludge for handling fully qualified contract_id vs sugared syntax
+        let first_char = contract.chars().next().unwrap();
+        let contract_id = if first_char.to_string() == "S" {
+            contract.to_string()
+        } else {
+            format!("{}.{}", initial_tx_sender, contract,)
+        };
+
+        let snippet = format!(
+            "(contract-call? '{} {} {})",
+            contract_id,
+            method,
+            args.join(" ")
+        );
+
+        self.interpreter.set_tx_sender(PrincipalData::parse_standard_principal(sender).unwrap());
+        let result = self.interpret(snippet, None, true, Some(test_name.clone()))?;
+        if let Some(ref cost) = result.cost {
+            self.costs_reports.push(CostsReport {
+                test_name,
+                contract_id,
+                method: method.to_string(),
+                args: args.to_vec(),
+                cost_result: cost.clone(),
+            });
+        }
+        self.interpreter.set_tx_sender(initial_tx_sender);
+        Ok(result)
+    }
+
+  pub fn interpret<T: AsRef<str>>(
         &mut self,
         snippet: T,
         name: Option<String>,
         cost_track: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
-        let contract_name = match name {
-            Some(name) => name,
-            None => format!("contract-{}", self.contracts.len()),
+        let (contract_name, is_tx) = match name {
+            Some(name) => (name, false),
+            None => (format!("contract-{}", self.contracts.len()), true),
         };
         let first_char = contract_name.chars().next().unwrap();
 
@@ -921,124 +972,6 @@ impl Session {
             }
             Err(res) => Err(res),
         }
-    }
-
-    pub fn lookup_api_reference(&self, keyword: &str) -> Option<&String> {
-        self.api_reference.get(keyword)
-    }
-
-    pub fn get_api_reference_index(&self) -> Vec<String> {
-        let mut keys = self
-            .api_reference
-            .iter()
-            .map(|(k, _)| k.to_string())
-            .collect::<Vec<String>>();
-        keys.sort();
-        keys
-    }
-
-    fn display_help(&self) -> Vec<String> {
-        let mut output = Vec::new();
-        let help_colour = Colour::Yellow;
-        let coming_soon_colour = Colour::Black.bold();
-        output.push(format!(
-            "{}",
-            help_colour.paint("::help\t\t\t\t\tDisplay help")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint(
-                "::list_functions\t\t\tDisplay all the native functions available in clarity"
-            )
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint(
-                "::describe_function <function>\t\tDisplay documentation for a given native function fn-name"
-            )
-        ));
-        output.push(format!(
-            "{}",
-            help_colour
-                .paint("::mint_stx <principal> <amount>\t\tMint STX balance for a given principal")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::set_tx_sender <principal>\t\tSet tx-sender variable to principal")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::get_assets_maps\t\t\tGet assets maps for active accounts")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::get_costs <expr>\t\t\tDisplay the cost analysis")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::get_contracts\t\t\t\tGet contracts")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::get_block_height\t\t\tGet current block height")
-        ));
-        output.push(format!(
-            "{}",
-            help_colour.paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
-        ));
-
-        output
-    }
-
-    fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
-        let args: Vec<_> = command.split(' ').collect();
-
-        if args.len() != 2 {
-            output.push(red!("Usage: ::advance_chain_tip <count>"));
-            return;
-        }
-
-        let count = match args[1].parse::<u32>() {
-            Ok(count) => count,
-            _ => {
-                output.push(red!("Unable to parse count"));
-                return;
-            }
-        };
-
-        let new_height = self.advance_chain_tip(count);
-        output.push(green!(format!(
-            "{} blocks simulated, new height: {}",
-            count, new_height
-        )));
-    }
-
-    pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
-        self.interpreter.advance_chain_tip(count)
-    }
-
-    fn parse_and_set_tx_sender(&mut self, output: &mut Vec<String>, command: &str) {
-        let args: Vec<_> = command.split(' ').collect();
-
-        if args.len() != 2 {
-            output.push(red!("Usage: ::set_tx_sender <address>"));
-            return;
-        }
-
-        let tx_sender = match PrincipalData::parse_standard_principal(&args[1]) {
-            Ok(address) => address,
-            _ => {
-                output.push(red!("Unable to parse the address"));
-                return;
-            }
-        };
-
-        self.set_tx_sender(tx_sender.clone());
-        output.push(green!(format!("tx-sender switched to {}", tx_sender)));
-    }
-
-    pub fn set_tx_sender<T: Into<StandardPrincipalData>>(&mut self, address: T) {
-        self.interpreter.set_tx_sender(address.into())
     }
 
 }

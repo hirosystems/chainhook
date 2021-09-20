@@ -19,7 +19,7 @@ use prettytable::{
 use serde::Serialize;
 
 use anyhow::{Context, Result};
-use serde_json::map::IntoIter;
+use serde_json::{map::IntoIter, to_string};
 use thiserror::Error;
 
 use crate::{
@@ -68,6 +68,15 @@ pub enum CommandError {
     ParseIntError(String),
     #[error("Can not get costs: {0}")]
     GetCostsError(String),
+}
+
+impl CommandError {
+    pub fn map(&self, output_mode: OutputMode) -> String {
+        match output_mode {
+            OutputMode::Console => format!("{}", self),
+            OutputMode::Json => format!("{}", serde_json::to_string_pretty(&self).unwrap()),
+        }
+    }
 }
 
 impl From<ReplCommand> for CommandError {
@@ -183,7 +192,7 @@ impl ReplCommand {
                 true => CommandResult::Table(functions_table().into()),
             },
             ReplCommand::ListTests => CommandResult::List(list_tests()),
-            ReplCommand::DescribeFunction(f) => match session.lookup_api_reference(&f) {
+            ReplCommand::DescribeFunction(f) => match session.api_reference.get(f) {
                 Some(desc) => CommandResult::Description(desc.to_string()),
                 None => CommandResult::Error(CommandError::FunctionNotFound(f.clone())),
             },
@@ -195,26 +204,28 @@ impl ReplCommand {
                 Err(err) => CommandResult::Error(CommandError::CommandParseError(err)),
             },
             ReplCommand::SetTxSender(principal_data) => {
-                session.set_tx_sender(principal_data.clone());
+                session.interpreter.set_tx_sender(principal_data.clone());
                 CommandResult::Ok(format!("tx-sender switched to {}", principal_data))
             }
             ReplCommand::GetAssetsMaps => {
                 let table = get_assets_maps(&session);
                 CommandResult::Table(table)
             }
-            ReplCommand::GetCosts(snippet) => {
-                CommandResult::Table(get_costs(snippet.clone(), session).map_err(|e| CommandError::GetCostsError(e.to_string()))?)
-            }
+            ReplCommand::GetCosts(snippet) => CommandResult::Table(
+                get_costs(snippet.clone(), session)
+                    .map_err(|e| CommandError::GetCostsError(e.to_string()))?,
+            ),
             ReplCommand::GetContracts => CommandResult::Table(get_contracts(&session)),
             ReplCommand::GetBlockHeight => {
                 CommandResult::Ok(session.interpreter.get_block_height().to_string())
             }
             ReplCommand::AdvanceChainTip(count) => {
-                CommandResult::Ok(session.advance_chain_tip(*count).to_string())
+                CommandResult::Ok(session.interpreter.advance_chain_tip(*count).to_string())
             }
             ReplCommand::ExecuteSnippet(s) => session
                 .formatted_interpretation(s.to_string(), None, false, None)
-                .and_then(|(result, _)| Ok(CommandResult::List(result))).map_err(|e| CommandError::GetCostsError(e.to_string()))?
+                .and_then(|(result, _)| Ok(CommandResult::List(result)))
+                .map_err(|e| CommandError::GetCostsError(e.to_string()))?,
         })
     }
 }
