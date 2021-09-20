@@ -23,11 +23,12 @@ use self::traits_resolver::TraitsResolver;
 use self::types::BuildASTPass;
 pub use self::types::ContractAST;
 
-pub fn build_ast<T: CostTracker>(
+pub fn build_ast<T: CostTracker, S: AsRef<str>>(
     contract_identifier: &QualifiedContractIdentifier,
-    source_code: &str,
+    source_code: S,
     cost_track: &mut T,
 ) -> ParseResult<ContractAST> {
+    let source_code = source_code.as_ref();
     runtime_cost(
         ClarityCostFunction::AstParse,
         cost_track,

@@ -43,7 +43,7 @@ fn complete_input(str: &str) -> Result<Option<char>, (char, char)> {
 }
 
 pub struct Terminal {
-    session: Session,
+    pub session: Session,
 }
 
 impl Terminal {
@@ -60,13 +60,19 @@ impl Terminal {
 
         let _ = self.session.start();
         println!("\n{}", blue!("Contracts"));
-        let comm = ReplCommand::GetContracts.execute(&mut self.session).map(self.session.output_mode).map_err(|e| format!("{}", e));
+        let comm = ReplCommand::GetContracts
+            .execute(&mut self.session)
+            .and_then(|command_result| command_result.map(self.session.output_mode))
+            .map_err(|e| format!("{}", e));
         match comm {
             Ok(res) => println!("{}", res),
             Err(e) => println!("{}", Colour::Red.paint(e)),
         }
         println!("{}", blue!("Initialized balances"));
-        let comm = ReplCommand::GetAssetsMaps.execute(&mut self.session).map(self.session.output_mode).map_err(|e| format!("{}", e));
+        let comm = ReplCommand::GetAssetsMaps
+            .execute(&mut self.session)
+            .and_then(|command_result| command_result.map(self.session.output_mode))
+            .map_err(|e| format!("{}", e));
         match comm {
             Ok(res) => println!("{}", res),
             Err(e) => println!("{}", Colour::Red.paint(e)),
@@ -89,7 +95,7 @@ impl Terminal {
 
                             let res = repl_command
                                 .and_then(|command| Ok(command.execute(&mut self.session)))
-                                .and_then(|c| c.map(self.session.output_mode))
+                                .and_then(|c| c?.map(self.session.output_mode))
                                 .map_err(|e| format!("{}", e));
 
                             match res {
