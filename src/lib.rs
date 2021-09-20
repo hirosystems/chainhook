@@ -10,7 +10,7 @@ extern crate wasm_bindgen;
 
 #[cfg(feature = "cli")]
 #[macro_use]
-extern crate prettytable;
+pub extern crate prettytable;
 
 #[macro_use]
 extern crate serde_json;
