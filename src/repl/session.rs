@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::{fs, str::FromStr};
 
 use ansi_term::{Colour, Style};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 use tracing::{error, event, info, info_span, span, Level};
 use tracing_subscriber::prelude::*;
@@ -97,6 +97,7 @@ pub struct Session {
     pub interpreter: ClarityInterpreter,
     api_reference: HashMap<String, String>,
     pub coverage_reports: Vec<TestCoverageReport>,
+    pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
     pub output_mode: OutputMode,
 }
 
@@ -121,6 +122,7 @@ impl Session {
             interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
+            initial_contracts_analysis: vec![],
             output_mode,
         }
     }
@@ -217,7 +219,9 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    pub fn start(&mut self) -> Vec<(ContractAnalysis, String)> {
+    // pub fn start(&mut self) -> Vec<(ContractAnalysis, String)> {
+    pub fn start(&mut self) -> anyhow::Result<(String, Vec<(ContractAnalysis, String, String)>)> {
+
        let mut contracts = vec![];
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -264,8 +268,8 @@ impl Session {
                     Some("costs".to_string()),
                     false,
                     None,
-                )
-                .expect("Unable to deploy COSTS");
+                )?;
+                
             }
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
@@ -380,19 +384,15 @@ impl Session {
         }
 
         if self.settings.initial_contracts.len() > 0 {
-            let mut initial_contracts = self.settings.initial_contracts.clone();
+            let initial_contracts = self.settings.initial_contracts.clone();
             let default_tx_sender = self.interpreter.get_tx_sender();
-            for contract in initial_contracts.drain(..) {
+            for contract in initial_contracts.into_iter() {
                 let deployer = {
-                    let address = match contract.deployer {
-                        Some(ref entry) => entry.clone(),
-                        None => format!("{}", StacksAddress::burn_address(false)),
-                    };
-                    PrincipalData::parse_standard_principal(&address)
-                        .expect("Unable to parse deployer's address")
+                    contract.deployer.and_then(|address| 
+                    PrincipalData::parse_standard_principal(&address).ok())
                 };
 
-                self.interpreter.set_tx_sender(deployer);
+                self.interpreter.set_tx_sender(deployer.unwrap());
                 match self.formatted_interpretation(
                     contract.code,
                     contract.name,
@@ -403,8 +403,12 @@ impl Session {
                         if result.contract.is_none() {
                             continue;
                         }
-                        let contract = result.contract.unwrap();
-                        contracts.push((contract.4.clone(), contract.1.clone()))
+                        let analysis_result = result.contract.unwrap();
+                        contracts.push((
+                            analysis_result.4.clone(),
+                            analysis_result.1.clone(),
+                            contract.path.clone(),
+                        ))
                     }
                     Err(err) => error!("{:?}", err),
                 };
@@ -438,7 +442,7 @@ impl Session {
         //     self.interpreter.get_accounts();
         // }
 
-        contracts
+        Ok(("".to_string(), contracts))
     }
 
     #[cfg(feature = "wasm")]
@@ -608,7 +612,7 @@ impl Session {
         output.join("\n")
     }
 
-    pub fn check(&mut self) -> Result<Vec<(ContractAnalysis, String, String)>, String> {
+    pub fn check(&mut self) -> anyhow::Result<Vec<(ContractAnalysis, String, String)>> {
         let mut error_output = Vec::<String>::new();
         let mut contracts = vec![];
 
@@ -766,7 +770,7 @@ impl Session {
                             contract.path.clone(),
                         ))
                     }
-                    Err(ref mut result) => error_output.append(result),
+                    Err(ref mut result) => error_output.push(result.to_string()),
                 };
             }
             self.interpreter.set_tx_sender(default_tx_sender);
@@ -774,20 +778,21 @@ impl Session {
 
         match error_output.len() {
             0 => Ok(contracts),
-            _ => Err(error_output.join("\n")),
+            _ => bail!(error_output.join("\n")),
         }
     }
 
-    pub fn formatted_interpretation(
+    pub fn formatted_interpretation<T: AsRef<str>>(
         &mut self,
-        snippet: String,
+        snippet: T,
         name: Option<String>,
         cost_track: bool,
         test_name: Option<String>,
-    ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
+    ) -> anyhow::Result<(Vec<String>, ExecutionResult)> {
+        let snippet = snippet.as_ref();
         let light_red = Colour::Red.bold();
 
-        let result = self.interpret(snippet.to_string(), name, cost_track, test_name);
+        let result = self.interpret(snippet, name, cost_track, test_name);
         let mut output = Vec::<String>::new();
 
         match result {
@@ -858,14 +863,14 @@ impl Session {
                         output.append(&mut formatted_lines);
                     }
                 }
-                Err(output)
+                bail!("{:?}",output)
             }
         }
     }
 
-    pub fn interpret(
+    pub fn interpret<T: AsRef<str>>(
         &mut self,
-        snippet: String,
+        snippet: T,
         name: Option<String>,
         cost_track: bool,
         test_name: Option<String>,

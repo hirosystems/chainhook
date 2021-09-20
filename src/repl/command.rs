@@ -8,7 +8,7 @@ use std::{
 };
 
 use ansi_term::{
-    Colour::{Blue, Green, Yellow, Red},
+    Colour::{Blue, Green, Red, Yellow},
     Style,
 };
 use itertools::Itertools;
@@ -66,6 +66,8 @@ pub enum CommandError {
     MintParseError(MintParseError),
     #[error("Can not parse: {0}")]
     ParseIntError(String),
+    #[error("Can not get costs: {0}")]
+    GetCostsError(String),
 }
 
 impl From<ReplCommand> for CommandError {
@@ -158,32 +160,19 @@ impl CommandResult {
     pub fn map(&self, output_mode: OutputMode) -> Result<String, CommandError> {
         Ok(match output_mode {
             OutputMode::Console => match self {
-                CommandResult::Table(output_table) => {
-                    Table::from(output_table.clone()).to_string()
-                }
-                CommandResult::List(list) => {
-                    Yellow.paint(list.join("\n")).to_string()
-                }
-                CommandResult::Description(s) => {
-                    Yellow.paint(s).to_string()
-                }
-                CommandResult::Error(e) => {
-                    Red.paint(format!("{}", e)).to_string()
-                }
-                CommandResult::Ok(msg) => {
-                    Green.paint(msg).to_string()
-                }
+                CommandResult::Table(output_table) => Table::from(output_table.clone()).to_string(),
+                CommandResult::List(list) => Yellow.paint(list.join("\n")).to_string(),
+                CommandResult::Description(s) => Yellow.paint(s).to_string(),
+                CommandResult::Error(e) => Red.paint(format!("{}", e)).to_string(),
+                CommandResult::Ok(msg) => Green.paint(msg).to_string(),
             },
-            OutputMode::Json => format!(
-                "{}",
-                serde_json::to_string_pretty(&self).unwrap()
-            ),
+            OutputMode::Json => format!("{}", serde_json::to_string_pretty(&self).unwrap()),
         })
     }
 }
 impl ReplCommand {
-    pub fn execute(&self, session: &mut Session) -> CommandResult {
-        match self {
+    pub fn execute(&self, session: &mut Session) -> Result<CommandResult, CommandError> {
+        Ok(match self {
             ReplCommand::Help => CommandResult::Table(help_table()),
             ReplCommand::SwitchOutputMode => {
                 session.output_mode = OutputMode::switch(&session.output_mode);
@@ -214,7 +203,7 @@ impl ReplCommand {
                 CommandResult::Table(table)
             }
             ReplCommand::GetCosts(snippet) => {
-                CommandResult::Table(get_costs(snippet.clone(), session))
+                CommandResult::Table(get_costs(snippet.clone(), session).map_err(|e| CommandError::GetCostsError(e.to_string()))?)
             }
             ReplCommand::GetContracts => CommandResult::Table(get_contracts(&session)),
             ReplCommand::GetBlockHeight => {
@@ -223,13 +212,10 @@ impl ReplCommand {
             ReplCommand::AdvanceChainTip(count) => {
                 CommandResult::Ok(session.advance_chain_tip(*count).to_string())
             }
-            ReplCommand::ExecuteSnippet(s) => {
-                match session.formatted_interpretation(s.to_string(), None, false, None) {
-                    Ok((result, _)) => CommandResult::List(result),
-                    Err(result) => CommandResult::List(result),
-                }
-            }
-        }
+            ReplCommand::ExecuteSnippet(s) => session
+                .formatted_interpretation(s.to_string(), None, false, None)
+                .and_then(|(result, _)| Ok(CommandResult::List(result))).map_err(|e| CommandError::GetCostsError(e.to_string()))?
+        })
     }
 }
 
@@ -517,12 +503,11 @@ fn get_contracts(session: &Session) -> OutputTable {
     }
 }
 
-pub fn get_costs(snippet: String, session: &mut Session) -> OutputTable {
+pub fn get_costs(snippet: String, session: &mut Session) -> anyhow::Result<OutputTable> {
     let rows;
-    let (result, cost) = match session.formatted_interpretation(snippet, None, true, None) {
-        Ok((output, result)) => (output, result.cost.clone()),
-        Err(output) => (output, None),
-    };
+    let (result, cost) = session
+        .formatted_interpretation(snippet, None, true, None)
+        .and_then(|(output, result)| Ok((output, result.cost.clone())))?;
 
     if let Some(cost) = cost {
         let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];
@@ -557,5 +542,5 @@ pub fn get_costs(snippet: String, session: &mut Session) -> OutputTable {
         rows,
     };
 
-    table
+    Ok(table)
 }

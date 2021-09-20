@@ -50,14 +50,15 @@ impl ClarityInterpreter {
         }
     }
 
-    pub fn run(
+    pub fn run<T: AsRef<str>>(
         &mut self,
-        snippet: String,
+        snippet: T,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
-        let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
+        // let snippet = snippet.as_ref();
+        let mut ast = self.build_ast(contract_identifier.clone(), snippet.as_ref())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
         let result = self.execute(
             contract_identifier,
@@ -90,12 +91,12 @@ impl ClarityInterpreter {
         Ok(deps)
     }
 
-    pub fn build_ast(
+    pub fn build_ast<T: AsRef<str>>(
         &self,
         contract_identifier: QualifiedContractIdentifier,
-        snippet: String,
+        snippet: T,
     ) -> Result<ContractAST, (String, Option<Diagnostic>)> {
-        let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
+        let contract_ast = match ast::build_ast(&contract_identifier, snippet, &mut ()) {
             Ok(res) => res,
             Err(error) => {
                 let message = format!("Parsing error: {}", error.diagnostic.message);
@@ -135,15 +136,16 @@ impl ClarityInterpreter {
     }
 
     #[allow(unused_assignments)]
-    pub fn execute(
+    pub fn execute<S: AsRef<str>>(
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
-        snippet: String,
+        snippet: S,
         contract_analysis: ContractAnalysis,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+        let snippet = snippet.as_ref();
         let mut execution_result = ExecutionResult::default();
         let mut contract_saved = false;
         let mut serialized_events = vec![];
@@ -354,7 +356,7 @@ impl ClarityInterpreter {
                 }
                 execution_result.contract = Some((
                     contract_identifier.to_string(),
-                    snippet.clone(),
+                    snippet.to_string(),
                     functions,
                     contract_ast.clone(),
                     contract_analysis.clone(),
@@ -364,7 +366,7 @@ impl ClarityInterpreter {
 
                 global_context
                     .database
-                    .insert_contract_hash(&contract_identifier, &snippet)
+                    .insert_contract_hash(&contract_identifier, snippet)
                     .unwrap();
                 let contract = Contract { contract_context };
                 global_context
