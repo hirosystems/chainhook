@@ -54,6 +54,7 @@ pub struct Session {
     pub coverage_reports: Vec<TestCoverageReport>,
     pub costs_reports: Vec<CostsReport>,
     pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
+    pub show_costs: bool,
 }
 
 impl Session {
@@ -78,6 +79,7 @@ impl Session {
             coverage_reports: vec![],
             costs_reports: vec![],
             initial_contracts_analysis: vec![],
+            show_costs: false,
         }
     }
 
@@ -595,14 +597,23 @@ impl Session {
             cmd if cmd.starts_with("::advance_chain_tip") => {
                 self.parse_and_advance_chain_tip(&mut output, cmd)
             }
+            cmd if cmd.starts_with("::toggle_costs") => self.toggle_costs(&mut output),
 
             snippet => {
-                let mut result =
-                    match self.formatted_interpretation(snippet.to_string(), None, true, None) {
+                if self.show_costs {
+                    self.get_costs(&mut output, &format!("::get_costs {}", snippet))
+                } else {
+                    let mut result = match self.formatted_interpretation(
+                        snippet.to_string(),
+                        None,
+                        true,
+                        None,
+                    ) {
                         Ok((result, _)) => result,
                         Err(result) => result,
                     };
-                output.append(&mut result);
+                    output.append(&mut result);
+                }
             }
         }
         output
@@ -849,6 +860,10 @@ impl Session {
             "{}",
             help_colour.paint("::advance_chain_tip <count>\t\tSimulate mining of <count> blocks")
         ));
+        output.push(format!(
+            "{}",
+            help_colour.paint("::toggle_costs\t\t\t\tDisplay cost analysis after every expression")
+        ))
     }
 
     fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
@@ -924,6 +939,11 @@ impl Session {
 
     pub fn get_assets_maps(&self) -> BTreeMap<String, BTreeMap<String, u128>> {
         self.interpreter.get_assets_maps()
+    }
+
+    pub fn toggle_costs(&mut self, output: &mut Vec<String>) {
+        self.show_costs = !self.show_costs;
+        output.push(green!(format!("Always show costs: {}", self.show_costs)))
     }
 
     #[cfg(feature = "cli")]
