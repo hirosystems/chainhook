@@ -232,7 +232,7 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    pub fn start(&mut self) -> anyhow::Result<(String, Vec<(ContractAnalysis, String, String)>)> {
+    pub fn start(&mut self) -> anyhow::Result<Vec<(ContractAnalysis, String, String)>> {
        let mut contracts = vec![];
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -298,8 +298,7 @@ impl Session {
                     Some("pox".to_string()),
                     false,
                     None,
-                )
-                .expect("Unable to deploy POX");
+                ).expect("Unable to deploy POX");
             }
             if self
                 .settings
@@ -353,10 +352,8 @@ impl Session {
                 let contract_deployer = components.first().expect("");
                 let contract_name = components.last().expect("");
 
-                let deployer = {
-                    PrincipalData::parse_standard_principal(&contract_deployer)
-                        .expect("Unable to parse deployer's address")
-                };
+                let deployer = PrincipalData::parse_standard_principal(&contract_deployer)?;
+               
 
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(
@@ -454,7 +451,7 @@ impl Session {
         //     self.interpreter.get_accounts();
         // }
 
-        Ok(("".to_string(), contracts))
+        Ok(contracts)
     }
 
     #[cfg(feature = "wasm")]

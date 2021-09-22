@@ -13,8 +13,8 @@ use ansi_term::{
 };
 use itertools::Itertools;
 use prettytable::{
-    format::{FormatBuilder, TableFormat},
-    *,
+    format::{self,FormatBuilder, TableFormat},
+    Table as PrettyTable, Row, Cell
 };
 use serde::Serialize;
 
@@ -46,20 +46,16 @@ impl From<ParseIntError> for MintParseError {
     }
 }
 
-impl From<clarity::errors::Error> for MintParseError {
-    fn from(_: clarity::errors::Error) -> Self {
-        Self::AddressParseError
-    }
-}
-
 #[derive(Error, Debug, Serialize)]
 pub enum CommandError {
     #[error("Command can't be parsed: {0}")]
     CommandParseError(String),
     #[error("Command not found: ::{0}")]
     CommandNotFound(String),
-    #[error("Function not found: {0}")]
-    FunctionNotFound(String),
+    #[error("ExecutionError: {0:?}")]
+    ClarityError(String),
+    #[error(transparent)]
+    ExecutionError(#[from] CommandExecuteError),
     #[error("Usage: {0}")]
     CommandUsageError(Usage),
     #[error("Can not mint: {0}")]
@@ -68,6 +64,8 @@ pub enum CommandError {
     ParseIntError(String),
     #[error("Can not get costs: {0}")]
     GetCostsError(String),
+    #[error("Can not find tests")]
+    CanNotFindTests
 }
 
 impl CommandError {
@@ -92,10 +90,15 @@ impl From<ReplCommand> for CommandError {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize)]
 pub enum CommandExecuteError {
     #[error("Can not parse Principal {0}")]
-    PrincipalParseError(MintParseError),
+    // #[error(transparent)]
+    PrincipalParseError(String),
+    #[error("Function not found: {0}")]
+    DescFuncError(String),
+    #[error("Interpreter Error: {0}")]
+    InterpreterError(String)
 }
 
 impl From<ParseIntError> for CommandError {
@@ -104,17 +107,17 @@ impl From<ParseIntError> for CommandError {
     }
 }
 
-impl From<MintParseError> for CommandError {
-    fn from(m: MintParseError) -> Self {
-        Self::MintParseError(m)
-    }
-}
+// impl From<MintParseError> for CommandError {
+//     fn from(m: MintParseError) -> Self {
+//         Self::MintParseError(m)
+//     }
+// }
 
-impl From<clarity::errors::Error> for CommandError {
-    fn from(_: clarity::errors::Error) -> Self {
-        Self::MintParseError(MintParseError::AddressParseError)
-    }
-}
+// impl From<clarity::errors::Error> for CommandExecuteError {
+//     fn from(e: clarity::errors::Error) -> Self {
+//         Self::ExecutionError(CommandExecuteError::PrincipalParseError(e))
+//     }
+// }
 
 #[derive(Debug, Serialize)]
 pub enum ReplCommand {
@@ -161,7 +164,6 @@ pub enum CommandResult {
     Ok(String),
     Table(OutputTable),
     List(Vec<String>),
-    // String(String),
     Description(String),
     Error(CommandError),
 }
@@ -169,7 +171,7 @@ impl CommandResult {
     pub fn map(&self, output_mode: OutputMode) -> Result<String, CommandError> {
         Ok(match output_mode {
             OutputMode::Console => match self {
-                CommandResult::Table(output_table) => Table::from(output_table.clone()).to_string(),
+                CommandResult::Table(output_table) => PrettyTable::from(output_table.clone()).to_string(),
                 CommandResult::List(list) => Yellow.paint(list.join("\n")).to_string(),
                 CommandResult::Description(s) => Yellow.paint(s).to_string(),
                 CommandResult::Error(e) => Red.paint(format!("{}", e)).to_string(),
@@ -191,10 +193,13 @@ impl ReplCommand {
                 false => CommandResult::List(list_functions()),
                 true => CommandResult::Table(functions_table().into()),
             },
-            ReplCommand::ListTests => CommandResult::List(list_tests()),
+            ReplCommand::ListTests => match list_tests() {
+                Ok(list) => CommandResult::List(list),
+                Err(e) => CommandResult::Error(CommandError::CanNotFindTests)
+            }
             ReplCommand::DescribeFunction(f) => match session.api_reference.get(f) {
                 Some(desc) => CommandResult::Description(desc.to_string()),
-                None => CommandResult::Error(CommandError::FunctionNotFound(f.clone())),
+                None => CommandResult::Error(CommandError::ExecutionError(CommandExecuteError::DescFuncError(f.clone()))),
             },
             ReplCommand::MintStx(recipient, amount) => match session
                 .interpreter
@@ -225,7 +230,7 @@ impl ReplCommand {
             ReplCommand::ExecuteSnippet(s) => session
                 .formatted_interpretation(s.to_string(), None, false, None)
                 .and_then(|(result, _)| Ok(CommandResult::List(result)))
-                .map_err(|e| CommandError::GetCostsError(e.to_string()))?,
+                .map_err(|e| CommandError::ExecutionError(CommandExecuteError::InterpreterError(e.to_string())))?,
         })
     }
 }
@@ -260,13 +265,13 @@ impl FromStr for ReplCommand {
                     true => Err(CommandError::CommandUsageError(Usage::DescribeFunction)),
                 },
                 "mint_stx" => match args.len() == 2 {
-                    true => Ok(Self::MintStx(args[0].parse()?, args[1].parse()?)),
+                    true => Ok(Self::MintStx(PrincipalData::from_str(args[0]).map_err(|e| CommandError::ClarityError(e.to_string()))?, args[1].parse()?)),
                     false => Err(CommandError::CommandUsageError(Usage::MintStx)),
                 },
                 "set_tx_sender" => match !args.is_empty() {
                     true => Ok(Self::SetTxSender(PrincipalData::parse_standard_principal(
                         args[0],
-                    )?)),
+                    ).map_err(|e| CommandError::CommandParseError(e.to_string()))?)),
                     false => Err(CommandError::CommandUsageError(Usage::SetTxSender)),
                 },
 
@@ -308,7 +313,7 @@ impl From<Vec<Vec<String>>> for OutputTable {
     }
 }
 
-impl From<OutputTable> for Table {
+impl From<OutputTable> for PrettyTable {
     fn from(output_table: OutputTable) -> Self {
         let tbl = output_table
             .rows
@@ -326,7 +331,7 @@ impl From<OutputTable> for Table {
             })
             .collect::<Vec<Row>>()
             .into();
-        let mut table = Table::init(tbl);
+        let mut table = PrettyTable::init(tbl);
         if let Some(titles) = output_table.titles {
             table.set_titles(Row::new(
                 titles
@@ -407,14 +412,14 @@ fn functions_table() -> Vec<Vec<String>> {
     table
 }
 
-fn list_tests() -> Vec<String> {
+fn list_tests() -> Result<Vec<String>> {
     let mut res = Vec::new();
-    let dir = std::fs::read_dir("tests").unwrap();
+    let dir = std::fs::read_dir("tests")?;
     for entry in dir {
         let ent = format!("{}", entry.unwrap().path().display());
         res.push(ent);
     }
-    res
+    Ok(res)
 }
 
 fn get_assets_maps(session: &Session) -> OutputTable {
