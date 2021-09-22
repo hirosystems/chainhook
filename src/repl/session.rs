@@ -232,7 +232,7 @@ impl Session {
     }
 
     #[cfg(not(feature = "wasm"))]
-    pub fn start(&mut self) -> anyhow::Result<(String, Vec<(ContractAnalysis, String, String)>)> {
+    pub fn start(&mut self) -> anyhow::Result<Vec<(ContractAnalysis, String, String)>> {
        let mut contracts = vec![];
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -454,7 +454,7 @@ impl Session {
         //     self.interpreter.get_accounts();
         // }
 
-        Ok(("".to_string(), contracts))
+        Ok(contracts)
     }
 
     #[cfg(feature = "wasm")]
