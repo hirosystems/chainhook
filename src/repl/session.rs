@@ -618,7 +618,7 @@ impl Session {
     ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
 
-        let result = self.interpret(snippet.to_string(), name, cost_track, test_name);
+        let result = self.interpret(snippet.to_string(), name.clone(), cost_track, test_name);
         let mut output = Vec::<String>::new();
 
         match result {
@@ -639,6 +639,9 @@ impl Session {
                 Ok((output, result))
             }
             Err((message, diagnostic, _)) => {
+                if let Some(name) = name {
+                    output.push(format!("Error found in contract {}", name)); 
+                }
                 output.push(red!(message));
                 if let Some(diagnostic) = diagnostic {
                     if diagnostic.spans.len() > 0 {
