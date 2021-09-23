@@ -55,6 +55,10 @@ impl Terminal {
         let mut ctrl_c_acc = 0;
         let mut input_buffer = vec![];
         let mut prompt = String::from(">> ");
+
+        editor
+            .load_history(HISTORY_FILE.unwrap_or("history.txt"))
+            .ok();
         loop {
             let readline = editor.readline(prompt.as_str());
             match readline {
