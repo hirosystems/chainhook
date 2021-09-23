@@ -318,7 +318,7 @@ impl ClarityInterpreter {
                     StacksTransactionEvent::NFTEvent(NFTEventType::NFTMintEvent(
                         ref event_data,
                     )) => {
-                        accounts_to_debit.push((
+                        accounts_to_credit.push((
                             event_data.recipient.to_string(),
                             event_data.asset_identifier.sugared(),
                             1,
