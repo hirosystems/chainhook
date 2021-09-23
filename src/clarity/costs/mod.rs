@@ -217,6 +217,7 @@ pub struct LimitedCostTracker {
     limit: ExecutionCost,
     pub memory: u64,
     pub memory_limit: u64,
+    pub costs_version: u32,
     free: bool,
     mainnet: bool,
 }
@@ -328,6 +329,7 @@ fn load_cost_functions(
     mainnet: bool,
     clarity_db: &mut ClarityDatabase,
     apply_updates: bool,
+    costs_version: u32,
 ) -> Result<CostStateSummary> {
     if mainnet == false {
         return Ok(CostStateSummary::empty());
@@ -470,8 +472,8 @@ fn load_cost_functions(
                 continue;
             }
         };
-
-        if target_contract == boot_code_id("costs", mainnet) {
+        let costs_contract = format!("costs-v{}", costs_version);
+        if target_contract == boot_code_id(&costs_contract, mainnet) {
             // refering to one of the boot code cost functions
             let target = match ClarityCostFunction::lookup_by_name(&target_function) {
                 Some(cost_func) => cost_func,
@@ -533,6 +535,7 @@ impl LimitedCostTracker {
         mainnet: bool,
         limit: ExecutionCost,
         clarity_db: &mut ClarityDatabase,
+        costs_version: u32,
     ) -> Result<LimitedCostTracker> {
         let mut cost_tracker = LimitedCostTracker {
             cost_function_references: HashMap::new(),
@@ -544,6 +547,7 @@ impl LimitedCostTracker {
             memory: 0,
             free: false,
             mainnet,
+            costs_version,
         };
         cost_tracker.load_costs(clarity_db, true)?;
         Ok(cost_tracker)
@@ -564,6 +568,7 @@ impl LimitedCostTracker {
             memory: 0,
             free: false,
             mainnet,
+            costs_version: 1,
         };
         cost_tracker.load_costs(clarity_db, false)?;
         Ok(cost_tracker)
@@ -577,6 +582,7 @@ impl LimitedCostTracker {
             limit: ExecutionCost::max_value(),
             total: ExecutionCost::zero(),
             memory: 0,
+            costs_version: 1,
             memory_limit: CLARITY_MEMORY_LIMIT,
             free: true,
             mainnet: false,
@@ -587,13 +593,14 @@ impl LimitedCostTracker {
     ///   which would need to be applied. if `false`, just load the last computed cost state in this
     ///   fork.
     fn load_costs(&mut self, clarity_db: &mut ClarityDatabase, apply_updates: bool) -> Result<()> {
-        let boot_costs_id = boot_code_id("costs", self.mainnet);
+        let costs_contract = format!("costs-v{}", self.costs_version);
+        let boot_costs_id = boot_code_id(&costs_contract, self.mainnet);
 
         clarity_db.begin();
         let CostStateSummary {
             contract_call_circuits,
             mut cost_function_references,
-        } = load_cost_functions(self.mainnet, clarity_db, apply_updates).map_err(|e| {
+        } = load_cost_functions(self.mainnet, clarity_db, apply_updates, self.costs_version).map_err(|e| {
             clarity_db.roll_back();
             e
         })?;

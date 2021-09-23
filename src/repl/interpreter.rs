@@ -36,10 +36,11 @@ pub struct ClarityInterpreter {
     tx_sender: StandardPrincipalData,
     accounts: BTreeSet<String>,
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
+    costs_version: u32,
 }
 
 impl ClarityInterpreter {
-    pub fn new(tx_sender: StandardPrincipalData) -> ClarityInterpreter {
+    pub fn new(tx_sender: StandardPrincipalData, costs_version: u32) -> ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
@@ -48,6 +49,7 @@ impl ClarityInterpreter {
             tx_sender,
             accounts,
             tokens,
+            costs_version,
         }
     }
 
@@ -156,7 +158,7 @@ impl ClarityInterpreter {
 
             let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
             let cost_tracker = if cost_track {
-                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn).unwrap()
+                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn, self.costs_version).unwrap()
             } else {
                 LimitedCostTracker::new_free()
             };

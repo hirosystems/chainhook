@@ -8,8 +8,8 @@ use crate::clarity::functions::NativeFunctions;
 use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
-use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
 use crate::clarity::errors::Error;
+use crate::contracts::{BNS_CONTRACT, COSTS_V1_CONTRACT, COSTS_V2_CONTRACT, POX_CONTRACT};
 use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
@@ -71,14 +71,14 @@ impl Session {
         Session {
             session_id: 0,
             started_at: 0,
-            settings,
+            interpreter: ClarityInterpreter::new(tx_sender, settings.costs_version),
             asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
-            interpreter: ClarityInterpreter::new(tx_sender),
             api_reference: build_api_reference(),
             coverage_reports: vec![],
             costs_reports: vec![],
             initial_contracts_analysis: vec![],
+            settings,
         }
     }
 
@@ -185,92 +185,15 @@ impl Session {
             let boot_testnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_testnet_address)
                     .expect("Unable to parse deployer's address");
-
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
+            self.include_boot_contracts();
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_mainnet_address)
                     .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
+            self.include_boot_contracts();
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
@@ -412,6 +335,61 @@ impl Session {
         }
     }
 
+    pub fn include_boot_contracts(&mut self) {
+        if self
+            .settings
+            .include_boot_contracts
+            .contains(&"pox".to_string())
+        {
+            self.formatted_interpretation(
+                POX_CONTRACT.to_string(),
+                Some("pox".to_string()),
+                false,
+                None,
+            )
+            .expect("Unable to deploy POX");
+        }
+        if self
+            .settings
+            .include_boot_contracts
+            .contains(&"bns".to_string())
+        {
+            self.formatted_interpretation(
+                BNS_CONTRACT.to_string(),
+                Some("bns".to_string()),
+                false,
+                None,
+            )
+            .expect("Unable to deploy BNS");
+        }
+        if self
+            .settings
+            .include_boot_contracts
+            .contains(&"costs-v1".to_string())
+        {
+            self.formatted_interpretation(
+                COSTS_V1_CONTRACT.to_string(),
+                Some("costs-v1".to_string()),
+                false,
+                None,
+            )
+            .expect("Unable to deploy COSTS");
+        }
+        if self
+            .settings
+            .include_boot_contracts
+            .contains(&"costs-v2".to_string())
+        {
+            self.formatted_interpretation(
+                COSTS_V2_CONTRACT.to_string(),
+                Some("costs-v2".to_string()),
+                false,
+                None,
+            )
+            .expect("Unable to deploy COSTS");
+        }
+    }
+
     #[cfg(feature = "wasm")]
     pub async fn start_wasm(&mut self) -> String {
         let mut output = Vec::<String>::new();
@@ -423,92 +401,16 @@ impl Session {
             let boot_testnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_testnet_address)
                     .expect("Unable to parse deployer's address");
-
             self.interpreter.set_tx_sender(boot_testnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
+            self.include_boot_contracts();
 
             let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer =
                 PrincipalData::parse_standard_principal(&boot_mainnet_address)
                     .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"pox".to_string())
-            {
-                self.formatted_interpretation(
-                    POX_CONTRACT.to_string(),
-                    Some("pox".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy POX");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"bns".to_string())
-            {
-                self.formatted_interpretation(
-                    BNS_CONTRACT.to_string(),
-                    Some("bns".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy BNS");
-            }
-            if self
-                .settings
-                .include_boot_contracts
-                .contains(&"costs".to_string())
-            {
-                self.formatted_interpretation(
-                    COSTS_CONTRACT.to_string(),
-                    Some("costs".to_string()),
-                    false,
-                    None,
-                )
-                .expect("Unable to deploy COSTS");
-            }
+            self.include_boot_contracts();
+
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
@@ -1015,9 +917,8 @@ impl Session {
             table.add_row(row!["Contract identifier", "Public functions"]);
             let contracts = self.contracts.clone();
             for (contract_id, methods) in contracts.iter() {
-                if !contract_id.ends_with(".pox")
-                    && !contract_id.ends_with(".bns")
-                    && !contract_id.ends_with(".costs")
+                if !contract_id.starts_with("ST000000000000000000002AMW42H")
+                    && !contract_id.starts_with("SP000000000000000000002Q6VF78")
                 {
                     let mut formatted_methods = vec![];
                     for (method_name, method_args) in methods.iter() {
