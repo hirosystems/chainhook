@@ -9,6 +9,7 @@ use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, Standard
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::contracts::{BNS_CONTRACT, COSTS_CONTRACT, POX_CONTRACT};
+use crate::clarity::errors::Error;
 use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
@@ -329,7 +330,7 @@ impl Session {
 
                 match self
                     .interpreter
-                    .credit_stx_balance(recipient, account.balance)
+                    .mint_stx_balance(recipient, account.balance)
                 {
                     Ok(_) => {}
                     Err(err) => output_err.push(red!(err)),
@@ -637,7 +638,7 @@ impl Session {
                 }
                 Ok((output, result))
             }
-            Err((message, diagnostic)) => {
+            Err((message, diagnostic, _)) => {
                 output.push(red!(message));
                 if let Some(diagnostic) = diagnostic {
                     if diagnostic.spans.len() > 0 {
@@ -700,7 +701,7 @@ impl Session {
         args: &Vec<String>,
         sender: &str,
         test_name: String,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let initial_tx_sender = self.get_tx_sender();
         // Kludge for handling fully qualified contract_id vs sugared syntax
         let first_char = contract.chars().next().unwrap();
@@ -738,7 +739,7 @@ impl Session {
         name: Option<String>,
         cost_track: bool,
         test_name: Option<String>,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let (contract_name, is_tx) = match name {
             Some(name) => (name, false),
             None => (format!("contract-{}", self.contracts.len()), true),
@@ -1103,7 +1104,7 @@ impl Session {
             }
         };
 
-        match self.interpreter.credit_stx_balance(recipient, amount) {
+        match self.interpreter.mint_stx_balance(recipient, amount) {
             Ok(msg) => output.push(green!(msg)),
             Err(err) => output.push(red!(err)),
         };
