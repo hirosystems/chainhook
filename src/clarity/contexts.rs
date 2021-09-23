@@ -11,7 +11,7 @@ use crate::clarity::costs::cost_functions::ClarityCostFunction;
 use crate::clarity::costs::{
     cost_functions, runtime_cost, CostErrors, CostTracker, ExecutionCost, LimitedCostTracker,
 };
-use crate::clarity::coverage::TestCoverageReport;
+use crate::clarity::coverage::{TestCoverageReport, CostsReport};
 use crate::clarity::database::structures::{
     DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
 };
@@ -91,6 +91,7 @@ pub struct GlobalContext<'a> {
     pub cost_track: LimitedCostTracker,
     pub mainnet: bool,
     pub coverage_reporting: Option<TestCoverageReport>,
+    pub costs_reporting: Option<CostsReport>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -120,7 +121,7 @@ pub struct LocalContext<'a> {
 }
 
 pub struct CallStack {
-    stack: Vec<FunctionIdentifier>,
+    pub stack: Vec<FunctionIdentifier>,
     set: HashSet<FunctionIdentifier>,
     apply_depth: usize,
 }
@@ -1195,6 +1196,7 @@ impl<'a> GlobalContext<'a> {
             event_batches: Vec::new(),
             mainnet,
             coverage_reporting: None,
+            costs_reporting: None,
         }
     }
 

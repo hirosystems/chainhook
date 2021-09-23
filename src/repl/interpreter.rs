@@ -18,6 +18,7 @@ use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
+use crate::clarity::errors::Error;
 use crate::repl::{CostSynthesis, ExecutionResult};
 use serde_json::Value;
 
@@ -35,10 +36,11 @@ pub struct ClarityInterpreter {
     tx_sender: StandardPrincipalData,
     accounts: BTreeSet<String>,
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
+    costs_version: u32,
 }
 
 impl ClarityInterpreter {
-    pub fn new(tx_sender: StandardPrincipalData) -> ClarityInterpreter {
+    pub fn new(tx_sender: StandardPrincipalData, costs_version: u32) -> ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
@@ -47,6 +49,7 @@ impl ClarityInterpreter {
             tx_sender,
             accounts,
             tokens,
+            costs_version,
         }
     }
 
@@ -56,7 +59,7 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
         let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
         let result = self.execute(
@@ -94,12 +97,12 @@ impl ClarityInterpreter {
         &self,
         contract_identifier: QualifiedContractIdentifier,
         snippet: String,
-    ) -> Result<ContractAST, (String, Option<Diagnostic>)> {
+    ) -> Result<ContractAST, (String, Option<Diagnostic>, Option<Error>)> {
         let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
             Ok(res) => res,
             Err(error) => {
                 let message = format!("Parsing error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic)));
+                return Err((message, Some(error.diagnostic), None));
             }
         };
         Ok(contract_ast)
@@ -109,7 +112,7 @@ impl ClarityInterpreter {
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
-    ) -> Result<ContractAnalysis, (String, Option<Diagnostic>)> {
+    ) -> Result<ContractAnalysis, (String, Option<Diagnostic>, Option<Error>)> {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
 
         let mut contract_analysis = match analysis::run_analysis(
@@ -122,7 +125,7 @@ impl ClarityInterpreter {
             Ok(res) => res,
             Err((error, cost_tracker)) => {
                 let message = format!("Analysis error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic)));
+                return Err((message, Some(error.diagnostic), None));
             }
         };
 
@@ -143,7 +146,7 @@ impl ClarityInterpreter {
         contract_analysis: ContractAnalysis,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>)> {
+    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut execution_result = ExecutionResult::default();
         let mut contract_saved = false;
         let mut serialized_events = vec![];
@@ -155,7 +158,7 @@ impl ClarityInterpreter {
 
             let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
             let cost_tracker = if cost_track {
-                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn).unwrap()
+                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn, self.costs_version).unwrap()
             } else {
                 LimitedCostTracker::new_free()
             };
@@ -219,9 +222,9 @@ impl ClarityInterpreter {
             let value = match result {
                 Ok(Some(value)) => format!("{}", value),
                 Ok(None) => format!("()"),
-                Err(error) => {
-                    let error = format!("Runtime Error: {:?}", error);
-                    return Err((error, None));
+                Err(e) => {
+                    let error = format!("Runtime Error: {:?}", e);
+                    return Err((error, None, Some(e)));
                 }
             };
 
@@ -315,7 +318,7 @@ impl ClarityInterpreter {
                     StacksTransactionEvent::NFTEvent(NFTEventType::NFTMintEvent(
                         ref event_data,
                     )) => {
-                        accounts_to_debit.push((
+                        accounts_to_credit.push((
                             event_data.recipient.to_string(),
                             event_data.asset_identifier.sugared(),
                             1,
@@ -409,7 +412,7 @@ impl ClarityInterpreter {
         Ok(execution_result)
     }
 
-    pub fn credit_stx_balance(
+    pub fn mint_stx_balance(
         &mut self,
         recipient: PrincipalData,
         amount: u64,
@@ -423,6 +426,7 @@ impl ClarityInterpreter {
             cur_balance.credit(amount as u128);
             let final_balance = cur_balance.get_available_balance();
             cur_balance.save();
+            global_context.database.increment_ustx_liquid_supply(amount as u128).unwrap();
             global_context.commit().unwrap();
             final_balance
         };

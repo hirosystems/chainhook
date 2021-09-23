@@ -30,6 +30,10 @@ pub struct ContractCoverageReport {
     executed_statements: BTreeSet<u64>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct CostsReport {
+}
+
 impl CoverageReporter {
     pub fn new() -> CoverageReporter {
         CoverageReporter {

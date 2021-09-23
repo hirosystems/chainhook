@@ -56,6 +56,7 @@ pub struct SessionSettings {
     pub node: String,
     pub include_boot_contracts: Vec<String>,
     pub include_costs: bool,
+    pub costs_version: u32,
     pub initial_links: Vec<InitialLink>,
     pub initial_contracts: Vec<InitialContract>,
     pub initial_accounts: Vec<Account>,

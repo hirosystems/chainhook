@@ -70,7 +70,7 @@ impl NativeHandle {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct FunctionIdentifier {
-    identifier: String,
+    pub identifier: String,
 }
 
 impl fmt::Display for FunctionIdentifier {

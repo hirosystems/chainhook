@@ -223,7 +223,7 @@ pub fn eval<'a>(
         coverage_tracker.report_eval(&env.contract_context.contract_identifier, exp);
     }
 
-    match exp.expr {
+    let mut res = match exp.expr {
         AtomValue(ref value) | LiteralValue(ref value) => Ok(value.clone()),
         Atom(ref value) => lookup_variable(&value, context, env),
         List(ref children) => {
@@ -245,7 +245,22 @@ pub fn eval<'a>(
             apply(&f, &rest, env, context)
         }
         TraitReference(_, _) | Field(_) => unreachable!("can't be evaluated"),
+    };
+
+    if let Err(ref mut e) = res {
+        match e {
+            Error::Runtime(_, Some(stack)) => {
+                if stack.is_empty() {
+                    stack.append(&mut env.call_stack.stack.clone());
+                    if let Some(bp) = stack.last_mut() {
+                        bp.identifier.push_str(&format!("${}", exp.id))
+                    }
+                }
+            },
+            _ => {},
+        };
     }
+    res
 }
 
 pub fn is_reserved(name: &str) -> bool {
