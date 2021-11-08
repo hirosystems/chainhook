@@ -1,0 +1,62 @@
+name: CI
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*"
+    paths-ignore:
+      - "**/CHANGELOG.md"
+      - "**/package.json"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  pre_run:
+    name: Cancel previous runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@ad6cb1b847ffb509a69b745b6ee2f1d14dfe14b8
+        with:
+          access_token: ${{ github.token }}
+
+  audit:
+    name: Audit and format
+    runs-on: ubuntu-latest
+    needs: pre_run
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt
+          override: true
+
+      - name: Set Cargo file permissions
+        run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+
+      - name: Cache cargo
+        uses: actions/cache@v2
+        with:
+          path: ~/.cargo/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install dependencies
+        run: cargo install cargo-audit
+
+      - name: Run audit
+        run: cargo audit --ignore RUSTSEC-2021-0119
+
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
+

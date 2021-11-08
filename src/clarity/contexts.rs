@@ -11,7 +11,7 @@ use crate::clarity::costs::cost_functions::ClarityCostFunction;
 use crate::clarity::costs::{
     cost_functions, runtime_cost, CostErrors, CostTracker, ExecutionCost, LimitedCostTracker,
 };
-use crate::clarity::coverage::{TestCoverageReport, CostsReport};
+use crate::clarity::coverage::{CostsReport, TestCoverageReport};
 use crate::clarity::database::structures::{
     DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
 };
