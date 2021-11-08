@@ -12,7 +12,7 @@ use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::events::*;
 use crate::clarity::types::{
-    self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData,
+    self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
 };
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
@@ -20,7 +20,7 @@ use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
 use crate::clarity::errors::Error;
 use crate::repl::{CostSynthesis, ExecutionResult};
-use serde_json::Value;
+use crate::clarity::codec;
 
 pub const BLOCK_LIMIT_MAINNET: ExecutionCost = ExecutionCost {
     write_length: 15_000_000,
@@ -220,8 +220,8 @@ impl ClarityInterpreter {
             execution_result.coverage = global_context.coverage_reporting.take();
 
             let value = match result {
-                Ok(Some(value)) => format!("{}", value),
-                Ok(None) => format!("()"),
+                Ok(Some(value)) => value,
+                Ok(None) => Value::none(),
                 Err(e) => {
                     let error = format!("Runtime Error: {:?}", e);
                     return Err((error, None, Some(e)));
@@ -398,7 +398,7 @@ impl ClarityInterpreter {
         }
 
         if !contract_saved {
-            execution_result.result = Some(format!("{}", value));
+            execution_result.result = Some(value);
             return Ok(execution_result);
         }
 

@@ -479,7 +479,7 @@ impl StacksMessageCodec for Value {
     fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<Value, CodecError> {
         Value::deserialize_read(fd, None).map_err(|e| match e {
             SerializationError::IOError(e) => CodecError::ReadError(e.err),
-            _ => CodecError::DeserializeError(format!("Failed to decode clarity value: {:?}", &e)),
+            _ => CodecError::DeserializeError(format!("Failed to decode clarity value: {}", &e)),
         })
     }
 }

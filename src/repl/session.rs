@@ -1,11 +1,14 @@
 use super::{ClarityInterpreter, ExecutionResult};
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
+use crate::clarity::codec::StacksMessageCodec;
 use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
-use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData};
+use crate::clarity::types::{
+    PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
+};
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
 use crate::clarity::errors::Error;
@@ -13,8 +16,9 @@ use crate::contracts::{BNS_CONTRACT, COSTS_V1_CONTRACT, COSTS_V2_CONTRACT, POX_C
 use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
-use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::fmt;
+use std::num::ParseIntError;
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "cli")]
@@ -501,6 +505,8 @@ impl Session {
                 self.parse_and_advance_chain_tip(&mut output, cmd)
             }
             cmd if cmd.starts_with("::toggle_costs") => self.toggle_costs(&mut output),
+            cmd if cmd.starts_with("::encode") => self.encode(&mut output, cmd),
+            cmd if cmd.starts_with("::decode") => self.decode(&mut output, cmd),
 
             snippet => {
                 if self.show_costs {
@@ -547,7 +553,7 @@ impl Session {
                     }
                 }
                 if let Some(ref result) = result.result {
-                    output.push(green!(result));
+                    output.push(green!(format!("{}", result)));
                 }
                 Ok((output, result))
             }
@@ -852,6 +858,53 @@ impl Session {
         output.push(green!(format!("Always show costs: {}", self.show_costs)))
     }
 
+    pub fn encode(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let snippet = match cmd.split_once(" ") {
+            Some((_, snippet)) => snippet,
+            _ => return output.push(red!("Usage: ::encode <expr>")),
+        };
+
+        let result = self.interpret(snippet.to_string(), None, false, None);
+        let value = match result {
+            Ok(result) => {
+                let mut tx_bytes = vec![];
+                let value = match result.result {
+                    Some(value) => value,
+                    None => return output.push("No value".to_string()),
+                };
+                match value.consensus_serialize(&mut tx_bytes) {
+                    Err(e) => return output.push(red!(format!("{}", e))),
+                    _ => (),
+                };
+                let mut s = String::with_capacity(2 * tx_bytes.len());
+                for byte in tx_bytes {
+                    s = format!("{}{:02x}", s, byte);
+                }
+                green!(s)
+            }
+            Err((message, _, Some(e))) => red!(format!("{}: {}", message, e)),
+            Err((message, _, _)) => red!(message),
+        };
+        output.push(value);
+    }
+
+    pub fn decode(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let byteString = match cmd.split_once(" ") {
+            Some((_, bytes)) => bytes,
+            _ => return output.push(red!("Usage: ::decode <hex-bytes>")),
+        };
+        let tx_bytes = match decode_hex(byteString) {
+            Ok(tx_bytes) => tx_bytes,
+            Err(e) => return output.push(red!(format!("Parsing error: {}", e))),
+        };
+
+        let value = match Value::consensus_deserialize(&mut &tx_bytes[..]) {
+            Ok(value) => value,
+            Err(e) => return output.push(red!(format!("{}", e))),
+        };
+        output.push(green!(format!("{}", value)));
+    }
+
     #[cfg(feature = "cli")]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
@@ -1060,6 +1113,47 @@ impl Session {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum DecodeHexError {
+    ParseError(ParseIntError),
+    OddLength,
+}
+
+impl fmt::Display for DecodeHexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DecodeHexError::ParseError(e) => write!(f, "{}", e),
+            DecodeHexError::OddLength => write!(f, "odd number of hex digits"),
+        }
+    }
+}
+
+impl From<ParseIntError> for DecodeHexError {
+    fn from(err: ParseIntError) -> Self {
+        DecodeHexError::ParseError(err)
+    }
+}
+
+fn decode_hex(byteString: &str) -> Result<Vec<u8>, DecodeHexError> {
+    let byteStringFiltered: String = byteString
+        .strip_prefix("0x")
+        .unwrap_or(byteString)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    if byteStringFiltered.len() % 2 != 0 {
+        return Err(DecodeHexError::OddLength);
+    }
+    let result: Result<Vec<u8>, ParseIntError> = (0..byteStringFiltered.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&byteStringFiltered[i..i + 2], 16))
+        .collect();
+    match result {
+        Ok(result) => Ok(result),
+        Err(e) => Err(DecodeHexError::ParseError(e)),
+    }
+}
+
 #[derive(Deserialize, Debug, Default, Clone)]
 struct Contract {
     source: String,
@@ -1117,4 +1211,89 @@ fn build_api_reference() -> HashMap<String, String> {
         api_reference.insert(api.name.to_string(), doc);
     }
     api_reference
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_simple() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.encode(&mut output, "::encode 42");
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0], green!("000000000000000000000000000000002a"));
+    }
+
+    #[test]
+    fn encode_map() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.encode(&mut output, "::encode { foo: \"hello\", bar: false }");
+        assert_eq!(output.len(), 1);
+        assert_eq!(
+            output[0],
+            green!("0c00000002036261720403666f6f0d0000000568656c6c6f")
+        );
+    }
+
+    #[test]
+    fn encode_error() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.encode(&mut output, "::encode { foo false }");
+        assert_eq!(output.len(), 1);
+        assert_eq!(
+            output[0],
+            red!("Parsing error: Tuple literal construction expects a colon at index 1")
+        );
+
+        session.encode(&mut output, "::encode (foo 1)");
+        assert_eq!(output.len(), 2);
+        assert_eq!(
+            output[1],
+            red!("Analysis error: use of unresolved function 'foo'")
+        );
+    }
+
+    #[test]
+    fn decode_simple() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.decode(&mut output, "::decode 0000000000000000 0000000000000000 2a");
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0], green!("42"));
+    }
+
+    #[test]
+    fn decode_map() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.decode(
+            &mut output,
+            "::decode 0x0c00000002036261720403666f6f0d0000000568656c6c6f",
+        );
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0], green!("{bar: false, foo: \"hello\"}"));
+    }
+
+    #[test]
+    fn decode_error() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut output: Vec<String> = Vec::new();
+        session.decode(&mut output, "::decode 42");
+        assert_eq!(output.len(), 1);
+        assert_eq!(
+            output[0],
+            red!("Failed to decode clarity value: Deserialization error: Bad type prefix")
+        );
+
+        session.decode(&mut output, "::decode 4g");
+        assert_eq!(output.len(), 2);
+        assert_eq!(
+            output[1],
+            red!("Parsing error: invalid digit found in string")
+        );
+    }
 }
