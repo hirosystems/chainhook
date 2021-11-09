@@ -4,6 +4,7 @@ use crate::clarity::ast::ContractAST;
 use crate::clarity::codec::StacksMessageCodec;
 use crate::clarity::coverage::{CoverageReporter, TestCoverageReport};
 use crate::clarity::docs::{make_api_reference, make_define_reference, make_keyword_reference};
+use crate::clarity::errors::Error;
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::types::{
@@ -11,7 +12,6 @@ use crate::clarity::types::{
 };
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
-use crate::clarity::errors::Error;
 use crate::contracts::{BNS_CONTRACT, COSTS_V1_CONTRACT, COSTS_V2_CONTRACT, POX_CONTRACT};
 use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
@@ -559,7 +559,7 @@ impl Session {
             }
             Err((message, diagnostic, _)) => {
                 if let Some(name) = name {
-                    output.push(format!("Error found in contract {}", name)); 
+                    output.push(format!("Error found in contract {}", name));
                 }
                 output.push(red!(message));
                 if let Some(diagnostic) = diagnostic {

@@ -10,6 +10,7 @@ use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
 use crate::clarity::diagnostic::Diagnostic;
+use crate::clarity::errors::Error;
 use crate::clarity::events::*;
 use crate::clarity::types::{
     self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
@@ -18,9 +19,7 @@ use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis, ast};
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
-use crate::clarity::errors::Error;
 use crate::repl::{CostSynthesis, ExecutionResult};
-use crate::clarity::codec;
 
 pub const BLOCK_LIMIT_MAINNET: ExecutionCost = ExecutionCost {
     write_length: 15_000_000,
@@ -158,7 +157,13 @@ impl ClarityInterpreter {
 
             let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
             let cost_tracker = if cost_track {
-                LimitedCostTracker::new(false, BLOCK_LIMIT_MAINNET.clone(), &mut conn, self.costs_version).unwrap()
+                LimitedCostTracker::new(
+                    false,
+                    BLOCK_LIMIT_MAINNET.clone(),
+                    &mut conn,
+                    self.costs_version,
+                )
+                .unwrap()
             } else {
                 LimitedCostTracker::new_free()
             };
@@ -426,7 +431,10 @@ impl ClarityInterpreter {
             cur_balance.credit(amount as u128);
             let final_balance = cur_balance.get_available_balance();
             cur_balance.save();
-            global_context.database.increment_ustx_liquid_supply(amount as u128).unwrap();
+            global_context
+                .database
+                .increment_ustx_liquid_supply(amount as u128)
+                .unwrap();
             global_context.commit().unwrap();
             final_balance
         };
