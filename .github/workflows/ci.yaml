@@ -42,9 +42,6 @@ jobs:
           components: rustfmt
           override: true
 
-      - name: Set Cargo file permissions
-        run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
-
       - name: Cache cargo
         uses: actions/cache@v2
         with:
@@ -60,3 +57,42 @@ jobs:
       - name: Run rustfmt
         run: cargo fmt --all -- --check
 
+  build:
+    name: Build clarity-repl and WASM
+    runs-on: ubuntu-latest
+    needs: pre_run
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          profile: minimal
+          override: true
+
+      - name: Cache cargo
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/release/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install dependencies
+        run: cargo install wasm-pack
+
+      - name: Build - Cargo
+        run: cargo build --release --locked
+
+      - name: Build - WASM
+        run: wasm-pack build --target web --release -- --no-default-features --features wasm
+
+      - name: debug
+        run: ls -la target/*
