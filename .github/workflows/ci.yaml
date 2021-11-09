@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cargo/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Run audit
         run: cargo audit --ignore RUSTSEC-2021-0119
@@ -82,7 +82,7 @@ jobs:
           path: |
             ~/.cargo/
             target/release/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Build - Cargo
         run: cargo build --release
