@@ -42,14 +42,14 @@ jobs:
           components: rustfmt
           override: true
 
-      - name: Install dependencies
-        run: cargo install cargo-audit
-
       - name: Cache cargo
         uses: actions/cache@v2
         with:
           path: ~/.cargo/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+      - name: Install dependencies
+        run: cargo install cargo-audit
 
       - name: Run audit
         run: cargo audit --ignore RUSTSEC-2021-0119
@@ -73,8 +73,6 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install dependencies
-        run: cargo install wasm-pack
 
       - name: Cache cargo
         uses: actions/cache@v2
@@ -83,6 +81,9 @@ jobs:
             ~/.cargo/
             target/release/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+      - name: Install dependencies
+        run: cargo install wasm-pack
 
       - name: Build - Cargo
         run: cargo build --release
