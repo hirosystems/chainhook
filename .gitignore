@@ -58,3 +58,7 @@ Cargo.lock
 **/*.rs.bk
 
 # End of https://www.gitignore.io/api/rust,linux,macos
+
+# Node.js
+**/node_modules
+package-lock.json
