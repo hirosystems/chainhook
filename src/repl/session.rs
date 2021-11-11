@@ -91,7 +91,7 @@ impl Session {
     async fn retrieve_contract(
         &mut self,
         link: &InitialLink,
-    ) -> Result<(String, BTreeSet<QualifiedContractIdentifier>), String> {
+    ) -> Result<(String, Vec<QualifiedContractIdentifier>), String> {
         let contract_id = &link.contract_id;
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
@@ -143,7 +143,7 @@ impl Session {
 
             // Extract principal from contract_id
             let (contract_code, deps) = match handled.get(contract_id) {
-                Some(entry) => (entry.clone(), BTreeSet::new()),
+                Some(entry) => (entry.clone(), Vec::new()),
                 None => {
                     let (contract_code, deps) = self
                         .retrieve_contract(&initial_link)
