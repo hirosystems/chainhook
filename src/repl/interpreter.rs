@@ -65,8 +65,12 @@ impl ClarityInterpreter {
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
-        let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
-        let result = self.execute(
+        let (analysis, diagnostics) = match self.run_analysis(contract_identifier.clone(), &mut ast)
+        {
+            Ok((analysis, diagnostics)) => (analysis, diagnostics),
+            Err(e) => return Err(e),
+        };
+        let mut result = self.execute(
             contract_identifier,
             &mut ast,
             snippet,
@@ -74,6 +78,8 @@ impl ClarityInterpreter {
             cost_track,
             coverage_reporter,
         )?;
+
+        result.diagnostics = diagnostics;
 
         // todo: instead of just returning the value, we should be returning:
         // - value
@@ -124,7 +130,8 @@ impl ClarityInterpreter {
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
-    ) -> Result<ContractAnalysis, (String, Option<Diagnostic>, Option<Error>)> {
+    ) -> Result<(ContractAnalysis, Vec<Diagnostic>), (String, Option<Diagnostic>, Option<Error>)>
+    {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
 
         // Run standard clarity analyses
@@ -144,12 +151,12 @@ impl ClarityInterpreter {
 
         // Run REPL-only analyses
         match analysis::run_analysis(&mut contract_analysis, &mut analysis_db) {
-            Ok(_) => Ok(contract_analysis),
-            Err(mut errors) => {
-                // FIXME: For now, just take the first diagnostic.
-                let diagnostic = errors.pop().unwrap();
-                let message = format!("Analysis error: {}", diagnostic.message);
-                return Err((message, Some(diagnostic), None));
+            Ok(diagnostics) => Ok((contract_analysis, diagnostics)),
+            Err(mut diagnostics) => {
+                // The last diagnostic should be the error
+                let error = diagnostics.pop().unwrap();
+                let message = format!("{:?}: {}", error.level, error.message);
+                Err((message, Some(error), None))
             }
         }
     }

@@ -238,7 +238,7 @@ impl Session {
                     true,
                     None,
                 ) {
-                    Ok(_) => {}
+                    Ok((mut output, _)) => output_err.append(&mut output),
                     Err(ref mut result) => output_err.append(result),
                 };
             }
@@ -542,6 +542,57 @@ impl Session {
 
         match result {
             Ok(result) => {
+                for diagnostic in &result.diagnostics {
+                    // println!("DIAG: {}", diagnostic);
+                    // output.push(format!("{}", diagnostic));
+                    if diagnostic.spans.len() > 0 {
+                        let lines = snippet.lines();
+                        let mut formatted_lines: Vec<String> =
+                            lines.map(|l| l.to_string()).collect();
+                        for span in &diagnostic.spans {
+                            let first_line = span.start_line.saturating_sub(1) as usize;
+                            let last_line = span.end_line.saturating_sub(1) as usize;
+                            let mut pass = vec![];
+
+                            for (line_index, line) in formatted_lines.iter().enumerate() {
+                                if line == "" {
+                                    pass.push(line.clone());
+                                    continue;
+                                }
+                                if line_index >= first_line && line_index <= last_line {
+                                    let (begin, end) =
+                                        match (line_index == first_line, line_index == last_line) {
+                                            (true, true) => (
+                                                span.start_column.saturating_sub(1) as usize,
+                                                span.end_column.saturating_sub(1) as usize,
+                                            ), // One line
+                                            (true, false) => (
+                                                span.start_column.saturating_sub(1) as usize,
+                                                line.len().saturating_sub(1),
+                                            ), // Multiline, first line
+                                            (false, false) => (0, line.len().saturating_sub(1)), // Multiline, in between
+                                            (false, true) => {
+                                                (0, span.end_column.saturating_sub(1) as usize)
+                                            } // Multiline, last line
+                                        };
+
+                                    let error_style = light_red.underline();
+                                    let formatted_line = format!(
+                                        "{}{}{}",
+                                        &line[..begin],
+                                        error_style.paint(&line[begin..=end]),
+                                        &line[(end + 1)..]
+                                    );
+                                    pass.push(formatted_line);
+                                } else {
+                                    pass.push(line.clone());
+                                }
+                            }
+                            formatted_lines = pass;
+                        }
+                        output.append(&mut formatted_lines);
+                    }
+                }
                 if let Some((ref contract_name, _, _, _, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
                     output.push(green!(snippet));

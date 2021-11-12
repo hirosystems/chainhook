@@ -2,6 +2,7 @@ use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
+use crate::clarity::diagnostic::Diagnostic;
 use crate::clarity::types;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -27,6 +28,7 @@ pub struct ExecutionResult {
     pub events: Vec<Value>,
     pub cost: Option<CostSynthesis>,
     pub coverage: Option<TestCoverageReport>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Clone, Debug)]
