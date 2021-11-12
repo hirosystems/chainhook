@@ -5,6 +5,7 @@ use std::fmt;
 /// of diagnostics, such as warnings, hints, best practices, etc.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Level {
+    Warning,
     Error,
 }
 

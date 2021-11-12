@@ -1,0 +1,7 @@
+[project]
+name = "test"
+requirements = []
+costs_version = 1
+[contracts.test]
+path = "taint.clar"
+depends_on = []

@@ -51,6 +51,6 @@ impl AnalysisPass for ContractCallDetector {
         for dep in contract_calls.into_iter() {
             contract_analysis.add_dependency(dep);
         }
-        Ok(())
+        Ok(vec![])
     }
 }
