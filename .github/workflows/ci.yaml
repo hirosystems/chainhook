@@ -100,7 +100,7 @@ jobs:
         env:
           RUSTFLAGS: "-Zinstrument-coverage"
           LLVM_PROFILE_FILE: "clarity-repl-%p-%m.profraw"
-        run: cargo build --locked && cargo test
+        run: cargo build && cargo test
 
       - name: Generate coverage
         run: grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
@@ -162,7 +162,7 @@ jobs:
           path: target/wasm32-unknown-unknown/release/clarity_repl.wasm
 
       - name: Unit Tests - Cargo
-        run: cargo test --release --locked --target ${{ matrix.target }}
+        run: cargo test --release
 
       - name: Publish clarity-repl to crates.io
         if: startsWith(github.ref, 'refs/tags/v')
