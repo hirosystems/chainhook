@@ -256,8 +256,8 @@ pub fn eval<'a>(
                         bp.identifier.push_str(&format!("${}", exp.id))
                     }
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         };
     }
     res

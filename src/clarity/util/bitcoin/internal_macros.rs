@@ -217,6 +217,7 @@ macro_rules! display_from_debug {
 }
 
 #[cfg(test)]
+#[cfg_attr(test, allow(unused_macros))]
 macro_rules! hex_script (($s:expr) => (crate::clarity::util::bitcoin::blockdata::script::Script::from(::util::hash::hex_bytes($s).unwrap())));
 
 macro_rules! serde_struct_impl {
