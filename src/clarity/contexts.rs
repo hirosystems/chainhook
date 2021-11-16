@@ -435,8 +435,9 @@ impl<'a> OwnedEnvironment<'a> {
 
     #[cfg(test)]
     pub fn new_max_limit(mut database: ClarityDatabase<'a>) -> OwnedEnvironment<'a> {
-        let cost_track = LimitedCostTracker::new_max_limit(&mut database)
-            .expect("FAIL: problem instantiating cost tracking");
+        let cost_track =
+            LimitedCostTracker::new(false, ExecutionCost::max_value(), &mut database, 0)
+                .expect("FAIL: problem instantiating cost tracking");
 
         OwnedEnvironment {
             context: GlobalContext::new(false, database, cost_track),
