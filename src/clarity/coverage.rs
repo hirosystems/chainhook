@@ -31,8 +31,7 @@ pub struct ContractCoverageReport {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct CostsReport {
-}
+pub struct CostsReport {}
 
 impl CoverageReporter {
     pub fn new() -> CoverageReporter {

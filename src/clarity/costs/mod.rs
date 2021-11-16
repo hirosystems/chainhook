@@ -600,10 +600,11 @@ impl LimitedCostTracker {
         let CostStateSummary {
             contract_call_circuits,
             mut cost_function_references,
-        } = load_cost_functions(self.mainnet, clarity_db, apply_updates, self.costs_version).map_err(|e| {
-            clarity_db.roll_back();
-            e
-        })?;
+        } = load_cost_functions(self.mainnet, clarity_db, apply_updates, self.costs_version)
+            .map_err(|e| {
+                clarity_db.roll_back();
+                e
+            })?;
 
         self.contract_call_circuits = contract_call_circuits;
 

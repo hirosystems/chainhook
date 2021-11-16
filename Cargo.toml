@@ -1,13 +1,17 @@
 [package]
 name = "clarity-repl"
-description = "Clarity REPL"
 version = "0.16.0"
+description = "Clarity REPL"
 authors = ["Ludo Galabru <ludovic@galabru.com>"]
 readme = "README.md"
 edition = "2018"
 license = "GPL-3.0-only"
 keywords = ["blockstack", "blockchain", "clarity", "smart-contract", "repl"]
-exclude = ["vs-client/**"]
+exclude = [
+    "vs-client/**",
+    ".husky",
+    ".git*"
+    ]
 homepage = "https://lgalabru.github.io/clarity-repl/"
 repository = "https://github.com/lgalabru/clarity-repl"
 categories = ["command-line-utilities", "development-tools", "development-tools::build-utils"]

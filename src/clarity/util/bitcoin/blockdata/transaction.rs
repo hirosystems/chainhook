@@ -64,8 +64,8 @@ impl OutPoint {
     /// # Examples
     ///
     /// ```rust
-    /// use blockstack_libcrate::clarity::util::bitcoin::blockdata::constants::genesis_block;
-    /// use blockstack_libcrate::clarity::util::bitcoin::network::constants::Network;
+    /// use clarity_repl::clarity::util::bitcoin::blockdata::constants::genesis_block;
+    /// use clarity_repl::clarity::util::bitcoin::network::constants::Network;
     ///
     /// let block = genesis_block(Network::Bitcoin);
     /// let tx = &block.txdata[0];
