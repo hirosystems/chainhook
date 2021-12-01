@@ -5,8 +5,19 @@ use std::fmt;
 /// of diagnostics, such as warnings, hints, best practices, etc.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Level {
+    Note,
     Warning,
     Error,
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Level::Note => write!(f, "{}", blue!("note")),
+            Level::Warning => write!(f, "{}", yellow!("warning")),
+            Level::Error => write!(f, "{}", red!("error")),
+        }
+    }
 }
 
 pub trait DiagnosableError {

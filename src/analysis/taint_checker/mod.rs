@@ -103,19 +103,24 @@ impl<'a, 'b> TaintChecker<'a, 'b> {
     // If this expression is tainted, add a diagnostic
     fn taint_check(&mut self, expr: &SymbolicExpression) {
         if let Some(tainted) = self.tainted_nodes.get(&Node::Expr(expr.id)) {
-            let mut spans = Vec::new();
-            for source in &tainted.sources {
-                spans.push(self.taint_sources[source].span.clone())
-            }
-            spans.insert(0, expr.span.clone());
             let diagnostic = Diagnostic {
                 level: Level::Warning,
-                message: "Use of potentially tainted data".to_string(),
-                spans: spans,
+                message: "use of potentially tainted data".to_string(),
+                spans: vec![expr.span.clone()],
                 suggestion: None,
             };
-            println!("{}", yellow!(format!("{}", diagnostic)));
             self.diagnostics.push(diagnostic);
+
+            // Add a note for each source
+            for source in &tainted.sources {
+                let diagnostic = Diagnostic {
+                    level: Level::Note,
+                    message: "source of taint here".to_string(),
+                    spans: vec![self.taint_sources[source].span.clone()],
+                    suggestion: None,
+                };
+                self.diagnostics.push(diagnostic);
+            }
         }
     }
 
