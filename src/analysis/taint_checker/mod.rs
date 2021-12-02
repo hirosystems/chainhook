@@ -111,12 +111,18 @@ impl<'a, 'b> TaintChecker<'a, 'b> {
             };
             self.diagnostics.push(diagnostic);
 
-            // Add a note for each source
+            // Add a note for each source, ordered by span
+            let mut source_spans = vec![];
             for source in &tainted.sources {
+                let span = self.taint_sources[source].span.clone();
+                let pos = source_spans.binary_search(&span).unwrap_or_else(|e| e);
+                source_spans.insert(pos, span);
+            }
+            for span in source_spans {
                 let diagnostic = Diagnostic {
                     level: Level::Note,
                     message: "source of taint here".to_string(),
-                    spans: vec![self.taint_sources[source].span.clone()],
+                    spans: vec![span],
                     suggestion: None,
                 };
                 self.diagnostics.push(diagnostic);
