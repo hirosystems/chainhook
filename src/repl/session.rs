@@ -540,67 +540,14 @@ impl Session {
 
         let result = self.interpret(snippet.to_string(), name.clone(), cost_track, test_name);
         let mut output = Vec::<String>::new();
+        let lines = snippet.lines();
+        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+        let contract_name = name.unwrap_or("<stdin>".to_string());
 
         match result {
             Ok(result) => {
                 for diagnostic in &result.diagnostics {
-                    if diagnostic.spans.len() > 0 {
-                        output.push(format!(
-                            "{}:{}:{}: {}: {}",
-                            &name.as_ref().unwrap_or(&"".to_string()),
-                            diagnostic.spans[0].start_line,
-                            diagnostic.spans[0].start_column,
-                            diagnostic.level,
-                            diagnostic.message,
-                        ));
-                    }
-                    if diagnostic.spans.len() > 0 {
-                        let lines = snippet.lines();
-                        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
-
-                        let span = &diagnostic.spans[0];
-                        let first_line = span.start_line.saturating_sub(1) as usize;
-                        let last_line = span.end_line.saturating_sub(1) as usize;
-
-                        output.push(formatted_lines[first_line].clone());
-                        let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
-                        if span.start_line == span.end_line {
-                            pointer = format!(
-                                "{}{:~<2$}",
-                                pointer,
-                                "",
-                                (span.end_column - span.start_column) as usize
-                            );
-                        }
-                        pointer = format!("{}", pointer);
-                        output.push(pointer);
-
-                        for span in &diagnostic.spans[1..] {
-                            output.push(format!(
-                                "  {}:{}:{}:",
-                                &name.as_ref().unwrap_or(&"".to_string()),
-                                span.start_line,
-                                span.start_column,
-                            ));
-
-                            let first_line = span.start_line.saturating_sub(1) as usize;
-                            let last_line = span.end_line.saturating_sub(1) as usize;
-
-                            output.push(formatted_lines[first_line].clone());
-                            let mut pointer =
-                                format!("{: <1$}^", "", (span.start_column - 1) as usize);
-                            if span.start_line == span.end_line {
-                                pointer = format!(
-                                    "{}{:~<2$}",
-                                    pointer,
-                                    "",
-                                    (span.end_column - span.start_column) as usize
-                                );
-                            }
-                            pointer = format!("{}\n", pointer);
-                            output.push(pointer);
-                        }
-                    }
+                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
                 }
                 if let Some((ref contract_name, _, _, _, _)) = result.contract {
                     let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
@@ -617,59 +564,9 @@ impl Session {
                 }
                 Ok((output, result))
             }
-            Err((message, diagnostic, _)) => {
-                if let Some(name) = name {
-                    output.push(format!("Error found in contract {}", name));
-                }
-                output.push(red!(message));
+            Err((_, diagnostic, _)) => {
                 if let Some(diagnostic) = diagnostic {
-                    if diagnostic.spans.len() > 0 {
-                        let lines = snippet.lines();
-                        let mut formatted_lines: Vec<String> =
-                            lines.map(|l| l.to_string()).collect();
-                        for span in diagnostic.spans {
-                            let first_line = span.start_line.saturating_sub(1) as usize;
-                            let last_line = span.end_line.saturating_sub(1) as usize;
-                            let mut pass = vec![];
-
-                            for (line_index, line) in formatted_lines.iter().enumerate() {
-                                if line == "" {
-                                    pass.push(line.clone());
-                                    continue;
-                                }
-                                if line_index >= first_line && line_index <= last_line {
-                                    let (begin, end) =
-                                        match (line_index == first_line, line_index == last_line) {
-                                            (true, true) => (
-                                                span.start_column.saturating_sub(1) as usize,
-                                                span.end_column.saturating_sub(1) as usize,
-                                            ), // One line
-                                            (true, false) => (
-                                                span.start_column.saturating_sub(1) as usize,
-                                                line.len().saturating_sub(1),
-                                            ), // Multiline, first line
-                                            (false, false) => (0, line.len().saturating_sub(1)), // Multiline, in between
-                                            (false, true) => {
-                                                (0, span.end_column.saturating_sub(1) as usize)
-                                            } // Multiline, last line
-                                        };
-
-                                    let error_style = light_red.underline();
-                                    let formatted_line = format!(
-                                        "{}{}{}",
-                                        &line[..begin],
-                                        error_style.paint(&line[begin..=end]),
-                                        &line[(end + 1)..]
-                                    );
-                                    pass.push(formatted_line);
-                                } else {
-                                    pass.push(line.clone());
-                                }
-                            }
-                            formatted_lines = pass;
-                        }
-                        output.append(&mut formatted_lines);
-                    }
+                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
                 }
                 Err(output)
             }
@@ -942,8 +839,10 @@ impl Session {
                 }
                 green!(s)
             }
-            Err((message, _, Some(e))) => red!(format!("{}: {}", message, e)),
-            Err((message, _, _)) => red!(message),
+            Err((_, Some(diagnostic), Some(e))) => red!(format!("{}: {}", diagnostic.message, e)),
+            Err((_, Some(diagnostic), None)) => red!(format!("{}", diagnostic.message)),
+            Err((_, None, Some(e))) => red!(format!("{}", e)),
+            _ => panic!("Result of interpret has neither diagnostic or error"),
         };
         output.push(value);
     }
@@ -1306,15 +1205,12 @@ mod tests {
         assert_eq!(output.len(), 1);
         assert_eq!(
             output[0],
-            red!("Parsing error: Tuple literal construction expects a colon at index 1")
+            red!("Tuple literal construction expects a colon at index 1")
         );
 
         session.encode(&mut output, "::encode (foo 1)");
         assert_eq!(output.len(), 2);
-        assert_eq!(
-            output[1],
-            red!("Analysis error: use of unresolved function 'foo'")
-        );
+        assert_eq!(output[1], red!("use of unresolved function 'foo'"));
     }
 
     #[test]

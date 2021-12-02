@@ -119,8 +119,7 @@ impl ClarityInterpreter {
         let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
             Ok(res) => res,
             Err(error) => {
-                let message = format!("Parsing error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic), None));
+                return Err(("Parser".to_string(), Some(error.diagnostic), None));
             }
         };
         Ok(contract_ast)
@@ -144,8 +143,7 @@ impl ClarityInterpreter {
         ) {
             Ok(res) => res,
             Err((error, cost_tracker)) => {
-                let message = format!("Analysis error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic), None));
+                return Err(("Analysis".to_string(), Some(error.diagnostic), None));
             }
         };
 
@@ -155,8 +153,7 @@ impl ClarityInterpreter {
             Err(mut diagnostics) => {
                 // The last diagnostic should be the error
                 let error = diagnostics.pop().unwrap();
-                let message = format!("{:?}: {}", error.level, error.message);
-                Err((message, Some(error), None))
+                Err(("Analysis".to_string(), Some(error), None))
             }
         }
     }
@@ -253,8 +250,7 @@ impl ClarityInterpreter {
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    let error = format!("Runtime Error: {:?}", e);
-                    return Err((error, None, Some(e)));
+                    return Err(("Runtime".to_string(), None, Some(e)));
                 }
             };
 
