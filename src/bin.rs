@@ -34,6 +34,7 @@ fn main() {
 
     let mut settings = SessionSettings::default();
     settings.include_boot_contracts = vec!["costs-v1".into()];
+    settings.costs_version = 1;
 
     let mut terminal = Terminal::new(settings);
     terminal.start();

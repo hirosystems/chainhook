@@ -62,6 +62,7 @@ pub async fn init_session(fetch_contract: String) -> String {
                 };
                 let mut settings = SessionSettings::default();
                 settings.include_boot_contracts = vec!["costs-v1".into()];
+                settings.costs_version = 1;
                 settings.initial_links = initial_links;
                 let mut session = Session::new(settings);
                 let output = session.start_wasm().await;
