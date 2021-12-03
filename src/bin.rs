@@ -31,11 +31,31 @@ use std::env;
 fn main() {
     let mut args = Arguments::from_env();
     let subcommand = args.subcommand().unwrap().unwrap_or_default();
+    let code = args.subcommand().unwrap();
 
     let mut settings = SessionSettings::default();
     settings.include_boot_contracts = vec!["costs-v1".into()];
     settings.costs_version = 1;
 
-    let mut terminal = Terminal::new(settings);
-    terminal.start();
+    match code {
+        Some(code_str) => {
+            let mut session = Session::new(settings);
+            match session.start() {
+                Ok(_) => {},
+                Err(e) => {
+                    println!("{}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            let output = session.handle_command(&code_str);
+            for line in output {
+                println!("{}", line);
+            }
+        },
+        None => {
+            let mut terminal = Terminal::new(settings);
+            terminal.start();
+        }
+    }
 }
