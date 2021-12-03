@@ -42,7 +42,7 @@ fn main() {
         Some(code_str) => {
             let mut session = Session::new(settings);
             match session.start() {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     println!("{}", e);
                     std::process::exit(1);
@@ -53,7 +53,7 @@ fn main() {
             for line in output {
                 println!("{}", line);
             }
-        },
+        }
         None => {
             let mut terminal = Terminal::new(settings);
             terminal.start();
