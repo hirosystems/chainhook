@@ -430,3 +430,1013 @@ impl AnalysisPass for TaintChecker<'_, '_> {
         tc.run(contract_analysis)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repl::session::Session;
+    use crate::repl::SessionSettings;
+
+    #[test]
+    fn define_public() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (tainted (amount uint))
+    (stx-transfer? amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:3:20: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (stx-transfer? amount (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                   ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:26: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted (amount uint))");
+                assert_eq!(output[5], "                         ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn expr_tainted() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (expr-tainted (amount uint))
+    (stx-transfer? (+ u10 amount) (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:3:20: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (stx-transfer? (+ u10 amount) (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                   ^~~~~~~~~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:31: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (expr-tainted (amount uint))");
+                assert_eq!(output[5], "                              ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_tainted() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-tainted (amount uint))
+    (let ((x amount))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:24: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (stx-transfer? x (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                       ^");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:30: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (let-tainted (amount uint))");
+                assert_eq!(output[5], "                             ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filtered() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (filtered (amount uint))
+    (begin
+        (asserts! (< amount u100) (err u100))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filtered_expr() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (filtered-expr (amount uint))
+    (begin
+        (asserts! (< (+ amount u10) u100) (err u100))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_filtered() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-filtered (amount uint))
+    (let ((x amount))
+        (asserts! (< x u100) (err u100))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_filtered_parent() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-filtered-parent (amount uint))
+    (let ((x amount))
+        (asserts! (< amount u100) (err u100))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_tainted_twice() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-tainted-twice (amount1 uint) (amount2 uint))
+    (let ((x (+ amount1 amount2)))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 10);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:24: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (stx-transfer? x (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                       ^");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:36: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (let-tainted-twice (amount1 uint) (amount2 uint))"
+                );
+                assert_eq!(output[5], "                                   ^~~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!("taint:2:51: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[7],
+                    "(define-public (let-tainted-twice (amount1 uint) (amount2 uint))"
+                );
+                assert_eq!(
+                    output[8],
+                    "                                                  ^~~~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_tainted_twice_filtered_once() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))
+    (let ((x (+ amount1 amount2)))
+        (asserts! (< amount1 u100) (err u100))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:5:24: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (stx-transfer? x (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                       ^");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:65: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))");
+                assert_eq!(
+                    output[5],
+                    "                                                                ^~~~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_tainted_twice_filtered_twice() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-tainted-twice-filtered-twice (amount1 uint) (amount2 uint))
+    (let ((x (+ amount1 amount2)))
+        (asserts! (< amount1 u100) (err u100))
+        (asserts! (< amount2 u100) (err u101))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn let_tainted_twice_filtered_together() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (let-tainted-twice-filtered-together (amount1 uint) (amount2 uint))
+    (let ((x (+ amount1 amount2)))
+        (asserts! (< (+ amount1 amount2) u100) (err u100))
+        (stx-transfer? x (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn if_filter() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (if-filter (amount uint))
+    (stx-transfer? (if (< amount u100) amount u100) (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn if_not_filtered() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (if-not-filtered (amount uint))
+    (stx-transfer? (if (< u50 u100) amount u100) (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:3:20: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (stx-transfer? (if (< u50 u100) amount u100) (as-contract tx-sender) tx-sender)");
+                assert_eq!(
+                    output[2],
+                    "                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                );
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (if-not-filtered (amount uint))");
+                assert_eq!(output[5], "                                 ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn and_tainted() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (and-tainted (amount uint))
+    (ok (and
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:38: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))");
+                assert_eq!(output[2], "                                     ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:30: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (and-tainted (amount uint))");
+                assert_eq!(output[5], "                             ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn and_filter() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (and-filter (amount uint))
+    (ok (and
+        (< amount u100)
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn and_filter_after() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (and-filter-after (amount uint))
+    (ok (and
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        (< amount u100)
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:38: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))");
+                assert_eq!(output[2], "                                     ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:35: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (and-filter-after (amount uint))");
+                assert_eq!(output[5], "                                  ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn or_tainted() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (or-tainted (amount uint))
+    (ok (or
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:38: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))");
+                assert_eq!(output[2], "                                     ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:29: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (or-tainted (amount uint))");
+                assert_eq!(output[5], "                            ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn or_filter() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (or-filter (amount uint))
+    (ok (or
+        (< amount u100)
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn or_filter_after() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (or-filter-after (amount uint))
+    (ok (or
+        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        (< amount u100)
+    ))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:38: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (unwrap-panic (stx-transfer? amount (as-contract tx-sender) tx-sender))");
+                assert_eq!(output[2], "                                     ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (or-filter-after (amount uint))");
+                assert_eq!(output[5], "                                 ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_stx_burn() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-public (tainted-stx-burn (amount uint))
+    (stx-burn? amount (as-contract tx-sender))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:3:16: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (stx-burn? amount (as-contract tx-sender))");
+                assert_eq!(output[2], "               ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:2:35: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-stx-burn (amount uint))");
+                assert_eq!(output[5], "                                  ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_ft_burn() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-fungible-token stackaroo)
+(define-public (tainted-ft-burn (amount uint))
+    (ft-burn? stackaroo amount (as-contract tx-sender))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:25: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (ft-burn? stackaroo amount (as-contract tx-sender))"
+                );
+                assert_eq!(output[2], "                        ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-ft-burn (amount uint))");
+                assert_eq!(output[5], "                                 ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_ft_transfer() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-fungible-token stackaroo)
+(define-public (tainted-ft-transfer (amount uint))
+    (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:29: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                            ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:38: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-ft-transfer (amount uint))"
+                );
+                assert_eq!(output[5], "                                     ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_ft_mint() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-fungible-token stackaroo)
+(define-public (tainted-ft-mint (amount uint))
+    (ft-mint? stackaroo amount (as-contract tx-sender))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:25: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (ft-mint? stackaroo amount (as-contract tx-sender))"
+                );
+                assert_eq!(output[2], "                        ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-ft-mint (amount uint))");
+                assert_eq!(output[5], "                                 ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_nft_burn() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-non-fungible-token stackaroo uint)
+(define-public (tainted-nft-burn (amount uint))
+    (nft-burn? stackaroo amount (as-contract tx-sender))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:26: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (nft-burn? stackaroo amount (as-contract tx-sender))"
+                );
+                assert_eq!(output[2], "                         ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:35: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-nft-burn (amount uint))");
+                assert_eq!(output[5], "                                  ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_nft_transfer() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-non-fungible-token stackaroo uint)
+(define-public (tainted-nft-transfer (amount uint))
+    (nft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:30: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (nft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                             ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:39: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-nft-transfer (amount uint))"
+                );
+                assert_eq!(output[5], "                                      ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_nft_mint() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-non-fungible-token stackaroo uint)
+(define-public (tainted-nft-mint (amount uint))
+    (nft-mint? stackaroo amount (as-contract tx-sender))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:26: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (nft-mint? stackaroo amount (as-contract tx-sender))"
+                );
+                assert_eq!(output[2], "                         ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:35: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-nft-mint (amount uint))");
+                assert_eq!(output[5], "                                  ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_var_set() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-data-var myvar uint u0)
+(define-public (tainted-var-set (amount uint))
+    (ok (var-set myvar amount))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:24: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (ok (var-set myvar amount))");
+                assert_eq!(output[2], "                       ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-var-set (amount uint))");
+                assert_eq!(output[5], "                                 ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_map_set() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-map mymap { key-name-1: uint } { val-name-1: int })
+(define-public (tainted-map-set (key uint) (value int))
+    (ok (map-set mymap {key-name-1: key} {val-name-1: value}))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 13);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:37: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (ok (map-set mymap {key-name-1: key} {val-name-1: value}))"
+                );
+                assert_eq!(output[2], "                                    ^~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-map-set (key uint) (value int))"
+                );
+                assert_eq!(output[5], "                                 ^~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "taint:4:55: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[7],
+                    "    (ok (map-set mymap {key-name-1: key} {val-name-1: value}))"
+                );
+                assert_eq!(
+                    output[8],
+                    "                                                      ^~~~~"
+                );
+                assert_eq!(
+                    output[9],
+                    format!("taint:3:45: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[10],
+                    "(define-public (tainted-map-set (key uint) (value int))"
+                );
+                assert_eq!(
+                    output[11],
+                    "                                            ^~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_map_insert() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-map mymap { key-name-1: uint } { val-name-1: int })
+(define-public (tainted-map-insert (key uint) (value int))
+    (ok (map-insert mymap {key-name-1: key} {val-name-1: value}))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 13);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:40: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "    (ok (map-insert mymap {key-name-1: key} {val-name-1: value}))"
+                );
+                assert_eq!(output[2], "                                       ^~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:37: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-map-insert (key uint) (value int))"
+                );
+                assert_eq!(output[5], "                                    ^~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "taint:4:58: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[7],
+                    "    (ok (map-insert mymap {key-name-1: key} {val-name-1: value}))"
+                );
+                assert_eq!(
+                    output[8],
+                    "                                                         ^~~~~"
+                );
+                assert_eq!(
+                    output[9],
+                    format!("taint:3:48: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(
+                    output[10],
+                    "(define-public (tainted-map-insert (key uint) (value int))"
+                );
+                assert_eq!(
+                    output[11],
+                    "                                               ^~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_map_delete() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-map mymap { key-name-1: uint } { val-name-1: int })
+(define-public (tainted-map-delete (key uint))
+    (ok (map-delete mymap {key-name-1: key}))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "taint:4:40: {}: use of potentially tainted data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (ok (map-delete mymap {key-name-1: key}))");
+                assert_eq!(output[2], "                                       ^~~");
+                assert_eq!(
+                    output[3],
+                    format!("taint:3:37: {}: source of taint here", blue!("note"))
+                );
+                assert_eq!(output[4], "(define-public (tainted-map-delete (key uint))");
+                assert_eq!(output[5], "                                    ^~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+}
