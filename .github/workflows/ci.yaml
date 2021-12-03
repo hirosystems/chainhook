@@ -144,7 +144,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install dependencies
-        run: cargo install wasm-pack
+        run: cargo install --force wasm-pack
 
       - name: Build - Cargo
         run: cargo build --release
