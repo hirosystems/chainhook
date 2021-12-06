@@ -3,6 +3,7 @@ use crate::analysis::{AnalysisPass, AnalysisResult};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::{DiagnosableError, Diagnostic, Level};
+use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::representations::{Span, TraitDefinition};
 use crate::clarity::types::{TraitIdentifier, Value};
@@ -226,6 +227,15 @@ impl<'a> ASTVisitor<'a> for TaintChecker<'a, '_> {
             }
         }
 
+        // The let expression returns the value of the last body expression,
+        // so use that to determine if the let itself is tainted.
+        if let Some(last_expr) = body.last() {
+            if let Some(tainted) = self.tainted_nodes.get(&Node::Expr(last_expr.id)) {
+                let sources = tainted.sources.clone();
+                self.add_tainted_expr(expr, sources);
+            }
+        }
+
         for (name, val) in bindings {
             // Outside the scope of the let, remove this name
             let node = Node::Symbol(name);
@@ -254,7 +264,27 @@ impl<'a> ASTVisitor<'a> for TaintChecker<'a, '_> {
     }
 
     fn visit_list(&mut self, expr: &SymbolicExpression, list: &[SymbolicExpression]) -> bool {
-        let mut sources /*: HashSet<Node<'a>>*/ = HashSet::new();
+        let mut sources = HashSet::new();
+
+        // For expressions with unique properties, tainted-ness is handled
+        // inside the traverse_* method.
+        if let Some((function_name, args)) = list.split_first() {
+            if let Some(function_name) = function_name.match_atom() {
+                if let Some(define_function) = DefineFunctions::lookup_by_name(function_name) {
+                    return true;
+                } else if let Some(native_function) = NativeFunctions::lookup_by_name(function_name)
+                {
+                    use crate::clarity::functions::NativeFunctions::*;
+                    match native_function {
+                        Let => return true,
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // For other nodes, if any of the children are tainted, the node is
+        // tainted.
         for child in list {
             if let Some(tainted) = self.tainted_nodes.get(&Node::Expr(child.id)) {
                 sources.extend(tainted.sources.clone());
