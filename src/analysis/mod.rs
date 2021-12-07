@@ -1,13 +1,13 @@
 pub mod ast_visitor;
+pub mod check_checker;
 pub mod contract_call_detector;
-pub mod taint_checker;
 
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::Diagnostic;
 
+use self::check_checker::CheckChecker;
 use self::contract_call_detector::ContractCallDetector;
-use self::taint_checker::TaintChecker;
 
 pub type AnalysisResult = Result<Vec<Diagnostic>, Vec<Diagnostic>>;
 
@@ -28,7 +28,8 @@ pub fn run_analysis(
         vec![ContractCallDetector::run_pass];
     for pass in pass_list {
         match pass.as_str() {
-            "taint" => passes.push(TaintChecker::run_pass),
+            "all" => passes.append(&mut vec![CheckChecker::run_pass]),
+            "check-checker" => passes.push(CheckChecker::run_pass),
             _ => panic!("{}: Unrecognized analysis pass: {}", red!("error"), pass),
         }
     }
