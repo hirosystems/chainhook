@@ -11,11 +11,11 @@ use crate::clarity::{ClarityName, SymbolicExpression};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
-pub struct TaintError;
+pub struct CheckError;
 
-impl DiagnosableError for TaintError {
+impl DiagnosableError for CheckError {
     fn message(&self) -> String {
-        "Use of potentially tainted data".to_string()
+        "Use of potentially unchecked data".to_string()
     }
     fn suggestion(&self) -> Option<String> {
         None
@@ -39,15 +39,15 @@ struct TaintedNode<'a> {
     sources: HashSet<Node<'a>>,
 }
 
-pub struct TaintChecker<'a, 'b> {
+pub struct CheckChecker<'a, 'b> {
     db: &'a mut AnalysisDatabase<'b>,
     taint_sources: HashMap<Node<'a>, TaintSource<'a>>,
     tainted_nodes: HashMap<Node<'a>, TaintedNode<'a>>,
     diagnostics: Vec<Diagnostic>,
 }
 
-impl<'a, 'b> TaintChecker<'a, 'b> {
-    fn new(db: &'a mut AnalysisDatabase<'b>) -> TaintChecker<'a, 'b> {
+impl<'a, 'b> CheckChecker<'a, 'b> {
+    fn new(db: &'a mut AnalysisDatabase<'b>) -> CheckChecker<'a, 'b> {
         Self {
             db,
             taint_sources: HashMap::new(),
@@ -106,7 +106,7 @@ impl<'a, 'b> TaintChecker<'a, 'b> {
         if let Some(tainted) = self.tainted_nodes.get(&Node::Expr(expr.id)) {
             let diagnostic = Diagnostic {
                 level: Level::Warning,
-                message: "use of potentially tainted data".to_string(),
+                message: "use of potentially unchecked data".to_string(),
                 spans: vec![expr.span.clone()],
                 suggestion: None,
             };
@@ -122,7 +122,7 @@ impl<'a, 'b> TaintChecker<'a, 'b> {
             for span in source_spans {
                 let diagnostic = Diagnostic {
                     level: Level::Note,
-                    message: "source of taint here".to_string(),
+                    message: "source of untrusted input here".to_string(),
                     spans: vec![span],
                     suggestion: None,
                 };
@@ -155,7 +155,7 @@ impl<'a, 'b> TaintChecker<'a, 'b> {
     }
 }
 
-impl<'a> ASTVisitor<'a> for TaintChecker<'a, '_> {
+impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     fn traverse_define_public(
         &mut self,
         expr: &SymbolicExpression,
@@ -451,12 +451,12 @@ impl<'a> ASTVisitor<'a> for TaintChecker<'a, '_> {
     }
 }
 
-impl AnalysisPass for TaintChecker<'_, '_> {
+impl AnalysisPass for CheckChecker<'_, '_> {
     fn run_pass(
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
     ) -> AnalysisResult {
-        let tc = TaintChecker::new(analysis_db);
+        let tc = CheckChecker::new(analysis_db);
         tc.run(contract_analysis)
     }
 }
@@ -470,7 +470,7 @@ mod tests {
     #[test]
     fn define_public() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted (amount uint))
@@ -478,13 +478,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:3:20: {}: use of potentially tainted data",
+                        "checker:3:20: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -495,7 +495,10 @@ mod tests {
                 assert_eq!(output[2], "                   ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:26: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:26: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted (amount uint))");
                 assert_eq!(output[5], "                         ^~~~~~");
@@ -507,7 +510,7 @@ mod tests {
     #[test]
     fn expr_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (expr-tainted (amount uint))
@@ -515,13 +518,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:3:20: {}: use of potentially tainted data",
+                        "checker:3:20: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -532,7 +535,10 @@ mod tests {
                 assert_eq!(output[2], "                   ^~~~~~~~~~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:31: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:31: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (expr-tainted (amount uint))");
                 assert_eq!(output[5], "                              ^~~~~~");
@@ -544,7 +550,7 @@ mod tests {
     #[test]
     fn let_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted (amount uint))
@@ -554,13 +560,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:24: {}: use of potentially tainted data",
+                        "checker:4:24: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -571,7 +577,10 @@ mod tests {
                 assert_eq!(output[2], "                       ^");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:30: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:30: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (let-tainted (amount uint))");
                 assert_eq!(output[5], "                             ^~~~~~");
@@ -583,7 +592,7 @@ mod tests {
     #[test]
     fn filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered (amount uint))
@@ -594,7 +603,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -605,7 +614,7 @@ mod tests {
     #[test]
     fn filtered_expr() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered-expr (amount uint))
@@ -616,7 +625,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -627,7 +636,7 @@ mod tests {
     #[test]
     fn let_filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered (amount uint))
@@ -638,7 +647,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -649,7 +658,7 @@ mod tests {
     #[test]
     fn let_filtered_parent() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered-parent (amount uint))
@@ -660,7 +669,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -671,7 +680,7 @@ mod tests {
     #[test]
     fn let_tainted_twice() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice (amount1 uint) (amount2 uint))
@@ -681,13 +690,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 10);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:24: {}: use of potentially tainted data",
+                        "checker:4:24: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -698,7 +707,10 @@ mod tests {
                 assert_eq!(output[2], "                       ^");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:36: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:36: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[4],
@@ -707,7 +719,10 @@ mod tests {
                 assert_eq!(output[5], "                                   ^~~~~~~");
                 assert_eq!(
                     output[6],
-                    format!("taint:2:51: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:51: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[7],
@@ -725,7 +740,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_once() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))
@@ -736,13 +751,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:5:24: {}: use of potentially tainted data",
+                        "checker:5:24: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -753,7 +768,10 @@ mod tests {
                 assert_eq!(output[2], "                       ^");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:65: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:65: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))");
                 assert_eq!(
@@ -768,7 +786,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_twice() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-twice (amount1 uint) (amount2 uint))
@@ -780,7 +798,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -791,7 +809,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_together() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-together (amount1 uint) (amount2 uint))
@@ -802,7 +820,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -813,7 +831,7 @@ mod tests {
     #[test]
     fn if_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-filter (amount uint))
@@ -821,7 +839,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -832,7 +850,7 @@ mod tests {
     #[test]
     fn if_not_filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-not-filtered (amount uint))
@@ -840,13 +858,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:3:20: {}: use of potentially tainted data",
+                        "checker:3:20: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -857,7 +875,10 @@ mod tests {
                 );
                 assert_eq!(
                     output[3],
-                    format!("taint:2:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (if-not-filtered (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
@@ -869,7 +890,7 @@ mod tests {
     #[test]
     fn and_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-tainted (amount uint))
@@ -879,13 +900,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:38: {}: use of potentially tainted data",
+                        "checker:4:38: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -893,7 +914,10 @@ mod tests {
                 assert_eq!(output[2], "                                     ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:30: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:30: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (and-tainted (amount uint))");
                 assert_eq!(output[5], "                             ^~~~~~");
@@ -905,7 +929,7 @@ mod tests {
     #[test]
     fn and_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter (amount uint))
@@ -916,7 +940,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -927,7 +951,7 @@ mod tests {
     #[test]
     fn and_filter_after() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter-after (amount uint))
@@ -938,13 +962,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:38: {}: use of potentially tainted data",
+                        "checker:4:38: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -952,7 +976,10 @@ mod tests {
                 assert_eq!(output[2], "                                     ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:35: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:35: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (and-filter-after (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
@@ -964,7 +991,7 @@ mod tests {
     #[test]
     fn or_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-tainted (amount uint))
@@ -974,13 +1001,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:38: {}: use of potentially tainted data",
+                        "checker:4:38: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -988,7 +1015,10 @@ mod tests {
                 assert_eq!(output[2], "                                     ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:29: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:29: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (or-tainted (amount uint))");
                 assert_eq!(output[5], "                            ^~~~~~");
@@ -1000,7 +1030,7 @@ mod tests {
     #[test]
     fn or_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter (amount uint))
@@ -1011,7 +1041,7 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1022,7 +1052,7 @@ mod tests {
     #[test]
     fn or_filter_after() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter-after (amount uint))
@@ -1033,13 +1063,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:38: {}: use of potentially tainted data",
+                        "checker:4:38: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1047,7 +1077,10 @@ mod tests {
                 assert_eq!(output[2], "                                     ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (or-filter-after (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
@@ -1059,7 +1092,7 @@ mod tests {
     #[test]
     fn tainted_stx_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted-stx-burn (amount uint))
@@ -1067,13 +1100,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:3:16: {}: use of potentially tainted data",
+                        "checker:3:16: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1081,7 +1114,10 @@ mod tests {
                 assert_eq!(output[2], "               ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:2:35: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:2:35: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-stx-burn (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
@@ -1093,7 +1129,7 @@ mod tests {
     #[test]
     fn tainted_ft_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1102,13 +1138,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:25: {}: use of potentially tainted data",
+                        "checker:4:25: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1119,7 +1155,10 @@ mod tests {
                 assert_eq!(output[2], "                        ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-ft-burn (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
@@ -1131,7 +1170,7 @@ mod tests {
     #[test]
     fn tainted_ft_transfer() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1140,13 +1179,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:29: {}: use of potentially tainted data",
+                        "checker:4:29: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1157,7 +1196,10 @@ mod tests {
                 assert_eq!(output[2], "                            ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:38: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:38: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[4],
@@ -1172,7 +1214,7 @@ mod tests {
     #[test]
     fn tainted_ft_mint() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1181,13 +1223,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:25: {}: use of potentially tainted data",
+                        "checker:4:25: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1198,7 +1240,10 @@ mod tests {
                 assert_eq!(output[2], "                        ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-ft-mint (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
@@ -1210,7 +1255,7 @@ mod tests {
     #[test]
     fn tainted_nft_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1219,13 +1264,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:26: {}: use of potentially tainted data",
+                        "checker:4:26: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1236,7 +1281,10 @@ mod tests {
                 assert_eq!(output[2], "                         ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:35: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:35: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-nft-burn (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
@@ -1248,7 +1296,7 @@ mod tests {
     #[test]
     fn tainted_nft_transfer() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1257,13 +1305,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:30: {}: use of potentially tainted data",
+                        "checker:4:30: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1274,7 +1322,10 @@ mod tests {
                 assert_eq!(output[2], "                             ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:39: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:39: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[4],
@@ -1289,7 +1340,7 @@ mod tests {
     #[test]
     fn tainted_nft_mint() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1298,13 +1349,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:26: {}: use of potentially tainted data",
+                        "checker:4:26: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1315,7 +1366,10 @@ mod tests {
                 assert_eq!(output[2], "                         ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:35: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:35: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-nft-mint (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
@@ -1327,7 +1381,7 @@ mod tests {
     #[test]
     fn tainted_var_set() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-data-var myvar uint u0)
@@ -1336,13 +1390,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:24: {}: use of potentially tainted data",
+                        "checker:4:24: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1350,7 +1404,10 @@ mod tests {
                 assert_eq!(output[2], "                       ^~~~~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-var-set (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
@@ -1362,7 +1419,7 @@ mod tests {
     #[test]
     fn tainted_map_set() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
@@ -1371,13 +1428,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 13);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:37: {}: use of potentially tainted data",
+                        "checker:4:37: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1388,7 +1445,10 @@ mod tests {
                 assert_eq!(output[2], "                                    ^~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:34: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[4],
@@ -1398,7 +1458,7 @@ mod tests {
                 assert_eq!(
                     output[6],
                     format!(
-                        "taint:4:55: {}: use of potentially tainted data",
+                        "checker:4:55: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1412,7 +1472,10 @@ mod tests {
                 );
                 assert_eq!(
                     output[9],
-                    format!("taint:3:45: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:45: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[10],
@@ -1430,7 +1493,7 @@ mod tests {
     #[test]
     fn tainted_map_insert() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
@@ -1439,13 +1502,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 13);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:40: {}: use of potentially tainted data",
+                        "checker:4:40: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1456,7 +1519,10 @@ mod tests {
                 assert_eq!(output[2], "                                       ^~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:37: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:37: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[4],
@@ -1466,7 +1532,7 @@ mod tests {
                 assert_eq!(
                     output[6],
                     format!(
-                        "taint:4:58: {}: use of potentially tainted data",
+                        "checker:4:58: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1480,7 +1546,10 @@ mod tests {
                 );
                 assert_eq!(
                     output[9],
-                    format!("taint:3:48: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:48: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(
                     output[10],
@@ -1498,7 +1567,7 @@ mod tests {
     #[test]
     fn tainted_map_delete() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["taint".to_string()];
+        settings.analysis = vec!["check-checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
@@ -1507,13 +1576,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("taint".to_string()), false, None) {
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 7);
                 assert_eq!(
                     output[0],
                     format!(
-                        "taint:4:40: {}: use of potentially tainted data",
+                        "checker:4:40: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
@@ -1521,7 +1590,10 @@ mod tests {
                 assert_eq!(output[2], "                                       ^~~");
                 assert_eq!(
                     output[3],
-                    format!("taint:3:37: {}: source of taint here", blue!("note"))
+                    format!(
+                        "checker:3:37: {}: source of untrusted input here",
+                        blue!("note")
+                    )
                 );
                 assert_eq!(output[4], "(define-public (tainted-map-delete (key uint))");
                 assert_eq!(output[5], "                                    ^~~");
