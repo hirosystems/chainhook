@@ -76,7 +76,11 @@ impl Session {
         Session {
             session_id: 0,
             started_at: 0,
-            interpreter: ClarityInterpreter::new(tx_sender, settings.costs_version),
+            interpreter: ClarityInterpreter::new(
+                tx_sender,
+                settings.costs_version,
+                settings.analysis.clone(),
+            ),
             asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
             api_reference: build_api_reference(),

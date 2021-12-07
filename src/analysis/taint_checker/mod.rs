@@ -469,7 +469,9 @@ mod tests {
 
     #[test]
     fn define_public() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted (amount uint))
     (stx-transfer? amount (as-contract tx-sender) tx-sender)
@@ -504,7 +506,9 @@ mod tests {
 
     #[test]
     fn expr_tainted() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (expr-tainted (amount uint))
     (stx-transfer? (+ u10 amount) (as-contract tx-sender) tx-sender)
@@ -539,7 +543,9 @@ mod tests {
 
     #[test]
     fn let_tainted() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted (amount uint))
     (let ((x amount))
@@ -576,7 +582,9 @@ mod tests {
 
     #[test]
     fn filtered() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered (amount uint))
     (begin
@@ -596,7 +604,9 @@ mod tests {
 
     #[test]
     fn filtered_expr() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered-expr (amount uint))
     (begin
@@ -616,7 +626,9 @@ mod tests {
 
     #[test]
     fn let_filtered() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered (amount uint))
     (let ((x amount))
@@ -636,7 +648,9 @@ mod tests {
 
     #[test]
     fn let_filtered_parent() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered-parent (amount uint))
     (let ((x amount))
@@ -656,7 +670,9 @@ mod tests {
 
     #[test]
     fn let_tainted_twice() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice (amount1 uint) (amount2 uint))
     (let ((x (+ amount1 amount2)))
@@ -708,7 +724,9 @@ mod tests {
 
     #[test]
     fn let_tainted_twice_filtered_once() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))
     (let ((x (+ amount1 amount2)))
@@ -749,7 +767,9 @@ mod tests {
 
     #[test]
     fn let_tainted_twice_filtered_twice() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-twice (amount1 uint) (amount2 uint))
     (let ((x (+ amount1 amount2)))
@@ -770,7 +790,9 @@ mod tests {
 
     #[test]
     fn let_tainted_twice_filtered_together() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-together (amount1 uint) (amount2 uint))
     (let ((x (+ amount1 amount2)))
@@ -790,7 +812,9 @@ mod tests {
 
     #[test]
     fn if_filter() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-filter (amount uint))
     (stx-transfer? (if (< amount u100) amount u100) (as-contract tx-sender) tx-sender)
@@ -807,7 +831,9 @@ mod tests {
 
     #[test]
     fn if_not_filtered() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-not-filtered (amount uint))
     (stx-transfer? (if (< u50 u100) amount u100) (as-contract tx-sender) tx-sender)
@@ -842,7 +868,9 @@ mod tests {
 
     #[test]
     fn and_tainted() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-tainted (amount uint))
     (ok (and
@@ -876,7 +904,9 @@ mod tests {
 
     #[test]
     fn and_filter() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter (amount uint))
     (ok (and
@@ -896,7 +926,9 @@ mod tests {
 
     #[test]
     fn and_filter_after() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter-after (amount uint))
     (ok (and
@@ -931,7 +963,9 @@ mod tests {
 
     #[test]
     fn or_tainted() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-tainted (amount uint))
     (ok (or
@@ -965,7 +999,9 @@ mod tests {
 
     #[test]
     fn or_filter() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter (amount uint))
     (ok (or
@@ -985,7 +1021,9 @@ mod tests {
 
     #[test]
     fn or_filter_after() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter-after (amount uint))
     (ok (or
@@ -1020,7 +1058,9 @@ mod tests {
 
     #[test]
     fn tainted_stx_burn() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted-stx-burn (amount uint))
     (stx-burn? amount (as-contract tx-sender))
@@ -1052,7 +1092,9 @@ mod tests {
 
     #[test]
     fn tainted_ft_burn() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-burn (amount uint))
@@ -1088,7 +1130,9 @@ mod tests {
 
     #[test]
     fn tainted_ft_transfer() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-transfer (amount uint))
@@ -1127,7 +1171,9 @@ mod tests {
 
     #[test]
     fn tainted_ft_mint() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-mint (amount uint))
@@ -1163,7 +1209,9 @@ mod tests {
 
     #[test]
     fn tainted_nft_burn() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-burn (amount uint))
@@ -1199,7 +1247,9 @@ mod tests {
 
     #[test]
     fn tainted_nft_transfer() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-transfer (amount uint))
@@ -1238,7 +1288,9 @@ mod tests {
 
     #[test]
     fn tainted_nft_mint() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-mint (amount uint))
@@ -1274,7 +1326,9 @@ mod tests {
 
     #[test]
     fn tainted_var_set() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-data-var myvar uint u0)
 (define-public (tainted-var-set (amount uint))
@@ -1307,7 +1361,9 @@ mod tests {
 
     #[test]
     fn tainted_map_set() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
 (define-public (tainted-map-set (key uint) (value int))
@@ -1373,7 +1429,9 @@ mod tests {
 
     #[test]
     fn tainted_map_insert() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
 (define-public (tainted-map-insert (key uint) (value int))
@@ -1439,7 +1497,9 @@ mod tests {
 
     #[test]
     fn tainted_map_delete() {
-        let mut session = Session::new(SessionSettings::default());
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["taint".to_string()];
+        let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
 (define-public (tainted-map-delete (key uint))

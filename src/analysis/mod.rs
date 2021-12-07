@@ -21,9 +21,18 @@ pub trait AnalysisPass {
 pub fn run_analysis(
     contract_analysis: &mut ContractAnalysis,
     analysis_db: &mut AnalysisDatabase,
+    pass_list: &Vec<String>,
 ) -> AnalysisResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
-    let passes = [ContractCallDetector::run_pass, TaintChecker::run_pass];
+    let mut passes: Vec<fn(&mut ContractAnalysis, &mut AnalysisDatabase) -> AnalysisResult> =
+        vec![ContractCallDetector::run_pass];
+    for pass in pass_list {
+        match pass.as_str() {
+            "taint" => passes.push(TaintChecker::run_pass),
+            _ => panic!("{}: Unrecognized analysis pass: {}", red!("error"), pass),
+        }
+    }
+
     for pass in passes {
         // Collect warnings and continue, or if there is an error, return.
         match pass(contract_analysis, analysis_db) {
