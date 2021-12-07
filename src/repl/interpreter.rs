@@ -41,10 +41,15 @@ pub struct ClarityInterpreter {
     accounts: BTreeSet<String>,
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
     costs_version: u32,
+    analysis: Vec<String>,
 }
 
 impl ClarityInterpreter {
-    pub fn new(tx_sender: StandardPrincipalData, costs_version: u32) -> ClarityInterpreter {
+    pub fn new(
+        tx_sender: StandardPrincipalData,
+        costs_version: u32,
+        analysis: Vec<String>,
+    ) -> ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
@@ -54,6 +59,7 @@ impl ClarityInterpreter {
             accounts,
             tokens,
             costs_version,
+            analysis,
         }
     }
 
@@ -148,7 +154,7 @@ impl ClarityInterpreter {
         };
 
         // Run REPL-only analyses
-        match analysis::run_analysis(&mut contract_analysis, &mut analysis_db) {
+        match analysis::run_analysis(&mut contract_analysis, &mut analysis_db, &self.analysis) {
             Ok(diagnostics) => Ok((contract_analysis, diagnostics)),
             Err(mut diagnostics) => {
                 // The last diagnostic should be the error

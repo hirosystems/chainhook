@@ -37,6 +37,9 @@ fn main() {
     let mut settings = SessionSettings::default();
     settings.include_boot_contracts = vec!["costs-v1".into()];
     settings.costs_version = 1;
+    if let Ok(analysis) = args.value_from_str::<&str, String>("--analysis") {
+        settings.analysis = analysis.split(',').map(|s| s.to_string()).collect();
+    }
 
     match code {
         Some(code_str) => {
