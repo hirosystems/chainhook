@@ -157,7 +157,7 @@ pub trait ASTVisitor<'a> {
                             });
                             let value = args[2].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
+                                tuple_map.insert(None, &args[2]);
                                 tuple_map
                             });
                             self.traverse_map_set(expr, name, &key, &value)
@@ -171,7 +171,7 @@ pub trait ASTVisitor<'a> {
                             });
                             let value = args[2].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
+                                tuple_map.insert(None, &args[2]);
                                 tuple_map
                             });
                             self.traverse_map_insert(expr, name, &key, &value)

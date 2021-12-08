@@ -1491,6 +1491,71 @@ mod tests {
     }
 
     #[test]
+    fn tainted_map_set2() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-map mymap uint int)
+(define-public (tainted-map-set (key uint) (value int))
+    (ok (map-set mymap key value))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 13);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:4:24: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (ok (map-set mymap key value))");
+                assert_eq!(output[2], "                       ^~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:34: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-map-set (key uint) (value int))"
+                );
+                assert_eq!(output[5], "                                 ^~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:4:28: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[7], "    (ok (map-set mymap key value))");
+                assert_eq!(output[8], "                           ^~~~~");
+                assert_eq!(
+                    output[9],
+                    format!(
+                        "checker:3:45: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[10],
+                    "(define-public (tainted-map-set (key uint) (value int))"
+                );
+                assert_eq!(
+                    output[11],
+                    "                                            ^~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
     fn tainted_map_insert() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check-checker".to_string()];
@@ -1544,6 +1609,71 @@ mod tests {
                     output[8],
                     "                                                         ^~~~~"
                 );
+                assert_eq!(
+                    output[9],
+                    format!(
+                        "checker:3:48: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[10],
+                    "(define-public (tainted-map-insert (key uint) (value int))"
+                );
+                assert_eq!(
+                    output[11],
+                    "                                               ^~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn tainted_map_insert2() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-map mymap uint int)
+(define-public (tainted-map-insert (key uint) (value int))
+    (ok (map-insert mymap key value))
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 13);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:4:27: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (ok (map-insert mymap key value))");
+                assert_eq!(output[2], "                          ^~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:37: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-map-insert (key uint) (value int))"
+                );
+                assert_eq!(output[5], "                                    ^~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:4:31: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[7], "    (ok (map-insert mymap key value))");
+                assert_eq!(output[8], "                              ^~~~~");
                 assert_eq!(
                     output[9],
                     format!(
