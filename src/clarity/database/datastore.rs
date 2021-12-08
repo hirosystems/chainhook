@@ -1,3 +1,5 @@
+use sha2::{Digest, Sha512Trunc256};
+
 use super::{ClarityBackingStore, ClarityDatabase, HeadersDB};
 use crate::clarity::analysis::AnalysisDatabase;
 use crate::clarity::errors::{
@@ -10,32 +12,50 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct Datastore {
-    store: HashMap<String, String>,
+    store: Vec<HashMap<String, String>>,
     metadata: HashMap<(String, String), String>,
     chain_tip: StacksBlockId,
     chain_height: u32,
 }
 
+fn height_to_id(height: u32) -> StacksBlockId {
+    let input_bytes = height.to_be_bytes();
+    let mut hasher = Sha512Trunc256::new();
+    hasher.update(input_bytes);
+    let hash = Sha512Trunc256Sum::from_hasher(hasher);
+    StacksBlockId(hash.0)
+}
+
 impl Datastore {
     pub fn new() -> Datastore {
+        let mut store = Vec::new();
+        store.push(HashMap::new());
+
         Datastore {
-            store: HashMap::new(),
+            store,
             metadata: HashMap::new(),
-            chain_tip: StacksBlockId([0u8; 32]),
+            chain_tip: height_to_id(0),
             chain_height: 0,
         }
     }
 
     pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
+        let cur_height = self.chain_height;
+
+        for i in 1..=count {
+            self.store.push(
+                self.store
+                    .get(cur_height as usize)
+                    .expect(
+                        format!("Block at current height {} does not exist", cur_height).as_str(),
+                    )
+                    .clone(),
+            );
+        }
+
         self.chain_height = self.chain_height + count;
-        let chain_height_bytes = self.chain_height.to_be_bytes();
-        let mut bytes = [0u8; 32];
-        bytes[0] = chain_height_bytes[0];
-        bytes[1] = chain_height_bytes[1];
-        bytes[2] = chain_height_bytes[2];
-        bytes[3] = chain_height_bytes[3];
-        self.chain_tip = StacksBlockId(bytes);
-        self.chain_height.clone()
+        self.chain_tip = height_to_id(self.chain_height);
+        self.chain_height
     }
 }
 
@@ -48,10 +68,10 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        match self.store.get(key) {
-            Some(value) => Some(value.clone()),
-            None => None,
-        }
+        self.store
+            .get(self.chain_height as usize)
+            .map(|kv_store| kv_store.get(key).map(|v| v.clone()))
+            .flatten()
     }
 
     fn has_entry(&mut self, key: &str) -> bool {
@@ -183,7 +203,9 @@ impl Datastore {
 
         // self.marf.insert(key, marf_value)
         //     .expect("ERROR: Unexpected MARF Failure")
-        self.store.insert(key.to_string(), value.to_string());
+        if let Some(map) = self.store.get_mut(self.chain_height as usize) {
+            map.insert(key.to_string(), value.to_string());
+        }
     }
 
     pub fn make_contract_hash_key(contract: &QualifiedContractIdentifier) -> String {
