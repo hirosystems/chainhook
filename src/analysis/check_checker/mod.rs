@@ -302,6 +302,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(amount);
         self.taint_check(sender);
         true
@@ -314,6 +319,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(amount);
         self.taint_check(sender);
         self.taint_check(recipient);
@@ -327,6 +337,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(amount);
         self.taint_check(sender);
         true
@@ -340,6 +355,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         sender: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(amount);
         self.taint_check(sender);
         self.taint_check(recipient);
@@ -365,6 +385,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(identifier);
         self.taint_check(sender);
         true
@@ -378,6 +403,11 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         sender: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
     ) -> bool {
+        // Input from the sender can be used un-checked to interact with the
+        // sender's assets. The sender is protected by post-conditions.
+        if sender.match_tx_sender() {
+            return true;
+        }
         self.taint_check(identifier);
         self.taint_check(sender);
         self.taint_check(recipient);
@@ -458,6 +488,17 @@ impl AnalysisPass for CheckChecker<'_, '_> {
     ) -> AnalysisResult {
         let tc = CheckChecker::new(analysis_db);
         tc.run(contract_analysis)
+    }
+}
+
+impl<'a> SymbolicExpression {
+    fn match_tx_sender(&'a self) -> bool {
+        if let Some(name) = self.match_atom() {
+            if name.as_str() == "tx-sender" {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -1090,6 +1131,25 @@ mod tests {
     }
 
     #[test]
+    fn stx_burn_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (stx-burn-senders (amount uint))
+    (stx-burn? amount tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
     fn tainted_stx_burn() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check-checker".to_string()];
@@ -1121,6 +1181,25 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-stx-burn (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn stx_transfer_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (stx-transfer-senders (amount uint) (recipient principal))
+    (stx-transfer? amount tx-sender recipient)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1168,6 +1247,26 @@ mod tests {
     }
 
     #[test]
+    fn ft_burn_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-fungible-token stackaroo)
+(define-public (ft-burn-senders (amount uint))
+    (ft-burn? stackaroo amount tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
     fn tainted_ft_transfer() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check-checker".to_string()];
@@ -1206,6 +1305,26 @@ mod tests {
                     "(define-public (tainted-ft-transfer (amount uint))"
                 );
                 assert_eq!(output[5], "                                     ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn ft_transfer_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-fungible-token stackaroo)
+(define-public (ft-transfer-senders (amount uint) (recipient principal))
+    (ft-transfer? stackaroo amount tx-sender recipient)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1259,8 +1378,8 @@ mod tests {
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
-(define-public (tainted-nft-burn (amount uint))
-    (nft-burn? stackaroo amount (as-contract tx-sender))
+(define-public (tainted-nft-burn (identifier uint))
+    (nft-burn? stackaroo identifier (as-contract tx-sender))
 )
 "
         .to_string();
@@ -1276,9 +1395,9 @@ mod tests {
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-burn? stackaroo amount (as-contract tx-sender))"
+                    "    (nft-burn? stackaroo identifier (as-contract tx-sender))"
                 );
-                assert_eq!(output[2], "                         ^~~~~~");
+                assert_eq!(output[2], "                         ^~~~~~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1286,8 +1405,31 @@ mod tests {
                         blue!("note")
                     )
                 );
-                assert_eq!(output[4], "(define-public (tainted-nft-burn (amount uint))");
-                assert_eq!(output[5], "                                  ^~~~~~");
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-nft-burn (identifier uint))"
+                );
+                assert_eq!(output[5], "                                  ^~~~~~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn nft_burn_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-non-fungible-token stackaroo uint)
+(define-public (nft-burn-senders (identifier uint))
+    (nft-burn? stackaroo identifier tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1300,8 +1442,8 @@ mod tests {
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
-(define-public (tainted-nft-transfer (amount uint))
-    (nft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)
+(define-public (tainted-nft-transfer (identifier uint))
+    (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender)
 )
 "
         .to_string();
@@ -1317,9 +1459,9 @@ mod tests {
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)"
+                    "    (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender)"
                 );
-                assert_eq!(output[2], "                             ^~~~~~");
+                assert_eq!(output[2], "                             ^~~~~~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1329,9 +1471,32 @@ mod tests {
                 );
                 assert_eq!(
                     output[4],
-                    "(define-public (tainted-nft-transfer (amount uint))"
+                    "(define-public (tainted-nft-transfer (identifier uint))"
                 );
-                assert_eq!(output[5], "                                      ^~~~~~");
+                assert_eq!(
+                    output[5],
+                    "                                      ^~~~~~~~~~"
+                );
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn nft_transfer_senders() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check-checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-non-fungible-token stackaroo uint)
+(define-public (nft-transfer-senders (identifier uint) (recipient principal))
+    (nft-transfer? stackaroo identifier tx-sender recipient)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1344,8 +1509,8 @@ mod tests {
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
-(define-public (tainted-nft-mint (amount uint))
-    (nft-mint? stackaroo amount (as-contract tx-sender))
+(define-public (tainted-nft-mint (identifier uint))
+    (nft-mint? stackaroo identifier (as-contract tx-sender))
 )
 "
         .to_string();
@@ -1361,9 +1526,9 @@ mod tests {
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-mint? stackaroo amount (as-contract tx-sender))"
+                    "    (nft-mint? stackaroo identifier (as-contract tx-sender))"
                 );
-                assert_eq!(output[2], "                         ^~~~~~");
+                assert_eq!(output[2], "                         ^~~~~~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1371,8 +1536,11 @@ mod tests {
                         blue!("note")
                     )
                 );
-                assert_eq!(output[4], "(define-public (tainted-nft-mint (amount uint))");
-                assert_eq!(output[5], "                                  ^~~~~~");
+                assert_eq!(
+                    output[4],
+                    "(define-public (tainted-nft-mint (identifier uint))"
+                );
+                assert_eq!(output[5], "                                  ^~~~~~~~~~");
             }
             _ => panic!("Expected successful interpretation"),
         };
