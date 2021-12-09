@@ -9,10 +9,11 @@ use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::util::hash::Sha512Trunc256Sum;
 use crate::clarity::StacksBlockId;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 #[derive(Clone, Debug)]
 pub struct Datastore {
-    store: Vec<HashMap<String, String>>,
+    store: HashMap<StacksBlockId, HashMap<String, String>>,
     metadata: HashMap<(String, String), String>,
     chain_tip: StacksBlockId,
     chain_height: u32,
@@ -28,8 +29,10 @@ fn height_to_id(height: u32) -> StacksBlockId {
 
 impl Datastore {
     pub fn new() -> Datastore {
-        let mut store = Vec::new();
-        store.push(HashMap::new());
+        let id = height_to_id(0);
+
+        let mut store = HashMap::new();
+        store.insert(id, HashMap::new());
 
         Datastore {
             store,
@@ -43,14 +46,13 @@ impl Datastore {
         let cur_height = self.chain_height;
 
         for i in 1..=count {
-            self.store.push(
-                self.store
-                    .get(cur_height as usize)
-                    .expect(
-                        format!("Block at current height {} does not exist", cur_height).as_str(),
-                    )
-                    .clone(),
-            );
+            let id = height_to_id(i);
+            self.store.insert(id, self.store
+                .get(&self.chain_tip)
+                .expect(
+                    format!("Block at current height {} does not exist", cur_height).as_str(),
+                )
+                .clone());
         }
 
         self.chain_height = self.chain_height + count;
@@ -69,7 +71,7 @@ impl ClarityBackingStore for Datastore {
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
         self.store
-            .get(self.chain_height as usize)
+            .get(&self.chain_tip)
             .map(|kv_store| kv_store.get(key).map(|v| v.clone()))
             .flatten()
     }
@@ -82,12 +84,13 @@ impl ClarityBackingStore for Datastore {
     ///   used to implement time-shifted evaluation.
     /// returns the previous block header hash on success
     fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
+        let prior_tip = self.chain_tip;
         self.chain_tip = bhh;
-        Ok(bhh)
+        Ok(prior_tip)
     }
 
     fn get_block_at_height(&mut self, height: u32) -> Option<StacksBlockId> {
-        Some(self.chain_tip)
+        Some(height_to_id(height))
     }
 
     /// this function returns the current block height, as viewed by this marfed-kv structure,
@@ -97,6 +100,7 @@ impl ClarityBackingStore for Datastore {
         self.chain_height.clone()
     }
 
+    // TODO: fix this
     fn get_open_chain_tip_height(&mut self) -> u32 {
         self.chain_height.clone()
     }
@@ -198,12 +202,7 @@ impl Datastore {
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
-        // let marf_value = MARFValue::from_value(value);
-        // self.side_store.put(&marf_value.to_hex(), value);
-
-        // self.marf.insert(key, marf_value)
-        //     .expect("ERROR: Unexpected MARF Failure")
-        if let Some(map) = self.store.get_mut(self.chain_height as usize) {
+        if let Some(map) = self.store.get_mut(&self.chain_tip) {
             map.insert(key.to_string(), value.to_string());
         }
     }

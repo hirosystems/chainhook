@@ -40,8 +40,7 @@ pub struct ClarityInterpreter {
 
 impl ClarityInterpreter {
     pub fn new(tx_sender: StandardPrincipalData, costs_version: u32) -> ClarityInterpreter {
-        let mut datastore = Datastore::new();
-        datastore.advance_chain_tip(1);
+        let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
         ClarityInterpreter {
