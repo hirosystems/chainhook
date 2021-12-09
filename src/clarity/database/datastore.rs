@@ -70,10 +70,11 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        self.store
-            .get(&self.chain_tip)
-            .map(|kv_store| kv_store.get(key).map(|v| v.clone()))
-            .flatten()
+        if let Some(map) = self.store.get(&self.chain_tip) {
+            map.get(key).map(|v| v.clone())
+        } else {
+            panic!("Block does not exist for current chain tip");
+        }
     }
 
     fn has_entry(&mut self, key: &str) -> bool {
@@ -204,6 +205,8 @@ impl Datastore {
     pub fn put(&mut self, key: &str, value: &str) {
         if let Some(map) = self.store.get_mut(&self.chain_tip) {
             map.insert(key.to_string(), value.to_string());
+        } else {
+            panic!("Block does not exist for current chain tip");
         }
     }
 
