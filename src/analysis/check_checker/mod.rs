@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn define_public() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted (amount uint))
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn expr_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (expr-tainted (amount uint))
@@ -591,7 +591,7 @@ mod tests {
     #[test]
     fn let_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted (amount uint))
@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered (amount uint))
@@ -655,7 +655,7 @@ mod tests {
     #[test]
     fn filtered_expr() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (filtered-expr (amount uint))
@@ -677,7 +677,7 @@ mod tests {
     #[test]
     fn let_filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered (amount uint))
@@ -699,7 +699,7 @@ mod tests {
     #[test]
     fn let_filtered_parent() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-filtered-parent (amount uint))
@@ -721,7 +721,7 @@ mod tests {
     #[test]
     fn let_tainted_twice() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice (amount1 uint) (amount2 uint))
@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_once() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-once (amount1 uint) (amount2 uint))
@@ -827,7 +827,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_twice() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-twice (amount1 uint) (amount2 uint))
@@ -850,7 +850,7 @@ mod tests {
     #[test]
     fn let_tainted_twice_filtered_together() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (let-tainted-twice-filtered-together (amount1 uint) (amount2 uint))
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn if_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-filter (amount uint))
@@ -891,7 +891,7 @@ mod tests {
     #[test]
     fn if_not_filtered() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (if-not-filtered (amount uint))
@@ -931,7 +931,7 @@ mod tests {
     #[test]
     fn and_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-tainted (amount uint))
@@ -970,7 +970,7 @@ mod tests {
     #[test]
     fn and_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter (amount uint))
@@ -992,7 +992,7 @@ mod tests {
     #[test]
     fn and_filter_after() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (and-filter-after (amount uint))
@@ -1032,7 +1032,7 @@ mod tests {
     #[test]
     fn or_tainted() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-tainted (amount uint))
@@ -1071,7 +1071,7 @@ mod tests {
     #[test]
     fn or_filter() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter (amount uint))
@@ -1093,7 +1093,7 @@ mod tests {
     #[test]
     fn or_filter_after() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (or-filter-after (amount uint))
@@ -1133,7 +1133,7 @@ mod tests {
     #[test]
     fn stx_burn_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (stx-burn-senders (amount uint))
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn tainted_stx_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted-stx-burn (amount uint))
@@ -1189,7 +1189,7 @@ mod tests {
     #[test]
     fn stx_transfer_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (stx-transfer-senders (amount uint) (recipient principal))
@@ -1208,7 +1208,7 @@ mod tests {
     #[test]
     fn tainted_ft_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1249,7 +1249,7 @@ mod tests {
     #[test]
     fn ft_burn_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1269,7 +1269,7 @@ mod tests {
     #[test]
     fn tainted_ft_transfer() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1313,7 +1313,7 @@ mod tests {
     #[test]
     fn ft_transfer_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1333,7 +1333,7 @@ mod tests {
     #[test]
     fn tainted_ft_mint() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-fungible-token stackaroo)
@@ -1374,7 +1374,7 @@ mod tests {
     #[test]
     fn tainted_nft_burn() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1418,7 +1418,7 @@ mod tests {
     #[test]
     fn nft_burn_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1438,7 +1438,7 @@ mod tests {
     #[test]
     fn tainted_nft_transfer() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1485,7 +1485,7 @@ mod tests {
     #[test]
     fn nft_transfer_senders() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1505,7 +1505,7 @@ mod tests {
     #[test]
     fn tainted_nft_mint() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-non-fungible-token stackaroo uint)
@@ -1549,7 +1549,7 @@ mod tests {
     #[test]
     fn tainted_var_set() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-data-var myvar uint u0)
@@ -1587,7 +1587,7 @@ mod tests {
     #[test]
     fn tainted_map_set() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
@@ -1661,7 +1661,7 @@ mod tests {
     #[test]
     fn tainted_map_set2() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap uint int)
@@ -1726,7 +1726,7 @@ mod tests {
     #[test]
     fn tainted_map_insert() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })
@@ -1800,7 +1800,7 @@ mod tests {
     #[test]
     fn tainted_map_insert2() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap uint int)
@@ -1865,7 +1865,7 @@ mod tests {
     #[test]
     fn tainted_map_delete() {
         let mut settings = SessionSettings::default();
-        settings.analysis = vec!["check-checker".to_string()];
+        settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
         let snippet = "
 (define-map mymap { key-name-1: uint } { val-name-1: int })

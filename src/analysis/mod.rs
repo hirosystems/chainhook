@@ -29,7 +29,7 @@ pub fn run_analysis(
     for pass in pass_list {
         match pass.as_str() {
             "all" => passes.append(&mut vec![CheckChecker::run_pass]),
-            "check-checker" => passes.push(CheckChecker::run_pass),
+            "check_checker" => passes.push(CheckChecker::run_pass),
             _ => panic!("{}: Unrecognized analysis pass: {}", red!("error"), pass),
         }
     }
