@@ -1,3 +1,4 @@
+use crate::analysis::annotation::Annotation;
 use crate::analysis::{AnalysisPass, AnalysisResult};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 pub use crate::clarity::analysis::types::ContractAnalysis;
@@ -42,6 +43,7 @@ impl AnalysisPass for ContractCallDetector {
     fn run_pass(
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
+        annotations: &Vec<Annotation>,
     ) -> AnalysisResult {
         let mut contract_calls = BTreeSet::new();
         traverse(

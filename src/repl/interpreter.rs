@@ -1,5 +1,6 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
+use crate::analysis::annotation::{Annotation, AnnotationKind};
 use crate::analysis::contract_call_detector::ContractCallDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
 use crate::clarity;
@@ -13,11 +14,11 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
-use crate::clarity::diagnostic::Diagnostic;
+use crate::clarity::diagnostic::{Diagnostic, Level};
 use crate::clarity::errors::Error;
 use crate::clarity::events::*;
-use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::representations::SymbolicExpressionType::{Atom, List};
+use crate::clarity::representations::{Span, SymbolicExpression};
 use crate::clarity::types::{
     self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
 };
@@ -71,11 +72,13 @@ impl ClarityInterpreter {
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
-        let (analysis, diagnostics) = match self.run_analysis(contract_identifier.clone(), &mut ast)
-        {
-            Ok((analysis, diagnostics)) => (analysis, diagnostics),
-            Err(e) => return Err(e),
-        };
+        let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
+        let (analysis, mut analysis_diagnostics) =
+            match self.run_analysis(contract_identifier.clone(), &mut ast, &annotations) {
+                Ok((analysis, diagnostics)) => (analysis, diagnostics),
+                Err(e) => return Err(e),
+            };
+        diagnostics.append(&mut analysis_diagnostics);
         let mut result = self.execute(
             contract_identifier,
             &mut ast,
@@ -111,7 +114,7 @@ impl ClarityInterpreter {
             LimitedCostTracker::new_free(),
         );
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-        match ContractCallDetector::run_pass(&mut contract_analysis, &mut analysis_db) {
+        match ContractCallDetector::run_pass(&mut contract_analysis, &mut analysis_db, &vec![]) {
             Ok(_) => Ok(contract_analysis.dependencies),
             Err(e) => Err(format!("{:?}", e)),
         }
@@ -131,10 +134,56 @@ impl ClarityInterpreter {
         Ok(contract_ast)
     }
 
+    pub fn collect_annotations(
+        &self,
+        ast: &ContractAST,
+        snippet: &String,
+    ) -> (Vec<Annotation>, Vec<Diagnostic>) {
+        let mut annotations = vec![];
+        let mut diagnostics = vec![];
+        let lines = snippet.lines();
+        for (n, line) in lines.enumerate() {
+            if let Some(comment) = line.trim().strip_prefix(";;") {
+                if let Some(annotation_string) = comment.trim().strip_prefix("#[") {
+                    let span = Span {
+                        start_line: (n + 1) as u32,
+                        start_column: (line.find('#').unwrap_or(0) + 1) as u32,
+                        end_line: (n + 1) as u32,
+                        end_column: line.len() as u32,
+                    };
+                    if let Some(annotation_string) = annotation_string.strip_suffix("]") {
+                        let kind: AnnotationKind = match annotation_string.parse() {
+                            Ok(kind) => kind,
+                            Err(e) => {
+                                diagnostics.push(Diagnostic {
+                                    level: Level::Warning,
+                                    message: format!("{}", e),
+                                    spans: vec![span.clone()],
+                                    suggestion: None,
+                                });
+                                continue;
+                            }
+                        };
+                        annotations.push(Annotation { kind, span });
+                    } else {
+                        diagnostics.push(Diagnostic {
+                            level: Level::Warning,
+                            message: "malformed annotation".to_string(),
+                            spans: vec![span],
+                            suggestion: None,
+                        });
+                    }
+                }
+            }
+        }
+        (annotations, diagnostics)
+    }
+
     pub fn run_analysis(
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
+        annotations: &Vec<Annotation>,
     ) -> Result<(ContractAnalysis, Vec<Diagnostic>), (String, Option<Diagnostic>, Option<Error>)>
     {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
@@ -154,7 +203,12 @@ impl ClarityInterpreter {
         };
 
         // Run REPL-only analyses
-        match analysis::run_analysis(&mut contract_analysis, &mut analysis_db, &self.analysis) {
+        match analysis::run_analysis(
+            &mut contract_analysis,
+            &mut analysis_db,
+            &self.analysis,
+            annotations,
+        ) {
             Ok(diagnostics) => Ok((contract_analysis, diagnostics)),
             Err(mut diagnostics) => {
                 // The last diagnostic should be the error

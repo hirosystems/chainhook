@@ -1,3 +1,4 @@
+use crate::analysis::annotation::Annotation;
 use crate::analysis::ast_visitor::{traverse, ASTVisitor, TypedVar};
 use crate::analysis::{AnalysisPass, AnalysisResult};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
@@ -5,6 +6,7 @@ use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::{DiagnosableError, Diagnostic, Level};
 use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
+use crate::clarity::representations::SymbolicExpressionType::*;
 use crate::clarity::representations::{Span, TraitDefinition};
 use crate::clarity::types::{TraitIdentifier, Value};
 use crate::clarity::{ClarityName, SymbolicExpression};
@@ -44,15 +46,22 @@ pub struct CheckChecker<'a, 'b> {
     taint_sources: HashMap<Node<'a>, TaintSource<'a>>,
     tainted_nodes: HashMap<Node<'a>, TaintedNode<'a>>,
     diagnostics: Vec<Diagnostic>,
+    annotations: &'a Vec<Annotation>,
+    annotation_index: usize,
 }
 
 impl<'a, 'b> CheckChecker<'a, 'b> {
-    fn new(db: &'a mut AnalysisDatabase<'b>) -> CheckChecker<'a, 'b> {
+    fn new(
+        db: &'a mut AnalysisDatabase<'b>,
+        annotations: &'a Vec<Annotation>,
+    ) -> CheckChecker<'a, 'b> {
         Self {
             db,
             taint_sources: HashMap::new(),
             tainted_nodes: HashMap::new(),
             diagnostics: Vec::new(),
+            annotations,
+            annotation_index: 0,
         }
     }
 
@@ -153,9 +162,44 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             }
         }
     }
+
+    // Check if the expression is annotated with `allow(unchecked_data)`
+    fn allow_unchecked(&mut self, span: &Span) -> bool {
+        // Since we are traversing in file order, we never need to check an
+        // annotation with a lower line number than the last check.
+        while self.annotation_index < self.annotations.len() {
+            let annotation = &self.annotations[self.annotation_index];
+            if annotation.span.start_line == (span.start_line - 1) {
+                return true;
+            } else if annotation.span.start_line >= span.start_line {
+                // The annotations are ordered by span, so if we have passed
+                // the target line, return.
+                return false;
+            }
+            self.annotation_index = self.annotation_index + 1;
+        }
+        false
+    }
 }
 
 impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
+    fn traverse_expr(&mut self, expr: &'a SymbolicExpression) -> bool {
+        // If this expression is annotated to allow unchecked data, no need to
+        // traverse it.
+        if self.allow_unchecked(&expr.span) {
+            return true;
+        }
+
+        match &expr.expr {
+            AtomValue(value) => self.visit_atom_value(expr, value),
+            Atom(name) => self.visit_atom(expr, name),
+            List(exprs) => self.traverse_list(expr, &exprs),
+            LiteralValue(value) => self.visit_literal_value(expr, value),
+            Field(field) => self.visit_field(expr, field),
+            TraitReference(name, trait_def) => self.visit_trait_reference(expr, name, trait_def),
+        }
+    }
+
     fn traverse_define_public(
         &mut self,
         expr: &SymbolicExpression,
@@ -485,8 +529,9 @@ impl AnalysisPass for CheckChecker<'_, '_> {
     fn run_pass(
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
+        annotations: &Vec<Annotation>,
     ) -> AnalysisResult {
-        let tc = CheckChecker::new(analysis_db);
+        let tc = CheckChecker::new(analysis_db, annotations);
         tc.run(contract_analysis)
     }
 }
@@ -1895,6 +1940,156 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-map-delete (key uint))");
                 assert_eq!(output[5], "                                    ^~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn allow_unchecked() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (allow_tainted (amount uint))
+    ;; #[allow(unchecked_data)]
+    (stx-transfer? amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn allow_unchecked_parent() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (allow_tainted (amount uint))
+    ;; #[allow(unchecked_data)]
+    (let ((x (+ amount u1)))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn allow_unchecked_function() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_data)]
+(define-public (allow_tainted (amount uint))
+    (stx-transfer? amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn annotate_other_expr() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (begin
+        ;; #[allow(unchecked_data)]
+        (+ amount u1)
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:6:24: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (stx-transfer? amount (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                       ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:2:26: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (tainted (amount uint))");
+                assert_eq!(output[5], "                         ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn annotate_other_expr2() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (begin
+        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        ;; #[allow(unchecked_data)]
+        (ok (+ amount u1))
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:4:30: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))"
+                );
+                assert_eq!(output[2], "                             ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:2:26: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (tainted (amount uint))");
+                assert_eq!(output[5], "                         ^~~~~~");
             }
             _ => panic!("Expected successful interpretation"),
         };

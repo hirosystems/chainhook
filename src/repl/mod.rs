@@ -1,3 +1,4 @@
+use crate::analysis::annotation::Annotation;
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
