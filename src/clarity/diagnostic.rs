@@ -89,7 +89,7 @@ impl Diagnostic {
             for span in self.spans.iter().skip(1) {
                 output.push(format!(
                     "  {}:{}:{}:",
-                    "filename", // span.filename,
+                    name, // span.filename,
                     span.start_line,
                     span.start_column,
                 ));
