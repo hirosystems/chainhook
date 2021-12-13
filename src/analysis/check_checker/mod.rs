@@ -523,6 +523,16 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         }
         true
     }
+
+    fn visit_dynamic_contract_call(
+        &mut self,
+        trait_ref: &'a SymbolicExpression,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        self.taint_check(trait_ref);
+        true
+    }
 }
 
 impl AnalysisPass for CheckChecker<'_, '_> {
@@ -1940,6 +1950,49 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-map-delete (key uint))");
                 assert_eq!(output[5], "                                    ^~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn dynamic_contract_call() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-trait multiplier
+    ((multiply (uint uint) (response uint uint)))
+)
+(define-public (my-multiply (untrusted <multiplier>) (a uint) (b uint))
+    (contract-call? untrusted multiply a b)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:6:21: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (contract-call? untrusted multiply a b)");
+                assert_eq!(output[2], "                    ^~~~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:5:30: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (my-multiply (untrusted <multiplier>) (a uint) (b uint))"
+                );
+                assert_eq!(output[5], "                             ^~~~~~~~~");
             }
             _ => panic!("Expected successful interpretation"),
         };

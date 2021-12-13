@@ -2,8 +2,8 @@ use crate::clarity::functions::define::DefineFunctions;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::representations::SymbolicExpressionType::*;
 use crate::clarity::representations::{Span, TraitDefinition};
-use crate::clarity::types::{TraitIdentifier, Value};
-use crate::clarity::{ClarityName, SymbolicExpression};
+use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, TraitIdentifier, Value};
+use crate::clarity::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use std::collections::HashMap;
 
 pub struct TypedVar<'a> {
@@ -194,11 +194,25 @@ pub trait ASTVisitor<'a> {
                         //     traverse_hash(native_function, &args[0])
                         // }
                         // Print => self.traverse_print(&args[0]),
-                        // ContractCall => self.traverse_contract_call(
-                        //     args[0].match_atom().unwrap(),
-                        //     args[1].match_atom().unwrap(),
-                        //     &args[2..],
-                        // ),
+                        ContractCall => {
+                            let function_name = args[1].match_atom().unwrap();
+                            if let SymbolicExpressionType::LiteralValue(Value::Principal(
+                                PrincipalData::Contract(ref contract_identifier),
+                            )) = &args[0].expr
+                            {
+                                self.traverse_static_contract_call(
+                                    contract_identifier,
+                                    function_name,
+                                    &args[2..],
+                                )
+                            } else {
+                                self.traverse_dynamic_contract_call(
+                                    &args[0],
+                                    function_name,
+                                    &args[2..],
+                                )
+                            }
+                        }
                         // AsContract => self.traverse_as_contract(&args[0]),
                         // AtBlock => self.traverse_at_block(&args[0], &args[1]),
                         // GetBlockInfo => {
@@ -689,6 +703,53 @@ pub trait ASTVisitor<'a> {
         expr: &SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_static_contract_call(
+        &mut self,
+        contract_identifier: &QualifiedContractIdentifier,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        for arg in args.iter() {
+            if !self.traverse_expr(arg) {
+                return false;
+            }
+        }
+        self.visit_static_contract_call(contract_identifier, function_name, args)
+    }
+
+    fn visit_static_contract_call(
+        &mut self,
+        contract_identifier: &QualifiedContractIdentifier,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_dynamic_contract_call(
+        &mut self,
+        trait_ref: &'a SymbolicExpression,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        self.traverse_expr(trait_ref);
+        for arg in args.iter() {
+            if !self.traverse_expr(arg) {
+                return false;
+            }
+        }
+        self.visit_dynamic_contract_call(trait_ref, function_name, args)
+    }
+
+    fn visit_dynamic_contract_call(
+        &mut self,
+        trait_ref: &'a SymbolicExpression,
+        function_name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
     ) -> bool {
         true
     }
