@@ -36,27 +36,34 @@ pub trait ASTVisitor<'a> {
             if let Some(function_name) = function_name.match_atom() {
                 if let Some(define_function) = DefineFunctions::lookup_by_name(function_name) {
                     rv = match define_function {
-                        // TODO: I think all of these can be simplified to just use unwrap, since the structure has already been checked at this point.
-                        DefineFunctions::Constant => match args[0].match_atom() {
-                            Some(name) => self.traverse_define_constant(expr, name, &args[1]),
-                            _ => false,
-                        },
+                        DefineFunctions::Constant => self.traverse_define_constant(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                        ),
                         DefineFunctions::PrivateFunction => match args[0].match_list() {
-                            // TODO: Parse the signature before calling this method
                             Some(signature) => {
-                                self.traverse_define_private(expr, signature, &args[1])
+                                let name = signature[0].match_atom().unwrap();
+                                let params = match signature.len() {
+                                    1 => None,
+                                    _ => match_pairs(&signature[1..]),
+                                };
+                                self.traverse_define_private(expr, name, params, &args[1])
                             }
                             _ => false,
                         },
                         DefineFunctions::ReadOnlyFunction => match args[0].match_list() {
-                            // TODO: Parse the signature before calling this method
                             Some(signature) => {
-                                self.traverse_define_read_only(expr, signature, &args[1])
+                                let name = signature[0].match_atom().unwrap();
+                                let params = match signature.len() {
+                                    1 => None,
+                                    _ => match_pairs(&signature[1..]),
+                                };
+                                self.traverse_define_read_only(expr, name, params, &args[1])
                             }
                             _ => false,
                         },
                         DefineFunctions::PublicFunction => match args[0].match_list() {
-                            // TODO: Parse the signature before calling this method
                             Some(signature) => {
                                 let name = signature[0].match_atom().unwrap();
                                 let params = match signature.len() {
@@ -67,39 +74,39 @@ pub trait ASTVisitor<'a> {
                             }
                             _ => false,
                         },
-                        DefineFunctions::NonFungibleToken => match args[0].match_atom() {
-                            Some(name) => self.traverse_define_nft(expr, name, &args[1]),
-                            _ => false,
-                        },
-                        DefineFunctions::FungibleToken => match args[0].match_atom() {
-                            Some(name) => self.traverse_define_ft(expr, name, args.get(1)),
-                            _ => false,
-                        },
-                        DefineFunctions::Map => match args[0].match_atom() {
-                            Some(name) => self.traverse_define_map(expr, name, &args[1], &args[2]),
-                            _ => false,
-                        },
-                        DefineFunctions::PersistedVariable => match args[0].match_atom() {
-                            Some(name) => {
-                                self.traverse_define_data_var(expr, name, &args[1], &args[2])
-                            }
-                            _ => false,
-                        },
-                        DefineFunctions::Trait => match args[0].match_atom() {
-                            Some(name) => self.traverse_define_trait(expr, name, &args[1..]),
-                            _ => false,
-                        },
-                        DefineFunctions::UseTrait => match args[0].match_atom() {
-                            Some(name) => match &args[1].expr {
-                                Field(ref field) => self.traverse_use_trait(expr, name, &field),
-                                _ => false,
-                            },
-                            _ => false,
-                        },
-                        DefineFunctions::ImplTrait => match &args[0].expr {
-                            Field(ref field) => self.traverse_impl_trait(expr, &field),
-                            _ => false,
-                        },
+                        DefineFunctions::NonFungibleToken => {
+                            self.traverse_define_nft(expr, args[0].match_atom().unwrap(), &args[1])
+                        }
+                        DefineFunctions::FungibleToken => self.traverse_define_ft(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            args.get(1),
+                        ),
+                        DefineFunctions::Map => self.traverse_define_map(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                            &args[2],
+                        ),
+                        DefineFunctions::PersistedVariable => self.traverse_define_data_var(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                            &args[2],
+                        ),
+                        DefineFunctions::Trait => self.traverse_define_trait(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1..],
+                        ),
+                        DefineFunctions::UseTrait => self.traverse_use_trait(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            args[1].match_field().unwrap(),
+                        ),
+                        DefineFunctions::ImplTrait => {
+                            self.traverse_impl_trait(expr, args[0].match_field().unwrap())
+                        }
                     };
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name(function_name)
                 {
@@ -400,16 +407,18 @@ pub trait ASTVisitor<'a> {
     fn traverse_define_private(
         &mut self,
         expr: &SymbolicExpression,
-        signature: &'a [SymbolicExpression],
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        self.traverse_expr(body) && self.visit_define_private(expr, signature, body)
+        self.traverse_expr(body) && self.visit_define_private(expr, name, parameters, body)
     }
 
     fn visit_define_private(
         &mut self,
         expr: &SymbolicExpression,
-        signature: &'a [SymbolicExpression],
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
         true
@@ -418,16 +427,18 @@ pub trait ASTVisitor<'a> {
     fn traverse_define_read_only(
         &mut self,
         expr: &SymbolicExpression,
-        signature: &'a [SymbolicExpression],
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        self.traverse_expr(body) && self.visit_define_read_only(expr, signature, body)
+        self.traverse_expr(body) && self.visit_define_read_only(expr, name, parameters, body)
     }
 
     fn visit_define_read_only(
         &mut self,
         expr: &SymbolicExpression,
-        signature: &'a [SymbolicExpression],
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
         true
