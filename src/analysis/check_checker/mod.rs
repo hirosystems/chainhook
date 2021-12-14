@@ -526,6 +526,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_dynamic_contract_call(
         &mut self,
+        expr: &SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],

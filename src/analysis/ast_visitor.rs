@@ -105,36 +105,43 @@ pub trait ASTVisitor<'a> {
                 {
                     use crate::clarity::functions::NativeFunctions::*;
                     rv = match native_function {
-                        // Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
-                        //     self.traverse_arithmetic(native_function, &args)
-                        // }
-                        // BitwiseXOR => {
-                        //     self.traverse_binary_bitwise(native_function, &args[0], &args[1])
-                        // }
-                        // CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
-                        //     self.traverse_comparison(native_function, &args)
-                        // }
+                        Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
+                            self.traverse_arithmetic(expr, native_function, &args)
+                        }
+                        BitwiseXOR => {
+                            self.traverse_binary_bitwise(expr, native_function, &args[0], &args[1])
+                        }
+                        CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
+                            self.traverse_comparison(expr, native_function, &args)
+                        }
                         And | Or => self.traverse_lazy_logical(expr, native_function, &args),
-                        // Not => self.traverse_logical(native_function, &args),
-                        // ToInt | ToUInt => self.traverse_convert(native_function),
+                        Not => self.traverse_logical(expr, native_function, &args),
+                        ToInt | ToUInt => self.traverse_int_cast(expr, &args[0]),
                         If => self.traverse_if(expr, &args[0], &args[1], &args[2]),
                         Let => {
                             let bindings = args[0].match_pairs().unwrap();
                             self.traverse_let(expr, &bindings, &args[1..])
                         }
-                        // Map => {
-                        //     let name = args[0].match_atom().unwrap();
-                        //     self.traverse_map(name, &args[1..])
-                        // }
-                        // Fold => {
-                        //     let name = args[0].match_atom().unwrap();
-                        //     self.traverse_fold(name, &args[1..])
-                        // }
-                        // Append => self.traverse_append(args[0].match_list().unwrap(), &args[1]),
-                        // Concat => self.traverse_concat(&args[0], &args[1]),
-                        // AsMaxLen => self.traverse_as_max_len(&args),
-                        // Len => self.traverse_len(&args[0]),
-                        // ListCons => self.traverse_list_cons(&args),
+                        ElementAt => self.traverse_element_at(expr, &args[0], &args[1]),
+                        IndexOf => self.traverse_index_of(expr, &args[0], &args[1]),
+                        Map => {
+                            let name = args[0].match_atom().unwrap();
+                            self.traverse_map(expr, name, &args[1..])
+                        }
+                        Fold => {
+                            let name = args[0].match_atom().unwrap();
+                            self.traverse_fold(expr, name, &args[1], &args[2])
+                        }
+                        Append => self.traverse_append(expr, &args[0], &args[1]),
+                        Concat => self.traverse_concat(expr, &args[0], &args[1]),
+                        AsMaxLen => match args[1].match_literal_value() {
+                            Some(Value::UInt(length)) => {
+                                self.traverse_as_max_len(expr, &args[0], *length)
+                            }
+                            _ => panic!("check_checker: invalid length expression in as-max-len?"),
+                        },
+                        Len => self.traverse_len(expr, &args[0]),
+                        ListCons => self.traverse_list_cons(expr, &args),
                         FetchVar => self.traverse_var_get(expr, args[0].match_atom().unwrap()),
                         SetVar => {
                             self.traverse_var_set(expr, args[0].match_atom().unwrap(), &args[1])
@@ -185,15 +192,22 @@ pub trait ASTVisitor<'a> {
                             });
                             self.traverse_map_delete(expr, name, &key)
                         }
-                        // TupleCons => self.traverse_tuple(&args),
-                        // TupleGet => {
-                        //     self.traverse_get(args[0].match_atom().unwrap(), &args[1], args.get(2))
-                        // }
-                        // Begin => self.traverse_begin(&args),
-                        // Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => {
-                        //     traverse_hash(native_function, &args[0])
-                        // }
-                        // Print => self.traverse_print(&args[0]),
+                        TupleCons => self.traverse_tuple(expr, &expr.match_tuple().unwrap()),
+                        TupleGet => {
+                            self.traverse_get(expr, args[0].match_atom().unwrap(), &args[1])
+                        }
+                        TupleMerge => self.traverse_merge(expr, &args[0], &args[1]),
+                        Begin => self.traverse_begin(expr, &args),
+                        Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => {
+                            self.traverse_hash(expr, native_function, &args[0])
+                        }
+                        Secp256k1Recover => {
+                            self.traverse_secp256k1_recover(expr, &args[0], &args[1])
+                        }
+                        Secp256k1Verify => {
+                            self.traverse_secp256k1_verify(expr, &args[0], &args[1], &args[2])
+                        }
+                        Print => self.traverse_print(expr, &args[0]),
                         ContractCall => {
                             let function_name = args[1].match_atom().unwrap();
                             if let SymbolicExpressionType::LiteralValue(Value::Principal(
@@ -201,33 +215,73 @@ pub trait ASTVisitor<'a> {
                             )) = &args[0].expr
                             {
                                 self.traverse_static_contract_call(
+                                    expr,
                                     contract_identifier,
                                     function_name,
                                     &args[2..],
                                 )
                             } else {
                                 self.traverse_dynamic_contract_call(
+                                    expr,
                                     &args[0],
                                     function_name,
                                     &args[2..],
                                 )
                             }
                         }
-                        // AsContract => self.traverse_as_contract(&args[0]),
-                        // AtBlock => self.traverse_at_block(&args[0], &args[1]),
-                        // GetBlockInfo => {
-                        //     self.traverse_get_block_info(args[0].match_atom().unwrap(), &args[1])
-                        // }
-                        // ConsError => self.traverse_err(&args[0]),
-                        // ConsOkay => self.traverse_ok(&args[0]),
-                        // ConsSome => self.traverse_some(&args[0]),
-                        // DefaultTo => self.traverse_default_to(&args[0], &args[1]),
+                        AsContract => self.traverse_as_contract(expr, &args[0]),
+                        ContractOf => {
+                            self.traverse_contract_of(expr, args[0].match_atom().unwrap())
+                        }
+                        PrincipalOf => self.traverse_principal_of(expr, &args[0]),
+                        AtBlock => self.traverse_at_block(expr, &args[0], &args[1]),
+                        GetBlockInfo => self.traverse_get_block_info(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                        ),
+                        ConsError => self.traverse_err(expr, &args[0]),
+                        ConsOkay => self.traverse_ok(expr, &args[0]),
+                        ConsSome => self.traverse_some(expr, &args[0]),
+                        DefaultTo => self.traverse_default_to(expr, &args[0], &args[1]),
                         Asserts => self.traverse_asserts(expr, &args[0], &args[1]),
-                        // UnwrapRet => self.traverse_unwrap(&args[0], &args[1]),
+                        UnwrapRet => self.traverse_unwrap(expr, &args[0], &args[1]),
+                        Unwrap => self.traverse_unwrap_panic(expr, &args[0]),
+                        IsOkay => self.traverse_is_ok(expr, &args[0]),
+                        IsNone => self.traverse_is_none(expr, &args[0]),
+                        IsErr => self.traverse_is_err(expr, &args[0]),
+                        IsSome => self.traverse_is_some(expr, &args[0]),
+                        Filter => {
+                            self.traverse_filter(expr, args[0].match_atom().unwrap(), &args[1])
+                        }
+                        UnwrapErrRet => self.traverse_unwrap_err(expr, &args[0], &args[1]),
+                        UnwrapErr => self.traverse_unwrap_err(expr, &args[0], &args[1]),
+                        Match => {
+                            if args.len() == 4 {
+                                self.traverse_match_option(
+                                    expr,
+                                    &args[0],
+                                    args[1].match_atom().unwrap(),
+                                    &args[2],
+                                    &args[3],
+                                )
+                            } else {
+                                self.traverse_match_response(
+                                    expr,
+                                    &args[0],
+                                    args[1].match_atom().unwrap(),
+                                    &args[2],
+                                    args[3].match_atom().unwrap(),
+                                    &args[4],
+                                )
+                            }
+                        }
+                        TryRet => self.traverse_try(expr, &args[0]),
                         StxBurn => self.traverse_stx_burn(expr, &args[0], &args[1]),
                         StxTransfer => {
                             self.traverse_stx_transfer(expr, &args[0], &args[1], &args[2])
                         }
+                        GetStxBalance => self.traverse_stx_get_balance(expr, &args[0]),
                         BurnToken => self.traverse_ft_burn(
                             expr,
                             args[0].match_atom().unwrap(),
@@ -241,6 +295,14 @@ pub trait ASTVisitor<'a> {
                             &args[2],
                             &args[3],
                         ),
+                        GetTokenBalance => self.traverse_ft_get_balance(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                        ),
+                        GetTokenSupply => {
+                            self.traverse_ft_get_supply(expr, args[0].match_atom().unwrap())
+                        }
                         MintToken => self.traverse_ft_mint(
                             expr,
                             args[0].match_atom().unwrap(),
@@ -266,18 +328,13 @@ pub trait ASTVisitor<'a> {
                             &args[1],
                             &args[2],
                         ),
-                        _ => {
-                            for expr in args {
-                                if !self.traverse_expr(expr) {
-                                    rv = false;
-                                    break;
-                                }
-                            }
-                            rv
-                        }
+                        GetAssetOwner => self.traverse_nft_get_owner(
+                            expr,
+                            args[0].match_atom().unwrap(),
+                            &args[1],
+                        ),
                     };
                 } else {
-                    // println!("CALLING OTHER FUNCTION: {}", function_name);
                     for expr in args {
                         if !self.traverse_expr(expr) {
                             rv = false;
@@ -530,6 +587,74 @@ pub trait ASTVisitor<'a> {
         true
     }
 
+    fn traverse_arithmetic(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        for operand in operands {
+            if !self.traverse_expr(operand) {
+                return false;
+            }
+        }
+        self.visit_arithmetic(expr, func, operands)
+    }
+
+    fn visit_arithmetic(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_binary_bitwise(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        lhs: &'a SymbolicExpression,
+        rhs: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(lhs)
+            && self.traverse_expr(rhs)
+            && self.visit_binary_bitwise(expr, func, lhs, rhs)
+    }
+
+    fn visit_binary_bitwise(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        lhs: &'a SymbolicExpression,
+        rhs: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_comparison(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        for operand in operands {
+            if !self.traverse_expr(operand) {
+                return false;
+            }
+        }
+        self.visit_comparison(expr, func, operands)
+    }
+
+    fn visit_comparison(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
     fn traverse_lazy_logical(
         &mut self,
         expr: &SymbolicExpression,
@@ -550,6 +675,41 @@ pub trait ASTVisitor<'a> {
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
+        true
+    }
+
+    fn traverse_logical(
+        &mut self,
+        expr: &SymbolicExpression,
+        function: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        for operand in operands {
+            if !self.traverse_expr(operand) {
+                return false;
+            }
+        }
+        self.visit_logical(expr, function, operands)
+    }
+
+    fn visit_logical(
+        &mut self,
+        expr: &SymbolicExpression,
+        function: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_int_cast(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input) && self.visit_int_cast(expr, input)
+    }
+
+    fn visit_int_cast(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
         true
     }
 
@@ -707,8 +867,157 @@ pub trait ASTVisitor<'a> {
         true
     }
 
+    fn traverse_tuple(
+        &mut self,
+        expr: &SymbolicExpression,
+        values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        for (_, val) in values {
+            if !self.traverse_expr(val) {
+                return false;
+            }
+        }
+        self.visit_tuple(expr, values)
+    }
+
+    fn visit_tuple(
+        &mut self,
+        expr: &SymbolicExpression,
+        values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_get(
+        &mut self,
+        expr: &SymbolicExpression,
+        key: &'a ClarityName,
+        tuple: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(tuple) && self.visit_get(expr, key, tuple)
+    }
+
+    fn visit_get(
+        &mut self,
+        expr: &SymbolicExpression,
+        key: &'a ClarityName,
+        tuple: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_merge(
+        &mut self,
+        expr: &SymbolicExpression,
+        tuple1: &'a SymbolicExpression,
+        tuple2: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(tuple1)
+            && self.traverse_expr(tuple2)
+            && self.visit_merge(expr, tuple1, tuple2)
+    }
+
+    fn visit_merge(
+        &mut self,
+        expr: &SymbolicExpression,
+        tuple1: &'a SymbolicExpression,
+        tuple2: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_begin(
+        &mut self,
+        expr: &SymbolicExpression,
+        statements: &'a [SymbolicExpression],
+    ) -> bool {
+        for stmt in statements {
+            if !self.traverse_expr(stmt) {
+                return false;
+            }
+        }
+        self.visit_begin(expr, statements)
+    }
+
+    fn visit_begin(
+        &mut self,
+        expr: &SymbolicExpression,
+        statements: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_hash(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(value) && self.visit_hash(expr, func, value)
+    }
+
+    fn visit_hash(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: NativeFunctions,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_secp256k1_recover(
+        &mut self,
+        expr: &SymbolicExpression,
+        hash: &'a SymbolicExpression,
+        signature: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(hash)
+            && self.traverse_expr(signature)
+            && self.visit_secp256k1_recover(expr, hash, signature)
+    }
+
+    fn visit_secp256k1_recover(
+        &mut self,
+        expr: &SymbolicExpression,
+        hash: &SymbolicExpression,
+        signature: &SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_secp256k1_verify(
+        &mut self,
+        expr: &SymbolicExpression,
+        hash: &'a SymbolicExpression,
+        signature: &'a SymbolicExpression,
+        public_key: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(hash)
+            && self.traverse_expr(signature)
+            && self.visit_secp256k1_verify(expr, hash, signature, public_key)
+    }
+
+    fn visit_secp256k1_verify(
+        &mut self,
+        expr: &SymbolicExpression,
+        hash: &SymbolicExpression,
+        signature: &SymbolicExpression,
+        public_key: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_print(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(value) && self.visit_print(expr, value)
+    }
+
+    fn visit_print(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
     fn traverse_static_contract_call(
         &mut self,
+        expr: &SymbolicExpression,
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -718,11 +1027,12 @@ pub trait ASTVisitor<'a> {
                 return false;
             }
         }
-        self.visit_static_contract_call(contract_identifier, function_name, args)
+        self.visit_static_contract_call(expr, contract_identifier, function_name, args)
     }
 
     fn visit_static_contract_call(
         &mut self,
+        expr: &SymbolicExpression,
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -732,6 +1042,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_dynamic_contract_call(
         &mut self,
+        expr: &SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -742,15 +1053,332 @@ pub trait ASTVisitor<'a> {
                 return false;
             }
         }
-        self.visit_dynamic_contract_call(trait_ref, function_name, args)
+        self.visit_dynamic_contract_call(expr, trait_ref, function_name, args)
     }
 
     fn visit_dynamic_contract_call(
         &mut self,
+        expr: &SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
+        true
+    }
+
+    fn traverse_as_contract(
+        &mut self,
+        expr: &SymbolicExpression,
+        inner: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(inner) && self.visit_as_contract(expr, inner)
+    }
+
+    fn visit_as_contract(
+        &mut self,
+        expr: &SymbolicExpression,
+        inner: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_contract_of(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+        self.visit_contract_of(expr, name)
+    }
+
+    fn visit_contract_of(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+        true
+    }
+
+    fn traverse_principal_of(
+        &mut self,
+        expr: &SymbolicExpression,
+        public_key: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(public_key) && self.visit_principal_of(expr, public_key)
+    }
+
+    fn visit_principal_of(
+        &mut self,
+        expr: &SymbolicExpression,
+        public_key: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_at_block(
+        &mut self,
+        expr: &SymbolicExpression,
+        block: &'a SymbolicExpression,
+        inner: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(block)
+            && self.traverse_expr(inner)
+            && self.visit_at_block(expr, block, inner)
+    }
+
+    fn visit_at_block(
+        &mut self,
+        expr: &SymbolicExpression,
+        block: &'a SymbolicExpression,
+        inner: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_get_block_info(
+        &mut self,
+        expr: &SymbolicExpression,
+        prop_name: &'a ClarityName,
+        block: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(block) && self.visit_get_block_info(expr, prop_name, block)
+    }
+
+    fn visit_get_block_info(
+        &mut self,
+        expr: &SymbolicExpression,
+        prop_name: &'a ClarityName,
+        block: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(value) && self.visit_err(expr, value)
+    }
+
+    fn visit_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(value) && self.visit_ok(expr, value)
+    }
+
+    fn visit_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(value) && self.visit_some(expr, value)
+    }
+
+    fn visit_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_default_to(
+        &mut self,
+        expr: &SymbolicExpression,
+        default: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(default)
+            && self.traverse_expr(value)
+            && self.visit_default_to(expr, default, value)
+    }
+
+    fn visit_default_to(
+        &mut self,
+        expr: &SymbolicExpression,
+        default: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_unwrap(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        throws: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input)
+            && self.traverse_expr(throws)
+            && self.visit_unwrap(expr, input, throws)
+    }
+
+    fn visit_unwrap(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        throws: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_unwrap_err(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        throws: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input)
+            && self.traverse_expr(throws)
+            && self.visit_unwrap_err(expr, input, throws)
+    }
+
+    fn visit_unwrap_err(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        throws: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_is_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(value) && self.visit_is_ok(expr, value)
+    }
+
+    fn visit_is_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_is_none(
+        &mut self,
+        expr: &SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(value) && self.visit_is_none(expr, value)
+    }
+
+    fn visit_is_none(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_is_err(
+        &mut self,
+        expr: &SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(value) && self.visit_is_err(expr, value)
+    }
+
+    fn visit_is_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_is_some(
+        &mut self,
+        expr: &SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(value) && self.visit_is_some(expr, value)
+    }
+
+    fn visit_is_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_filter(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequence: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(sequence) && self.visit_filter(expr, func, sequence)
+    }
+
+    fn visit_filter(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequence: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_unwrap_panic(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input) && self.visit_unwrap_panic(expr, input)
+    }
+
+    fn visit_unwrap_panic(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_unwrap_err_panic(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input) && self.visit_unwrap_err_panic(expr, input)
+    }
+
+    fn visit_unwrap_err_panic(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_match_option(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        some_name: &'a ClarityName,
+        some_branch: &'a SymbolicExpression,
+        none_branch: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input)
+            && self.traverse_expr(some_branch)
+            && self.traverse_expr(none_branch)
+            && self.visit_match_option(expr, input, some_name, some_branch, none_branch)
+    }
+
+    fn visit_match_option(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        some_name: &'a ClarityName,
+        some_branch: &'a SymbolicExpression,
+        none_branch: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_match_response(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        ok_name: &'a ClarityName,
+        ok_branch: &'a SymbolicExpression,
+        err_name: &'a ClarityName,
+        err_branch: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(input)
+            && self.traverse_expr(ok_branch)
+            && self.traverse_expr(err_branch)
+            && self.visit_match_response(expr, input, ok_name, ok_branch, err_name, err_branch)
+    }
+
+    fn visit_match_response(
+        &mut self,
+        expr: &SymbolicExpression,
+        input: &'a SymbolicExpression,
+        ok_name: &'a ClarityName,
+        ok_branch: &'a SymbolicExpression,
+        err_name: &'a ClarityName,
+        err_branch: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_try(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
+        self.traverse_expr(input) && self.visit_try(expr, input)
+    }
+
+    fn visit_try(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
         true
     }
 
@@ -817,6 +1445,22 @@ pub trait ASTVisitor<'a> {
         true
     }
 
+    fn traverse_stx_get_balance(
+        &mut self,
+        expr: &SymbolicExpression,
+        owner: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(owner) && self.visit_stx_get_balance(expr, owner)
+    }
+
+    fn visit_stx_get_balance(
+        &mut self,
+        expr: &SymbolicExpression,
+        owner: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
     fn traverse_ft_burn(
         &mut self,
         expr: &SymbolicExpression,
@@ -861,6 +1505,36 @@ pub trait ASTVisitor<'a> {
         sender: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
     ) -> bool {
+        true
+    }
+
+    fn traverse_ft_get_balance(
+        &mut self,
+        expr: &SymbolicExpression,
+        token: &'a ClarityName,
+        owner: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(owner) && self.visit_ft_get_balance(expr, token, owner)
+    }
+
+    fn visit_ft_get_balance(
+        &mut self,
+        expr: &SymbolicExpression,
+        token: &'a ClarityName,
+        owner: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_ft_get_supply(
+        &mut self,
+        expr: &SymbolicExpression,
+        token: &'a ClarityName,
+    ) -> bool {
+        self.visit_ft_get_supply(expr, token)
+    }
+
+    fn visit_ft_get_supply(&mut self, expr: &SymbolicExpression, token: &'a ClarityName) -> bool {
         true
     }
 
@@ -955,6 +1629,24 @@ pub trait ASTVisitor<'a> {
         true
     }
 
+    fn traverse_nft_get_owner(
+        &mut self,
+        expr: &SymbolicExpression,
+        token: &'a ClarityName,
+        identifier: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(identifier) && self.visit_nft_get_owner(expr, token, identifier)
+    }
+
+    fn visit_nft_get_owner(
+        &mut self,
+        expr: &SymbolicExpression,
+        token: &'a ClarityName,
+        identifier: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
     fn traverse_let(
         &mut self,
         expr: &SymbolicExpression,
@@ -979,6 +1671,180 @@ pub trait ASTVisitor<'a> {
         expr: &SymbolicExpression,
         bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
         body: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_map(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequences: &'a [SymbolicExpression],
+    ) -> bool {
+        for sequence in sequences {
+            if !self.traverse_expr(sequence) {
+                return false;
+            }
+        }
+        self.visit_map(expr, func, sequences)
+    }
+
+    fn visit_map(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequences: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_fold(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequence: &'a SymbolicExpression,
+        initial: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(sequence)
+            && self.traverse_expr(initial)
+            && self.visit_fold(expr, func, sequence, initial)
+    }
+
+    fn visit_fold(
+        &mut self,
+        expr: &SymbolicExpression,
+        func: &'a ClarityName,
+        sequence: &'a SymbolicExpression,
+        initial: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_append(
+        &mut self,
+        expr: &SymbolicExpression,
+        list: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(list)
+            && self.traverse_expr(value)
+            && self.visit_append(expr, list, value)
+    }
+
+    fn visit_append(
+        &mut self,
+        expr: &SymbolicExpression,
+        list: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_concat(
+        &mut self,
+        expr: &SymbolicExpression,
+        lhs: &'a SymbolicExpression,
+        rhs: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(lhs) && self.traverse_expr(rhs) && self.visit_concat(expr, lhs, rhs)
+    }
+
+    fn visit_concat(
+        &mut self,
+        expr: &SymbolicExpression,
+        lhs: &'a SymbolicExpression,
+        rhs: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_as_max_len(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        length: u128,
+    ) -> bool {
+        self.traverse_expr(sequence) && self.visit_as_max_len(expr, sequence, length)
+    }
+
+    fn visit_as_max_len(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        length: u128,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_len(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(sequence) && self.visit_len(expr, sequence)
+    }
+
+    fn visit_len(&mut self, expr: &SymbolicExpression, sequence: &'a SymbolicExpression) -> bool {
+        true
+    }
+
+    fn traverse_element_at(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        index: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(sequence)
+            && self.traverse_expr(index)
+            && self.visit_element_at(expr, sequence, index)
+    }
+
+    fn visit_element_at(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        index: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_index_of(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        item: &'a SymbolicExpression,
+    ) -> bool {
+        self.traverse_expr(sequence)
+            && self.traverse_expr(item)
+            && self.visit_element_at(expr, sequence, item)
+    }
+
+    fn visit_index_of(
+        &mut self,
+        expr: &SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+        item: &'a SymbolicExpression,
+    ) -> bool {
+        true
+    }
+
+    fn traverse_list_cons(
+        &mut self,
+        expr: &SymbolicExpression,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        for arg in args.iter() {
+            if !self.traverse_expr(arg) {
+                return false;
+            }
+        }
+        self.visit_list_cons(expr, args)
+    }
+
+    fn visit_list_cons(
+        &mut self,
+        expr: &SymbolicExpression,
+        args: &'a [SymbolicExpression],
     ) -> bool {
         true
     }
