@@ -67,6 +67,7 @@ impl Datastore {
 
         self.chain_height = self.chain_height + count;
         self.open_chain_tip = height_to_id(self.chain_height);
+        self.current_chain_tip = self.open_chain_tip;
         self.chain_height
     }
 }
@@ -80,7 +81,7 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        if let Some(map) = self.store.get(&self.open_chain_tip) {
+        if let Some(map) = self.store.get(&self.current_chain_tip) {
             map.get(key).map(|v| v.clone())
         } else {
             panic!("Block does not exist for current chain tip");
@@ -96,7 +97,7 @@ impl ClarityBackingStore for Datastore {
     /// returns the previous block header hash on success
     fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
         let prior_tip = self.open_chain_tip;
-        self.open_chain_tip = bhh;
+        self.current_chain_tip = bhh;
         Ok(prior_tip)
     }
 
@@ -205,11 +206,11 @@ impl Datastore {
         //     .expect("ERROR: Failed to commit MARF block");
     }
     pub fn get_chain_tip(&self) -> &StacksBlockId {
-        &self.open_chain_tip
+        &self.current_chain_tip
     }
 
     pub fn set_chain_tip(&mut self, bhh: &StacksBlockId) {
-        self.open_chain_tip = bhh.clone();
+        self.current_chain_tip = bhh.clone();
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
