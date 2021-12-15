@@ -41,17 +41,22 @@ pub trait ASTVisitor<'a> {
                             args[0].match_atom().unwrap(),
                             &args[1],
                         ),
-                        DefineFunctions::PrivateFunction => match args[0].match_list() {
-                            Some(signature) => {
-                                let name = signature[0].match_atom().unwrap();
-                                let params = match signature.len() {
-                                    1 => None,
-                                    _ => match_pairs(&signature[1..]),
-                                };
-                                self.traverse_define_private(expr, name, params, &args[1])
+                        DefineFunctions::PrivateFunction => {
+                            match args[0].match_list() {
+                                Some(signature) => {
+                                    let name = signature[0].match_atom().unwrap();
+                                    let params = match signature.len() {
+                                        1 => None,
+                                        _ => match_pairs(&signature[1..]),
+                                    };
+                                    self.traverse_define_private(expr, name, params, &args[1]);
+                                }
+                                _ => {
+                                    false;
+                                }
                             }
-                            _ => false,
-                        },
+                            true
+                        }
                         DefineFunctions::ReadOnlyFunction => match args[0].match_list() {
                             Some(signature) => {
                                 let name = signature[0].match_atom().unwrap();
@@ -342,12 +347,7 @@ pub trait ASTVisitor<'a> {
                         ),
                     };
                 } else {
-                    for expr in args {
-                        if !self.traverse_expr(expr) {
-                            rv = false;
-                            break;
-                        }
-                    }
+                    rv = self.traverse_call_user_defined(expr, function_name, args);
                 }
             }
         }
@@ -388,7 +388,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_constant(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -397,7 +397,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_constant(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -406,7 +406,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_private(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -416,7 +416,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_private(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -426,7 +426,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_read_only(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -436,7 +436,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_read_only(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -446,7 +446,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_public(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -456,7 +456,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_public(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
@@ -466,7 +466,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_nft(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         nft_type: &'a SymbolicExpression,
     ) -> bool {
@@ -475,7 +475,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_nft(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         nft_type: &'a SymbolicExpression,
     ) -> bool {
@@ -484,7 +484,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_ft(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         supply: Option<&'a SymbolicExpression>,
     ) -> bool {
@@ -499,7 +499,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_ft(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         supply: Option<&'a SymbolicExpression>,
     ) -> bool {
@@ -508,7 +508,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_map(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key_type: &'a SymbolicExpression,
         value_type: &'a SymbolicExpression,
@@ -518,7 +518,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_map(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key_type: &'a SymbolicExpression,
         value_type: &'a SymbolicExpression,
@@ -528,7 +528,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_data_var(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         data_type: &'a SymbolicExpression,
         initial: &'a SymbolicExpression,
@@ -538,7 +538,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_data_var(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         data_type: &'a SymbolicExpression,
         initial: &'a SymbolicExpression,
@@ -548,7 +548,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_define_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         functions: &'a [SymbolicExpression],
     ) -> bool {
@@ -557,7 +557,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_define_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         functions: &'a [SymbolicExpression],
     ) -> bool {
@@ -566,7 +566,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_use_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         trait_identifier: &TraitIdentifier,
     ) -> bool {
@@ -575,7 +575,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_use_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         trait_identifier: &TraitIdentifier,
     ) -> bool {
@@ -584,7 +584,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_impl_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         trait_identifier: &TraitIdentifier,
     ) -> bool {
         self.visit_impl_trait(expr, trait_identifier)
@@ -592,7 +592,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_impl_trait(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         trait_identifier: &TraitIdentifier,
     ) -> bool {
         true
@@ -600,7 +600,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_arithmetic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -614,7 +614,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_arithmetic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -623,7 +623,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_binary_bitwise(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
@@ -635,7 +635,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_binary_bitwise(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
@@ -645,7 +645,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_comparison(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -659,7 +659,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_comparison(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -668,7 +668,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_lazy_logical(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -682,7 +682,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_lazy_logical(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -691,7 +691,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_logical(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -705,7 +705,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_logical(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -714,19 +714,23 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_int_cast(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(input) && self.visit_int_cast(expr, input)
     }
 
-    fn visit_int_cast(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
+    fn visit_int_cast(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
     fn traverse_if(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         then_expr: &'a SymbolicExpression,
         else_expr: &'a SymbolicExpression,
@@ -738,7 +742,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_if(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         then_expr: &'a SymbolicExpression,
         else_expr: &'a SymbolicExpression,
@@ -746,17 +750,17 @@ pub trait ASTVisitor<'a> {
         true
     }
 
-    fn traverse_var_get(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+    fn traverse_var_get(&mut self, expr: &'a SymbolicExpression, name: &'a ClarityName) -> bool {
         self.visit_var_get(expr, name)
     }
 
-    fn visit_var_get(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+    fn visit_var_get(&mut self, expr: &'a SymbolicExpression, name: &'a ClarityName) -> bool {
         true
     }
 
     fn traverse_var_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -765,7 +769,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_var_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -774,7 +778,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_map_get(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
@@ -788,7 +792,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_map_get(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
@@ -797,7 +801,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_map_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -817,7 +821,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_map_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -827,7 +831,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_map_insert(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -847,7 +851,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_map_insert(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -857,7 +861,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_map_delete(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
@@ -871,7 +875,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_map_delete(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
@@ -880,7 +884,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_tuple(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
         for (_, val) in values {
@@ -893,7 +897,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_tuple(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         values: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
         true
@@ -901,7 +905,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_get(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         key: &'a ClarityName,
         tuple: &'a SymbolicExpression,
     ) -> bool {
@@ -910,7 +914,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_get(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         key: &'a ClarityName,
         tuple: &'a SymbolicExpression,
     ) -> bool {
@@ -919,7 +923,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_merge(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         tuple1: &'a SymbolicExpression,
         tuple2: &'a SymbolicExpression,
     ) -> bool {
@@ -930,7 +934,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_merge(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         tuple1: &'a SymbolicExpression,
         tuple2: &'a SymbolicExpression,
     ) -> bool {
@@ -939,7 +943,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_begin(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         statements: &'a [SymbolicExpression],
     ) -> bool {
         for stmt in statements {
@@ -952,7 +956,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_begin(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         statements: &'a [SymbolicExpression],
     ) -> bool {
         true
@@ -960,7 +964,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_hash(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -969,7 +973,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_hash(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: NativeFunctions,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -978,7 +982,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_secp256k1_recover(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         hash: &'a SymbolicExpression,
         signature: &'a SymbolicExpression,
     ) -> bool {
@@ -989,7 +993,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_secp256k1_recover(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
     ) -> bool {
@@ -998,7 +1002,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_secp256k1_verify(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         hash: &'a SymbolicExpression,
         signature: &'a SymbolicExpression,
         public_key: &'a SymbolicExpression,
@@ -1010,7 +1014,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_secp256k1_verify(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         hash: &SymbolicExpression,
         signature: &SymbolicExpression,
         public_key: &'a SymbolicExpression,
@@ -1018,17 +1022,21 @@ pub trait ASTVisitor<'a> {
         true
     }
 
-    fn traverse_print(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_print(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         self.traverse_expr(value) && self.visit_print(expr, value)
     }
 
-    fn visit_print(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_print(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         true
     }
 
     fn traverse_static_contract_call(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -1043,7 +1051,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_static_contract_call(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         contract_identifier: &QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -1053,7 +1061,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_dynamic_contract_call(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -1069,7 +1077,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_dynamic_contract_call(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
@@ -1079,7 +1087,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_as_contract(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         inner: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(inner) && self.visit_as_contract(expr, inner)
@@ -1087,23 +1095,27 @@ pub trait ASTVisitor<'a> {
 
     fn visit_as_contract(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         inner: &'a SymbolicExpression,
     ) -> bool {
         true
     }
 
-    fn traverse_contract_of(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+    fn traverse_contract_of(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+    ) -> bool {
         self.visit_contract_of(expr, name)
     }
 
-    fn visit_contract_of(&mut self, expr: &SymbolicExpression, name: &'a ClarityName) -> bool {
+    fn visit_contract_of(&mut self, expr: &'a SymbolicExpression, name: &'a ClarityName) -> bool {
         true
     }
 
     fn traverse_principal_of(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         public_key: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(public_key) && self.visit_principal_of(expr, public_key)
@@ -1111,7 +1123,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_principal_of(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         public_key: &'a SymbolicExpression,
     ) -> bool {
         true
@@ -1119,7 +1131,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_at_block(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         block: &'a SymbolicExpression,
         inner: &'a SymbolicExpression,
     ) -> bool {
@@ -1130,7 +1142,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_at_block(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         block: &'a SymbolicExpression,
         inner: &'a SymbolicExpression,
     ) -> bool {
@@ -1139,7 +1151,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_get_block_info(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         prop_name: &'a ClarityName,
         block: &'a SymbolicExpression,
     ) -> bool {
@@ -1148,40 +1160,48 @@ pub trait ASTVisitor<'a> {
 
     fn visit_get_block_info(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         prop_name: &'a ClarityName,
         block: &'a SymbolicExpression,
     ) -> bool {
         true
     }
 
-    fn traverse_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_err(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         self.traverse_expr(value) && self.visit_err(expr, value)
     }
 
-    fn visit_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_err(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         true
     }
 
-    fn traverse_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_ok(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         self.traverse_expr(value) && self.visit_ok(expr, value)
     }
 
-    fn visit_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_ok(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         true
     }
 
-    fn traverse_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_some(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         self.traverse_expr(value) && self.visit_some(expr, value)
     }
 
-    fn visit_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_some(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         true
     }
 
     fn traverse_default_to(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         default: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -1192,7 +1212,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_default_to(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         default: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -1201,7 +1221,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_unwrap(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         throws: &'a SymbolicExpression,
     ) -> bool {
@@ -1212,7 +1232,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_unwrap(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         throws: &'a SymbolicExpression,
     ) -> bool {
@@ -1221,7 +1241,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_unwrap_err(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         throws: &'a SymbolicExpression,
     ) -> bool {
@@ -1232,60 +1252,76 @@ pub trait ASTVisitor<'a> {
 
     fn visit_unwrap_err(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         throws: &'a SymbolicExpression,
     ) -> bool {
         true
     }
 
-    fn traverse_is_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn traverse_is_ok(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         self.traverse_expr(value) && self.visit_is_ok(expr, value)
     }
 
-    fn visit_is_ok(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_is_ok(&mut self, expr: &'a SymbolicExpression, value: &'a SymbolicExpression) -> bool {
         true
     }
 
     fn traverse_is_none(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(value) && self.visit_is_none(expr, value)
     }
 
-    fn visit_is_none(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_is_none(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
     fn traverse_is_err(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(value) && self.visit_is_err(expr, value)
     }
 
-    fn visit_is_err(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_is_err(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
     fn traverse_is_some(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(value) && self.visit_is_some(expr, value)
     }
 
-    fn visit_is_some(&mut self, expr: &SymbolicExpression, value: &'a SymbolicExpression) -> bool {
+    fn visit_is_some(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        value: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
     fn traverse_filter(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequence: &'a SymbolicExpression,
     ) -> bool {
@@ -1294,7 +1330,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_filter(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequence: &'a SymbolicExpression,
     ) -> bool {
@@ -1303,7 +1339,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_unwrap_panic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(input) && self.visit_unwrap_panic(expr, input)
@@ -1311,7 +1347,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_unwrap_panic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
     ) -> bool {
         true
@@ -1319,7 +1355,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_unwrap_err_panic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(input) && self.visit_unwrap_err_panic(expr, input)
@@ -1327,7 +1363,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_unwrap_err_panic(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
     ) -> bool {
         true
@@ -1335,7 +1371,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_match_option(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         some_name: &'a ClarityName,
         some_branch: &'a SymbolicExpression,
@@ -1349,7 +1385,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_match_option(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         some_name: &'a ClarityName,
         some_branch: &'a SymbolicExpression,
@@ -1360,7 +1396,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_match_response(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         ok_name: &'a ClarityName,
         ok_branch: &'a SymbolicExpression,
@@ -1375,7 +1411,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_match_response(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         input: &'a SymbolicExpression,
         ok_name: &'a ClarityName,
         ok_branch: &'a SymbolicExpression,
@@ -1385,17 +1421,21 @@ pub trait ASTVisitor<'a> {
         true
     }
 
-    fn traverse_try(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
+    fn traverse_try(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        input: &'a SymbolicExpression,
+    ) -> bool {
         self.traverse_expr(input) && self.visit_try(expr, input)
     }
 
-    fn visit_try(&mut self, expr: &SymbolicExpression, input: &'a SymbolicExpression) -> bool {
+    fn visit_try(&mut self, expr: &'a SymbolicExpression, input: &'a SymbolicExpression) -> bool {
         true
     }
 
     fn traverse_asserts(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         thrown: &'a SymbolicExpression,
     ) -> bool {
@@ -1406,7 +1446,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_asserts(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         thrown: &'a SymbolicExpression,
     ) -> bool {
@@ -1415,7 +1455,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_stx_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
@@ -1426,7 +1466,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_stx_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
@@ -1435,7 +1475,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_stx_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1448,7 +1488,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_stx_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1458,7 +1498,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_stx_get_balance(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         owner: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(owner) && self.visit_stx_get_balance(expr, owner)
@@ -1466,7 +1506,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_stx_get_balance(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         owner: &'a SymbolicExpression,
     ) -> bool {
         true
@@ -1474,7 +1514,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_ft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1486,7 +1526,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_ft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1496,7 +1536,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_ft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1510,7 +1550,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_ft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1521,7 +1561,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_ft_get_balance(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         owner: &'a SymbolicExpression,
     ) -> bool {
@@ -1530,7 +1570,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_ft_get_balance(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         owner: &'a SymbolicExpression,
     ) -> bool {
@@ -1539,19 +1579,23 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_ft_get_supply(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
     ) -> bool {
         self.visit_ft_get_supply(expr, token)
     }
 
-    fn visit_ft_get_supply(&mut self, expr: &SymbolicExpression, token: &'a ClarityName) -> bool {
+    fn visit_ft_get_supply(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        token: &'a ClarityName,
+    ) -> bool {
         true
     }
 
     fn traverse_ft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1563,7 +1607,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_ft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1573,7 +1617,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_nft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1585,7 +1629,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_nft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1595,7 +1639,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_nft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1609,7 +1653,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_nft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -1620,7 +1664,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_nft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1632,7 +1676,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_nft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -1642,7 +1686,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_nft_get_owner(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
     ) -> bool {
@@ -1651,7 +1695,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_nft_get_owner(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
     ) -> bool {
@@ -1660,7 +1704,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_let(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
         body: &'a [SymbolicExpression],
     ) -> bool {
@@ -1679,7 +1723,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_let(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
         body: &'a [SymbolicExpression],
     ) -> bool {
@@ -1688,7 +1732,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_map(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequences: &'a [SymbolicExpression],
     ) -> bool {
@@ -1702,7 +1746,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_map(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequences: &'a [SymbolicExpression],
     ) -> bool {
@@ -1711,7 +1755,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_fold(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequence: &'a SymbolicExpression,
         initial: &'a SymbolicExpression,
@@ -1723,7 +1767,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_fold(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         func: &'a ClarityName,
         sequence: &'a SymbolicExpression,
         initial: &'a SymbolicExpression,
@@ -1733,7 +1777,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_append(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         list: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -1744,7 +1788,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_append(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         list: &'a SymbolicExpression,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -1753,7 +1797,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_concat(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
     ) -> bool {
@@ -1762,7 +1806,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_concat(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         lhs: &'a SymbolicExpression,
         rhs: &'a SymbolicExpression,
     ) -> bool {
@@ -1771,7 +1815,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_as_max_len(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         length: u128,
     ) -> bool {
@@ -1780,7 +1824,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_as_max_len(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         length: u128,
     ) -> bool {
@@ -1789,19 +1833,23 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_len(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(sequence) && self.visit_len(expr, sequence)
     }
 
-    fn visit_len(&mut self, expr: &SymbolicExpression, sequence: &'a SymbolicExpression) -> bool {
+    fn visit_len(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        sequence: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
     fn traverse_element_at(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         index: &'a SymbolicExpression,
     ) -> bool {
@@ -1812,7 +1860,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_element_at(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         index: &'a SymbolicExpression,
     ) -> bool {
@@ -1821,7 +1869,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_index_of(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         item: &'a SymbolicExpression,
     ) -> bool {
@@ -1832,7 +1880,7 @@ pub trait ASTVisitor<'a> {
 
     fn visit_index_of(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         sequence: &'a SymbolicExpression,
         item: &'a SymbolicExpression,
     ) -> bool {
@@ -1841,7 +1889,7 @@ pub trait ASTVisitor<'a> {
 
     fn traverse_list_cons(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         args: &'a [SymbolicExpression],
     ) -> bool {
         for arg in args.iter() {
@@ -1854,7 +1902,30 @@ pub trait ASTVisitor<'a> {
 
     fn visit_list_cons(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        true
+    }
+
+    fn traverse_call_user_defined(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        for arg in args.iter() {
+            if !self.traverse_expr(arg) {
+                return false;
+            }
+        }
+        self.visit_call_user_defined(expr, name, args)
+    }
+
+    fn visit_call_user_defined(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
         true

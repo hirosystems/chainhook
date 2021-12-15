@@ -1,4 +1,4 @@
-use crate::analysis::annotation::Annotation;
+use crate::analysis::annotation::{Annotation, AnnotationKind, WarningKind};
 use crate::analysis::ast_visitor::{traverse, ASTVisitor, TypedVar};
 use crate::analysis::{AnalysisPass, AnalysisResult};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
@@ -48,6 +48,15 @@ pub struct CheckChecker<'a, 'b> {
     diagnostics: Vec<Diagnostic>,
     annotations: &'a Vec<Annotation>,
     annotation_index: usize,
+    active_annotation: Option<usize>,
+    // Record all public functions defined
+    public_funcs: HashSet<&'a ClarityName>,
+    // For each user-defined function, record which parameters are allowed
+    // to be unchecked (tainted)
+    user_funcs: HashMap<&'a ClarityName, Vec<bool>>,
+    // For each call of a user-defined function which has not been defined yet,
+    // record the expression to go back and re-evaluate.
+    user_calls: Vec<(&'a ClarityName, &'a [SymbolicExpression], Vec<bool>)>,
 }
 
 impl<'a, 'b> CheckChecker<'a, 'b> {
@@ -62,11 +71,16 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             diagnostics: Vec::new(),
             annotations,
             annotation_index: 0,
+            active_annotation: None,
+            public_funcs: HashSet::new(),
+            user_funcs: HashMap::new(),
+            user_calls: Vec::new(),
         }
     }
 
     fn run(mut self, contract_analysis: &'a ContractAnalysis) -> AnalysisResult {
         traverse(&mut self, &contract_analysis.expressions);
+        self.check_user_calls();
         Ok(self.diagnostics)
     }
 
@@ -98,7 +112,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
         }
     }
 
-    fn add_tainted_expr(&mut self, expr: &SymbolicExpression, sources: HashSet<Node<'a>>) {
+    fn add_tainted_expr(&mut self, expr: &'a SymbolicExpression, sources: HashSet<Node<'a>>) {
         let node = Node::Expr(expr.id);
         self.add_tainted_node_to_sources(node, &sources);
         self.tainted_nodes.insert(node, TaintedNode { sources });
@@ -112,31 +126,9 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
 
     // If this expression is tainted, add a diagnostic
     fn taint_check(&mut self, expr: &SymbolicExpression) {
-        if let Some(tainted) = self.tainted_nodes.get(&Node::Expr(expr.id)) {
-            let diagnostic = Diagnostic {
-                level: Level::Warning,
-                message: "use of potentially unchecked data".to_string(),
-                spans: vec![expr.span.clone()],
-                suggestion: None,
-            };
-            self.diagnostics.push(diagnostic);
-
-            // Add a note for each source, ordered by span
-            let mut source_spans = vec![];
-            for source in &tainted.sources {
-                let span = self.taint_sources[source].span.clone();
-                let pos = source_spans.binary_search(&span).unwrap_or_else(|e| e);
-                source_spans.insert(pos, span);
-            }
-            for span in source_spans {
-                let diagnostic = Diagnostic {
-                    level: Level::Note,
-                    message: "source of untrusted input here".to_string(),
-                    spans: vec![span],
-                    suggestion: None,
-                };
-                self.diagnostics.push(diagnostic);
-            }
+        if self.tainted_nodes.contains_key(&Node::Expr(expr.id)) {
+            self.diagnostics
+                .append(&mut self.generate_diagnostics(expr));
         }
     }
 
@@ -163,33 +155,111 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
         }
     }
 
-    // Check if the expression is annotated with `allow(unchecked_data)`
-    fn allow_unchecked(&mut self, span: &Span) -> bool {
+    // Check for annotations that should be attached to the given span
+    fn process_annotations(&mut self, span: &Span) {
+        self.active_annotation = None;
+
         // Since we are traversing in file order, we never need to check an
         // annotation with a lower line number than the last check.
         while self.annotation_index < self.annotations.len() {
             let annotation = &self.annotations[self.annotation_index];
             if annotation.span.start_line == (span.start_line - 1) {
-                return true;
+                self.active_annotation = Some(self.annotation_index);
+                return;
             } else if annotation.span.start_line >= span.start_line {
                 // The annotations are ordered by span, so if we have passed
                 // the target line, return.
-                return false;
+                return;
             }
             self.annotation_index = self.annotation_index + 1;
         }
+    }
+
+    // Check if the expression is annotated with `allow(unchecked_data)`
+    fn allow_unchecked_data(&self) -> bool {
+        if let Some(idx) = self.active_annotation {
+            let annotation = &self.annotations[idx];
+            return match annotation.kind {
+                AnnotationKind::Allow(WarningKind::UncheckedData) => true,
+                _ => false,
+            };
+        }
         false
+    }
+
+    // Check if the expression is annotated with `allow(unchecked_params)`
+    fn allow_unchecked_params(&self) -> bool {
+        if let Some(idx) = self.active_annotation {
+            let annotation = &self.annotations[idx];
+            return match annotation.kind {
+                AnnotationKind::Allow(WarningKind::UncheckedParams) => true,
+                _ => false,
+            };
+        }
+        false
+    }
+
+    fn generate_diagnostics(&self, expr: &SymbolicExpression) -> Vec<Diagnostic> {
+        let mut diagnostics: Vec<Diagnostic> = Vec::new();
+        let diagnostic = Diagnostic {
+            level: Level::Warning,
+            message: "use of potentially unchecked data".to_string(),
+            spans: vec![expr.span.clone()],
+            suggestion: None,
+        };
+        diagnostics.push(diagnostic);
+
+        let tainted = &self.tainted_nodes[&Node::Expr(expr.id)];
+        // Add a note for each source, ordered by span
+        let mut source_spans = vec![];
+        for source in &tainted.sources {
+            let span = self.taint_sources[source].span.clone();
+            let pos = source_spans.binary_search(&span).unwrap_or_else(|e| e);
+            source_spans.insert(pos, span);
+        }
+        for span in source_spans {
+            let diagnostic = Diagnostic {
+                level: Level::Note,
+                message: "source of untrusted input here".to_string(),
+                spans: vec![span],
+                suggestion: None,
+            };
+            diagnostics.push(diagnostic);
+        }
+        diagnostics
+    }
+
+    fn check_user_calls(&mut self) {
+        for (name, arg_exprs, unchecked_args) in &self.user_calls {
+            if self.public_funcs.contains(name) {
+                for i in 0..unchecked_args.len() {
+                    if unchecked_args[i] {
+                        self.diagnostics
+                            .append(&mut self.generate_diagnostics(&arg_exprs[i]));
+                    }
+                }
+                continue;
+            }
+
+            let unchecked_params = &self.user_funcs[name];
+            for i in 0..unchecked_params.len() {
+                if unchecked_args[i] && !unchecked_params[i] {
+                    self.diagnostics
+                        .append(&mut self.generate_diagnostics(&arg_exprs[i]));
+                }
+            }
+        }
     }
 }
 
 impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     fn traverse_expr(&mut self, expr: &'a SymbolicExpression) -> bool {
+        self.process_annotations(&expr.span);
         // If this expression is annotated to allow unchecked data, no need to
         // traverse it.
-        if self.allow_unchecked(&expr.span) {
+        if self.allow_unchecked_data() {
             return true;
         }
-
         match &expr.expr {
             AtomValue(value) => self.visit_atom_value(expr, value),
             Atom(name) => self.visit_atom(expr, name),
@@ -202,11 +272,13 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn traverse_define_public(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
+        self.public_funcs.insert(name);
+
         self.taint_sources.clear();
         self.tainted_nodes.clear();
 
@@ -219,9 +291,49 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         self.traverse_expr(body)
     }
 
+    fn visit_define_read_only(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        self.public_funcs.insert(name);
+        true
+    }
+
+    fn traverse_define_private(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        self.taint_sources.clear();
+        self.tainted_nodes.clear();
+
+        // Upon entering a private function, parameters are considered checked,
+        // unless the function is annotated otherwise.
+        // TODO: for now, it is all or none, but later, allow to specify which
+        // parameters can be unchecked
+        if let Some(params) = parameters {
+            let allow = self.allow_unchecked_params();
+            let mut unchecked_params = vec![false; params.len()];
+            for (i, param) in params.iter().enumerate() {
+                unchecked_params[i] = allow;
+                if allow {
+                    self.add_taint_source(Node::Symbol(param.name), param.decl_span.clone());
+                }
+            }
+            self.user_funcs.insert(name, unchecked_params);
+        }
+        self.traverse_expr(body)
+        // TODO: Check that the return value is not tainted
+    }
+
     fn traverse_if(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         then_expr: &'a SymbolicExpression,
         else_expr: &'a SymbolicExpression,
@@ -236,7 +348,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn traverse_lazy_logical(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         function: NativeFunctions,
         operands: &'a [SymbolicExpression],
     ) -> bool {
@@ -249,7 +361,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn traverse_let(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         bindings: &HashMap<&'a ClarityName, &'a SymbolicExpression>,
         body: &'a [SymbolicExpression],
     ) -> bool {
@@ -291,7 +403,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_asserts(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         cond: &'a SymbolicExpression,
         thrown: &'a SymbolicExpression,
     ) -> bool {
@@ -299,7 +411,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         true
     }
 
-    fn visit_atom(&mut self, expr: &SymbolicExpression, atom: &'a ClarityName) -> bool {
+    fn visit_atom(&mut self, expr: &'a SymbolicExpression, atom: &'a ClarityName) -> bool {
         if let Some(tainted) = self.tainted_nodes.get(&Node::Symbol(atom)) {
             let sources = tainted.sources.clone();
             self.add_tainted_expr(expr, sources);
@@ -307,7 +419,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         true
     }
 
-    fn visit_list(&mut self, expr: &SymbolicExpression, list: &[SymbolicExpression]) -> bool {
+    fn visit_list(&mut self, expr: &'a SymbolicExpression, list: &[SymbolicExpression]) -> bool {
         let mut sources = HashSet::new();
 
         // For expressions with unique properties, tainted-ness is handled
@@ -342,7 +454,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_stx_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
     ) -> bool {
@@ -358,7 +470,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_stx_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         amount: &SymbolicExpression,
         sender: &SymbolicExpression,
         recipient: &SymbolicExpression,
@@ -376,7 +488,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_ft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -393,7 +505,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_ft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -412,7 +524,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_ft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         amount: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -424,7 +536,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_nft_burn(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -441,7 +553,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_nft_transfer(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         sender: &'a SymbolicExpression,
@@ -460,7 +572,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_nft_mint(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         token: &'a ClarityName,
         identifier: &'a SymbolicExpression,
         recipient: &'a SymbolicExpression,
@@ -472,7 +584,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_var_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         value: &'a SymbolicExpression,
     ) -> bool {
@@ -482,7 +594,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_map_set(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -498,7 +610,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_map_insert(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
         value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
@@ -514,7 +626,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_map_delete(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         name: &'a ClarityName,
         key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
     ) -> bool {
@@ -526,12 +638,42 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
 
     fn visit_dynamic_contract_call(
         &mut self,
-        expr: &SymbolicExpression,
+        expr: &'a SymbolicExpression,
         trait_ref: &'a SymbolicExpression,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
         self.taint_check(trait_ref);
+        true
+    }
+
+    fn visit_call_user_defined(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        args: &'a [SymbolicExpression],
+    ) -> bool {
+        if args.len() > 0 {
+            let default = vec![false; args.len()];
+            if let Some(unchecked_args) = self.user_funcs.get(name) {
+                let unchecked_args = unchecked_args.clone();
+                for (i, arg) in args.iter().enumerate() {
+                    if !unchecked_args[i] {
+                        self.taint_check(arg);
+                    }
+                }
+            } else {
+                // Record this call to check later, after the callee has been
+                // defined.
+                let mut unchecked_args = vec![false; args.len()];
+                for (i, arg) in args.iter().enumerate() {
+                    if self.tainted_nodes.contains_key(&Node::Expr(expr.id)) {
+                        unchecked_args[i] = true;
+                    }
+                }
+                self.user_calls.push((name, args, unchecked_args));
+            }
+        }
         true
     }
 }
@@ -2000,7 +2142,199 @@ mod tests {
     }
 
     #[test]
-    fn allow_unchecked() {
+    fn check_private() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-private (my-transfer (amount uint))
+    (stx-transfer? amount (as-contract tx-sender) tx-sender)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_call() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-private (my-transfer (amount uint))
+    (ok true)
+)
+(define-public (tainted (amount uint))
+    (my-transfer amount)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:6:18: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (my-transfer amount)");
+                assert_eq!(output[2], "                 ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:5:26: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (tainted (amount uint))");
+                assert_eq!(output[5], "                         ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_after() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (my-func amount)
+)
+(define-private (my-func (amount uint))
+    (ok true)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:3:14: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (my-func amount)");
+                assert_eq!(output[2], "             ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:2:26: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (tainted (amount uint))");
+                assert_eq!(output[5], "                         ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_allow() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_params)]
+(define-private (my-transfer (amount uint))
+    (begin
+        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        (ok true)
+    )
+)
+(define-public (tainted (amount uint))
+    (my-transfer amount)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 7);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:5:30: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))"
+                );
+                assert_eq!(output[2], "                             ^~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:31: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-private (my-transfer (amount uint))");
+                assert_eq!(output[5], "                              ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn unchecked_params_safe() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_params)]
+(define-private (my-func (amount uint))
+    (ok true)
+)
+(define-public (tainted (amount uint))
+    (my-func amount)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn unchecked_params_safe_after() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (my-func amount)
+)
+;; #[allow(unchecked_params)]
+(define-private (my-func (amount uint))
+    (ok true)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn allow_unchecked_data() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
@@ -2020,7 +2354,7 @@ mod tests {
     }
 
     #[test]
-    fn allow_unchecked_parent() {
+    fn allow_unchecked_data_parent() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);
@@ -2042,7 +2376,7 @@ mod tests {
     }
 
     #[test]
-    fn allow_unchecked_function() {
+    fn allow_unchecked_data_function() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check_checker".to_string()];
         let mut session = Session::new(settings);

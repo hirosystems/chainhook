@@ -152,7 +152,7 @@ impl ClarityInterpreter {
                         end_column: line.len() as u32,
                     };
                     if let Some(annotation_string) = annotation_string.strip_suffix("]") {
-                        let kind: AnnotationKind = match annotation_string.parse() {
+                        let kind: AnnotationKind = match annotation_string.trim().parse() {
                             Ok(kind) => kind,
                             Err(e) => {
                                 diagnostics.push(Diagnostic {

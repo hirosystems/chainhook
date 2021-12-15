@@ -33,6 +33,7 @@ impl std::str::FromStr for AnnotationKind {
 #[derive(Debug)]
 pub enum WarningKind {
     UncheckedData,
+    UncheckedParams,
 }
 
 impl std::str::FromStr for WarningKind {
@@ -41,6 +42,7 @@ impl std::str::FromStr for WarningKind {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "unchecked_data" => Ok(WarningKind::UncheckedData),
+            "unchecked_params" => Ok(WarningKind::UncheckedParams),
             _ => Err(format!("'{}' is not a valid warning identifier", s)),
         }
     }
