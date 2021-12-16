@@ -336,11 +336,11 @@ impl Session {
                 output.push(blue!("Contracts"));
                 self.get_contracts(&mut output);
             }
-    
+
             if self.settings.initial_accounts.len() > 0 {
                 output.push(blue!("Initialized balances"));
                 self.get_accounts(&mut output);
-            }    
+            }
         }
 
         self.initial_contracts_analysis
@@ -535,7 +535,7 @@ impl Session {
                                 output.push(green!(snippet));
                             }
                             output
-                        },
+                        }
                         Err(result) => result,
                     };
                     output.append(&mut result);
