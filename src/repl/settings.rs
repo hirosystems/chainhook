@@ -62,4 +62,5 @@ pub struct SessionSettings {
     pub initial_accounts: Vec<Account>,
     pub initial_deployer: Option<Account>,
     pub scoping_contract: Option<String>,
+    pub analysis: Vec<String>,
 }

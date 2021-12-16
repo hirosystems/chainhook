@@ -1,6 +1,11 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-use crate::clarity::analysis::ContractAnalysis;
+use crate::analysis::annotation::{Annotation, AnnotationKind};
+use crate::analysis::contract_call_detector::ContractCallDetector;
+use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
+use crate::clarity;
+use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
+use crate::clarity::ast;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::contexts::{
     CallStack, ContractContext, Environment, GlobalContext, LocalContext,
@@ -9,14 +14,15 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
-use crate::clarity::diagnostic::Diagnostic;
+use crate::clarity::diagnostic::{Diagnostic, Level};
 use crate::clarity::errors::Error;
 use crate::clarity::events::*;
+use crate::clarity::representations::SymbolicExpressionType::{Atom, List};
+use crate::clarity::representations::{Span, SymbolicExpression};
 use crate::clarity::types::{
     self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
 };
 use crate::clarity::util::StacksAddress;
-use crate::clarity::{analysis, ast};
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
 use crate::repl::{CostSynthesis, ExecutionResult};
@@ -36,10 +42,15 @@ pub struct ClarityInterpreter {
     accounts: BTreeSet<String>,
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
     costs_version: u32,
+    analysis: Vec<String>,
 }
 
 impl ClarityInterpreter {
-    pub fn new(tx_sender: StandardPrincipalData, costs_version: u32) -> ClarityInterpreter {
+    pub fn new(
+        tx_sender: StandardPrincipalData,
+        costs_version: u32,
+        analysis: Vec<String>,
+    ) -> ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
         let tokens = BTreeMap::new();
@@ -49,6 +60,7 @@ impl ClarityInterpreter {
             accounts,
             tokens,
             costs_version,
+            analysis,
         }
     }
 
@@ -60,8 +72,14 @@ impl ClarityInterpreter {
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
-        let analysis = self.run_analysis(contract_identifier.clone(), &mut ast)?;
-        let result = self.execute(
+        let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
+        let (analysis, mut analysis_diagnostics) =
+            match self.run_analysis(contract_identifier.clone(), &mut ast, &annotations) {
+                Ok((analysis, diagnostics)) => (analysis, diagnostics),
+                Err(e) => return Err(e),
+            };
+        diagnostics.append(&mut analysis_diagnostics);
+        let mut result = self.execute(
             contract_identifier,
             &mut ast,
             snippet,
@@ -69,6 +87,8 @@ impl ClarityInterpreter {
             cost_track,
             coverage_reporter,
         )?;
+
+        result.diagnostics = diagnostics;
 
         // todo: instead of just returning the value, we should be returning:
         // - value
@@ -78,18 +98,26 @@ impl ClarityInterpreter {
     }
 
     pub fn detect_dependencies(
-        &self,
+        &mut self,
         contract_id: String,
         snippet: String,
-    ) -> Result<BTreeSet<QualifiedContractIdentifier>, String> {
+    ) -> Result<Vec<QualifiedContractIdentifier>, String> {
         let contract_id = QualifiedContractIdentifier::parse(&contract_id).unwrap();
-        let ast = match self.build_ast(contract_id, snippet.clone()) {
+        let ast = match self.build_ast(contract_id.clone(), snippet.clone()) {
             Err(e) => return Err(format!("{:?}", e)),
             Ok(ast) => ast,
         };
 
-        let deps = ContractCallDetector::run_pass(&ast);
-        Ok(deps)
+        let mut contract_analysis = ContractAnalysis::new(
+            contract_id.clone(),
+            ast.expressions,
+            LimitedCostTracker::new_free(),
+        );
+        let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
+        match ContractCallDetector::run_pass(&mut contract_analysis, &mut analysis_db, &vec![]) {
+            Ok(_) => Ok(contract_analysis.dependencies),
+            Err(e) => Err(format!("{:?}", e)),
+        }
     }
 
     pub fn build_ast(
@@ -100,21 +128,68 @@ impl ClarityInterpreter {
         let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
             Ok(res) => res,
             Err(error) => {
-                let message = format!("Parsing error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic), None));
+                return Err(("Parser".to_string(), Some(error.diagnostic), None));
             }
         };
         Ok(contract_ast)
+    }
+
+    pub fn collect_annotations(
+        &self,
+        ast: &ContractAST,
+        snippet: &String,
+    ) -> (Vec<Annotation>, Vec<Diagnostic>) {
+        let mut annotations = vec![];
+        let mut diagnostics = vec![];
+        let lines = snippet.lines();
+        for (n, line) in lines.enumerate() {
+            if let Some(comment) = line.trim().strip_prefix(";;") {
+                if let Some(annotation_string) = comment.trim().strip_prefix("#[") {
+                    let span = Span {
+                        start_line: (n + 1) as u32,
+                        start_column: (line.find('#').unwrap_or(0) + 1) as u32,
+                        end_line: (n + 1) as u32,
+                        end_column: line.len() as u32,
+                    };
+                    if let Some(annotation_string) = annotation_string.strip_suffix("]") {
+                        let kind: AnnotationKind = match annotation_string.trim().parse() {
+                            Ok(kind) => kind,
+                            Err(e) => {
+                                diagnostics.push(Diagnostic {
+                                    level: Level::Warning,
+                                    message: format!("{}", e),
+                                    spans: vec![span.clone()],
+                                    suggestion: None,
+                                });
+                                continue;
+                            }
+                        };
+                        annotations.push(Annotation { kind, span });
+                    } else {
+                        diagnostics.push(Diagnostic {
+                            level: Level::Warning,
+                            message: "malformed annotation".to_string(),
+                            spans: vec![span],
+                            suggestion: None,
+                        });
+                    }
+                }
+            }
+        }
+        (annotations, diagnostics)
     }
 
     pub fn run_analysis(
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
-    ) -> Result<ContractAnalysis, (String, Option<Diagnostic>, Option<Error>)> {
+        annotations: &Vec<Annotation>,
+    ) -> Result<(ContractAnalysis, Vec<Diagnostic>), (String, Option<Diagnostic>, Option<Error>)>
+    {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
 
-        let mut contract_analysis = match analysis::run_analysis(
+        // Run standard clarity analyses
+        let mut contract_analysis = match clarity::analysis::run_analysis(
             &contract_identifier,
             &mut contract_ast.expressions,
             &mut analysis_db,
@@ -123,17 +198,24 @@ impl ClarityInterpreter {
         ) {
             Ok(res) => res,
             Err((error, cost_tracker)) => {
-                let message = format!("Analysis error: {}", error.diagnostic.message);
-                return Err((message, Some(error.diagnostic), None));
+                return Err(("Analysis".to_string(), Some(error.diagnostic), None));
             }
         };
 
-        let deps = ContractCallDetector::run_pass(&contract_ast);
-        for dep in deps.into_iter() {
-            contract_analysis.add_dependency(dep);
+        // Run REPL-only analyses
+        match analysis::run_analysis(
+            &mut contract_analysis,
+            &mut analysis_db,
+            &self.analysis,
+            annotations,
+        ) {
+            Ok(diagnostics) => Ok((contract_analysis, diagnostics)),
+            Err(mut diagnostics) => {
+                // The last diagnostic should be the error
+                let error = diagnostics.pop().unwrap();
+                Err(("Analysis".to_string(), Some(error), None))
+            }
         }
-
-        Ok(contract_analysis)
     }
 
     #[allow(unused_assignments)]
@@ -228,8 +310,7 @@ impl ClarityInterpreter {
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    let error = format!("Runtime Error: {:?}", e);
-                    return Err((error, None, Some(e)));
+                    return Err(("Runtime".to_string(), None, Some(e)));
                 }
             };
 
@@ -514,50 +595,5 @@ impl ClarityInterpreter {
             },
             _ => 0,
         }
-    }
-}
-
-use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::representations::SymbolicExpressionType::{
-    Atom, AtomValue, Field, List, LiteralValue, TraitReference,
-};
-
-pub fn traverse(exprs: &[SymbolicExpression], deps: &mut BTreeSet<QualifiedContractIdentifier>) {
-    for (i, expression) in exprs.iter().enumerate() {
-        if let Some(exprs) = expression.match_list() {
-            traverse(exprs, deps);
-        } else if let Some(atom) = expression.match_atom() {
-            if atom.as_str() == "contract-call?" {
-                if let Some(types::Value::Principal(PrincipalData::Contract(ref contract_id))) =
-                    exprs[i + 1].match_literal_value()
-                {
-                    deps.insert(contract_id.clone());
-                }
-            } else if atom.as_str() == "use-trait" {
-                let contract_id = exprs[i + 2]
-                    .match_field()
-                    .unwrap()
-                    .clone()
-                    .contract_identifier;
-                deps.insert(contract_id);
-            } else if atom.as_str() == "impl-trait" {
-                let contract_id = exprs[i + 1]
-                    .match_field()
-                    .unwrap()
-                    .clone()
-                    .contract_identifier;
-                deps.insert(contract_id);
-            }
-        };
-    }
-}
-
-pub struct ContractCallDetector;
-
-impl ContractCallDetector {
-    pub fn run_pass(contract_ast: &ContractAST) -> BTreeSet<QualifiedContractIdentifier> {
-        let mut contract_calls = BTreeSet::new();
-        traverse(contract_ast.expressions.as_slice(), &mut contract_calls);
-        contract_calls
     }
 }

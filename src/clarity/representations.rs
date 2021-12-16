@@ -4,6 +4,7 @@ use super::types::{TraitIdentifier, Value};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops::Deref;
@@ -466,6 +467,22 @@ impl Span {
             start_column: 0,
             end_line: 0,
             end_column: 0,
+        }
+    }
+}
+
+impl PartialOrd for Span {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Span {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.start_line == other.start_line {
+            self.start_column.cmp(&other.start_column)
+        } else {
+            self.start_line.cmp(&other.start_line)
         }
     }
 }
