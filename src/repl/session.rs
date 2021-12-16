@@ -51,6 +51,7 @@ pub struct CostsReport {
 pub struct Session {
     session_id: u32,
     started_at: u32,
+    pub is_interactive: bool,
     pub settings: SessionSettings,
     pub contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
@@ -76,6 +77,7 @@ impl Session {
         Session {
             session_id: 0,
             started_at: 0,
+            is_interactive: false,
             interpreter: ClarityInterpreter::new(
                 tx_sender,
                 settings.costs_version,
@@ -186,6 +188,7 @@ impl Session {
     #[cfg(not(feature = "wasm"))]
     pub fn start(&mut self) -> Result<(String, Vec<(ContractAnalysis, String, String)>), String> {
         let mut output_err = Vec::<String>::new();
+        let mut output = vec![];
         let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
@@ -292,7 +295,7 @@ impl Session {
                     Some("Deployment".into()),
                 ) {
                     Ok((ref mut res_output, result)) => {
-                        output_err.append(res_output);
+                        output.append(res_output);
                         if result.contract.is_none() {
                             continue;
                         }
@@ -326,15 +329,18 @@ impl Session {
             });
         }
 
-        let mut output = vec![];
-        if !self.settings.initial_contracts.is_empty() {
-            output.push(blue!("Contracts"));
-            self.get_contracts(&mut output);
-        }
-
-        if self.settings.initial_accounts.len() > 0 {
-            output.push(blue!("Initialized balances"));
-            self.get_accounts(&mut output);
+        if self.is_interactive {
+            // If the session is interactive (clarinet console, usr/bin/clarity-repl)
+            // we will display the contracts + genesis asset map.
+            if !self.settings.initial_contracts.is_empty() {
+                output.push(blue!("Contracts"));
+                self.get_contracts(&mut output);
+            }
+    
+            if self.settings.initial_accounts.len() > 0 {
+                output.push(blue!("Initialized balances"));
+                self.get_accounts(&mut output);
+            }    
         }
 
         self.initial_contracts_analysis
@@ -523,7 +529,13 @@ impl Session {
                         true,
                         None,
                     ) {
-                        Ok((result, _)) => result,
+                        Ok((mut output, result)) => {
+                            if let Some((ref contract_name, _, _, _, _)) = result.contract {
+                                let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
+                                output.push(green!(snippet));
+                            }
+                            output
+                        },
                         Err(result) => result,
                     };
                     output.append(&mut result);
@@ -552,10 +564,6 @@ impl Session {
             Ok(result) => {
                 for diagnostic in &result.diagnostics {
                     output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
-                }
-                if let Some((ref contract_name, _, _, _, _)) = result.contract {
-                    let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
-                    output.push(green!(snippet));
                 }
                 if result.events.len() > 0 {
                     output.push(black!("Events emitted"));
