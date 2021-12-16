@@ -327,8 +327,14 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
             }
             self.user_funcs.insert(name, unchecked_params);
         }
-        self.traverse_expr(body)
-        // TODO: Check that the return value is not tainted
+        self.traverse_expr(body);
+
+        // Check that the return value is not tainted
+        if self.tainted_nodes.contains_key(&Node::Expr(body.id)) {
+            self.diagnostics
+                .append(&mut self.generate_diagnostics(body));
+        }
+        true
     }
 
     fn traverse_if(
@@ -401,6 +407,26 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         true
     }
 
+    fn traverse_begin(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        statements: &'a [SymbolicExpression],
+    ) -> bool {
+        for stmt in statements {
+            if !self.traverse_expr(stmt) {
+                return false;
+            }
+        }
+
+        // the value of the begin is determined by the last expression
+        if let Some(tainted) = &self.tainted_nodes.get(&Node::Expr(expr.id)) {
+            let sources = tainted.sources.clone();
+            self.add_tainted_expr(expr, sources);
+        }
+
+        true
+    }
+
     fn visit_asserts(
         &mut self,
         expr: &'a SymbolicExpression,
@@ -433,6 +459,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
                     use crate::clarity::functions::NativeFunctions::*;
                     match native_function {
                         Let => return true,
+                        Begin => return true,
                         _ => {}
                     }
                 }
@@ -2282,6 +2309,90 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-private (my-transfer (amount uint))");
                 assert_eq!(output[5], "                              ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_return() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_params)]
+(define-private (my-func (amount uint))
+    (ok amount)
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 6);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:4:5: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "    (ok amount)");
+                assert_eq!(output[2], "    ^~~~~~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:27: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-private (my-func (amount uint))");
+                assert_eq!(output[5], "                          ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_return_cleaned() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_params)]
+(define-private (cleaner (amount uint))
+    (begin
+        (asserts! (< amount u10) (err 1))
+        (ok amount)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_private_return_clean() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+;; #[allow(unchecked_params)]
+(define-private (cleaner (amount uint))
+    (begin
+        (+ amount u1)
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
