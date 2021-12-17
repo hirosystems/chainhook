@@ -33,9 +33,9 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(session_settings: SessionSettings) -> Terminal {
-        Terminal {
-            session: Session::new(session_settings),
-        }
+        let mut session = Session::new(session_settings);
+        session.is_interactive = true;
+        Terminal { session }
     }
 
     pub fn start(&mut self) {

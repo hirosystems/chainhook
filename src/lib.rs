@@ -25,6 +25,7 @@ mod macros;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+pub mod analysis;
 pub mod clarity;
 pub mod contracts;
 pub mod repl;
@@ -60,8 +61,10 @@ pub async fn init_session(fetch_contract: String) -> String {
                         cache: None,
                     }]
                 };
+                let default_costs_version = 2;
                 let mut settings = SessionSettings::default();
-                settings.include_boot_contracts = vec!["costs-v1".into()];
+                settings.include_boot_contracts = vec![format!("costs-v{}", default_costs_version)];
+                settings.costs_version = default_costs_version;
                 settings.initial_links = initial_links;
                 let mut session = Session::new(settings);
                 let output = session.start_wasm().await;

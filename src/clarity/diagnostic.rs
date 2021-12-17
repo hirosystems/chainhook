@@ -5,7 +5,19 @@ use std::fmt;
 /// of diagnostics, such as warnings, hints, best practices, etc.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum Level {
+    Note,
+    Warning,
     Error,
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Level::Note => write!(f, "{}", blue!("note")),
+            Level::Warning => write!(f, "{}", yellow!("warning")),
+            Level::Error => write!(f, "{}", red!("error")),
+        }
+    }
 }
 
 pub trait DiagnosableError {
@@ -38,6 +50,71 @@ impl Diagnostic {
             end_line,
             end_column,
         });
+    }
+
+    // Generate the formatted output for this diagnostic, given the source code.
+    // TODO: Preferably a filename would be saved in the Span, but for now, pass a name here.
+    pub fn output(&self, name: &String, lines: &Vec<String>) -> Vec<String> {
+        let mut output = Vec::new();
+        if self.spans.len() > 0 {
+            output.push(format!(
+                "{}:{}:{}: {}: {}",
+                name, // self.spans[0].filename,
+                self.spans[0].start_line,
+                self.spans[0].start_column,
+                self.level,
+                self.message,
+            ));
+        } else {
+            output.push(format!("{}: {}", self.level, self.message,));
+        }
+        if self.spans.len() > 0 {
+            let span = &self.spans[0];
+            let first_line = span.start_line.saturating_sub(1) as usize;
+            let last_line = span.end_line.saturating_sub(1) as usize;
+
+            output.push(lines[first_line].clone());
+            let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
+            if span.start_line == span.end_line {
+                pointer = format!(
+                    "{}{:~<2$}",
+                    pointer,
+                    "",
+                    (span.end_column - span.start_column) as usize
+                );
+            }
+            pointer = format!("{}", pointer);
+            output.push(pointer);
+
+            for span in self.spans.iter().skip(1) {
+                output.push(format!(
+                    "  {}:{}:{}:",
+                    name, // span.filename,
+                    span.start_line,
+                    span.start_column,
+                ));
+
+                let first_line = span.start_line.saturating_sub(1) as usize;
+                let last_line = span.end_line.saturating_sub(1) as usize;
+
+                output.push(lines[first_line].clone());
+                let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
+                if span.start_line == span.end_line {
+                    pointer = format!(
+                        "{}{:~<2$}",
+                        pointer,
+                        "",
+                        (span.end_column - span.start_column) as usize
+                    );
+                } else {
+                    for line_num in (first_line + 1)..last_line {
+                        output.push(lines[line_num].clone());
+                    }
+                }
+                output.push(pointer);
+            }
+        }
+        output
     }
 }
 

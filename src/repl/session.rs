@@ -51,6 +51,7 @@ pub struct CostsReport {
 pub struct Session {
     session_id: u32,
     started_at: u32,
+    pub is_interactive: bool,
     pub settings: SessionSettings,
     pub contracts: BTreeMap<String, BTreeMap<String, Vec<String>>>,
     pub asts: BTreeMap<QualifiedContractIdentifier, ContractAST>,
@@ -76,7 +77,12 @@ impl Session {
         Session {
             session_id: 0,
             started_at: 0,
-            interpreter: ClarityInterpreter::new(tx_sender, settings.costs_version),
+            is_interactive: false,
+            interpreter: ClarityInterpreter::new(
+                tx_sender,
+                settings.costs_version,
+                settings.analysis.clone(),
+            ),
             asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
             api_reference: build_api_reference(),
@@ -91,7 +97,7 @@ impl Session {
     async fn retrieve_contract(
         &mut self,
         link: &InitialLink,
-    ) -> Result<(String, BTreeSet<QualifiedContractIdentifier>), String> {
+    ) -> Result<(String, Vec<QualifiedContractIdentifier>), String> {
         let contract_id = &link.contract_id;
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
@@ -143,7 +149,7 @@ impl Session {
 
             // Extract principal from contract_id
             let (contract_code, deps) = match handled.get(contract_id) {
-                Some(entry) => (entry.clone(), BTreeSet::new()),
+                Some(entry) => (entry.clone(), Vec::new()),
                 None => {
                     let (contract_code, deps) = self
                         .retrieve_contract(&initial_link)
@@ -182,6 +188,7 @@ impl Session {
     #[cfg(not(feature = "wasm"))]
     pub fn start(&mut self) -> Result<(String, Vec<(ContractAnalysis, String, String)>), String> {
         let mut output_err = Vec::<String>::new();
+        let mut output = vec![];
         let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
@@ -238,7 +245,7 @@ impl Session {
                     true,
                     None,
                 ) {
-                    Ok(_) => {}
+                    Ok((mut output, _)) => output_err.append(&mut output),
                     Err(ref mut result) => output_err.append(result),
                 };
             }
@@ -287,7 +294,8 @@ impl Session {
                     true,
                     Some("Deployment".into()),
                 ) {
-                    Ok((_, result)) => {
+                    Ok((ref mut res_output, result)) => {
+                        output.append(res_output);
                         if result.contract.is_none() {
                             continue;
                         }
@@ -321,15 +329,18 @@ impl Session {
             });
         }
 
-        let mut output = vec![];
-        if !self.settings.initial_contracts.is_empty() {
-            output.push(blue!("Contracts"));
-            self.get_contracts(&mut output);
-        }
+        if self.is_interactive {
+            // If the session is interactive (clarinet console, usr/bin/clarity-repl)
+            // we will display the contracts + genesis asset map.
+            if !self.settings.initial_contracts.is_empty() {
+                output.push(blue!("Contracts"));
+                self.get_contracts(&mut output);
+            }
 
-        if self.settings.initial_accounts.len() > 0 {
-            output.push(blue!("Initialized balances"));
-            self.get_accounts(&mut output);
+            if self.settings.initial_accounts.len() > 0 {
+                output.push(blue!("Initialized balances"));
+                self.get_accounts(&mut output);
+            }
         }
 
         self.initial_contracts_analysis
@@ -453,7 +464,7 @@ impl Session {
                     true,
                     None,
                 ) {
-                    Ok(_) => {}
+                    Ok((ref mut res_output, _)) => output.append(res_output),
                     Err(ref mut result) => output.append(result),
                 };
             }
@@ -518,7 +529,13 @@ impl Session {
                         true,
                         None,
                     ) {
-                        Ok((result, _)) => result,
+                        Ok((mut output, result)) => {
+                            if let Some((ref contract_name, _, _, _, _)) = result.contract {
+                                let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
+                                output.push(green!(snippet));
+                            }
+                            output
+                        }
                         Err(result) => result,
                     };
                     output.append(&mut result);
@@ -539,12 +556,14 @@ impl Session {
 
         let result = self.interpret(snippet.to_string(), name.clone(), cost_track, test_name);
         let mut output = Vec::<String>::new();
+        let lines = snippet.lines();
+        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+        let contract_name = name.unwrap_or("<stdin>".to_string());
 
         match result {
             Ok(result) => {
-                if let Some((ref contract_name, _, _, _, _)) = result.contract {
-                    let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
-                    output.push(green!(snippet));
+                for diagnostic in &result.diagnostics {
+                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
                 }
                 if result.events.len() > 0 {
                     output.push(black!("Events emitted"));
@@ -557,59 +576,9 @@ impl Session {
                 }
                 Ok((output, result))
             }
-            Err((message, diagnostic, _)) => {
-                if let Some(name) = name {
-                    output.push(format!("Error found in contract {}", name));
-                }
-                output.push(red!(message));
+            Err((_, diagnostic, _)) => {
                 if let Some(diagnostic) = diagnostic {
-                    if diagnostic.spans.len() > 0 {
-                        let lines = snippet.lines();
-                        let mut formatted_lines: Vec<String> =
-                            lines.map(|l| l.to_string()).collect();
-                        for span in diagnostic.spans {
-                            let first_line = span.start_line.saturating_sub(1) as usize;
-                            let last_line = span.end_line.saturating_sub(1) as usize;
-                            let mut pass = vec![];
-
-                            for (line_index, line) in formatted_lines.iter().enumerate() {
-                                if line == "" {
-                                    pass.push(line.clone());
-                                    continue;
-                                }
-                                if line_index >= first_line && line_index <= last_line {
-                                    let (begin, end) =
-                                        match (line_index == first_line, line_index == last_line) {
-                                            (true, true) => (
-                                                span.start_column.saturating_sub(1) as usize,
-                                                span.end_column.saturating_sub(1) as usize,
-                                            ), // One line
-                                            (true, false) => (
-                                                span.start_column.saturating_sub(1) as usize,
-                                                line.len().saturating_sub(1),
-                                            ), // Multiline, first line
-                                            (false, false) => (0, line.len().saturating_sub(1)), // Multiline, in between
-                                            (false, true) => {
-                                                (0, span.end_column.saturating_sub(1) as usize)
-                                            } // Multiline, last line
-                                        };
-
-                                    let error_style = light_red.underline();
-                                    let formatted_line = format!(
-                                        "{}{}{}",
-                                        &line[..begin],
-                                        error_style.paint(&line[begin..=end]),
-                                        &line[(end + 1)..]
-                                    );
-                                    pass.push(formatted_line);
-                                } else {
-                                    pass.push(line.clone());
-                                }
-                            }
-                            formatted_lines = pass;
-                        }
-                        output.append(&mut formatted_lines);
-                    }
+                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
                 }
                 Err(output)
             }
@@ -882,8 +851,10 @@ impl Session {
                 }
                 green!(s)
             }
-            Err((message, _, Some(e))) => red!(format!("{}: {}", message, e)),
-            Err((message, _, _)) => red!(message),
+            Err((_, Some(diagnostic), Some(e))) => red!(format!("{}: {}", diagnostic.message, e)),
+            Err((_, Some(diagnostic), None)) => red!(format!("{}", diagnostic.message)),
+            Err((_, None, Some(e))) => red!(format!("{}", e)),
+            _ => panic!("Result of interpret has neither diagnostic or error"),
         };
         output.push(value);
     }
@@ -1246,15 +1217,12 @@ mod tests {
         assert_eq!(output.len(), 1);
         assert_eq!(
             output[0],
-            red!("Parsing error: Tuple literal construction expects a colon at index 1")
+            red!("Tuple literal construction expects a colon at index 1")
         );
 
         session.encode(&mut output, "::encode (foo 1)");
         assert_eq!(output.len(), 2);
-        assert_eq!(
-            output[1],
-            red!("Analysis error: use of unresolved function 'foo'")
-        );
+        assert_eq!(output[1], red!("use of unresolved function 'foo'"));
     }
 
     #[test]
