@@ -1,5 +1,6 @@
 pub mod annotation;
 pub mod ast_visitor;
+pub mod call_checker;
 pub mod check_checker;
 pub mod contract_call_detector;
 
@@ -8,6 +9,7 @@ use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::Diagnostic;
 
+use self::call_checker::CallChecker;
 use self::check_checker::CheckChecker;
 use self::contract_call_detector::ContractCallDetector;
 
@@ -30,10 +32,10 @@ pub fn run_analysis(
     let mut errors: Vec<Diagnostic> = Vec::new();
     let mut passes: Vec<
         fn(&mut ContractAnalysis, &mut AnalysisDatabase, &Vec<Annotation>) -> AnalysisResult,
-    > = vec![ContractCallDetector::run_pass];
+    > = vec![ContractCallDetector::run_pass, CallChecker::run_pass];
     for pass in pass_list {
         match pass.as_str() {
-            "all" => passes.append(&mut vec![CheckChecker::run_pass]),
+            "all" => passes.append(&mut vec![CallChecker::run_pass, CheckChecker::run_pass]),
             "check_checker" => passes.push(CheckChecker::run_pass),
             _ => panic!("{}: Unrecognized analysis pass: {}", red!("error"), pass),
         }
