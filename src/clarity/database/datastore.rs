@@ -14,6 +14,7 @@ use std::hash::Hash;
 #[derive(Clone, Debug)]
 pub struct Datastore {
     store: HashMap<StacksBlockId, HashMap<String, String>>,
+    block_id_lookup: HashMap<StacksBlockId, StacksBlockId>,
     metadata: HashMap<(String, String), String>,
     open_chain_tip: StacksBlockId,
     current_chain_tip: StacksBlockId,
@@ -36,11 +37,15 @@ impl Datastore {
         let mut store = HashMap::new();
         store.insert(id, HashMap::new());
 
+        let mut block_id_lookup = HashMap::new();
+        block_id_lookup.insert(id, id);
+
         let mut id_height_map = HashMap::new();
         id_height_map.insert(id, 0);
 
         Datastore {
             store,
+            block_id_lookup,
             metadata: HashMap::new(),
             open_chain_tip: id,
             current_chain_tip: id,
@@ -55,13 +60,8 @@ impl Datastore {
         for i in 1..=count {
             let height = cur_height + i;
             let id = height_to_id(height);
-            self.store.insert(id, self.store
-                .get(&self.open_chain_tip)
-                .expect(
-                    format!("Block at current height {} does not exist", cur_height).as_str(),
-                )
-                .clone());
-            
+
+            self.block_id_lookup.insert(id, self.open_chain_tip);
             self.height_at_chain_tip.insert(id, height);
         }
 
@@ -81,7 +81,10 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        if let Some(map) = self.store.get(&self.current_chain_tip) {
+        let lookup_id = self.block_id_lookup.get(&self.current_chain_tip)
+            .expect("Could not find current chain tip in block_id_lookup map");
+
+        if let Some(map) = self.store.get(lookup_id) {
             map.get(key).map(|v| v.clone())
         } else {
             panic!("Block does not exist for current chain tip");
@@ -214,6 +217,22 @@ impl Datastore {
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
+        let lookup_id = self.block_id_lookup.get(&self.open_chain_tip)
+            .expect("Could not find current chain tip in block_id_lookup map");
+
+        // if there isn't a store for the open chain_tip, make one and update the
+        // entry for the block id in the lookup table
+        if *lookup_id != self.open_chain_tip {
+            self.store.insert(self.open_chain_tip, self.store
+                .get(lookup_id)
+                .expect(
+                    format!("Block with ID {:?} does not exist", lookup_id).as_str(),
+                )
+                .clone());
+
+            self.block_id_lookup.insert(self.open_chain_tip, self.current_chain_tip);
+        }
+
         if let Some(map) = self.store.get_mut(&self.open_chain_tip) {
             map.insert(key.to_string(), value.to_string());
         } else {
