@@ -1,4 +1,6 @@
-use rand::RngCore;
+use rand_pcg::Pcg64;
+use rand_seeder::rand_core::RngCore;
+use rand_seeder::Seeder;
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
 
@@ -78,8 +80,8 @@ impl HeadersDB for NullHeadersDB {
         Some(burn_header_hash)
     }
 
-    fn get_vrf_seed_for_block(&self, _bhh: &StacksBlockId) -> Option<VRFSeed> {
-        let mut rng = rand::thread_rng();
+    fn get_vrf_seed_for_block(&self, bhh: &StacksBlockId) -> Option<VRFSeed> {
+        let mut rng: Pcg64 = Seeder::from(bhh).make_rng();
         let mut buf = [0u8; 32];
         rng.fill_bytes(&mut buf);
         Some(VRFSeed(buf))

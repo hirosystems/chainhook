@@ -1,3 +1,5 @@
+use sha2::{Digest, Sha512Trunc256};
+
 use super::{ClarityBackingStore, ClarityDatabase, HeadersDB};
 use crate::clarity::analysis::AnalysisDatabase;
 use crate::clarity::errors::{
@@ -7,35 +9,66 @@ use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::util::hash::Sha512Trunc256Sum;
 use crate::clarity::StacksBlockId;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 #[derive(Clone, Debug)]
 pub struct Datastore {
-    store: HashMap<String, String>,
+    store: HashMap<StacksBlockId, HashMap<String, String>>,
+    block_id_lookup: HashMap<StacksBlockId, StacksBlockId>,
     metadata: HashMap<(String, String), String>,
-    chain_tip: StacksBlockId,
+    open_chain_tip: StacksBlockId,
+    current_chain_tip: StacksBlockId,
     chain_height: u32,
+    height_at_chain_tip: HashMap<StacksBlockId, u32>,
+}
+
+fn height_to_id(height: u32) -> StacksBlockId {
+    let input_bytes = height.to_be_bytes();
+    let mut hasher = Sha512Trunc256::new();
+    hasher.update(input_bytes);
+    let hash = Sha512Trunc256Sum::from_hasher(hasher);
+    StacksBlockId(hash.0)
 }
 
 impl Datastore {
     pub fn new() -> Datastore {
+        let id = height_to_id(0);
+
+        let mut store = HashMap::new();
+        store.insert(id, HashMap::new());
+
+        let mut block_id_lookup = HashMap::new();
+        block_id_lookup.insert(id, id);
+
+        let mut id_height_map = HashMap::new();
+        id_height_map.insert(id, 0);
+
         Datastore {
-            store: HashMap::new(),
+            store,
+            block_id_lookup,
             metadata: HashMap::new(),
-            chain_tip: StacksBlockId([0u8; 32]),
+            open_chain_tip: id,
+            current_chain_tip: id,
             chain_height: 0,
+            height_at_chain_tip: id_height_map,
         }
     }
 
     pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
+        let cur_height = self.chain_height;
+
+        for i in 1..=count {
+            let height = cur_height + i;
+            let id = height_to_id(height);
+
+            self.block_id_lookup.insert(id, self.open_chain_tip);
+            self.height_at_chain_tip.insert(id, height);
+        }
+
         self.chain_height = self.chain_height + count;
-        let chain_height_bytes = self.chain_height.to_be_bytes();
-        let mut bytes = [0u8; 32];
-        bytes[0] = chain_height_bytes[0];
-        bytes[1] = chain_height_bytes[1];
-        bytes[2] = chain_height_bytes[2];
-        bytes[3] = chain_height_bytes[3];
-        self.chain_tip = StacksBlockId(bytes);
-        self.chain_height.clone()
+        self.open_chain_tip = height_to_id(self.chain_height);
+        self.current_chain_tip = self.open_chain_tip;
+        self.chain_height
     }
 }
 
@@ -48,9 +81,15 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        match self.store.get(key) {
-            Some(value) => Some(value.clone()),
-            None => None,
+        let lookup_id = self
+            .block_id_lookup
+            .get(&self.current_chain_tip)
+            .expect("Could not find current chain tip in block_id_lookup map");
+
+        if let Some(map) = self.store.get(lookup_id) {
+            map.get(key).map(|v| v.clone())
+        } else {
+            panic!("Block does not exist for current chain tip");
         }
     }
 
@@ -62,19 +101,23 @@ impl ClarityBackingStore for Datastore {
     ///   used to implement time-shifted evaluation.
     /// returns the previous block header hash on success
     fn set_block_hash(&mut self, bhh: StacksBlockId) -> Result<StacksBlockId> {
-        self.chain_tip = bhh;
-        Ok(bhh)
+        let prior_tip = self.open_chain_tip;
+        self.current_chain_tip = bhh;
+        Ok(prior_tip)
     }
 
     fn get_block_at_height(&mut self, height: u32) -> Option<StacksBlockId> {
-        Some(self.chain_tip)
+        Some(height_to_id(height))
     }
 
     /// this function returns the current block height, as viewed by this marfed-kv structure,
     ///  i.e., it changes on time-shifted evaluation. the open_chain_tip functions always
     ///   return data about the chain tip that is currently open for writing.
     fn get_current_block_height(&mut self) -> u32 {
-        self.chain_height.clone()
+        self.height_at_chain_tip
+            .get(self.get_chain_tip())
+            .expect("No height stored for current chain tip")
+            .clone()
     }
 
     fn get_open_chain_tip_height(&mut self) -> u32 {
@@ -82,7 +125,7 @@ impl ClarityBackingStore for Datastore {
     }
 
     fn get_open_chain_tip(&mut self) -> StacksBlockId {
-        self.chain_tip.clone()
+        self.open_chain_tip.clone()
     }
 
     /// The contract commitment is the hash of the contract, plus the block height in
@@ -170,20 +213,39 @@ impl Datastore {
         //     .expect("ERROR: Failed to commit MARF block");
     }
     pub fn get_chain_tip(&self) -> &StacksBlockId {
-        &self.chain_tip
+        &self.current_chain_tip
     }
 
     pub fn set_chain_tip(&mut self, bhh: &StacksBlockId) {
-        self.chain_tip = bhh.clone();
+        self.current_chain_tip = bhh.clone();
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
-        // let marf_value = MARFValue::from_value(value);
-        // self.side_store.put(&marf_value.to_hex(), value);
+        let lookup_id = self
+            .block_id_lookup
+            .get(&self.open_chain_tip)
+            .expect("Could not find current chain tip in block_id_lookup map");
 
-        // self.marf.insert(key, marf_value)
-        //     .expect("ERROR: Unexpected MARF Failure")
-        self.store.insert(key.to_string(), value.to_string());
+        // if there isn't a store for the open chain_tip, make one and update the
+        // entry for the block id in the lookup table
+        if *lookup_id != self.open_chain_tip {
+            self.store.insert(
+                self.open_chain_tip,
+                self.store
+                    .get(lookup_id)
+                    .expect(format!("Block with ID {:?} does not exist", lookup_id).as_str())
+                    .clone(),
+            );
+
+            self.block_id_lookup
+                .insert(self.open_chain_tip, self.current_chain_tip);
+        }
+
+        if let Some(map) = self.store.get_mut(&self.open_chain_tip) {
+            map.insert(key.to_string(), value.to_string());
+        } else {
+            panic!("Block does not exist for current chain tip");
+        }
     }
 
     pub fn make_contract_hash_key(contract: &QualifiedContractIdentifier) -> String {
