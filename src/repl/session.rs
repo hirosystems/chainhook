@@ -1338,6 +1338,7 @@ mod tests {
             green!("u1")
         );
         assert_eq!(session.handle_command("(at-block (unwrap-panic (get-block-info? id-header-hash u0)) (contract-call? .contract-2 get-x))")[0], green!("u0"));
+        assert_eq!(session.handle_command("(at-block (unwrap-panic (get-block-info? id-header-hash u5000)) (contract-call? .contract-2 get-x))")[0], green!("u0"));
 
         // advance chain tip again and test at-block
         session.advance_chain_tip(10);
