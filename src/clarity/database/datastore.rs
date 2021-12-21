@@ -81,7 +81,9 @@ impl ClarityBackingStore for Datastore {
 
     /// fetch K-V out of the committed datastore
     fn get(&mut self, key: &str) -> Option<String> {
-        let lookup_id = self.block_id_lookup.get(&self.current_chain_tip)
+        let lookup_id = self
+            .block_id_lookup
+            .get(&self.current_chain_tip)
             .expect("Could not find current chain tip in block_id_lookup map");
 
         if let Some(map) = self.store.get(lookup_id) {
@@ -112,9 +114,11 @@ impl ClarityBackingStore for Datastore {
     ///  i.e., it changes on time-shifted evaluation. the open_chain_tip functions always
     ///   return data about the chain tip that is currently open for writing.
     fn get_current_block_height(&mut self) -> u32 {
-        self.height_at_chain_tip.get(self.get_chain_tip())
+        self.height_at_chain_tip
+            .get(self.get_chain_tip())
             .expect("No height stored for current chain tip")
-            .clone()    }
+            .clone()
+    }
 
     fn get_open_chain_tip_height(&mut self) -> u32 {
         self.chain_height.clone()
@@ -217,20 +221,24 @@ impl Datastore {
     }
 
     pub fn put(&mut self, key: &str, value: &str) {
-        let lookup_id = self.block_id_lookup.get(&self.open_chain_tip)
+        let lookup_id = self
+            .block_id_lookup
+            .get(&self.open_chain_tip)
             .expect("Could not find current chain tip in block_id_lookup map");
 
         // if there isn't a store for the open chain_tip, make one and update the
         // entry for the block id in the lookup table
         if *lookup_id != self.open_chain_tip {
-            self.store.insert(self.open_chain_tip, self.store
-                .get(lookup_id)
-                .expect(
-                    format!("Block with ID {:?} does not exist", lookup_id).as_str(),
-                )
-                .clone());
+            self.store.insert(
+                self.open_chain_tip,
+                self.store
+                    .get(lookup_id)
+                    .expect(format!("Block with ID {:?} does not exist", lookup_id).as_str())
+                    .clone(),
+            );
 
-            self.block_id_lookup.insert(self.open_chain_tip, self.current_chain_tip);
+            self.block_id_lookup
+                .insert(self.open_chain_tip, self.current_chain_tip);
         }
 
         if let Some(map) = self.store.get_mut(&self.open_chain_tip) {

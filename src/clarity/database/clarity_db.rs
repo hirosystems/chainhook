@@ -1,6 +1,6 @@
 use rand_pcg::Pcg64;
-use rand_seeder::Seeder;
 use rand_seeder::rand_core::RngCore;
+use rand_seeder::Seeder;
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
 
