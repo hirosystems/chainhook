@@ -1,3 +1,19 @@
+# [0.19.0](https://github.com/hirosystems/clarity-repl/compare/v0.18.0...v0.19.0) (2021-12-21)
+
+
+### Bug Fixes
+
+* chain tip logic and vrf seed generation ([1863e00](https://github.com/hirosystems/clarity-repl/commit/1863e00ec0c0391610f2cf1635f048a82f40052e))
+* correctly utilize current_chain_tip ([b134d39](https://github.com/hirosystems/clarity-repl/commit/b134d39fc56e7ddd1a8152d25ec2a6f700f13de2))
+* panic if block doesn't exist ([2aedd35](https://github.com/hirosystems/clarity-repl/commit/2aedd352069488452349d6b2246936c14c2661ea))
+* use lookup table to make datastore more efficient ([ad1cfae](https://github.com/hirosystems/clarity-repl/commit/ad1cfaee29aa7d811c83f9db6b9c3defe3eb0cb1))
+
+
+### Features
+
+* start making Datastore block aware ([ca1e097](https://github.com/hirosystems/clarity-repl/commit/ca1e09733fddff3a07d9619ee4d165a2c29a7fa6))
+* use hash for block id ([2ab9ed6](https://github.com/hirosystems/clarity-repl/commit/2ab9ed603d320bd86db9fbec15b187e48d5be1b7))
+
 # [0.18.0](https://github.com/hirosystems/clarity-repl/compare/v0.17.0...v0.18.0) (2021-12-17)
 
 
