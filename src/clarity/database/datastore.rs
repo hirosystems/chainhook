@@ -56,7 +56,11 @@ impl Datastore {
 
     pub fn advance_chain_tip(&mut self, count: u32) -> u32 {
         let cur_height = self.chain_height;
-        let current_lookup_id = self.block_id_lookup.get(&self.open_chain_tip).expect("Open chain tip missing in block id lookup table").clone();
+        let current_lookup_id = self
+            .block_id_lookup
+            .get(&self.open_chain_tip)
+            .expect("Open chain tip missing in block id lookup table")
+            .clone();
 
         for i in 1..=count {
             let height = cur_height + i;
