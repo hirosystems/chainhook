@@ -1573,7 +1573,7 @@ returns `(ok true)`.
 
 const BURN_ASSET: SpecialAPI = SpecialAPI {
     input_type: "AssetName, A, principal",
-    snippet: "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:sender}",
+    snippet: "nft-burn? ${1:asset-name} ${2:asset-identifier} ${3:sender}",
     output_type: "(response bool uint)",
     signature: "(nft-burn? asset-class asset-identifier recipient)",
     description: "`nft-burn?` is used to burn an asset and remove that asset's owner from the `recipient` principal.

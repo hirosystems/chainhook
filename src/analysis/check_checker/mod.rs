@@ -41,22 +41,28 @@ struct TaintedNode<'a> {
     sources: HashSet<Node<'a>>,
 }
 
+struct FunctionInfo {
+    // Parameters which are allowed to be unchecked when passed into this
+    // function.
+    unchecked_params: Vec<bool>,
+    // Parameters which are filtered by this function using an assertion,
+    // meaning that those arguments can be considered filtered in the callee
+    // after this function has been called.
+    filtered_params: Vec<bool>,
+}
+
 pub struct CheckChecker<'a, 'b> {
     db: &'a mut AnalysisDatabase<'b>,
     taint_sources: HashMap<Node<'a>, TaintSource<'a>>,
     tainted_nodes: HashMap<Node<'a>, TaintedNode<'a>>,
     diagnostics: Vec<Diagnostic>,
     annotations: &'a Vec<Annotation>,
-    annotation_index: usize,
     active_annotation: Option<usize>,
     // Record all public functions defined
     public_funcs: HashSet<&'a ClarityName>,
     // For each user-defined function, record which parameters are allowed
     // to be unchecked (tainted)
-    user_funcs: HashMap<&'a ClarityName, Vec<bool>>,
-    // For each call of a user-defined function which has not been defined yet,
-    // record the expression to go back and re-evaluate.
-    user_calls: Vec<(&'a ClarityName, &'a [SymbolicExpression], Vec<bool>)>,
+    user_funcs: HashMap<&'a ClarityName, FunctionInfo>,
 }
 
 impl<'a, 'b> CheckChecker<'a, 'b> {
@@ -70,17 +76,14 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             tainted_nodes: HashMap::new(),
             diagnostics: Vec::new(),
             annotations,
-            annotation_index: 0,
             active_annotation: None,
             public_funcs: HashSet::new(),
             user_funcs: HashMap::new(),
-            user_calls: Vec::new(),
         }
     }
 
     fn run(mut self, contract_analysis: &'a ContractAnalysis) -> AnalysisResult {
         traverse(&mut self, &contract_analysis.expressions);
-        self.check_user_calls();
         Ok(self.diagnostics)
     }
 
@@ -159,19 +162,15 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
     fn process_annotations(&mut self, span: &Span) {
         self.active_annotation = None;
 
-        // Since we are traversing in file order, we never need to check an
-        // annotation with a lower line number than the last check.
-        while self.annotation_index < self.annotations.len() {
-            let annotation = &self.annotations[self.annotation_index];
+        for (i, annotation) in self.annotations.iter().enumerate() {
             if annotation.span.start_line == (span.start_line - 1) {
-                self.active_annotation = Some(self.annotation_index);
+                self.active_annotation = Some(i);
                 return;
             } else if annotation.span.start_line >= span.start_line {
                 // The annotations are ordered by span, so if we have passed
                 // the target line, return.
                 return;
             }
-            self.annotation_index = self.annotation_index + 1;
         }
     }
 
@@ -227,28 +226,6 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             diagnostics.push(diagnostic);
         }
         diagnostics
-    }
-
-    fn check_user_calls(&mut self) {
-        for (name, arg_exprs, unchecked_args) in &self.user_calls {
-            if self.public_funcs.contains(name) {
-                for i in 0..unchecked_args.len() {
-                    if unchecked_args[i] {
-                        self.diagnostics
-                            .append(&mut self.generate_diagnostics(&arg_exprs[i]));
-                    }
-                }
-                continue;
-            }
-
-            let unchecked_params = &self.user_funcs[name];
-            for i in 0..unchecked_params.len() {
-                if unchecked_args[i] && !unchecked_params[i] {
-                    self.diagnostics
-                        .append(&mut self.generate_diagnostics(&arg_exprs[i]));
-                }
-            }
-        }
     }
 }
 
@@ -311,13 +288,17 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         self.taint_sources.clear();
         self.tainted_nodes.clear();
+        let mut info = FunctionInfo {
+            unchecked_params: vec![],
+            filtered_params: vec![],
+        };
 
         // Upon entering a private function, parameters are considered checked,
         // unless the function is annotated otherwise.
         // TODO: for now, it is all or none, but later, allow to specify which
         // parameters can be unchecked
-        if let Some(params) = parameters {
-            let allow = self.allow_unchecked_params();
+        let allow = self.allow_unchecked_params();
+        if let Some(params) = &parameters {
             let mut unchecked_params = vec![false; params.len()];
             for (i, param) in params.iter().enumerate() {
                 unchecked_params[i] = allow;
@@ -325,15 +306,26 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
                     self.add_taint_source(Node::Symbol(param.name), param.decl_span.clone());
                 }
             }
-            self.user_funcs.insert(name, unchecked_params);
+            info.unchecked_params = unchecked_params;
         }
         self.traverse_expr(body);
 
         // Check that the return value is not tainted
-        if self.tainted_nodes.contains_key(&Node::Expr(body.id)) {
-            self.diagnostics
-                .append(&mut self.generate_diagnostics(body));
+        self.taint_check(body);
+
+        if let Some(params) = &parameters {
+            let mut filtered = vec![false; params.len()];
+            if allow {
+                for (i, param) in params.iter().enumerate() {
+                    if !self.taint_sources.contains_key(&Node::Symbol(param.name)) {
+                        filtered[i] = true;
+                    }
+                }
+            }
+            info.filtered_params = filtered;
         }
+
+        self.user_funcs.insert(name, info);
         true
     }
 
@@ -682,23 +674,18 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         if args.len() > 0 {
             let default = vec![false; args.len()];
-            if let Some(unchecked_args) = self.user_funcs.get(name) {
-                let unchecked_args = unchecked_args.clone();
+            if let Some(info) = self.user_funcs.get(name) {
+                let unchecked_args = &info.unchecked_params.clone();
+                let filtered_params = &info.filtered_params.clone();
                 for (i, arg) in args.iter().enumerate() {
                     if !unchecked_args[i] {
                         self.taint_check(arg);
                     }
-                }
-            } else {
-                // Record this call to check later, after the callee has been
-                // defined.
-                let mut unchecked_args = vec![false; args.len()];
-                for (i, arg) in args.iter().enumerate() {
-                    if self.tainted_nodes.contains_key(&Node::Expr(expr.id)) {
-                        unchecked_args[i] = true;
+
+                    if filtered_params[i] {
+                        self.filter_taint(arg);
                     }
                 }
-                self.user_calls.push((name, args, unchecked_args));
             }
         }
         true
@@ -2589,6 +2576,71 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted (amount uint))");
                 assert_eq!(output[5], "                         ^~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn private_filter() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (begin
+        (try! (my-filter amount))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+
+;; #[allow(unchecked_params)]
+(define-private (my-filter (amount uint))
+    (begin
+        (asserts! (< amount u10) (err u100))
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn private_filter_indirect() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (tainted (amount uint))
+    (begin
+        (try! (my-filter amount))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+
+;; #[allow(unchecked_params)]
+(define-private (my-filter (amount uint))
+    (my-filter-inner amount)
+)
+
+;; #[allow(unchecked_params)]
+(define-private (my-filter-inner (amount uint))
+    (begin
+        (asserts! (< amount u10) (err u100))
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
             }
             _ => panic!("Expected successful interpretation"),
         };
