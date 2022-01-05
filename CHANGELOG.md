@@ -1,3 +1,16 @@
+# [0.20.0](https://github.com/hirosystems/clarity-repl/compare/v0.19.0...v0.20.0) (2022-01-05)
+
+
+### Bug Fixes
+
+* properly update block id lookup table when advancing the chain tip ([d457df5](https://github.com/hirosystems/clarity-repl/commit/d457df5270b04356bbc382c0d2fb2baa929c5308))
+* snippet use in LSP ([f4dccdf](https://github.com/hirosystems/clarity-repl/commit/f4dccdfc1820108ec23f321ac404151720af21df))
+
+
+### Features
+
+* **check-checker:** allow private function filter ([6036d69](https://github.com/hirosystems/clarity-repl/commit/6036d6997dc9ffd38d98a5fddf85626213b1682d))
+
 # [0.19.0](https://github.com/hirosystems/clarity-repl/compare/v0.18.0...v0.19.0) (2021-12-21)
 
 
