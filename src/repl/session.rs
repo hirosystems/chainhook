@@ -1309,7 +1309,10 @@ mod tests {
         assert_eq!(session.handle_command("(at-block (unwrap-panic (get-block-info? id-header-hash u5000)) (contract-call? .contract-2 get-x))")[0], green!("u0"));
 
         // advance chain tip again and test at-block
+        // do this twice to make sure that the lookup table is being updated properly
         session.advance_chain_tip(10);
+        session.advance_chain_tip(10);
+
         assert_eq!(
             session.handle_command("(contract-call? .contract-2 get-x)")[0],
             green!("u1")
