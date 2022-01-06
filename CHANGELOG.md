@@ -1,3 +1,10 @@
+## [0.20.1](https://github.com/hirosystems/clarity-repl/compare/v0.20.0...v0.20.1) (2022-01-06)
+
+
+### Bug Fixes
+
+* remove println events ([4879ee4](https://github.com/hirosystems/clarity-repl/commit/4879ee426655b43f04b12492b41543d5ad486fb9))
+
 # [0.20.0](https://github.com/hirosystems/clarity-repl/compare/v0.19.0...v0.20.0) (2022-01-05)
 
 
