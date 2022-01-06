@@ -504,10 +504,6 @@ pub fn parse_lexed(mut input: Vec<(LexItem, u32, u32)>) -> ParseResult<Vec<PreSy
                         }
                     }
                 } else {
-                    println!(
-                        "Closing parenthesis expected ({}, {})",
-                        line_pos, column_pos
-                    );
                     return Err(ParseError::new(ParseErrors::ClosingParenthesisUnexpected));
                 }
             }
@@ -568,10 +564,6 @@ pub fn parse_lexed(mut input: Vec<(LexItem, u32, u32)>) -> ParseResult<Vec<PreSy
                         }
                     }
                 } else {
-                    println!(
-                        "Closing tuple literal unexpected ({}, {})",
-                        line_pos, column_pos
-                    );
                     return Err(ParseError::new(ParseErrors::ClosingTupleLiteralUnexpected));
                 }
             }
@@ -659,12 +651,6 @@ pub fn parse_lexed(mut input: Vec<(LexItem, u32, u32)>) -> ParseResult<Vec<PreSy
         let mut error = ParseError::new(ParseErrors::ClosingParenthesisExpected);
         if let Some((_list, start_line, start_column, _parse_context)) = parse_stack.pop() {
             error.diagnostic.add_span(start_line, start_column, 0, 0);
-            println!(
-                "Unfinished stack: {} items remaining starting at ({}, {})",
-                parse_stack.len() + 1,
-                start_line,
-                start_column
-            );
         }
         Err(error)
     } else {
