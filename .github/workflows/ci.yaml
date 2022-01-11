@@ -126,8 +126,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          # Necessary for Semantic Release
-          token: ${{ secrets.GH_TOKEN }}
+          # GH_TOKEN is necessary for Semantic Release, but for PRs to develop,
+          # (including from forks) GITHUB_TOKEN is good enough.
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
