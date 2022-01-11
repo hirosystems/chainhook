@@ -28,7 +28,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 From there, you can clone this repository:
 
 ```bash
-git clone https://github.com/lgalabru/clarity-repl.git
+git clone https://github.com/hirosystems/clarity-repl.git
 
 cd clarity-repl
 ```
@@ -69,5 +69,3 @@ wasm-pack build --target web --release -- --no-default-features --features wasm
 - [x] Test WASM builds in browser
 - [x] Ability to write Clarity contracts in Jupyter notebooks
 - [ ] Easier installation (via brew, etc)
-
-
