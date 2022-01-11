@@ -1,9 +1,13 @@
 use crate::clarity::representations::Span;
+use crate::clarity::ClarityName;
 use regex::Regex;
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub enum AnnotationKind {
     Allow(WarningKind),
+    Filter(Vec<ClarityName>),
+    FilterAll,
 }
 
 impl std::str::FromStr for AnnotationKind {
@@ -22,6 +26,22 @@ impl std::str::FromStr for AnnotationKind {
                     Ok(value) => Ok(AnnotationKind::Allow(value)),
                     Err(e) => Err("missing value for 'allow' annotation".to_string()),
                 },
+                "filter" => {
+                    if value == "*" {
+                        Ok(AnnotationKind::FilterAll)
+                    } else {
+                        let params: Vec<ClarityName> = value
+                            .split(',')
+                            .filter(|s| !s.is_empty())
+                            .map(|s| ClarityName::try_from(s.trim()).unwrap())
+                            .collect();
+                        if params.len() == 0 {
+                            Err("missing value for 'filter' annotation".to_string())
+                        } else {
+                            Ok(AnnotationKind::Filter(params))
+                        }
+                    }
+                }
                 _ => Err("unrecognized annotation".to_string()),
             }
         } else {
@@ -103,6 +123,35 @@ mod tests {
         match "".parse::<AnnotationKind>() {
             Err(_) => (),
             _ => panic!("failed to return error for bad string"),
+        };
+    }
+
+    #[test]
+    fn parse_filter() {
+        match "filter(foo,bar)".parse::<AnnotationKind>() {
+            Ok(AnnotationKind::Filter(params)) => {
+                assert!(
+                    params.len() == 2 && params[0].as_str() == "foo" && params[1].as_str() == "bar",
+                    "failed to parse 'filter' parameters correctly"
+                )
+            }
+            _ => panic!("failed to parse 'filter' correctly"),
+        };
+    }
+
+    #[test]
+    fn parse_filter_all() {
+        match "filter(*)".parse::<AnnotationKind>() {
+            Ok(AnnotationKind::FilterAll) => (),
+            _ => panic!("failed to parse 'filter(*)' correctly"),
+        };
+    }
+
+    #[test]
+    fn parse_filter_empty() {
+        match "filter".parse::<AnnotationKind>() {
+            Err(_) => (),
+            _ => panic!("failed to return error for 'filter' with no parameters"),
         };
     }
 }

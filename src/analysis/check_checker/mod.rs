@@ -11,6 +11,7 @@ use crate::clarity::representations::{Span, TraitDefinition};
 use crate::clarity::types::{TraitIdentifier, Value};
 use crate::clarity::{ClarityName, SymbolicExpression};
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
 
 pub struct CheckError;
@@ -135,6 +136,22 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
         }
     }
 
+    fn filter_source(&mut self, source_node: &Node<'a>) {
+        if let Some(source) = self.taint_sources.remove(source_node) {
+            self.tainted_nodes.remove(&source_node);
+            // Remove each taint source from its children
+            for child in &source.children {
+                if let Some(mut child_node) = self.tainted_nodes.remove(child) {
+                    child_node.sources.remove(&source_node);
+                    // If the child is still tainted (by another source), add it back to the set
+                    if child_node.sources.len() > 0 {
+                        self.tainted_nodes.insert(child.clone(), child_node);
+                    }
+                }
+            }
+        }
+    }
+
     // Filter any taint sources used in this expression
     fn filter_taint(&mut self, expr: &SymbolicExpression) {
         let node = Node::Expr(expr.id);
@@ -142,18 +159,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
         if let Some(removed_node) = self.tainted_nodes.remove(&node) {
             // Remove its sources of taint
             for source_node in &removed_node.sources {
-                let source = self.taint_sources.remove(&source_node).unwrap();
-                self.tainted_nodes.remove(&source_node);
-                // Remove each taint source from its children
-                for child in &source.children {
-                    if let Some(mut child_node) = self.tainted_nodes.remove(child) {
-                        child_node.sources.remove(&source_node);
-                        // If the child is still tainted (by another source), add it back to the set
-                        if child_node.sources.len() > 0 {
-                            self.tainted_nodes.insert(child.clone(), child_node);
-                        }
-                    }
-                }
+                self.filter_source(source_node);
             }
         }
     }
@@ -198,6 +204,24 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
         false
     }
 
+    fn apply_filters(&mut self) {
+        if let Some(n) = self.active_annotation {
+            let params = match &self.annotations[n].kind {
+                AnnotationKind::Filter(params) => params,
+                &AnnotationKind::FilterAll => {
+                    self.taint_sources.clear();
+                    self.tainted_nodes.clear();
+                    return;
+                }
+                _ => return,
+            };
+            for param in params {
+                let source = Node::Symbol(param);
+                self.filter_source(&source);
+            }
+        }
+    }
+
     fn generate_diagnostics(&self, expr: &SymbolicExpression) -> Vec<Diagnostic> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let diagnostic = Diagnostic {
@@ -237,14 +261,17 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         if self.allow_unchecked_data() {
             return true;
         }
-        match &expr.expr {
+        let result = match &expr.expr {
             AtomValue(value) => self.visit_atom_value(expr, value),
             Atom(name) => self.visit_atom(expr, name),
             List(exprs) => self.traverse_list(expr, &exprs),
             LiteralValue(value) => self.visit_literal_value(expr, value),
             Field(field) => self.visit_field(expr, field),
             TraitReference(name, trait_def) => self.visit_trait_reference(expr, name, trait_def),
-        }
+        };
+
+        self.apply_filters();
+        result
     }
 
     fn traverse_define_public(
@@ -2641,6 +2668,150 @@ mod tests {
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filter_all() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var admin principal tx-sender)
+(define-public (filter_all (amount uint))
+    (begin
+        ;; #[filter(*)]
+        (asserts! (is-eq tx-sender (var-get admin)) (err u400))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filter_one() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var admin principal tx-sender)
+(define-public (filter_one (amount uint))
+    (begin
+        ;; #[filter(amount)]
+        (asserts! (is-eq tx-sender (var-get admin)) (err u400))
+        (stx-transfer? amount (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filter_two() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var admin principal tx-sender)
+(define-public (filter_two (amount1 uint) (amount2 uint))
+    (begin
+        ;; #[filter(amount1, amount2)]
+        (asserts! (is-eq tx-sender (var-get admin)) (err u400))
+        (stx-transfer? (+ amount1 amount2) (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filter_all2() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var admin principal tx-sender)
+(define-public (filter_all2 (amount1 uint) (amount2 uint))
+    (begin
+        ;; #[filter(*)]
+        (asserts! (is-eq tx-sender (var-get admin)) (err u400))
+        (stx-transfer? (+ amount1 amount2) (as-contract tx-sender) tx-sender)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn filter_one_of_two() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var admin principal tx-sender)
+(define-public (filter_one (amount1 uint) (amount2 uint))
+    (begin
+        ;; #[filter(amount2)]
+        (asserts! (is-eq tx-sender (var-get admin)) (err u400))
+        (stx-transfer? (+ amount1 amount2) (as-contract tx-sender) tx-sender)
+    )
+)
+        "
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 6);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:7:24: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(
+                    output[1],
+                    "        (stx-transfer? (+ amount1 amount2) (as-contract tx-sender) tx-sender)"
+                );
+                assert_eq!(output[2], "                       ^~~~~~~~~~~~~~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:29: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(
+                    output[4],
+                    "(define-public (filter_one (amount1 uint) (amount2 uint))"
+                );
+                assert_eq!(output[5], "                            ^~~~~~~");
             }
             _ => panic!("Expected successful interpretation"),
         };
