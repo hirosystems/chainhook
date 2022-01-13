@@ -242,9 +242,7 @@ pub trait ASTVisitor<'a> {
                             }
                         }
                         AsContract => self.traverse_as_contract(expr, &args[0]),
-                        ContractOf => {
-                            self.traverse_contract_of(expr, args[0].match_atom().unwrap())
-                        }
+                        ContractOf => self.traverse_contract_of(expr, &args[0]),
                         PrincipalOf => self.traverse_principal_of(expr, &args[0]),
                         AtBlock => self.traverse_at_block(expr, &args[0], &args[1]),
                         GetBlockInfo => self.traverse_get_block_info(
@@ -1104,12 +1102,16 @@ pub trait ASTVisitor<'a> {
     fn traverse_contract_of(
         &mut self,
         expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
+        name: &'a SymbolicExpression,
     ) -> bool {
-        self.visit_contract_of(expr, name)
+        self.traverse_expr(name) && self.visit_contract_of(expr, name)
     }
 
-    fn visit_contract_of(&mut self, expr: &'a SymbolicExpression, name: &'a ClarityName) -> bool {
+    fn visit_contract_of(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a SymbolicExpression,
+    ) -> bool {
         true
     }
 
