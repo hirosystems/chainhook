@@ -2816,4 +2816,35 @@ mod tests {
             _ => panic!("Expected successful interpretation"),
         };
     }
+
+    #[test]
+    fn filter_trait() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-trait my-trait
+    (
+        (my-method (uint) (response uint uint))
+    )
+)
+
+(define-data-var principal-check principal 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
+
+(define-public (deposit (trait-contract <my-trait>))
+    (begin
+        (asserts! (is-eq (contract-of trait-contract) (var-get principal-check)) (err u0))
+        (try! (as-contract (contract-call? trait-contract my-method u1)))
+        (ok u1)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
 }
