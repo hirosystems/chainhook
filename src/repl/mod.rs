@@ -8,6 +8,7 @@ use crate::clarity::types;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+pub mod ast;
 pub mod interpreter;
 pub mod session;
 pub mod settings;
