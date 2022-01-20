@@ -23,6 +23,9 @@ impl fmt::Display for Level {
 pub trait DiagnosableError {
     fn message(&self) -> String;
     fn suggestion(&self) -> Option<String>;
+    fn level(&self) -> Level {
+        Level::Error
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
