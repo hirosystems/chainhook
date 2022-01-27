@@ -492,9 +492,17 @@ impl<'a> Lexer<'a> {
             '.' => Token::Dot,
             ',' => Token::Comma,
             '+' => Token::Plus,
-            '-' => Token::Minus,
             '*' => Token::Multiply,
             '/' => Token::Divide,
+            '-' => {
+                advance = false;
+                self.read_char();
+                if self.next.is_ascii_digit() {
+                    Token::Int(-self.read_integer())
+                } else {
+                    Token::Minus
+                }
+            }
             '<' => {
                 self.read_char();
                 if self.next == '=' {
