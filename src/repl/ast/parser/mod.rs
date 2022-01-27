@@ -676,6 +676,24 @@ mod tests {
             }
         );
 
+        let (stmts, diagnostics, success) = parse("    -123");
+        assert_eq!(success, true);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 0);
+        if let Some(Value::Int(-123)) = stmts[0].match_atom_value() {
+        } else {
+            panic!("failed to parse negative int value");
+        }
+        assert_eq!(
+            stmts[0].span,
+            Span {
+                start_line: 1,
+                start_column: 5,
+                end_line: 1,
+                end_column: 8
+            }
+        );
+
         let (stmts, diagnostics, success) = parse("42g ");
         assert_eq!(success, false);
         assert_eq!(stmts.len(), 1);
