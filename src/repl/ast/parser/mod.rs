@@ -79,10 +79,13 @@ impl<'a> Parser<'a> {
                 return;
             }
             let token = &self.tokens[self.next_token];
-            if token.token == Token::Whitespace {
-                self.next_token = self.next_token + 1;
-            } else {
-                return;
+            match &token.token {
+                Token::Whitespace => self.next_token = self.next_token + 1,
+                Token::Comment(comment) => {
+                    self.comments.push(comment.clone());
+                    self.next_token = self.next_token + 1;
+                }
+                _ => return,
             }
         }
     }
@@ -579,7 +582,10 @@ impl<'a> Parser<'a> {
                 e.span = token.span;
                 Some(e)
             }
-            Token::Comment(val) => None, // FIXME: Do something with the comments!
+            Token::Comment(comment) => {
+                self.comments.push(comment);
+                None
+            }
             Token::Eof => None,
             _ => None, // Other tokens should be dealt with by the caller
         };
