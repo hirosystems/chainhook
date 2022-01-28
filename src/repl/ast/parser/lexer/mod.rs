@@ -60,13 +60,14 @@ impl<'a> Lexer<'a> {
         self.last_line = self.line;
         self.last_column = self.column;
 
-        if self.next == '\n' {
-            self.line = self.line + 1;
-            self.column = 0;
-        }
-
         match self.input.next() {
-            Some(ch) => self.next = ch,
+            Some(ch) => {
+                if self.next == '\n' {
+                    self.line = self.line + 1;
+                    self.column = 0;
+                }
+                self.next = ch
+            }
             None => self.next = '\0',
         }
         self.offset = self.offset + 1;
