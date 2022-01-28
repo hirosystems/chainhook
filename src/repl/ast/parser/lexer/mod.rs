@@ -539,9 +539,8 @@ impl<'a> Lexer<'a> {
                     self.read_char();
                 }
                 advance = false;
-                self.skip_whitespace();
                 let comment = self.read_line();
-                Token::Comment(comment)
+                Token::Comment(comment.trim_start().to_string())
             }
             '\'' => {
                 advance = false;
