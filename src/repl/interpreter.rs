@@ -70,9 +70,10 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
+        parser_version: u32,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (mut ast, mut diagnostics, success) =
-            self.build_ast(contract_identifier.clone(), snippet.clone());
+            self.build_ast(contract_identifier.clone(), snippet.clone(), parser_version);
         let (annotations, mut annotation_diagnostics) = self.collect_annotations(&ast, &snippet);
         diagnostics.append(&mut annotation_diagnostics);
 
@@ -121,9 +122,11 @@ impl ClarityInterpreter {
         &mut self,
         contract_id: String,
         snippet: String,
+        parser_version: u32,
     ) -> Result<Vec<QualifiedContractIdentifier>, String> {
         let contract_id = QualifiedContractIdentifier::parse(&contract_id).unwrap();
-        let (ast, _, success) = self.build_ast(contract_id.clone(), snippet.clone());
+        let (ast, _, success) =
+            self.build_ast(contract_id.clone(), snippet.clone(), parser_version);
         if !success {
             return Err("error parsing source".to_string());
         }
@@ -144,8 +147,19 @@ impl ClarityInterpreter {
         &self,
         contract_identifier: QualifiedContractIdentifier,
         snippet: String,
+        parser_version: u32,
     ) -> (ContractAST, Vec<Diagnostic>, bool) {
-        ast::build_ast(&contract_identifier, &snippet, &mut ())
+        match parser_version {
+            1 => match clarity::ast::build_ast(&contract_identifier, &snippet, &mut ()) {
+                Ok(res) => (res, vec![], true),
+                Err(error) => (
+                    ContractAST::new(contract_identifier, vec![]),
+                    vec![error.diagnostic],
+                    false,
+                ),
+            },
+            _ => ast::build_ast(&contract_identifier, &snippet, &mut ()),
+        }
     }
 
     pub fn collect_annotations(
