@@ -125,7 +125,11 @@ impl Session {
         let code = response.source.to_string();
         let deps = self
             .interpreter
-            .detect_dependencies(contract_id.to_string(), code.clone())
+            .detect_dependencies(
+                contract_id.to_string(),
+                code.clone(),
+                self.settings.parser_version,
+            )
             .unwrap();
         Ok((code, deps))
     }
@@ -653,10 +657,13 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self
-            .interpreter
-            .run(snippet, contract_identifier.clone(), cost_track, report)
-        {
+        match self.interpreter.run(
+            snippet,
+            contract_identifier.clone(),
+            cost_track,
+            report,
+            self.settings.parser_version,
+        ) {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
