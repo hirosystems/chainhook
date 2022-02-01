@@ -42,6 +42,12 @@ struct TaintedNode<'a> {
     sources: HashSet<Node<'a>>,
 }
 
+impl Hash for &SymbolicExpression {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
 struct FunctionInfo {
     // Parameters which are allowed to be unchecked when passed into this
     // function.
@@ -56,7 +62,8 @@ pub struct CheckChecker<'a, 'b> {
     db: &'a mut AnalysisDatabase<'b>,
     taint_sources: HashMap<Node<'a>, TaintSource<'a>>,
     tainted_nodes: HashMap<Node<'a>, TaintedNode<'a>>,
-    diagnostics: Vec<Diagnostic>,
+    // Map expression ID to a generated diagnostic
+    diagnostics: HashMap<u64, Vec<Diagnostic>>,
     annotations: &'a Vec<Annotation>,
     active_annotation: Option<usize>,
     // Record all public functions defined
@@ -75,7 +82,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             db,
             taint_sources: HashMap::new(),
             tainted_nodes: HashMap::new(),
-            diagnostics: Vec::new(),
+            diagnostics: HashMap::new(),
             annotations,
             active_annotation: None,
             public_funcs: HashSet::new(),
@@ -84,8 +91,15 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
     }
 
     fn run(mut self, contract_analysis: &'a ContractAnalysis) -> AnalysisResult {
+        // First traverse the entire AST
         traverse(&mut self, &contract_analysis.expressions);
-        Ok(self.diagnostics)
+
+        // Collect all of the vecs of diagnostics into a vector
+        let mut diagnostics: Vec<Vec<Diagnostic>> = self.diagnostics.into_values().collect();
+        // Order the sets by the span of the error (the first diagnostic)
+        diagnostics.sort_by(|a, b| a[0].spans[0].cmp(&b[0].spans[0]));
+        // Then flatten into one vector
+        Ok(diagnostics.into_iter().flatten().collect())
     }
 
     fn add_taint_source(&mut self, node: Node<'a>, span: Span) {
@@ -129,14 +143,14 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
     }
 
     // If this expression is tainted, add a diagnostic
-    fn taint_check(&mut self, expr: &SymbolicExpression) {
+    fn taint_check(&mut self, expr: &'a SymbolicExpression) {
         if self.tainted_nodes.contains_key(&Node::Expr(expr.id)) {
             self.diagnostics
-                .append(&mut self.generate_diagnostics(expr));
+                .insert(expr.id, self.generate_diagnostics(expr));
         }
     }
 
-    fn filter_source(&mut self, source_node: &Node<'a>) {
+    fn filter_source(&mut self, source_node: &Node<'a>, rollback: bool) {
         if let Some(source) = self.taint_sources.remove(source_node) {
             self.tainted_nodes.remove(&source_node);
             // Remove each taint source from its children
@@ -146,6 +160,11 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
                     // If the child is still tainted (by another source), add it back to the set
                     if child_node.sources.len() > 0 {
                         self.tainted_nodes.insert(child.clone(), child_node);
+                    } else if rollback {
+                        if let Node::Expr(id) = child {
+                            // Remove any prior diagnostics for this node
+                            self.diagnostics.remove(&id);
+                        }
                     }
                 }
             }
@@ -153,13 +172,13 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
     }
 
     // Filter any taint sources used in this expression
-    fn filter_taint(&mut self, expr: &SymbolicExpression) {
+    fn filter_taint(&mut self, expr: &SymbolicExpression, rollback: bool) {
         let node = Node::Expr(expr.id);
         // Remove this node from the set of tainted nodes
         if let Some(removed_node) = self.tainted_nodes.remove(&node) {
             // Remove its sources of taint
             for source_node in &removed_node.sources {
-                self.filter_source(source_node);
+                self.filter_source(source_node, rollback);
             }
         }
     }
@@ -217,7 +236,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             };
             for param in params {
                 let source = Node::Symbol(param);
-                self.filter_source(&source);
+                self.filter_source(&source, false);
             }
         }
     }
@@ -364,7 +383,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         else_expr: &'a SymbolicExpression,
     ) -> bool {
         self.traverse_expr(cond);
-        self.filter_taint(cond);
+        self.filter_taint(cond, false);
 
         self.traverse_expr(then_expr);
         self.traverse_expr(else_expr);
@@ -379,7 +398,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         for operand in operands {
             self.traverse_expr(operand);
-            self.filter_taint(operand);
+            self.filter_taint(operand, false);
         }
         true
     }
@@ -452,7 +471,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         cond: &'a SymbolicExpression,
         thrown: &'a SymbolicExpression,
     ) -> bool {
-        self.filter_taint(cond);
+        self.filter_taint(cond, true);
         true
     }
 
@@ -517,9 +536,9 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     fn visit_stx_transfer(
         &mut self,
         expr: &'a SymbolicExpression,
-        amount: &SymbolicExpression,
-        sender: &SymbolicExpression,
-        recipient: &SymbolicExpression,
+        amount: &'a SymbolicExpression,
+        sender: &'a SymbolicExpression,
+        recipient: &'a SymbolicExpression,
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
@@ -710,7 +729,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
                     }
 
                     if filtered_params[i] {
-                        self.filter_taint(arg);
+                        self.filter_taint(arg, false);
                     }
                 }
             }
@@ -2836,6 +2855,58 @@ mod tests {
         (asserts! (is-eq (contract-of trait-contract) (var-get principal-check)) (err u0))
         (try! (as-contract (contract-call? trait-contract my-method u1)))
         (ok u1)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_after() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-public (filtered (amount uint))
+    (begin
+        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        (asserts! (< amount u100) (err u100))
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn check_after_callee() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-private (my-transfer (amount uint))
+    (begin
+        (try! (stx-transfer? amount (as-contract tx-sender) tx-sender))
+        (ok true)
+    )
+)
+(define-public (filtered (amount uint))
+    (begin
+        (try! (my-transfer amount))
+        (asserts! (< amount u100) (err u100))
+        (ok true)
     )
 )
 "
