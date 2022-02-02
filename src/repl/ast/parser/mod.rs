@@ -561,11 +561,36 @@ impl<'a> Parser<'a> {
                         Some(e)
                     }
                     _ => {
+                        // Pretend there is an identifier here and try to continue.
+                        let mut span = token.span.clone();
+                        let unexpected = self.next_token().unwrap();
                         self.add_diagnostic(PlacedError {
-                            e: ParserError::UnexpectedToken(token.token.clone()),
-                            span: token.span.clone(),
+                            e: ParserError::UnexpectedToken(unexpected.token.clone()),
+                            span: unexpected.span.clone(),
                         });
-                        None
+                        let cname = ClarityName::try_from("placeholder".to_string()).unwrap();
+                        match self.tokens[self.next_token].token {
+                            Token::Greater => {
+                                let close = self.next_token().unwrap();
+                                span.end_line = close.span.end_line;
+                                span.end_column = close.span.end_column;
+                            }
+                            _ => {
+                                self.add_diagnostic(PlacedError {
+                                    e: ParserError::ExpectedClosing(Token::Greater),
+                                    span: self.tokens[self.next_token].span.clone(),
+                                });
+                                self.add_diagnostic(PlacedError {
+                                    e: ParserError::NoteToMatchThis(token.token),
+                                    span: token.span.clone(),
+                                });
+                                span.end_line = unexpected.span.end_line;
+                                span.end_column = unexpected.span.end_column;
+                            }
+                        }
+                        let mut e = PreSymbolicExpression::trait_reference(cname);
+                        e.span = span;
+                        Some(e)
                     }
                 }
             }
@@ -1969,6 +1994,84 @@ mod tests {
                 start_column: 2,
                 end_line: 2,
                 end_column: 2
+            }
+        );
+
+        let (stmts, diagnostics, success) = parse("<123>");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "unexpected 'int'");
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 2,
+                end_line: 1,
+                end_column: 4
+            }
+        );
+        if let Some(name) = stmts[0].match_trait_reference() {
+            assert_eq!(name.as_str(), "placeholder");
+        } else {
+            panic!("failed to parse invalid trait reference");
+        }
+        assert_eq!(
+            stmts[0].span,
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 5
+            }
+        );
+
+        let (stmts, diagnostics, success) = parse("<123 ");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0].message, "unexpected 'int'");
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 2,
+                end_line: 1,
+                end_column: 4
+            }
+        );
+        assert_eq!(diagnostics[1].message, "expected closing '>'");
+        assert_eq!(
+            diagnostics[1].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 5,
+                end_line: 1,
+                end_column: 5
+            }
+        );
+        assert_eq!(diagnostics[2].message, "to match this '<'".to_string());
+        assert_eq!(
+            diagnostics[2].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 1
+            }
+        );
+        if let Some(name) = stmts[0].match_trait_reference() {
+            assert_eq!(name.as_str(), "placeholder");
+        } else {
+            panic!("failed to parse invalid trait reference");
+        }
+        assert_eq!(
+            stmts[0].span,
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 4
             }
         );
     }
