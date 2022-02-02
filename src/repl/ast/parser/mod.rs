@@ -2200,4 +2200,41 @@ mod tests {
         );
         assert_eq!(diagnostics[0].message, "unexpected ')'");
     }
+
+    #[test]
+    fn test_lexer_diagnostics() {
+        let (stmts, diagnostics, success) = parse("(print \"newline\n        in string\")");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0].message, "expected closing '\"'");
+        assert_eq!(diagnostics[0].level, Level::Error);
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 16,
+                end_line: 1,
+                end_column: 16
+            }
+        );
+
+        assert_eq!(diagnostics[1].message, "to match this '\"'");
+        assert_eq!(diagnostics[1].level, Level::Note);
+        assert_eq!(
+            diagnostics[1].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 8,
+                end_line: 1,
+                end_column: 8
+            }
+        );
+
+        // This last error is because it doesn't know what to do with the next line
+        assert_eq!(
+            diagnostics[2].message,
+            "invalid character, '\"', in identifier"
+        );
+    }
 }
