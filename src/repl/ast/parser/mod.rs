@@ -122,7 +122,6 @@ impl<'a> Parser<'a> {
                         e.span = span;
                         return e;
                     }
-                    Token::Comment(_) => (), // FIXME: This should not need to be here
                     _ => {
                         // Report an error, then skip this token
                         self.add_diagnostic(PlacedError {
@@ -582,18 +581,16 @@ impl<'a> Parser<'a> {
                 e.span = token.span;
                 Some(e)
             }
-            Token::Comment(comment) => {
-                self.comments.push(comment);
-                None
-            }
+            // TODO: For now, comments are being treated as whitespace. In the future,
+            //       they should be attached to the following expression
+            // Token::Comment(comment) => {
+            //     self.comments.push(comment);
+            //     None
+            // }
             Token::Eof => None,
             _ => None, // Other tokens should be dealt with by the caller
         };
 
-        // if let Node::Comment(val) = node {
-        //     self.comments.push(val);
-        //     node = self.parse_node()?;
-        // }
         node
     }
 
@@ -605,7 +602,6 @@ impl<'a> Parser<'a> {
                     let token = self.tokens[self.next_token - 1].clone();
                     match token.token {
                         Token::Eof => break None,
-                        Token::Comment(_) => (), // FIXME: This should not need to be here.
                         _ => {
                             // Report an error, then skip this token
                             self.add_diagnostic(PlacedError {
