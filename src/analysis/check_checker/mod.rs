@@ -1,6 +1,6 @@
 use crate::analysis::annotation::{Annotation, AnnotationKind, WarningKind};
 use crate::analysis::ast_visitor::{traverse, ASTVisitor, TypedVar};
-use crate::analysis::{AnalysisPass, AnalysisResult};
+use crate::analysis::{AnalysisPass, AnalysisResult, AnalysisSettings};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::{DiagnosableError, Diagnostic, Level};
@@ -13,6 +13,54 @@ use crate::clarity::{ClarityName, SymbolicExpression};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Settings {
+    // Strict mode sets all other options to false
+    strict: bool,
+    // After a filter on tx-sender, trust all inputs
+    trusted_sender: bool,
+    // After a filter on contract-caller, trust all inputs
+    trusted_caller: bool,
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+pub struct SettingsFile {
+    // Strict mode sets all other options to false
+    strict: Option<bool>,
+    // After a filter on tx-sender, trust all inputs
+    trusted_sender: Option<bool>,
+    // After a filter on contract-caller, trust all inputs
+    trusted_caller: Option<bool>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            strict: false,
+            trusted_sender: true,
+            trusted_caller: true,
+        }
+    }
+}
+
+impl From<SettingsFile> for Settings {
+    fn from(from_file: SettingsFile) -> Self {
+        if from_file.strict.unwrap_or(false) {
+            Settings {
+                strict: true,
+                trusted_sender: false,
+                trusted_caller: false,
+            }
+        } else {
+            Settings {
+                strict: false,
+                trusted_sender: from_file.trusted_sender.unwrap_or(true),
+                trusted_caller: from_file.trusted_caller.unwrap_or(true),
+            }
+        }
+    }
+}
 
 pub struct CheckError;
 
@@ -60,6 +108,7 @@ struct FunctionInfo {
 
 pub struct CheckChecker<'a, 'b> {
     db: &'a mut AnalysisDatabase<'b>,
+    settings: Settings,
     taint_sources: HashMap<Node<'a>, TaintSource<'a>>,
     tainted_nodes: HashMap<Node<'a>, TaintedNode<'a>>,
     // Map expression ID to a generated diagnostic
@@ -77,9 +126,11 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
     fn new(
         db: &'a mut AnalysisDatabase<'b>,
         annotations: &'a Vec<Annotation>,
+        settings: Settings,
     ) -> CheckChecker<'a, 'b> {
         Self {
             db,
+            settings,
             taint_sources: HashMap::new(),
             tainted_nodes: HashMap::new(),
             diagnostics: HashMap::new(),
@@ -166,6 +217,11 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
                             self.diagnostics.remove(&id);
                         }
                     }
+                } else if rollback {
+                    if let Node::Expr(id) = child {
+                        // Remove any prior diagnostics for this node
+                        self.diagnostics.remove(&id);
+                    }
                 }
             }
         }
@@ -181,6 +237,10 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
                 self.filter_source(source_node, rollback);
             }
         }
+    }
+
+    fn filter_all(&mut self) {
+        self.tainted_nodes.clear();
     }
 
     // Check for annotations that should be attached to the given span
@@ -228,8 +288,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             let params = match &self.annotations[n].kind {
                 AnnotationKind::Filter(params) => params,
                 &AnnotationKind::FilterAll => {
-                    self.taint_sources.clear();
-                    self.tainted_nodes.clear();
+                    self.filter_all();
                     return;
                 }
                 _ => return,
@@ -736,6 +795,47 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         }
         true
     }
+
+    fn visit_comparison(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        func: NativeFunctions,
+        operands: &'a [SymbolicExpression],
+    ) -> bool {
+        if func != NativeFunctions::Equals {
+            return true;
+        }
+
+        if (self.settings.trusted_sender
+            && ((operands[0].match_tx_sender()
+                && !self.tainted_nodes.contains_key(&Node::Expr(operands[1].id)))
+                || (operands[1].match_tx_sender()
+                    && !self.tainted_nodes.contains_key(&Node::Expr(operands[0].id)))))
+            || (self.settings.trusted_caller
+                && ((operands[0].match_contract_caller()
+                    && !self.tainted_nodes.contains_key(&Node::Expr(operands[1].id)))
+                    || (operands[1].match_contract_caller()
+                        && !self.tainted_nodes.contains_key(&Node::Expr(operands[0].id)))))
+        {
+            // Save all of the current taint sources before clearing them.
+            let sources = self.taint_sources.keys().cloned().collect();
+            self.filter_all();
+            // Set this expression to be tainted by all sources so that if it
+            // is inside of an assert, it will clear warnings from earlier
+            // statements as well.
+            self.tainted_nodes
+                .insert(Node::Expr(expr.id), TaintedNode { sources });
+        }
+        true
+    }
+}
+
+fn is_tx_sender(expr: &SymbolicExpression) -> bool {
+    if let Some(name) = expr.match_atom() {
+        name.as_str() == "tx_sender"
+    } else {
+        false
+    }
 }
 
 impl AnalysisPass for CheckChecker<'_, '_> {
@@ -743,9 +843,10 @@ impl AnalysisPass for CheckChecker<'_, '_> {
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
         annotations: &Vec<Annotation>,
+        settings: AnalysisSettings,
     ) -> AnalysisResult {
-        let tc = CheckChecker::new(analysis_db, annotations);
-        tc.run(contract_analysis)
+        let checker = CheckChecker::new(analysis_db, annotations, settings.check_checker);
+        checker.run(contract_analysis)
     }
 }
 
@@ -753,6 +854,15 @@ impl<'a> SymbolicExpression {
     fn match_tx_sender(&'a self) -> bool {
         if let Some(name) = self.match_atom() {
             if name.as_str() == "tx-sender" {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn match_contract_caller(&'a self) -> bool {
+        if let Some(name) = self.match_atom() {
+            if name.as_str() == "contract-caller" {
                 return true;
             }
         }
@@ -2792,6 +2902,7 @@ mod tests {
     fn filter_one_of_two() {
         let mut settings = SessionSettings::default();
         settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_sender = false;
         let mut session = Session::new(settings);
         let snippet = "
 (define-data-var admin principal tx-sender)
@@ -2914,6 +3025,188 @@ mod tests {
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_sender() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_sender = true;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (asserts! (is-eq tx-sender (var-get owner)) (err u1))
+        (ok (var-set owner address))
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_sender_after() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_sender = true;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (var-set owner address)
+        (asserts! (is-eq tx-sender (var-get owner)) (err u1))
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_sender_disabled() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_sender = false;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (asserts! (is-eq tx-sender (var-get owner)) (err u1))
+        (ok (var-set owner address))
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 6);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:6:28: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (ok (var-set owner address))");
+                assert_eq!(output[2], "                           ^~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:28: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (set-owner (address principal))");
+                assert_eq!(output[5], "                           ^~~~~~~");
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_caller() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_caller = true;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (asserts! (is-eq contract-caller (var-get owner)) (err u1))
+        (ok (var-set owner address))
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_caller_after() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_caller = true;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (var-set owner address)
+        (asserts! (is-eq contract-caller (var-get owner)) (err u1))
+        (ok true)
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((_, result)) => {
+                assert_eq!(result.diagnostics.len(), 0);
+            }
+            _ => panic!("Expected successful interpretation"),
+        };
+    }
+
+    #[test]
+    fn trusted_caller_disabled() {
+        let mut settings = SessionSettings::default();
+        settings.analysis = vec!["check_checker".to_string()];
+        settings.analysis_settings.check_checker.trusted_caller = false;
+        let mut session = Session::new(settings);
+        let snippet = "
+(define-data-var owner principal tx-sender)
+(define-public (set-owner (address principal))
+    (begin
+        (asserts! (is-eq contract-caller (var-get owner)) (err u1))
+        (ok (var-set owner address))
+    )
+)
+"
+        .to_string();
+        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+            Ok((output, _)) => {
+                assert_eq!(output.len(), 6);
+                assert_eq!(
+                    output[0],
+                    format!(
+                        "checker:6:28: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
+                assert_eq!(output[1], "        (ok (var-set owner address))");
+                assert_eq!(output[2], "                           ^~~~~~~");
+                assert_eq!(
+                    output[3],
+                    format!(
+                        "checker:3:28: {}: source of untrusted input here",
+                        blue!("note")
+                    )
+                );
+                assert_eq!(output[4], "(define-public (set-owner (address principal))");
+                assert_eq!(output[5], "                           ^~~~~~~");
             }
             _ => panic!("Expected successful interpretation"),
         };

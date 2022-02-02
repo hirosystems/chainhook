@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use crate::analysis::AnalysisSettings;
 use crate::clarity::{
     coverage::CoverageReporter,
     types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData},
@@ -64,6 +65,7 @@ pub struct SessionSettings {
     pub scoping_contract: Option<String>,
     pub analysis: Vec<String>,
     pub lazy_initial_contracts_interpretation: bool,
+    pub analysis_settings: AnalysisSettings,
     pub parser_version: u32,
     pub disk_cache_enabled: bool,
 }
