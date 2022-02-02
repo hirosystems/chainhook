@@ -2237,4 +2237,12 @@ mod tests {
             "invalid character, '\"', in identifier"
         );
     }
+
+    #[test]
+    fn test_consume_invalid_symbols() {
+        let (stmts, diagnostics, success) =
+            parse(" # here is a python comment\n\n    # and another\n(foo)");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 8);
+    }
 }

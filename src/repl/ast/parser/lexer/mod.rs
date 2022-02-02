@@ -582,10 +582,11 @@ impl<'a> Lexer<'a> {
                 }
             }
             _ => {
-                advance = false;
                 if self.next.is_ascii_alphabetic() {
+                    advance = false;
                     Token::Ident(self.read_identifier(None))
                 } else if self.next.is_ascii_digit() {
+                    advance = false;
                     Token::Int(self.read_integer())
                 } else {
                     self.add_diagnostic(PlacedError {
