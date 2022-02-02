@@ -259,15 +259,15 @@ impl<'a> Lexer<'a> {
                         return s;
                     }
                     '\\' => escaped = !escaped,
-                    '\0' => {
+                    '\0' | '\n' => {
                         self.add_diagnostic(PlacedError {
                             span: Span {
-                                start_line: start_line,
-                                start_column: start_column,
-                                end_line: self.last_line as u32,
-                                end_column: self.last_column as u32,
+                                start_line: self.line as u32,
+                                start_column: self.column as u32,
+                                end_line: self.line as u32,
+                                end_column: self.column as u32,
                             },
-                            e: LexerError::UnterminatedString,
+                            e: LexerError::ExpectedClosing('"'),
                         });
                         self.add_diagnostic(PlacedError {
                             span: Span {
@@ -444,22 +444,22 @@ impl<'a> Lexer<'a> {
                         return data;
                     }
                     '\\' => escaped = !escaped,
-                    '\0' => {
+                    '\0' | '\n' => {
                         self.add_diagnostic(PlacedError {
                             span: Span {
-                                start_line,
-                                start_column,
+                                start_line: self.line as u32,
+                                start_column: self.column as u32,
                                 end_line: self.line as u32,
                                 end_column: self.column as u32,
                             },
-                            e: LexerError::UnterminatedString,
+                            e: LexerError::ExpectedClosing('"'),
                         });
                         self.add_diagnostic(PlacedError {
                             span: Span {
                                 start_line,
                                 start_column,
                                 end_line: start_line,
-                                end_column: start_column,
+                                end_column: start_column + 1,
                             },
                             e: LexerError::NoteToMatchThis('"'),
                         });
@@ -746,7 +746,7 @@ mod tests {
             Token::AsciiString("open".to_string())
         );
         assert_eq!(lexer.diagnostics.len(), 2);
-        assert_eq!(lexer.diagnostics[0].e, LexerError::UnterminatedString);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::ExpectedClosing('"'));
         assert_eq!(lexer.diagnostics[1].e, LexerError::NoteToMatchThis('"'));
 
         lexer = Lexer::new("\"👎\"");
@@ -810,7 +810,7 @@ mod tests {
         };
         assert_eq!(format!("{}", data), "u\"open\"");
         assert_eq!(lexer.diagnostics.len(), 2);
-        assert_eq!(lexer.diagnostics[0].e, LexerError::UnterminatedString);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::ExpectedClosing('"'));
         assert_eq!(lexer.diagnostics[1].e, LexerError::NoteToMatchThis('"'));
 
         lexer = Lexer::new("u\"\\uabc\"");
@@ -830,7 +830,7 @@ mod tests {
         assert_eq!(format!("{}", data), "u\"a \\u{e29d97}\"");
         assert_eq!(lexer.diagnostics.len(), 3);
         assert_eq!(lexer.diagnostics[0].e, LexerError::UnterminatedUTF8Encoding);
-        assert_eq!(lexer.diagnostics[1].e, LexerError::UnterminatedString);
+        assert_eq!(lexer.diagnostics[1].e, LexerError::ExpectedClosing('"'));
         assert_eq!(lexer.diagnostics[2].e, LexerError::NoteToMatchThis('"'));
 
         lexer = Lexer::new("u\"\\u{}\"");
@@ -1545,9 +1545,18 @@ mod tests {
             lexer.diagnostics[0].span,
             Span {
                 start_line: 1,
+                start_column: 6,
+                end_line: 1,
+                end_column: 6
+            }
+        );
+        assert_eq!(
+            lexer.diagnostics[1].span,
+            Span {
+                start_line: 1,
                 start_column: 1,
                 end_line: 1,
-                end_column: 5
+                end_column: 1,
             }
         );
 
@@ -1593,9 +1602,18 @@ mod tests {
             lexer.diagnostics[0].span,
             Span {
                 start_line: 1,
-                start_column: 1,
+                start_column: 7,
                 end_line: 1,
                 end_column: 7
+            }
+        );
+        assert_eq!(
+            lexer.diagnostics[1].span,
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 2,
             }
         );
 
@@ -1670,6 +1688,28 @@ mod tests {
                 start_column: 5,
                 end_line: 1,
                 end_column: 5
+            }
+        );
+
+        lexer = Lexer::new("  \"newline\n  \"");
+        lexer.read_token(); // whitespace
+        lexer.read_token(); // string
+        assert_eq!(
+            lexer.diagnostics[0].span,
+            Span {
+                start_line: 1,
+                start_column: 11,
+                end_line: 1,
+                end_column: 11,
+            }
+        );
+        assert_eq!(
+            lexer.diagnostics[1].span,
+            Span {
+                start_line: 1,
+                start_column: 3,
+                end_line: 1,
+                end_column: 3,
             }
         );
     }
