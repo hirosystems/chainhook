@@ -84,7 +84,9 @@ impl Session {
             interpreter: ClarityInterpreter::new(
                 tx_sender,
                 settings.costs_version,
+                settings.parser_version,
                 settings.analysis.clone(),
+                settings.analysis_settings,
             ),
             asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
@@ -670,13 +672,10 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self.interpreter.run(
-            snippet,
-            contract_identifier.clone(),
-            cost_track,
-            report,
-            self.settings.parser_version,
-        ) {
+        match self
+            .interpreter
+            .run(snippet, contract_identifier.clone(), cost_track, report)
+        {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());

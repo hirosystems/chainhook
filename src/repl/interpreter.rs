@@ -2,7 +2,7 @@ use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::analysis::annotation::{Annotation, AnnotationKind};
 use crate::analysis::contract_call_detector::ContractCallDetector;
-use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
+use crate::analysis::{self, AnalysisPass as REPLAnalysisPass, AnalysisSettings};
 use crate::clarity;
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
 use crate::clarity::ast::ContractAST;
@@ -42,7 +42,9 @@ pub struct ClarityInterpreter {
     accounts: BTreeSet<String>,
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
     costs_version: u32,
+    parser_version: u32,
     analysis: Vec<String>,
+    analysis_settings: AnalysisSettings,
 }
 
 trait Equivalent {
@@ -95,7 +97,9 @@ impl ClarityInterpreter {
     pub fn new(
         tx_sender: StandardPrincipalData,
         costs_version: u32,
+        parser_version: u32,
         analysis: Vec<String>,
+        analysis_settings: AnalysisSettings,
     ) -> ClarityInterpreter {
         let datastore = Datastore::new();
         let accounts = BTreeSet::new();
@@ -106,7 +110,9 @@ impl ClarityInterpreter {
             accounts,
             tokens,
             costs_version,
+            parser_version,
             analysis,
+            analysis_settings,
         }
     }
 
@@ -116,22 +122,28 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
-        parser_version: u32,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
-        let (mut ast, mut diagnostics, success) =
-            self.build_ast(contract_identifier.clone(), snippet.clone(), parser_version);
+        let (mut ast, mut diagnostics, success) = self.build_ast(
+            contract_identifier.clone(),
+            snippet.clone(),
+            self.parser_version,
+        );
         let (annotations, mut annotation_diagnostics) = self.collect_annotations(&ast, &snippet);
         diagnostics.append(&mut annotation_diagnostics);
 
-        let (analysis, mut analysis_diagnostics) =
-            match self.run_analysis(contract_identifier.clone(), &mut ast, &annotations) {
-                Ok((analysis, diagnostics)) => (analysis, diagnostics),
-                Err((_, Some(diagnostic), _)) => {
-                    diagnostics.push(diagnostic);
-                    return Err(diagnostics);
-                }
-                Err(_) => return Err(diagnostics),
-            };
+        let (analysis, mut analysis_diagnostics) = match self.run_analysis(
+            contract_identifier.clone(),
+            &mut ast,
+            &annotations,
+            self.analysis_settings,
+        ) {
+            Ok((analysis, diagnostics)) => (analysis, diagnostics),
+            Err((_, Some(diagnostic), _)) => {
+                diagnostics.push(diagnostic);
+                return Err(diagnostics);
+            }
+            Err(_) => return Err(diagnostics),
+        };
         diagnostics.append(&mut analysis_diagnostics);
 
         // If the parser or analysis failed, return the diagnostics to the caller, else execute.
@@ -191,7 +203,12 @@ impl ClarityInterpreter {
             LimitedCostTracker::new_free(),
         );
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-        match ContractCallDetector::run_pass(&mut contract_analysis, &mut analysis_db, &vec![]) {
+        match ContractCallDetector::run_pass(
+            &mut contract_analysis,
+            &mut analysis_db,
+            &vec![],
+            self.analysis_settings,
+        ) {
             Ok(_) => Ok(contract_analysis.dependencies),
             Err(e) => Err(format!("{:?}", e)),
         }
@@ -296,6 +313,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
         contract_identifier: QualifiedContractIdentifier,
         contract_ast: &mut ContractAST,
         annotations: &Vec<Annotation>,
+        settings: AnalysisSettings,
     ) -> Result<(ContractAnalysis, Vec<Diagnostic>), (String, Option<Diagnostic>, Option<Error>)>
     {
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
@@ -320,6 +338,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             &mut analysis_db,
             &self.analysis,
             annotations,
+            settings,
         ) {
             Ok(diagnostics) => Ok((contract_analysis, diagnostics)),
             Err(mut diagnostics) => {
