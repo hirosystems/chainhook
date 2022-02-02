@@ -2344,4 +2344,41 @@ mod tests {
         assert_eq!(success, false);
         assert_eq!(stmts.len(), 8);
     }
+
+    #[test]
+    fn test_consume_comments_with_whitespace() {
+        let (stmts, diagnostics, success) =
+            parse(" ;; here is a comment\n\n    ;; and another\n(foo)");
+        assert_eq!(success, true);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 0);
+    }
+
+    #[test]
+    fn test_comment_in_list() {
+        let (stmts, diagnostics, success) =
+            parse("(\n    foo ;; comment after\n    ;; comment on its own line\n    bar\n)");
+        assert_eq!(success, true);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 0);
+    }
+
+    #[test]
+    fn test_comma_at_end() {
+        let (stmts, diagnostics, success) = parse("{this: is, a:tuple,}");
+        assert_eq!(success, true);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 0);
+
+        let (stmts, diagnostics, success) = parse(
+            r#"
+{
+    and: so,
+    is: this,
+}"#,
+        );
+        assert_eq!(success, true);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 0);
+    }
 }
