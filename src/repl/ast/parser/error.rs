@@ -69,6 +69,7 @@ impl DiagnosableError for ParserError {
         use self::ParserError::*;
         match self {
             NoteToMatchThis(_) => Level::Note,
+            Lexer(lexerError) => lexerError.level(),
             _ => Level::Error,
         }
     }
