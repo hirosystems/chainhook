@@ -27,7 +27,7 @@ pub struct Lexer<'a> {
 
 fn is_separator(ch: char) -> bool {
     match ch {
-        '(' | ')' | '{' | '}' | ',' | ':' | '\0' | '.' | '<' | '>' => true,
+        '(' | ')' | '{' | '}' | ',' | ':' | '\0' | '.' => true,
         _ => ch.is_ascii_whitespace(),
     }
 }
@@ -126,11 +126,63 @@ impl<'a> Lexer<'a> {
         loop {
             match self.next {
                 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '!' | '?' => ident.push(self.next),
+                '+' | '<' | '>' | '=' | '/' | '*' => {
+                    self.add_diagnostic(PlacedError {
+                        span: Span {
+                            start_line: self.line as u32,
+                            start_column: self.column as u32,
+                            end_line: self.line as u32,
+                            end_column: self.column as u32,
+                        },
+                        e: LexerError::WarningCharIdent(self.next),
+                    });
+                    ident.push(self.next)
+                }
                 _ => {
                     if is_separator(self.next) {
                         return ident;
                     } else {
                         self.proceed_through_error(LexerError::InvalidCharIdent(self.next));
+                        return ident;
+                    }
+                }
+            }
+            self.read_char();
+        }
+    }
+
+    pub fn read_trait_identifier(&mut self) -> String {
+        let start_line = self.last_line as u32;
+        let start_column = self.last_column as u32;
+        let mut ident = String::new();
+
+        loop {
+            match self.next {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' => ident.push(self.next),
+                '>' => return ident,
+                _ => {
+                    if is_separator(self.next) {
+                        self.add_diagnostic(PlacedError {
+                            span: Span {
+                                start_line: self.line as u32,
+                                start_column: self.column as u32,
+                                end_line: self.line as u32,
+                                end_column: self.column as u32,
+                            },
+                            e: LexerError::ExpectedClosing('>'),
+                        });
+                        self.add_diagnostic(PlacedError {
+                            span: Span {
+                                start_line,
+                                start_column,
+                                end_line: start_line,
+                                end_column: start_column,
+                            },
+                            e: LexerError::NoteToMatchThis('<'),
+                        });
+                        return ident;
+                    } else {
+                        self.proceed_through_error(LexerError::InvalidCharTraitIdent(self.next));
                         return ident;
                     }
                 }
@@ -508,6 +560,8 @@ impl<'a> Lexer<'a> {
                 self.read_char();
                 if self.next == '=' {
                     Token::LessEqual
+                } else if self.next.is_ascii_alphabetic() {
+                    Token::TraitIdent(self.read_trait_identifier())
                 } else {
                     advance = false;
                     Token::Less
@@ -605,6 +659,31 @@ impl<'a> Lexer<'a> {
 
         if advance {
             self.read_char();
+        }
+
+        // Check for separators when required
+        match token {
+            Token::Plus
+            | Token::Minus
+            | Token::Multiply
+            | Token::Divide
+            | Token::Less
+            | Token::LessEqual
+            | Token::Greater
+            | Token::GreaterEqual => {
+                if !is_separator(self.next) {
+                    self.add_diagnostic(PlacedError {
+                        span: Span {
+                            start_line: self.line as u32,
+                            start_column: self.column as u32,
+                            end_line: self.line as u32,
+                            end_column: self.column as u32,
+                        },
+                        e: LexerError::ExpectedSeparator,
+                    });
+                }
+            }
+            _ => (),
         }
 
         PlacedToken {
@@ -1487,7 +1566,37 @@ mod tests {
             }
         );
 
-        assert_eq!(lexer.diagnostics.len(), 0);
+        assert_eq!(lexer.diagnostics.len(), 3);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::ExpectedSeparator);
+        assert_eq!(
+            lexer.diagnostics[0].span,
+            Span {
+                start_line: 4,
+                start_column: 10,
+                end_line: 4,
+                end_column: 10
+            }
+        );
+        assert_eq!(lexer.diagnostics[1].e, LexerError::ExpectedSeparator);
+        assert_eq!(
+            lexer.diagnostics[1].span,
+            Span {
+                start_line: 4,
+                start_column: 11,
+                end_line: 4,
+                end_column: 11
+            }
+        );
+        assert_eq!(lexer.diagnostics[2].e, LexerError::ExpectedSeparator);
+        assert_eq!(
+            lexer.diagnostics[2].span,
+            Span {
+                start_line: 4,
+                start_column: 12,
+                end_line: 4,
+                end_column: 12
+            }
+        );
     }
 
     #[test]
@@ -1733,12 +1842,58 @@ mod tests {
     #[test]
     fn read_trait_reference() {
         let mut lexer = Lexer::new("<fancy-dolphin>");
-        assert_eq!(lexer.read_token().token, Token::Less);
         assert_eq!(
             lexer.read_token().token,
-            Token::Ident("fancy-dolphin".to_string())
+            Token::TraitIdent("fancy-dolphin".to_string())
         );
-        assert_eq!(lexer.read_token().token, Token::Greater);
+        assert_eq!(lexer.read_token().token, Token::Eof);
         assert_eq!(lexer.diagnostics.len(), 0);
+
+        lexer = Lexer::new("<illegal*name>");
+        assert_eq!(
+            lexer.read_token().token,
+            Token::TraitIdent("illegal".to_string())
+        );
+        assert_eq!(lexer.diagnostics.len(), 1);
+        assert_eq!(
+            lexer.diagnostics[0].e,
+            LexerError::InvalidCharTraitIdent('*')
+        );
+        assert_eq!(
+            lexer.diagnostics[0].span,
+            Span {
+                start_line: 1,
+                start_column: 9,
+                end_line: 1,
+                end_column: 14,
+            }
+        );
+
+        lexer = Lexer::new("<not-closed ");
+        assert_eq!(
+            lexer.read_token().token,
+            Token::TraitIdent("not-closed".to_string())
+        );
+        assert_eq!(lexer.diagnostics.len(), 2);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::ExpectedClosing('>'));
+        assert_eq!(
+            lexer.diagnostics[0].span,
+            Span {
+                start_line: 1,
+                start_column: 12,
+                end_line: 1,
+                end_column: 12,
+            }
+        );
+        assert_eq!(lexer.diagnostics[1].e, LexerError::NoteToMatchThis('<'));
+        assert_eq!(
+            lexer.diagnostics[1].span,
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 1,
+            }
+        );
     }
 }
