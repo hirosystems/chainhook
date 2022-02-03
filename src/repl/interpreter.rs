@@ -45,6 +45,52 @@ pub struct ClarityInterpreter {
     analysis: Vec<String>,
 }
 
+trait Equivalent {
+    fn equivalent(&self, other: &Self) -> bool;
+}
+
+impl Equivalent for SymbolicExpression {
+    fn equivalent(&self, other: &Self) -> bool {
+        use crate::clarity::representations::SymbolicExpressionType::*;
+        match (&self.expr, &other.expr) {
+            (AtomValue(a), AtomValue(b)) => a == b,
+            (Atom(a), Atom(b)) => a == b,
+            (List(a), List(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                for i in 0..a.len() {
+                    if !a[i].equivalent(&b[i]) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (LiteralValue(a), LiteralValue(b)) => a == b,
+            (Field(a), Field(b)) => a == b,
+            (TraitReference(a_name, a_trait), TraitReference(b_name, b_trait)) => {
+                a_name == b_name && a_trait == b_trait
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Equivalent for ContractAST {
+    fn equivalent(&self, other: &Self) -> bool {
+        if self.expressions.len() != other.expressions.len() {
+            return false;
+        }
+
+        for i in 0..self.expressions.len() {
+            if !self.expressions[i].equivalent(&other.expressions[i]) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 impl ClarityInterpreter {
     pub fn new(
         tx_sender: StandardPrincipalData,
@@ -158,7 +204,37 @@ impl ClarityInterpreter {
                     false,
                 ),
             },
-            _ => ast::build_ast(&contract_identifier, &snippet, &mut ()),
+            _ => {
+                // While parser v2 is new, we will run both parsers, and check for equivalence.
+                // If they don't match, report a warning and use v1. Once v2 is battle-tested,
+                // this can be removed. If there are errors when parsing, then the ASTs are not
+                // expected to match, and v2 is still used.
+                let (ast, diagnostics, success) =
+                    ast::build_ast(&contract_identifier, &snippet, &mut ());
+                let (ast_old, mut diagnostics_old, success_old) =
+                    match clarity::ast::build_ast(&contract_identifier, &snippet, &mut ()) {
+                        Ok(res) => (res, vec![], true),
+                        Err(error) => (
+                            ContractAST::new(contract_identifier, vec![]),
+                            vec![error.diagnostic],
+                            false,
+                        ),
+                    };
+                if (success && !ast.equivalent(&ast_old)) || success != success_old {
+                    diagnostics_old.push(Diagnostic {
+                        level: Level::Warning,
+                        message: r#"conflict between parser versions, reverting to parser v1
+Help improve clarinet by sharing the code that triggered this warning:
+https://github.com/hirosystems/clarinet/issues/new/choose"#
+                            .to_string(),
+                        spans: vec![],
+                        suggestion: None,
+                    });
+                    (ast_old, diagnostics_old, success_old)
+                } else {
+                    (ast, diagnostics, success)
+                }
+            }
         }
     }
 
