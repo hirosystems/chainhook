@@ -330,6 +330,21 @@ impl<'a> Parser<'a> {
                 e.span = token.span;
                 Some(e)
             }
+            Token::TraitIdent(name) => {
+                let cname = match ClarityName::try_from(name.clone()) {
+                    Ok(name) => name,
+                    Err(e) => {
+                        self.add_diagnostic(PlacedError {
+                            e: ParserError::IllegalClarityName(name.clone()),
+                            span: token.span.clone(),
+                        });
+                        ClarityName::try_from("_bad_name_").unwrap()
+                    }
+                };
+                let mut e = PreSymbolicExpression::trait_reference(cname);
+                e.span = token.span;
+                Some(e)
+            }
             Token::Bytes(data) => {
                 let value = match Value::buff_from(data) {
                     Ok(value) => value,
@@ -514,90 +529,11 @@ impl<'a> Parser<'a> {
                     Some(e)
                 }
             }
-            Token::Less => {
-                // If the next token is whitespace, then this is a "less than", but if it is
-                // an identifier, then it is a trait reference.
-                match self.tokens[self.next_token].token.clone() {
-                    Token::Ident(name) => {
-                        let mut span = token.span.clone();
-                        let ident = self.next_token().unwrap();
-                        let cname = match ClarityName::try_from(name.clone()) {
-                            Ok(cname) => cname,
-                            _ => {
-                                self.add_diagnostic(PlacedError {
-                                    e: ParserError::IllegalContractName,
-                                    span: ident.span.clone(),
-                                });
-                                ClarityName::try_from("placeholder".to_string()).unwrap()
-                            }
-                        };
-                        match self.tokens[self.next_token].token {
-                            Token::Greater => {
-                                let close = self.next_token().unwrap();
-                                span.end_line = close.span.end_line;
-                                span.end_column = close.span.end_column;
-                            }
-                            _ => {
-                                self.add_diagnostic(PlacedError {
-                                    e: ParserError::ExpectedClosing(Token::Greater),
-                                    span: self.tokens[self.next_token].span.clone(),
-                                });
-                                self.add_diagnostic(PlacedError {
-                                    e: ParserError::NoteToMatchThis(token.token),
-                                    span: token.span.clone(),
-                                });
-                                span.end_line = ident.span.end_line;
-                                span.end_column = ident.span.end_column;
-                            }
-                        }
-                        let mut e = PreSymbolicExpression::trait_reference(cname);
-                        e.span = span;
-                        Some(e)
-                    }
-                    Token::Whitespace => {
-                        let name = ClarityName::try_from("<").unwrap();
-                        let mut e = PreSymbolicExpression::atom(name);
-                        e.span = token.span;
-                        Some(e)
-                    }
-                    _ => {
-                        // Pretend there is an identifier here and try to continue.
-                        let mut span = token.span.clone();
-                        let unexpected = self.next_token().unwrap();
-                        self.add_diagnostic(PlacedError {
-                            e: ParserError::UnexpectedToken(unexpected.token.clone()),
-                            span: unexpected.span.clone(),
-                        });
-                        let cname = ClarityName::try_from("placeholder".to_string()).unwrap();
-                        match self.tokens[self.next_token].token {
-                            Token::Greater => {
-                                let close = self.next_token().unwrap();
-                                span.end_line = close.span.end_line;
-                                span.end_column = close.span.end_column;
-                            }
-                            _ => {
-                                self.add_diagnostic(PlacedError {
-                                    e: ParserError::ExpectedClosing(Token::Greater),
-                                    span: self.tokens[self.next_token].span.clone(),
-                                });
-                                self.add_diagnostic(PlacedError {
-                                    e: ParserError::NoteToMatchThis(token.token),
-                                    span: token.span.clone(),
-                                });
-                                span.end_line = unexpected.span.end_line;
-                                span.end_column = unexpected.span.end_column;
-                            }
-                        }
-                        let mut e = PreSymbolicExpression::trait_reference(cname);
-                        e.span = span;
-                        Some(e)
-                    }
-                }
-            }
             Token::Plus
             | Token::Minus
             | Token::Multiply
             | Token::Divide
+            | Token::Less
             | Token::LessEqual
             | Token::Greater
             | Token::GreaterEqual => {
@@ -947,12 +883,12 @@ mod tests {
         );
 
         let (stmts, diagnostics, success) = parse("hello*world");
-        assert_eq!(success, false);
+        assert_eq!(success, true);
         assert_eq!(stmts.len(), 1);
         if let Some(v) = stmts[0].match_atom() {
-            assert_eq!(v.as_str(), "hello");
+            assert_eq!(v.as_str(), "hello*world");
         } else {
-            panic!("failed to parse identifier with error");
+            panic!("failed to parse identifier with dangerous char");
         }
         assert_eq!(
             stmts[0].span,
@@ -964,10 +900,10 @@ mod tests {
             }
         );
         assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].level, Level::Error);
+        assert_eq!(diagnostics[0].level, Level::Warning);
         assert_eq!(
             diagnostics[0].message,
-            "invalid character, '*', in identifier".to_string()
+            "identifiers containing a '*' are bad for readability and may be illegal in a future version of Clarity".to_string()
         );
         assert_eq!(
             diagnostics[0].spans[0],
@@ -975,7 +911,7 @@ mod tests {
                 start_line: 1,
                 start_column: 6,
                 end_line: 1,
-                end_column: 11
+                end_column: 6
             }
         );
     }
@@ -1980,7 +1916,7 @@ mod tests {
                 start_line: 2,
                 start_column: 2,
                 end_line: 2,
-                end_column: 9
+                end_column: 10
             }
         );
         assert_eq!(diagnostics.len(), 2);
@@ -1999,48 +1935,22 @@ mod tests {
 
         let (stmts, diagnostics, success) = parse("<123>");
         assert_eq!(success, false);
-        assert_eq!(stmts.len(), 1);
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].message, "unexpected 'int'");
+        assert_eq!(stmts.len(), 2);
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].message, "expected separator");
         assert_eq!(
             diagnostics[0].spans[0],
             Span {
                 start_line: 1,
                 start_column: 2,
                 end_line: 1,
-                end_column: 4
+                end_column: 2
             }
         );
-        if let Some(name) = stmts[0].match_trait_reference() {
-            assert_eq!(name.as_str(), "placeholder");
-        } else {
-            panic!("failed to parse invalid trait reference");
-        }
         assert_eq!(
-            stmts[0].span,
-            Span {
-                start_line: 1,
-                start_column: 1,
-                end_line: 1,
-                end_column: 5
-            }
+            diagnostics[1].message,
+            "invalid character, '>', in int literal"
         );
-
-        let (stmts, diagnostics, success) = parse("<123 ");
-        assert_eq!(success, false);
-        assert_eq!(stmts.len(), 1);
-        assert_eq!(diagnostics.len(), 3);
-        assert_eq!(diagnostics[0].message, "unexpected 'int'");
-        assert_eq!(
-            diagnostics[0].spans[0],
-            Span {
-                start_line: 1,
-                start_column: 2,
-                end_line: 1,
-                end_column: 4
-            }
-        );
-        assert_eq!(diagnostics[1].message, "expected closing '>'");
         assert_eq!(
             diagnostics[1].spans[0],
             Span {
@@ -2050,18 +1960,8 @@ mod tests {
                 end_column: 5
             }
         );
-        assert_eq!(diagnostics[2].message, "to match this '<'".to_string());
-        assert_eq!(
-            diagnostics[2].spans[0],
-            Span {
-                start_line: 1,
-                start_column: 1,
-                end_line: 1,
-                end_column: 1
-            }
-        );
-        if let Some(name) = stmts[0].match_trait_reference() {
-            assert_eq!(name.as_str(), "placeholder");
+        if let Some(name) = stmts[0].match_atom() {
+            assert_eq!(name.as_str(), "<");
         } else {
             panic!("failed to parse invalid trait reference");
         }
@@ -2070,6 +1970,63 @@ mod tests {
             Span {
                 start_line: 1,
                 start_column: 1,
+                end_line: 1,
+                end_column: 1
+            }
+        );
+        match stmts[1].match_atom_value() {
+            Some(Value::Int(123)) => (),
+            _ => panic!("failed to parse int with errors"),
+        }
+        assert_eq!(
+            stmts[1].span,
+            Span {
+                start_line: 1,
+                start_column: 2,
+                end_line: 1,
+                end_column: 5
+            }
+        );
+
+        let (stmts, diagnostics, success) = parse("<123 ");
+        println!("STMTS: {:?}", stmts);
+        println!("DIAGS: {:?}", diagnostics);
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 2);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "expected separator");
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 2,
+                end_line: 1,
+                end_column: 2
+            }
+        );
+        if let Some(name) = stmts[0].match_atom() {
+            assert_eq!(name.as_str(), "<");
+        } else {
+            panic!("failed to parse invalid trait reference");
+        }
+        assert_eq!(
+            stmts[0].span,
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 1
+            }
+        );
+        match stmts[1].match_atom_value() {
+            Some(Value::Int(123)) => (),
+            _ => panic!("failed to parse int with errors"),
+        }
+        assert_eq!(
+            stmts[1].span,
+            Span {
+                start_line: 1,
+                start_column: 2,
                 end_line: 1,
                 end_column: 4
             }
