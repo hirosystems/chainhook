@@ -452,12 +452,12 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             });
 
             execution_result.coverage = global_context.coverage_reporting.take();
-
             let value = match result {
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    return Err(("Runtime".to_string(), None, Some(e)));
+                    println!("{}", red!(format!("Runtime error while interpreting {}: {:?}", contract_identifier, e)));
+                    std::process::exit(1);
                 }
             };
 
