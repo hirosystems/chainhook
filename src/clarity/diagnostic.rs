@@ -23,6 +23,9 @@ impl fmt::Display for Level {
 pub trait DiagnosableError {
     fn message(&self) -> String;
     fn suggestion(&self) -> Option<String>;
+    fn level(&self) -> Level {
+        Level::Error
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -74,7 +77,11 @@ impl Diagnostic {
             let last_line = span.end_line.saturating_sub(1) as usize;
 
             output.push(lines[first_line].clone());
-            let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
+            let mut pointer = format!(
+                "{: <1$}^",
+                "",
+                (span.start_column.saturating_sub(1)) as usize
+            );
             if span.start_line == span.end_line {
                 pointer = format!(
                     "{}{:~<2$}",

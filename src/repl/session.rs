@@ -125,7 +125,11 @@ impl Session {
         let code = response.source.to_string();
         let deps = self
             .interpreter
-            .detect_dependencies(contract_id.to_string(), code.clone())
+            .detect_dependencies(
+                contract_id.to_string(),
+                code.clone(),
+                self.settings.parser_version,
+            )
             .unwrap();
         Ok((code, deps))
     }
@@ -576,9 +580,9 @@ impl Session {
                 }
                 Ok((output, result))
             }
-            Err((_, diagnostic, _)) => {
-                if let Some(diagnostic) = diagnostic {
-                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
+            Err(diagnostics) => {
+                for d in diagnostics {
+                    output.append(&mut d.output(&contract_name, &formatted_lines));
                 }
                 Err(output)
             }
@@ -592,7 +596,7 @@ impl Session {
         args: &Vec<String>,
         sender: &str,
         test_name: String,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
+    ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let initial_tx_sender = self.get_tx_sender();
         // Kludge for handling fully qualified contract_id vs sugared syntax
         let first_char = contract.chars().next().unwrap();
@@ -630,7 +634,7 @@ impl Session {
         name: Option<String>,
         cost_track: bool,
         test_name: Option<String>,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
+    ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (contract_name, is_tx) = match name {
             Some(name) => (name, false),
             None => (format!("contract-{}", self.contracts.len()), true),
@@ -653,10 +657,13 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self
-            .interpreter
-            .run(snippet, contract_identifier.clone(), cost_track, report)
-        {
+        match self.interpreter.run(
+            snippet,
+            contract_identifier.clone(),
+            cost_track,
+            report,
+            self.settings.parser_version,
+        ) {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
@@ -851,10 +858,13 @@ impl Session {
                 }
                 green!(s)
             }
-            Err((_, Some(diagnostic), Some(e))) => red!(format!("{}: {}", diagnostic.message, e)),
-            Err((_, Some(diagnostic), None)) => red!(format!("{}", diagnostic.message)),
-            Err((_, None, Some(e))) => red!(format!("{}", e)),
-            _ => panic!("Result of interpret has neither diagnostic or error"),
+            Err(diagnostics) => {
+                let lines: Vec<String> = snippet.split('\n').map(|s| s.to_string()).collect();
+                for d in diagnostics {
+                    output.append(&mut d.output(&"encode".to_string(), &lines));
+                }
+                red!("encoding failed")
+            }
         };
         output.push(value);
     }
@@ -1214,15 +1224,22 @@ mod tests {
         let mut session = Session::new(SessionSettings::default());
         let mut output: Vec<String> = Vec::new();
         session.encode(&mut output, "::encode { foo false }");
-        assert_eq!(output.len(), 1);
         assert_eq!(
             output[0],
-            red!("Tuple literal construction expects a colon at index 1")
+            format!(
+                "encode:1:7: {}: expected ':' after key in tuple",
+                red!("error")
+            )
         );
 
         session.encode(&mut output, "::encode (foo 1)");
-        assert_eq!(output.len(), 2);
-        assert_eq!(output[1], red!("use of unresolved function 'foo'"));
+        assert_eq!(
+            output[4],
+            format!(
+                "encode:1:1: {}: use of unresolved function 'foo'",
+                red!("error")
+            )
+        );
     }
 
     #[test]

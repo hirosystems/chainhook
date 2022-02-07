@@ -1,3 +1,16 @@
+# [0.21.0](https://github.com/hirosystems/clarity-repl/compare/v0.20.1...v0.21.0) (2022-01-13)
+
+
+### Bug Fixes
+
+* fix ast visitor traversal of contract-of expr ([d553e50](https://github.com/hirosystems/clarity-repl/commit/d553e50d3ffdac6b4994015450058a3a29e872ed)), closes [#77](https://github.com/hirosystems/clarity-repl/issues/77)
+* resolve CI failure for forks ([8152e4b](https://github.com/hirosystems/clarity-repl/commit/8152e4b086faef02ac21f23b8af5d65c93345166))
+
+
+### Features
+
+* add 'filter' annotation ([4cebe6b](https://github.com/hirosystems/clarity-repl/commit/4cebe6bcc58c928ef62a3d3faad6d15802f215db)), closes [#72](https://github.com/hirosystems/clarity-repl/issues/72)
+
 ## [0.20.1](https://github.com/hirosystems/clarity-repl/compare/v0.20.0...v0.20.1) (2022-01-06)
 
 

@@ -33,6 +33,12 @@ git clone https://github.com/hirosystems/clarity-repl.git
 cd clarity-repl
 ```
 
+By default, you will be in our development branch, `develop`, with code that has not been released yet. If you plan to submit any changes to the code, then this is the right branch for you. If you just want the latest stable version, switch to the main branch:
+
+```bash
+git checkout main
+```
+
 Then build and install:
 
 ```bash

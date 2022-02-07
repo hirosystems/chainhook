@@ -8,6 +8,7 @@ use crate::clarity::diagnostic::{DiagnosableError, Diagnostic, Level};
 use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, Value};
 use crate::clarity::ClarityName;
+use crate::clarity::SymbolicExpressionType::List;
 use std::collections::{BTreeSet, HashMap};
 
 pub struct CallChecker<'a> {
@@ -52,10 +53,27 @@ impl<'a> CallChecker<'a> {
         }
     }
 
-    fn generate_diagnostic(
+    fn check_builtin_arg_count(
         &mut self,
         expr: &'a SymbolicExpression,
-        name: &'a ClarityName,
+        name: &str,
+        param_count: usize,
+    ) {
+        let exprs: &[SymbolicExpression] = if let List(exprs) = &expr.expr {
+            exprs
+        } else {
+            panic!("expected list expression");
+        };
+        if exprs.len() != (param_count + 1) {
+            let diagnostic = self.generate_diagnostic(expr, name, param_count, exprs.len() - 1);
+            self.diagnostics.push(diagnostic);
+        }
+    }
+
+    fn generate_diagnostic(
+        &mut self,
+        expr: &SymbolicExpression,
+        name: &str,
         expected: usize,
         got: usize,
     ) -> Diagnostic {
@@ -132,6 +150,42 @@ impl<'a> ASTVisitor<'a> for CallChecker<'a> {
         } else {
             self.user_calls.push((name, expr, args.len()));
         }
+        true
+    }
+
+    // The type-checker does not properly check the argument count for some
+    // built-in functions. Those that are not checked by the type-checker are
+    // checked below.
+
+    fn visit_map_set(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        self.check_builtin_arg_count(expr, "map-set", 3);
+        true
+    }
+
+    fn visit_map_insert(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+        value: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        self.check_builtin_arg_count(expr, "map-insert", 3);
+        true
+    }
+
+    fn visit_map_delete(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        key: &HashMap<Option<&'a ClarityName>, &'a SymbolicExpression>,
+    ) -> bool {
+        self.check_builtin_arg_count(expr, "map-delete", 2);
         true
     }
 }
@@ -262,5 +316,51 @@ mod tests {
             }
             _ => panic!("Expected successful interpretation"),
         };
+    }
+
+    #[test]
+    fn builtin_function_arg_count() {
+        let mut session = Session::new(SessionSettings::default());
+        let snippet = "
+(define-map kv-store { key: int } { value: int })
+(define-private (incompatible-tuple) (tuple (k 1)))
+(define-private (kv-set (key int) (value int))
+    (map-set kv-store { key: key } { value: value } {value: 0}))"
+            .to_string();
+        if let Err(err_output) =
+            session.formatted_interpretation(snippet, Some("checker".to_string()), false, None)
+        {
+            assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-set' (expected 3 got 4)", red!("error")));
+        } else {
+            panic!("expected error")
+        }
+
+        let snippet = "
+(define-map kv-store { key: int } { value: int })
+(define-private (incompatible-tuple) (tuple (k 1)))
+(define-private (kv-add (key int) (value int))
+    (map-insert kv-store { key: key } { value: value } { value: 0}))"
+            .to_string();
+        if let Err(err_output) =
+            session.formatted_interpretation(snippet, Some("checker".to_string()), false, None)
+        {
+            assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-insert' (expected 3 got 4)", red!("error")));
+        } else {
+            panic!("expected error")
+        }
+
+        let snippet = "
+(define-map kv-store { key: int } { value: int })
+(define-private (incompatible-tuple) (tuple (k 1)))
+(define-private (kv-del (key int))
+    (map-delete kv-store { key: 1 } {value: 0}))"
+            .to_string();
+        if let Err(err_output) =
+            session.formatted_interpretation(snippet, Some("checker".to_string()), false, None)
+        {
+            assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-delete' (expected 2 got 3)", red!("error")));
+        } else {
+            panic!("expected error")
+        }
     }
 }

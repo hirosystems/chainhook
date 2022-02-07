@@ -5,7 +5,6 @@ use crate::analysis::contract_call_detector::ContractCallDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
 use crate::clarity;
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
-use crate::clarity::ast;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::contexts::{
     CallStack, ContractContext, Environment, GlobalContext, LocalContext,
@@ -25,6 +24,7 @@ use crate::clarity::types::{
 use crate::clarity::util::StacksAddress;
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
+use crate::repl::ast;
 use crate::repl::{CostSynthesis, ExecutionResult};
 
 pub const BLOCK_LIMIT_MAINNET: ExecutionCost = ExecutionCost {
@@ -43,6 +43,52 @@ pub struct ClarityInterpreter {
     tokens: BTreeMap<String, BTreeMap<String, u128>>,
     costs_version: u32,
     analysis: Vec<String>,
+}
+
+trait Equivalent {
+    fn equivalent(&self, other: &Self) -> bool;
+}
+
+impl Equivalent for SymbolicExpression {
+    fn equivalent(&self, other: &Self) -> bool {
+        use crate::clarity::representations::SymbolicExpressionType::*;
+        match (&self.expr, &other.expr) {
+            (AtomValue(a), AtomValue(b)) => a == b,
+            (Atom(a), Atom(b)) => a == b,
+            (List(a), List(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                for i in 0..a.len() {
+                    if !a[i].equivalent(&b[i]) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (LiteralValue(a), LiteralValue(b)) => a == b,
+            (Field(a), Field(b)) => a == b,
+            (TraitReference(a_name, a_trait), TraitReference(b_name, b_trait)) => {
+                a_name == b_name && a_trait == b_trait
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Equivalent for ContractAST {
+    fn equivalent(&self, other: &Self) -> bool {
+        if self.expressions.len() != other.expressions.len() {
+            return false;
+        }
+
+        for i in 0..self.expressions.len() {
+            if !self.expressions[i].equivalent(&other.expressions[i]) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl ClarityInterpreter {
@@ -70,23 +116,44 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         coverage_reporter: Option<TestCoverageReport>,
-    ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
-        let mut ast = self.build_ast(contract_identifier.clone(), snippet.clone())?;
-        let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
+        parser_version: u32,
+    ) -> Result<ExecutionResult, Vec<Diagnostic>> {
+        let (mut ast, mut diagnostics, success) =
+            self.build_ast(contract_identifier.clone(), snippet.clone(), parser_version);
+        let (annotations, mut annotation_diagnostics) = self.collect_annotations(&ast, &snippet);
+        diagnostics.append(&mut annotation_diagnostics);
+
         let (analysis, mut analysis_diagnostics) =
             match self.run_analysis(contract_identifier.clone(), &mut ast, &annotations) {
                 Ok((analysis, diagnostics)) => (analysis, diagnostics),
-                Err(e) => return Err(e),
+                Err((_, Some(diagnostic), _)) => {
+                    diagnostics.push(diagnostic);
+                    return Err(diagnostics);
+                }
+                Err(_) => return Err(diagnostics),
             };
         diagnostics.append(&mut analysis_diagnostics);
-        let mut result = self.execute(
+
+        // If the parser or analysis failed, return the diagnostics to the caller, else execute.
+        if !success {
+            return Err(diagnostics);
+        }
+
+        let mut result = match self.execute(
             contract_identifier,
             &mut ast,
             snippet,
             analysis,
             cost_track,
             coverage_reporter,
-        )?;
+        ) {
+            Ok(result) => result,
+            Err((_, Some(diagnostic), _)) => {
+                diagnostics.push(diagnostic);
+                return Err(diagnostics);
+            }
+            Err(_) => return Err(diagnostics),
+        };
 
         result.diagnostics = diagnostics;
 
@@ -101,12 +168,14 @@ impl ClarityInterpreter {
         &mut self,
         contract_id: String,
         snippet: String,
+        parser_version: u32,
     ) -> Result<Vec<QualifiedContractIdentifier>, String> {
         let contract_id = QualifiedContractIdentifier::parse(&contract_id).unwrap();
-        let ast = match self.build_ast(contract_id.clone(), snippet.clone()) {
-            Err(e) => return Err(format!("{:?}", e)),
-            Ok(ast) => ast,
-        };
+        let (ast, _, success) =
+            self.build_ast(contract_id.clone(), snippet.clone(), parser_version);
+        if !success {
+            return Err("error parsing source".to_string());
+        }
 
         let mut contract_analysis = ContractAnalysis::new(
             contract_id.clone(),
@@ -124,14 +193,49 @@ impl ClarityInterpreter {
         &self,
         contract_identifier: QualifiedContractIdentifier,
         snippet: String,
-    ) -> Result<ContractAST, (String, Option<Diagnostic>, Option<Error>)> {
-        let contract_ast = match ast::build_ast(&contract_identifier, &snippet, &mut ()) {
-            Ok(res) => res,
-            Err(error) => {
-                return Err(("Parser".to_string(), Some(error.diagnostic), None));
+        parser_version: u32,
+    ) -> (ContractAST, Vec<Diagnostic>, bool) {
+        match parser_version {
+            1 => match clarity::ast::build_ast(&contract_identifier, &snippet, &mut ()) {
+                Ok(res) => (res, vec![], true),
+                Err(error) => (
+                    ContractAST::new(contract_identifier, vec![]),
+                    vec![error.diagnostic],
+                    false,
+                ),
+            },
+            _ => {
+                // While parser v2 is new, we will run both parsers, and check for equivalence.
+                // If they don't match, report a warning and use v1. Once v2 is battle-tested,
+                // this can be removed. If there are errors when parsing, then the ASTs are not
+                // expected to match, and v2 is still used.
+                let (ast, diagnostics, success) =
+                    ast::build_ast(&contract_identifier, &snippet, &mut ());
+                let (ast_old, mut diagnostics_old, success_old) =
+                    match clarity::ast::build_ast(&contract_identifier, &snippet, &mut ()) {
+                        Ok(res) => (res, vec![], true),
+                        Err(error) => (
+                            ContractAST::new(contract_identifier, vec![]),
+                            vec![error.diagnostic],
+                            false,
+                        ),
+                    };
+                if (success && !ast.equivalent(&ast_old)) || success != success_old {
+                    diagnostics_old.push(Diagnostic {
+                        level: Level::Warning,
+                        message: r#"conflict between parser versions, reverting to parser v1
+Help improve clarinet by sharing the code that triggered this warning:
+https://github.com/hirosystems/clarinet/issues/new/choose"#
+                            .to_string(),
+                        spans: vec![],
+                        suggestion: None,
+                    });
+                    (ast_old, diagnostics_old, success_old)
+                } else {
+                    (ast, diagnostics, success)
+                }
             }
-        };
-        Ok(contract_ast)
+        }
     }
 
     pub fn collect_annotations(

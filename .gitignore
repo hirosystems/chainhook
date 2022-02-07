@@ -63,3 +63,8 @@ Cargo.lock
 # Node.js
 **/node_modules
 package-lock.json
+
+# Code Coverage
+*.profdata
+*.profraw
+lcov.info
