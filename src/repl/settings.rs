@@ -65,4 +65,5 @@ pub struct SessionSettings {
     pub analysis: Vec<String>,
     pub lazy_initial_contracts_interpretation: bool,
     pub parser_version: u32,
+    pub disk_cache_enabled: bool,
 }

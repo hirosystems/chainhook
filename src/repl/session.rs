@@ -19,6 +19,9 @@ use ansi_term::{Colour, Style};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt;
 use std::num::ParseIntError;
+use std::path::PathBuf;
+use std::fs::{self, File};
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "cli")]
@@ -102,27 +105,54 @@ impl Session {
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
         let contract_name = components.last().expect("");
-        let stacks_node_addr = match &link.stacks_node_addr {
-            Some(addr) => addr.clone(),
-            None => {
-                if contract_id.starts_with("SP") {
-                    "https://stacks-node-api.mainnet.stacks.co".to_string()
-                } else {
-                    "https://stacks-node-api.testnet.stacks.co".to_string()
-                }
+
+        let mut contract_source = None;
+        if let Some(ref cache_path) = link.cache {
+            let mut file_path = PathBuf::from(cache_path);
+            file_path.push(format!("{}.clar", contract_id));
+            if let Ok(data) = fs::read_to_string(file_path) {
+                contract_source = Some(data);
             }
+        }
+
+        let code = if contract_source.is_none() {
+            let stacks_node_addr = match &link.stacks_node_addr {
+                Some(addr) => addr.clone(),
+                None => {
+                    if contract_id.starts_with("SP") {
+                        "https://stacks-node-api.mainnet.stacks.co".to_string()
+                    } else {
+                        "https://stacks-node-api.testnet.stacks.co".to_string()
+                    }
+                }
+            };
+    
+            let request_url = format!(
+                "{host}/v2/contracts/source/{addr}/{name}?proof=0",
+                host = stacks_node_addr,
+                addr = contract_deployer,
+                name = contract_name
+            );
+    
+            let response = fetch_contract(request_url).await;
+    
+             response.source.to_string()
+        } else {
+            contract_source.unwrap()
         };
 
-        let request_url = format!(
-            "{host}/v2/contracts/source/{addr}/{name}?proof=0",
-            host = stacks_node_addr,
-            addr = contract_deployer,
-            name = contract_name
-        );
+        if self.settings.disk_cache_enabled {
+            if let Some(ref cache_path) = link.cache {
+                let mut file_path = PathBuf::from(cache_path);
+                let _ = fs::create_dir_all(&file_path);
+                file_path.push(format!("{}.clar", contract_id));
 
-        let response = fetch_contract(request_url).await;
+                if let Ok(ref mut file) = File::create(file_path) {
+                    let _ = file.write_all(code.as_bytes());
+                }
+            }
+        }
 
-        let code = response.source.to_string();
         let deps = self
             .interpreter
             .detect_dependencies(
@@ -292,7 +322,7 @@ impl Session {
                 for (contract_id, code, _) in contracts.into_iter() {
                     if !retrieved.contains(&contract_id) {
                         retrieved.insert(contract_id.clone());
-                        linked_contracts.push((contract_id, code));
+                        linked_contracts.push((contract_id, code));                        
                     }
                 }
             }
