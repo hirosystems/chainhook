@@ -219,6 +219,49 @@ impl ClarityInterpreter {
     }
 
     #[allow(unused_assignments)]
+    pub fn save_contract(
+        &mut self,
+        contract_identifier: QualifiedContractIdentifier,
+        contract_ast: &mut ContractAST,
+        snippet: String,
+        contract_analysis: ContractAnalysis,
+        mainnet: bool,
+    ) {
+        {
+            let mut contract_context = ContractContext::new(contract_identifier.clone());
+            let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
+            let cost_tracker = LimitedCostTracker::new_free();
+            let mut global_context = GlobalContext::new(mainnet, conn, cost_tracker);
+            global_context.coverage_reporting = None;
+            global_context.begin();
+
+            let _ = global_context
+                .execute(|g| eval_all(&contract_ast.expressions, &mut contract_context, g));
+
+            global_context
+                .database
+                .insert_contract_hash(&contract_identifier, &snippet)
+                .unwrap();
+            let contract = Contract { contract_context };
+            global_context
+                .database
+                .insert_contract(&contract_identifier, contract);
+            global_context
+                .database
+                .set_contract_data_size(&contract_identifier, 0)
+                .unwrap();
+            global_context.commit().unwrap();
+        };
+
+        let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
+        analysis_db.begin();
+        analysis_db
+            .insert_contract(&contract_identifier, &contract_analysis)
+            .unwrap();
+        analysis_db.commit();
+    }
+
+    #[allow(unused_assignments)]
     pub fn execute(
         &mut self,
         contract_identifier: QualifiedContractIdentifier,
