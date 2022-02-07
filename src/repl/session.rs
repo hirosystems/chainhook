@@ -18,10 +18,10 @@ use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
 use ansi_term::{Colour, Style};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt;
-use std::num::ParseIntError;
-use std::path::PathBuf;
 use std::fs::{self, File};
 use std::io::Write;
+use std::num::ParseIntError;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "cli")]
@@ -126,17 +126,17 @@ impl Session {
                     }
                 }
             };
-    
+
             let request_url = format!(
                 "{host}/v2/contracts/source/{addr}/{name}?proof=0",
                 host = stacks_node_addr,
                 addr = contract_deployer,
                 name = contract_name
             );
-    
+
             let response = fetch_contract(request_url).await;
-    
-             response.source.to_string()
+
+            response.source.to_string()
         } else {
             contract_source.unwrap()
         };
@@ -322,7 +322,7 @@ impl Session {
                 for (contract_id, code, _) in contracts.into_iter() {
                     if !retrieved.contains(&contract_id) {
                         retrieved.insert(contract_id.clone());
-                        linked_contracts.push((contract_id, code));                        
+                        linked_contracts.push((contract_id, code));
                     }
                 }
             }
