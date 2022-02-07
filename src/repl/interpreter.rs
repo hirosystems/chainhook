@@ -456,7 +456,13 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    println!("{}", red!(format!("Runtime error while interpreting {}: {:?}", contract_identifier, e)));
+                    println!(
+                        "{}",
+                        red!(format!(
+                            "Runtime error while interpreting {}: {:?}",
+                            contract_identifier, e
+                        ))
+                    );
                     std::process::exit(1);
                 }
             };
