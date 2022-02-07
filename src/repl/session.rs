@@ -137,6 +137,7 @@ impl Session {
     pub async fn resolve_link(
         &mut self,
         link: &InitialLink,
+        retrieved: &mut BTreeSet<String>,
     ) -> Result<Vec<(String, String, Vec<String>)>, String> {
         let mut resolved_link = Vec::new();
 
@@ -146,6 +147,10 @@ impl Session {
         queue.push_front(link.clone());
 
         while let Some(initial_link) = queue.pop_front() {
+            if retrieved.contains(&initial_link.contract_id) {
+                continue;
+            }
+
             let contract_id = &initial_link.contract_id;
             let components: Vec<&str> = contract_id.split('.').collect();
             let contract_deployer = components.first().expect("");
@@ -192,7 +197,7 @@ impl Session {
     #[cfg(not(feature = "wasm"))]
     pub fn start(&mut self) -> Result<(String, Vec<(ContractAnalysis, String, String)>), String> {
         let mut output_err = Vec::<String>::new();
-        let mut output = vec![];
+        let mut output = Vec::<String>::new();
         let mut contracts = vec![];
 
         if !self.settings.include_boot_contracts.is_empty() {
@@ -211,49 +216,6 @@ impl Session {
                     .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
             self.include_boot_contracts();
-            self.interpreter.set_tx_sender(default_tx_sender);
-        }
-
-        let mut linked_contracts = Vec::new();
-
-        if self.settings.initial_links.len() > 0 {
-            let initial_links = self.settings.initial_links.clone();
-            let default_tx_sender = self.interpreter.get_tx_sender();
-
-            let mut indexed = BTreeSet::new();
-
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            for link in initial_links.iter() {
-                let contracts = rt.block_on(async { self.resolve_link(link).await.unwrap() });
-                for (contract_id, code, _) in contracts.into_iter() {
-                    if !indexed.contains(&contract_id) {
-                        indexed.insert(contract_id.clone());
-                        linked_contracts.push((contract_id, code));
-                    }
-                }
-            }
-            for (contract_id, code) in linked_contracts.iter() {
-                let components: Vec<&str> = contract_id.split('.').collect();
-                let contract_deployer = components.first().expect("");
-                let contract_name = components.last().expect("");
-
-                let deployer = {
-                    PrincipalData::parse_standard_principal(&contract_deployer)
-                        .expect("Unable to parse deployer's address")
-                };
-
-                self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(
-                    code.to_string(),
-                    Some(contract_name.to_string()),
-                    true,
-                    None,
-                ) {
-                    Ok((mut output, _)) => output_err.append(&mut output),
-                    Err(ref mut result) => output_err.append(result),
-                };
-            }
-
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
@@ -278,6 +240,101 @@ impl Session {
             }
         }
 
+        if !self.settings.lazy_initial_contracts_interpretation {
+            match self.interpret_initial_contracts() {
+                Ok((ref mut res, ref mut initial_contracts)) => {
+                    if self.is_interactive {
+                        // If the session is interactive (clarinet console, usr/bin/clarity-repl)
+                        // we will display the contracts + genesis asset map.
+                        if !self.settings.initial_contracts.is_empty() {
+                            output.push(blue!("Contracts"));
+                            self.get_contracts(&mut output);
+                        }
+
+                        if self.settings.initial_accounts.len() > 0 {
+                            output.push(blue!("Initialized balances"));
+                            self.get_accounts(&mut output);
+                        }
+                    }
+                    contracts.append(initial_contracts);
+                }
+                Err(ref mut res) => {
+                    output_err.append(res);
+                }
+            };
+        }
+
+        match output_err.len() {
+            0 => Ok((output.join("\n"), contracts)),
+            _ => Err(output_err.join("\n")),
+        }
+    }
+
+    fn handle_requirements(&mut self) -> Result<Vec<String>, Vec<String>> {
+        let mut output_err = vec![];
+        let output = vec![];
+
+        let mut linked_contracts = Vec::new();
+
+        if self.settings.initial_links.len() > 0 {
+            let initial_links = self.settings.initial_links.clone();
+            let default_tx_sender = self.interpreter.get_tx_sender();
+
+            let mut retrieved = BTreeSet::new();
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            for link in initial_links.iter() {
+                if retrieved.contains(&link.contract_id) {
+                    continue;
+                }
+                let contracts =
+                    rt.block_on(async { self.resolve_link(link, &mut retrieved).await.unwrap() });
+                for (contract_id, code, _) in contracts.into_iter() {
+                    if !retrieved.contains(&contract_id) {
+                        retrieved.insert(contract_id.clone());
+                        linked_contracts.push((contract_id, code));
+                    }
+                }
+            }
+            for (contract_id, code) in linked_contracts.iter() {
+                let components: Vec<&str> = contract_id.split('.').collect();
+                let contract_deployer = components.first().expect("");
+                let contract_name = components.last().expect("");
+
+                let deployer = {
+                    PrincipalData::parse_standard_principal(&contract_deployer)
+                        .expect("Unable to parse deployer's address")
+                };
+
+                println!("Injecting {}", contract_id);
+                self.interpreter.set_tx_sender(deployer);
+                match self.formatted_interpretation(
+                    code.to_string(),
+                    Some(contract_name.to_string()),
+                    true,
+                    None,
+                ) {
+                    Ok((mut output, _)) => {
+                        println!("Success");
+                        output_err.append(&mut output)
+                    }
+                    Err(ref mut result) => output_err.append(result),
+                };
+                println!("Output: {:?}", output_err);
+            }
+
+            self.interpreter.set_tx_sender(default_tx_sender);
+        }
+        Ok(output)
+    }
+
+    fn handle_initial_contracts(
+        &mut self,
+    ) -> Result<(Vec<String>, Vec<(ContractAnalysis, String, String)>), Vec<String>> {
+        let mut output_err = vec![];
+        let mut output = vec![];
+
+        let mut contracts = vec![];
         if self.settings.initial_contracts.len() > 0 {
             let mut initial_contracts = self.settings.initial_contracts.clone();
             let default_tx_sender = self.interpreter.get_tx_sender();
@@ -316,43 +373,22 @@ impl Session {
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
-        for (contract_id, code) in linked_contracts.into_iter() {
-            let components: Vec<&str> = contract_id.split('.').collect();
-            let contract_deployer = components.first().expect("");
-            let contract_name = components.last().expect("");
+        Ok((output, contracts))
+    }
 
-            let deployer = {
-                PrincipalData::parse_standard_principal(&contract_deployer)
-                    .expect("Unable to parse deployer's address")
-            };
-            self.settings.initial_contracts.push(InitialContract {
-                code: code.to_string(),
-                path: "".into(),
-                name: Some(contract_id.to_string()),
-                deployer: Some(deployer.to_string()),
-            });
-        }
+    pub fn interpret_initial_contracts(
+        &mut self,
+    ) -> Result<(Vec<String>, Vec<(ContractAnalysis, String, String)>), Vec<String>> {
+        if self.initial_contracts_analysis.is_empty() {
+            let output = self.handle_requirements()?;
+            let (output, contracts) = self.handle_initial_contracts()?;
 
-        if self.is_interactive {
-            // If the session is interactive (clarinet console, usr/bin/clarity-repl)
-            // we will display the contracts + genesis asset map.
-            if !self.settings.initial_contracts.is_empty() {
-                output.push(blue!("Contracts"));
-                self.get_contracts(&mut output);
-            }
+            self.initial_contracts_analysis
+                .append(&mut contracts.clone());
 
-            if self.settings.initial_accounts.len() > 0 {
-                output.push(blue!("Initialized balances"));
-                self.get_accounts(&mut output);
-            }
-        }
-
-        self.initial_contracts_analysis
-            .append(&mut contracts.clone());
-
-        match output_err.len() {
-            0 => Ok((output.join("\n"), contracts)),
-            _ => Err(output_err.join("\n")),
+            Ok((output, contracts))
+        } else {
+            Err(vec!["Initial contracts already interpreted".into()])
         }
     }
 

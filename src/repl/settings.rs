@@ -63,5 +63,6 @@ pub struct SessionSettings {
     pub initial_deployer: Option<Account>,
     pub scoping_contract: Option<String>,
     pub analysis: Vec<String>,
+    pub lazy_initial_contracts_interpretation: bool,
     pub parser_version: u32,
 }
