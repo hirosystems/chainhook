@@ -97,7 +97,8 @@ impl Session {
         }
     }
 
-    async fn retrieve_contract(
+    #[cfg(not(feature = "wasm"))]
+    fn retrieve_contract(
         &mut self,
         link: &InitialLink,
     ) -> Result<(String, Vec<QualifiedContractIdentifier>), String> {
@@ -134,8 +135,8 @@ impl Session {
                 name = contract_name
             );
 
-            let response = fetch_contract(request_url).await;
-
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let response = rt.block_on(async { fetch_contract(request_url).await });
             response.source.to_string()
         } else {
             contract_source.unwrap()
@@ -164,7 +165,8 @@ impl Session {
         Ok((code, deps))
     }
 
-    pub async fn resolve_link(
+    #[cfg(not(feature = "wasm"))]
+    pub fn resolve_link(
         &mut self,
         link: &InitialLink,
         retrieved: &mut BTreeSet<String>,
@@ -182,9 +184,6 @@ impl Session {
             }
 
             let contract_id = &initial_link.contract_id;
-            let components: Vec<&str> = contract_id.split('.').collect();
-            let contract_deployer = components.first().expect("");
-            let contract_name = components.last().expect("");
 
             // Extract principal from contract_id
             let (contract_code, deps) = match handled.get(contract_id) {
@@ -192,7 +191,6 @@ impl Session {
                 None => {
                     let (contract_code, deps) = self
                         .retrieve_contract(&initial_link)
-                        .await
                         .expect("Unable to get contract");
                     handled.insert(contract_id.to_string(), contract_code.clone());
                     (contract_code, deps)
@@ -300,6 +298,7 @@ impl Session {
         }
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn handle_requirements(&mut self) -> Result<Vec<String>, Vec<String>> {
         let mut output_err = vec![];
         let mut output = vec![];
@@ -312,13 +311,11 @@ impl Session {
 
             let mut retrieved = BTreeSet::new();
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
             for link in initial_links.iter() {
                 if retrieved.contains(&link.contract_id) {
                     continue;
                 }
-                let contracts =
-                    rt.block_on(async { self.resolve_link(link, &mut retrieved).await.unwrap() });
+                let contracts = self.resolve_link(link, &mut retrieved).unwrap();
                 for (contract_id, code, _) in contracts.into_iter() {
                     if !retrieved.contains(&contract_id) {
                         retrieved.insert(contract_id.clone());
@@ -411,6 +408,7 @@ impl Session {
         Ok((output, contracts))
     }
 
+    #[cfg(not(feature = "wasm"))]
     pub fn interpret_initial_contracts(
         &mut self,
     ) -> Result<(Vec<String>, Vec<(ContractAnalysis, String, String)>), Vec<String>> {
@@ -506,64 +504,10 @@ impl Session {
             self.interpreter.set_tx_sender(default_tx_sender);
         }
 
-        let mut linked_contracts = Vec::new();
-
-        if self.settings.initial_links.len() > 0 {
-            let initial_links = self.settings.initial_links.clone();
-            let default_tx_sender = self.interpreter.get_tx_sender();
-
-            let mut indexed = BTreeSet::new();
-            for link in initial_links.iter() {
-                let contracts = self.resolve_link(link).await.unwrap();
-                for (contract_id, code, _) in contracts.into_iter() {
-                    if !indexed.contains(&contract_id) {
-                        indexed.insert(contract_id.clone());
-                        linked_contracts.push((contract_id, code));
-                    }
-                }
-            }
-            for (contract_id, code) in linked_contracts.iter() {
-                let components: Vec<&str> = contract_id.split('.').collect();
-                let contract_deployer = components.first().expect("");
-                let contract_name = components.last().expect("");
-
-                let deployer = {
-                    PrincipalData::parse_standard_principal(&contract_deployer)
-                        .expect("Unable to parse deployer's address")
-                };
-
-                self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(
-                    code.to_string(),
-                    Some(contract_name.to_string()),
-                    true,
-                    None,
-                ) {
-                    Ok((ref mut res_output, _)) => output.append(res_output),
-                    Err(ref mut result) => output.append(result),
-                };
-            }
-
-            self.interpreter.set_tx_sender(default_tx_sender);
-            self.get_contracts(&mut output);
-        }
-
-        for (contract_id, code) in linked_contracts.iter() {
-            let components: Vec<&str> = contract_id.split('.').collect();
-            let contract_deployer = components.first().expect("");
-            let contract_name = components.last().expect("");
-
-            let deployer = {
-                PrincipalData::parse_standard_principal(&contract_deployer)
-                    .expect("Unable to parse deployer's address")
-            };
-            self.settings.initial_contracts.push(InitialContract {
-                code: code.to_string(),
-                path: "".into(),
-                name: Some(contract_id.to_string()),
-                deployer: Some(deployer.to_string()),
-            });
-        }
+        // The cost of maintaining the "requirements" / "links" feature on WASM builds
+        // is pretty high, and the amount of code duplicated is very important.
+        // We will timeshift through git and restore this feature if we 
+        // can identify a concrete use case in the future
 
         if !self.settings.initial_contracts.is_empty() {
             output.push(blue!("Contracts"));
