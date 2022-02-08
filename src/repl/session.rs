@@ -81,13 +81,7 @@ impl Session {
             session_id: 0,
             started_at: 0,
             is_interactive: false,
-            interpreter: ClarityInterpreter::new(
-                tx_sender,
-                settings.costs_version,
-                settings.parser_version,
-                settings.analysis.clone(),
-                settings.analysis_settings,
-            ),
+            interpreter: ClarityInterpreter::new(tx_sender, settings.repl_settings.clone()),
             asts: BTreeMap::new(),
             contracts: BTreeMap::new(),
             api_reference: build_api_reference(),
@@ -161,7 +155,7 @@ impl Session {
             .detect_dependencies(
                 contract_id.to_string(),
                 code.clone(),
-                self.settings.parser_version,
+                self.settings.repl_settings.parser_version,
             )
             .unwrap();
         Ok((code, deps))
