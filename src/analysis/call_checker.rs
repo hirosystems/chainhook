@@ -1,6 +1,6 @@
 use crate::analysis::annotation::Annotation;
 use crate::analysis::ast_visitor::{traverse, ASTVisitor, TypedVar};
-use crate::analysis::{AnalysisPass, AnalysisResult, AnalysisSettings};
+use crate::analysis::{AnalysisPass, AnalysisResult, Settings};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 pub use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
@@ -195,7 +195,7 @@ impl AnalysisPass for CallChecker<'_> {
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
         annotations: &Vec<Annotation>,
-        settings: AnalysisSettings,
+        settings: &Settings,
     ) -> AnalysisResult {
         let tc = CallChecker::new();
         tc.run(contract_analysis)

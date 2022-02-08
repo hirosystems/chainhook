@@ -34,10 +34,9 @@ fn main() {
     let subcommand = args.subcommand().unwrap().unwrap_or_default();
     let code = args.subcommand().unwrap();
 
-    let default_costs_version = 2;
     let mut settings = SessionSettings::default();
-    settings.include_boot_contracts = vec![format!("costs-v{}", default_costs_version)];
-    settings.costs_version = default_costs_version;
+    settings.include_boot_contracts =
+        vec![format!("costs-v{}", settings.repl_settings.costs_version)];
 
     match code {
         Some(code_str) => {
