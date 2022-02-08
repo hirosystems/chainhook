@@ -159,7 +159,7 @@ impl ClarityInterpreter {
                     spans: vec![],
                     suggestion: None,
                 }]);
-            },
+            }
         };
 
         result.diagnostics = diagnostics;
@@ -463,10 +463,14 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    return Err((format!(
-                        "Runtime error while interpreting {}: {:?}",
-                        contract_identifier, e
-                    ), None, None));
+                    return Err((
+                        format!(
+                            "Runtime error while interpreting {}: {:?}",
+                            contract_identifier, e
+                        ),
+                        None,
+                        None,
+                    ));
                 }
             };
 

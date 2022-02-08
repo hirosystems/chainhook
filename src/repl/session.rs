@@ -340,13 +340,11 @@ impl Session {
                     true,
                     None,
                 ) {
-                    Ok((mut logs, _)) => {
-                        output.append(&mut logs)
-                    }
+                    Ok((mut logs, _)) => output.append(&mut logs),
                     Err(ref mut result) => {
                         output_err.append(result);
                         break;
-                    },
+                    }
                 };
             }
 
@@ -506,7 +504,7 @@ impl Session {
 
         // The cost of maintaining the "requirements" / "links" feature on WASM builds
         // is pretty high, and the amount of code duplicated is very important.
-        // We will timeshift through git and restore this feature if we 
+        // We will timeshift through git and restore this feature if we
         // can identify a concrete use case in the future
 
         if !self.settings.initial_contracts.is_empty() {
