@@ -302,7 +302,7 @@ impl Session {
 
     fn handle_requirements(&mut self) -> Result<Vec<String>, Vec<String>> {
         let mut output_err = vec![];
-        let output = vec![];
+        let mut output = vec![];
 
         let mut linked_contracts = Vec::new();
 
@@ -336,7 +336,6 @@ impl Session {
                         .expect("Unable to parse deployer's address")
                 };
 
-                println!("Injecting {}", contract_id);
                 self.interpreter.set_tx_sender(deployer);
                 match self.formatted_interpretation(
                     code.to_string(),
@@ -344,16 +343,20 @@ impl Session {
                     true,
                     None,
                 ) {
-                    Ok((mut output, _)) => {
-                        println!("Success");
-                        output_err.append(&mut output)
+                    Ok((mut logs, _)) => {
+                        output.append(&mut logs)
                     }
-                    Err(ref mut result) => output_err.append(result),
+                    Err(ref mut result) => {
+                        output_err.append(result);
+                        break;
+                    },
                 };
-                println!("Output: {:?}", output_err);
             }
 
             self.interpreter.set_tx_sender(default_tx_sender);
+        }
+        if output_err.len() > 0 {
+            return Err(output_err);
         }
         Ok(output)
     }
@@ -402,7 +405,9 @@ impl Session {
             }
             self.interpreter.set_tx_sender(default_tx_sender);
         }
-
+        if output_err.len() > 0 {
+            return Err(output_err);
+        }
         Ok((output, contracts))
     }
 
