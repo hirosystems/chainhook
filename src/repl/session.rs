@@ -1292,7 +1292,7 @@ mod tests {
     fn evaluate_at_block() {
         let mut settings = SessionSettings::default();
         settings.include_boot_contracts = vec!["costs-v1".into()];
-        settings.costs_version = 1;
+        settings.repl_settings.costs_version = 1;
 
         let mut session = Session::new(settings);
         session.start().expect("session could not start");
