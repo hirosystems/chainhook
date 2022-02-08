@@ -1,11 +1,14 @@
 use std::convert::TryInto;
 
-use crate::analysis::AnalysisSettings;
+use crate::analysis;
 use crate::clarity::{
     coverage::CoverageReporter,
     types::{PrincipalData, QualifiedContractIdentifier, StandardPrincipalData},
     util::StacksAddress,
 };
+
+const DEFAULT_COSTS_VERSION: u32 = 2;
+const DEFAULT_PARSER_VERSION: u32 = 2;
 
 #[derive(Clone, Debug)]
 pub struct InitialContract {
@@ -57,15 +60,51 @@ pub struct SessionSettings {
     pub node: String,
     pub include_boot_contracts: Vec<String>,
     pub include_costs: bool,
-    pub costs_version: u32,
     pub initial_links: Vec<InitialLink>,
     pub initial_contracts: Vec<InitialContract>,
     pub initial_accounts: Vec<Account>,
     pub initial_deployer: Option<Account>,
     pub scoping_contract: Option<String>,
-    pub analysis: Vec<String>,
     pub lazy_initial_contracts_interpretation: bool,
-    pub analysis_settings: AnalysisSettings,
-    pub parser_version: u32,
     pub disk_cache_enabled: bool,
+    pub repl_settings: Settings,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Settings {
+    pub analysis: analysis::Settings,
+    pub costs_version: u32,
+    pub parser_version: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            analysis: analysis::Settings::default(),
+            costs_version: DEFAULT_COSTS_VERSION,
+            parser_version: DEFAULT_PARSER_VERSION,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct SettingsFile {
+    pub analysis: Option<analysis::SettingsFile>,
+    pub costs_version: Option<u32>,
+    pub parser_version: Option<u32>,
+}
+
+impl From<SettingsFile> for Settings {
+    fn from(file: SettingsFile) -> Self {
+        let analysis = if let Some(analysis) = file.analysis {
+            analysis::Settings::from(analysis)
+        } else {
+            analysis::Settings::default()
+        };
+        Self {
+            analysis,
+            costs_version: file.costs_version.unwrap_or(DEFAULT_COSTS_VERSION),
+            parser_version: file.parser_version.unwrap_or(DEFAULT_PARSER_VERSION),
+        }
+    }
 }

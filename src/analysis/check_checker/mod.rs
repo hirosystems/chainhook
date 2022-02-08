@@ -1,6 +1,6 @@
 use crate::analysis::annotation::{Annotation, AnnotationKind, WarningKind};
 use crate::analysis::ast_visitor::{traverse, ASTVisitor, TypedVar};
-use crate::analysis::{AnalysisPass, AnalysisResult, AnalysisSettings};
+use crate::analysis::{self, AnalysisPass, AnalysisResult};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::{DiagnosableError, Diagnostic, Level};
@@ -843,7 +843,7 @@ impl AnalysisPass for CheckChecker<'_, '_> {
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
         annotations: &Vec<Annotation>,
-        settings: AnalysisSettings,
+        settings: &analysis::Settings,
     ) -> AnalysisResult {
         let checker = CheckChecker::new(analysis_db, annotations, settings.check_checker);
         checker.run(contract_analysis)

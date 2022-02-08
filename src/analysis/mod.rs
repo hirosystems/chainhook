@@ -4,7 +4,8 @@ pub mod call_checker;
 pub mod check_checker;
 pub mod contract_call_detector;
 
-use serde::Deserialize;
+use serde::de::Deserialize;
+use serde::Serialize;
 
 use crate::analysis::annotation::Annotation;
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
@@ -17,24 +18,85 @@ use self::contract_call_detector::ContractCallDetector;
 
 pub type AnalysisResult = Result<Vec<Diagnostic>, Vec<Diagnostic>>;
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
-pub struct AnalysisSettings {
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Pass {
+    All,
+    CheckChecker,
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct Settings {
+    passes: Vec<Pass>,
     check_checker: check_checker::Settings,
 }
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
-pub struct AnalysisSettingsFile {
+impl Settings {
+    pub fn enable_all_passes(&mut self) {
+        self.passes = ALL_PASSES.to_vec();
+    }
+
+    pub fn set_passes(&mut self, passes: Vec<Pass>) {
+        for pass in passes {
+            match pass {
+                Pass::All => {
+                    self.passes = ALL_PASSES.to_vec();
+                    return;
+                }
+                pass => self.passes.push(pass),
+            };
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum OneOrList<T> {
+    /// Allow `T` as shorthand for `[T]` in the TOML
+    One(T),
+    /// Allow more than one `T` in the TOML
+    List(Vec<T>),
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct SettingsFile {
+    passes: Option<OneOrList<Pass>>,
     check_checker: Option<check_checker::SettingsFile>,
 }
 
-impl From<AnalysisSettingsFile> for AnalysisSettings {
-    fn from(from_file: AnalysisSettingsFile) -> Self {
-        if let Some(checker_settings) = from_file.check_checker {
-            AnalysisSettings {
-                check_checker: check_checker::Settings::from(checker_settings),
+// Each new pass should be included in this list
+static ALL_PASSES: [Pass; 1] = [Pass::CheckChecker];
+
+impl From<SettingsFile> for Settings {
+    fn from(from_file: SettingsFile) -> Self {
+        let passes = if let Some(file_passes) = from_file.passes {
+            match file_passes {
+                OneOrList::One(pass) => match pass {
+                    Pass::All => ALL_PASSES.to_vec(),
+                    pass => vec![pass],
+                },
+                OneOrList::List(passes) => {
+                    if passes.contains(&Pass::All) {
+                        ALL_PASSES.to_vec()
+                    } else {
+                        passes
+                    }
+                }
             }
         } else {
-            AnalysisSettings::default()
+            vec![]
+        };
+
+        // Each pass that has its own settings should be included here.
+        let checker_settings = if let Some(checker_settings) = from_file.check_checker {
+            check_checker::Settings::from(checker_settings)
+        } else {
+            check_checker::Settings::default()
+        };
+
+        Self {
+            passes,
+            check_checker: checker_settings,
         }
     }
 }
@@ -44,16 +106,15 @@ pub trait AnalysisPass {
         contract_analysis: &mut ContractAnalysis,
         analysis_db: &mut AnalysisDatabase,
         annotations: &Vec<Annotation>,
-        settings: AnalysisSettings,
+        settings: &Settings,
     ) -> AnalysisResult;
 }
 
 pub fn run_analysis(
     contract_analysis: &mut ContractAnalysis,
     analysis_db: &mut AnalysisDatabase,
-    pass_list: &Vec<String>,
     annotations: &Vec<Annotation>,
-    settings: AnalysisSettings,
+    settings: &Settings,
 ) -> AnalysisResult {
     let mut errors: Vec<Diagnostic> = Vec::new();
     let mut passes: Vec<
@@ -61,20 +122,19 @@ pub fn run_analysis(
             &mut ContractAnalysis,
             &mut AnalysisDatabase,
             &Vec<Annotation>,
-            settings: AnalysisSettings,
+            settings: &Settings,
         ) -> AnalysisResult,
     > = vec![ContractCallDetector::run_pass, CallChecker::run_pass];
-    for pass in pass_list {
-        match pass.as_str() {
-            "all" => passes.append(&mut vec![CheckChecker::run_pass]),
-            "check_checker" => passes.push(CheckChecker::run_pass),
-            _ => panic!("{}: Unrecognized analysis pass: {}", red!("error"), pass),
+    for pass in &settings.passes {
+        match pass {
+            Pass::CheckChecker => passes.push(CheckChecker::run_pass),
+            Pass::All => panic!("unexpected All in list of passes"),
         }
     }
 
     for pass in passes {
         // Collect warnings and continue, or if there is an error, return.
-        match pass(contract_analysis, analysis_db, annotations, settings) {
+        match pass(contract_analysis, analysis_db, annotations, &settings) {
             Ok(mut w) => errors.append(&mut w),
             Err(mut e) => {
                 errors.append(&mut e);
