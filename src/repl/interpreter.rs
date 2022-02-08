@@ -152,7 +152,14 @@ impl ClarityInterpreter {
                 diagnostics.push(diagnostic);
                 return Err(diagnostics);
             }
-            Err(_) => return Err(diagnostics),
+            Err((e, _, _)) => {
+                return Err(vec![Diagnostic {
+                    level: Level::Error,
+                    message: format!("Runtime Error: {}", e),
+                    spans: vec![],
+                    suggestion: None,
+                }]);
+            },
         };
 
         result.diagnostics = diagnostics;
@@ -456,14 +463,10 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    println!(
-                        "{}",
-                        red!(format!(
-                            "Runtime error while interpreting {}: {:?}",
-                            contract_identifier, e
-                        ))
-                    );
-                    std::process::exit(1);
+                    return Err((format!(
+                        "Runtime error while interpreting {}: {:?}",
+                        contract_identifier, e
+                    ), None, None));
                 }
             };
 
