@@ -42,9 +42,9 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             strict: false,
-            trusted_sender: true,
-            trusted_caller: true,
-            callee_filter: true,
+            trusted_sender: false,
+            trusted_caller: false,
+            callee_filter: false,
         }
     }
 }
@@ -61,9 +61,9 @@ impl From<SettingsFile> for Settings {
         } else {
             Settings {
                 strict: false,
-                trusted_sender: from_file.trusted_sender.unwrap_or(true),
-                trusted_caller: from_file.trusted_caller.unwrap_or(true),
-                callee_filter: from_file.callee_filter.unwrap_or(true),
+                trusted_sender: from_file.trusted_sender.unwrap_or(false),
+                trusted_caller: from_file.trusted_caller.unwrap_or(false),
+                callee_filter: from_file.callee_filter.unwrap_or(false),
             }
         }
     }
@@ -2750,6 +2750,7 @@ mod tests {
     fn private_filter() {
         let mut settings = SessionSettings::default();
         settings.repl_settings.analysis.passes = vec![Pass::CheckChecker];
+        settings.repl_settings.analysis.check_checker.callee_filter = true;
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted (amount uint))
@@ -2759,7 +2760,6 @@ mod tests {
     )
 )
 
-;; #[allow(unchecked_params)]
 (define-private (my-filter (amount uint))
     (begin
         (asserts! (< amount u10) (err u100))
@@ -2780,6 +2780,7 @@ mod tests {
     fn private_filter_indirect() {
         let mut settings = SessionSettings::default();
         settings.repl_settings.analysis.passes = vec![Pass::CheckChecker];
+        settings.repl_settings.analysis.check_checker.callee_filter = true;
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted (amount uint))
@@ -2789,12 +2790,10 @@ mod tests {
     )
 )
 
-;; #[allow(unchecked_params)]
 (define-private (my-filter (amount uint))
     (my-filter-inner amount)
 )
 
-;; #[allow(unchecked_params)]
 (define-private (my-filter-inner (amount uint))
     (begin
         (asserts! (< amount u10) (err u100))
@@ -3226,6 +3225,7 @@ mod tests {
     fn callee_filter() {
         let mut settings = SessionSettings::default();
         settings.repl_settings.analysis.passes = vec![Pass::CheckChecker];
+        settings.repl_settings.analysis.check_checker.callee_filter = true;
         let mut session = Session::new(settings);
         let snippet = "
 (define-private (write-data (data uint))
