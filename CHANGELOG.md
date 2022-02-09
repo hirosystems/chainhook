@@ -1,3 +1,35 @@
+# [0.22.0](https://github.com/hirosystems/clarity-repl/compare/v0.21.0...v0.22.0) (2022-02-09)
+
+
+### Bug Fixes
+
+* add checks for argument counts to map-* funcs ([1a1cadb](https://github.com/hirosystems/clarity-repl/commit/1a1cadb876f281b732801455334167a17cd84ac7)), closes [stacks-network/stacks-blockchain#3018](https://github.com/stacks-network/stacks-blockchain/issues/3018) [hirosystems/clarinet#228](https://github.com/hirosystems/clarinet/issues/228)
+* allow symbols in identifiers ([15acc61](https://github.com/hirosystems/clarity-repl/commit/15acc61d4bd9e31235608de08514f2900eab7578))
+* crash when an error is reported at EOF ([af6894a](https://github.com/hirosystems/clarity-repl/commit/af6894a2934973298df2bd16500bcbb4c53d4512))
+* disabling requirements on wasm builds ([9176e2b](https://github.com/hirosystems/clarity-repl/commit/9176e2b61b79e1b21e70dcb7fce2699938866495))
+* fix bug in comment handling ([6dd45de](https://github.com/hirosystems/clarity-repl/commit/6dd45dea7224e8e690b5f49da8835f207294de1a))
+* fix crash on error with 0 column ([0ee66b9](https://github.com/hirosystems/clarity-repl/commit/0ee66b900410800dddd4edb861f15e0a673f798e))
+* fix error when handling an invalid symbol ([70cfa1a](https://github.com/hirosystems/clarity-repl/commit/70cfa1ae63016500761ca540cf88b31fd9e044dd))
+* fix handling of filtered params ([4d6d222](https://github.com/hirosystems/clarity-repl/commit/4d6d2227a2e15ae22f0858c19d7be770e603f846))
+* fix handling of negative integer literals ([edb4d14](https://github.com/hirosystems/clarity-repl/commit/edb4d145f388131e6c62cabb48c6ac7148611c89))
+* fix lexer error with empty comment ([ae896b5](https://github.com/hirosystems/clarity-repl/commit/ae896b5006f2fabdb8fba4895bf8a5c0da611cab))
+* improve handling of invalid trait reference ([5aa363a](https://github.com/hirosystems/clarity-repl/commit/5aa363a8b2f5beaf872c9401fc348d9c5482b60b))
+* improved handling of unterminated strings ([5035a2f](https://github.com/hirosystems/clarity-repl/commit/5035a2ff5db95b2abcd5d8f27a69ed24e63629b2))
+* return more errors ([a44e35d](https://github.com/hirosystems/clarity-repl/commit/a44e35d67d1274899601e4b62cb01bc9486586c6))
+* returns all the diagnostics ([dc992a3](https://github.com/hirosystems/clarity-repl/commit/dc992a3eba4c59586c8ba538365532bfdf21f51d))
+
+
+### Features
+
+* ability to lazy load contracts ([bc50b26](https://github.com/hirosystems/clarity-repl/commit/bc50b268bd61cb32710d4dd4418f21e1ac624d1c))
+* add ability to save contracts ([f43abb5](https://github.com/hirosystems/clarity-repl/commit/f43abb585e10db298f882c8f9667dafd365513ae))
+* add disk cache for contracts ([a036fda](https://github.com/hirosystems/clarity-repl/commit/a036fda0780fb0ca96635910f424d8ec28a7cc7a))
+* add option to select parser version ([c731e56](https://github.com/hirosystems/clarity-repl/commit/c731e5675e06690d978c3f9a6629f25dba05f6a9))
+* checker support of trusted sender/caller ([70191a4](https://github.com/hirosystems/clarity-repl/commit/70191a4fbda4aaf45f53f26a9c5ea6558c0ed565)), closes [#62](https://github.com/hirosystems/clarity-repl/issues/62)
+* cleanup configuration of repl and analysis ([ce389c1](https://github.com/hirosystems/clarity-repl/commit/ce389c1ba94935dec34b54cf650188b2a06c3569))
+* improve check-checker handling of rollbacks ([cc0c3e2](https://github.com/hirosystems/clarity-repl/commit/cc0c3e2bbc59c85ad4cf9b141d9e071a12af08c9)), closes [#81](https://github.com/hirosystems/clarity-repl/issues/81)
+* improved parser ([e7ae7b8](https://github.com/hirosystems/clarity-repl/commit/e7ae7b813542a9be512c87fbd37f9b16d8009198)), closes [#74](https://github.com/hirosystems/clarity-repl/issues/74)
+
 # [0.21.0](https://github.com/hirosystems/clarity-repl/compare/v0.20.1...v0.21.0) (2022-01-13)
 
 
