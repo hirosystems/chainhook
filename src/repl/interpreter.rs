@@ -153,12 +153,13 @@ impl ClarityInterpreter {
                 return Err(diagnostics);
             }
             Err((e, _, _)) => {
-                return Err(vec![Diagnostic {
+                diagnostics.push(Diagnostic {
                     level: Level::Error,
                     message: format!("Runtime Error: {}", e),
                     spans: vec![],
                     suggestion: None,
-                }]);
+                });
+                return Err(diagnostics);
             }
         };
 
