@@ -280,6 +280,7 @@ impl Session {
                             self.get_accounts(&mut output);
                         }
                     }
+                    output.append(res);
                     contracts.append(initial_contracts);
                 }
                 Err(ref mut res) => {
