@@ -1,3 +1,10 @@
+## [0.22.1](https://github.com/hirosystems/clarity-repl/compare/v0.22.0...v0.22.1) (2022-02-12)
+
+
+### Bug Fixes
+
+* append output from initial contracts ([7dc1a8e](https://github.com/hirosystems/clarity-repl/commit/7dc1a8ee076227ca23e78b3e83db8d71f1033f36))
+
 # [0.22.0](https://github.com/hirosystems/clarity-repl/compare/v0.21.0...v0.22.0) (2022-02-09)
 
 
