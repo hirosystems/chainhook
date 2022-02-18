@@ -1,3 +1,10 @@
+## [0.22.2](https://github.com/hirosystems/clarity-repl/compare/v0.22.1...v0.22.2) (2022-02-18)
+
+
+### Bug Fixes
+
+* rustls was not properly enabled (openssl c lib was being used) ([4f6b7b5](https://github.com/hirosystems/clarity-repl/commit/4f6b7b5284abb0a37b0338d78e0853bfc1459d17))
+
 ## [0.22.1](https://github.com/hirosystems/clarity-repl/compare/v0.22.0...v0.22.1) (2022-02-12)
 
 
