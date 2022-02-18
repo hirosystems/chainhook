@@ -127,6 +127,8 @@ pub struct CheckChecker<'a, 'b> {
     // For each user-defined function, record which parameters are allowed
     // to be unchecked (tainted)
     user_funcs: HashMap<&'a ClarityName, FunctionInfo>,
+    // True if currently traversing within an `as-contract` node
+    in_as_contract: bool,
 }
 
 impl<'a, 'b> CheckChecker<'a, 'b> {
@@ -145,6 +147,7 @@ impl<'a, 'b> CheckChecker<'a, 'b> {
             active_annotation: None,
             public_funcs: HashSet::new(),
             user_funcs: HashMap::new(),
+            in_as_contract: false,
         }
     }
 
@@ -531,6 +534,17 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
         true
     }
 
+    fn traverse_as_contract(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        inner: &'a SymbolicExpression,
+    ) -> bool {
+        self.in_as_contract = true;
+        let res = self.traverse_expr(inner) && self.visit_as_contract(expr, inner);
+        self.in_as_contract = false;
+        res
+    }
+
     fn visit_asserts(
         &mut self,
         expr: &'a SymbolicExpression,
@@ -591,7 +605,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(amount);
@@ -608,7 +622,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(amount);
@@ -626,7 +640,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(amount);
@@ -644,7 +658,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(amount);
@@ -674,7 +688,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(identifier);
@@ -692,7 +706,7 @@ impl<'a> ASTVisitor<'a> for CheckChecker<'a, '_> {
     ) -> bool {
         // Input from the sender can be used un-checked to interact with the
         // sender's assets. The sender is protected by post-conditions.
-        if sender.match_tx_sender() {
+        if sender.match_tx_sender() && !self.in_as_contract {
             return true;
         }
         self.taint_check(identifier);
@@ -1532,22 +1546,28 @@ mod tests {
         let mut session = Session::new(settings);
         let snippet = "
 (define-public (tainted-stx-burn (amount uint))
-    (stx-burn? amount (as-contract tx-sender))
+    (begin
+        (try! (stx-burn? amount (as-contract tx-sender)))
+        (as-contract (stx-burn? amount tx-sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:3:16: {}: use of potentially unchecked data",
+                        "checker:4:26: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
-                assert_eq!(output[1], "    (stx-burn? amount (as-contract tx-sender))");
-                assert_eq!(output[2], "               ^~~~~~");
+                assert_eq!(
+                    output[1],
+                    "        (try! (stx-burn? amount (as-contract tx-sender)))"
+                );
+                assert_eq!(output[2], "                         ^~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1557,6 +1577,13 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-stx-burn (amount uint))");
                 assert_eq!(output[5], "                                  ^~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:5:33: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1589,25 +1616,28 @@ mod tests {
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-burn (amount uint))
-    (ft-burn? stackaroo amount (as-contract tx-sender))
+    (begin
+        (try! (ft-burn? stackaroo amount (as-contract tx-sender)))
+        (as-contract (ft-burn? stackaroo amount tx-sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:25: {}: use of potentially unchecked data",
+                        "checker:5:35: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (ft-burn? stackaroo amount (as-contract tx-sender))"
+                    "        (try! (ft-burn? stackaroo amount (as-contract tx-sender)))"
                 );
-                assert_eq!(output[2], "                        ^~~~~~");
+                assert_eq!(output[2], "                                  ^~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1617,6 +1647,13 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-ft-burn (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:42: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1650,25 +1687,28 @@ mod tests {
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-transfer (amount uint))
-    (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)
+    (let ((sender tx-sender))
+        (try! (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender))
+        (as-contract (ft-transfer? stackaroo amount tx-sender sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:29: {}: use of potentially unchecked data",
+                        "checker:5:39: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender)"
+                    "        (try! (ft-transfer? stackaroo amount (as-contract tx-sender) tx-sender))"
                 );
-                assert_eq!(output[2], "                            ^~~~~~");
+                assert_eq!(output[2], "                                      ^~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1681,6 +1721,13 @@ mod tests {
                     "(define-public (tainted-ft-transfer (amount uint))"
                 );
                 assert_eq!(output[5], "                                     ^~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:46: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1714,25 +1761,28 @@ mod tests {
         let snippet = "
 (define-fungible-token stackaroo)
 (define-public (tainted-ft-mint (amount uint))
-    (ft-mint? stackaroo amount (as-contract tx-sender))
+    (begin
+        (try! (ft-mint? stackaroo amount (as-contract tx-sender)))
+        (as-contract (ft-mint? stackaroo amount tx-sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:25: {}: use of potentially unchecked data",
+                        "checker:5:35: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (ft-mint? stackaroo amount (as-contract tx-sender))"
+                    "        (try! (ft-mint? stackaroo amount (as-contract tx-sender)))"
                 );
-                assert_eq!(output[2], "                        ^~~~~~");
+                assert_eq!(output[2], "                                  ^~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1742,6 +1792,13 @@ mod tests {
                 );
                 assert_eq!(output[4], "(define-public (tainted-ft-mint (amount uint))");
                 assert_eq!(output[5], "                                 ^~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:42: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1755,25 +1812,28 @@ mod tests {
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-burn (identifier uint))
-    (nft-burn? stackaroo identifier (as-contract tx-sender))
+    (begin
+        (try! (nft-burn? stackaroo identifier (as-contract tx-sender)))
+        (as-contract (nft-burn? stackaroo identifier tx-sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:26: {}: use of potentially unchecked data",
+                        "checker:5:36: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-burn? stackaroo identifier (as-contract tx-sender))"
+                    "        (try! (nft-burn? stackaroo identifier (as-contract tx-sender)))"
                 );
-                assert_eq!(output[2], "                         ^~~~~~~~~~");
+                assert_eq!(output[2], "                                   ^~~~~~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1786,6 +1846,13 @@ mod tests {
                     "(define-public (tainted-nft-burn (identifier uint))"
                 );
                 assert_eq!(output[5], "                                  ^~~~~~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:43: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
@@ -1819,25 +1886,31 @@ mod tests {
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-transfer (identifier uint))
-    (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender)
+    (let ((sender tx-sender))
+        (try! (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender))
+        (as-contract (nft-transfer? stackaroo identifier tx-sender sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:30: {}: use of potentially unchecked data",
+                        "checker:5:40: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender)"
+                    "        (try! (nft-transfer? stackaroo identifier (as-contract tx-sender) tx-sender))"
                 );
-                assert_eq!(output[2], "                             ^~~~~~~~~~");
+                assert_eq!(
+                    output[2],
+                    "                                       ^~~~~~~~~~"
+                );
                 assert_eq!(
                     output[3],
                     format!(
@@ -1852,6 +1925,13 @@ mod tests {
                 assert_eq!(
                     output[5],
                     "                                      ^~~~~~~~~~"
+                );
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:47: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
                 );
             }
             _ => panic!("Expected successful interpretation"),
@@ -1886,25 +1966,28 @@ mod tests {
         let snippet = "
 (define-non-fungible-token stackaroo uint)
 (define-public (tainted-nft-mint (identifier uint))
-    (nft-mint? stackaroo identifier (as-contract tx-sender))
+    (begin
+        (try! (nft-mint? stackaroo identifier (as-contract tx-sender)))
+        (as-contract (nft-mint? stackaroo identifier tx-sender))
+    )
 )
 "
         .to_string();
         match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
             Ok((output, _)) => {
-                assert_eq!(output.len(), 6);
+                assert_eq!(output.len(), 12);
                 assert_eq!(
                     output[0],
                     format!(
-                        "checker:4:26: {}: use of potentially unchecked data",
+                        "checker:5:36: {}: use of potentially unchecked data",
                         yellow!("warning")
                     )
                 );
                 assert_eq!(
                     output[1],
-                    "    (nft-mint? stackaroo identifier (as-contract tx-sender))"
+                    "        (try! (nft-mint? stackaroo identifier (as-contract tx-sender)))"
                 );
-                assert_eq!(output[2], "                         ^~~~~~~~~~");
+                assert_eq!(output[2], "                                   ^~~~~~~~~~");
                 assert_eq!(
                     output[3],
                     format!(
@@ -1917,6 +2000,13 @@ mod tests {
                     "(define-public (tainted-nft-mint (identifier uint))"
                 );
                 assert_eq!(output[5], "                                  ^~~~~~~~~~");
+                assert_eq!(
+                    output[6],
+                    format!(
+                        "checker:6:43: {}: use of potentially unchecked data",
+                        yellow!("warning")
+                    )
+                );
             }
             _ => panic!("Expected successful interpretation"),
         };
