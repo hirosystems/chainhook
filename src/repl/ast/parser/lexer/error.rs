@@ -24,6 +24,7 @@ pub enum LexerError {
     SingleSemiColon,
     UnknownSymbol(char),
     NoteToMatchThis(char),
+    UnsupportedLineEnding,
 }
 
 #[derive(Debug)]
@@ -55,6 +56,7 @@ impl DiagnosableError for LexerError {
             SingleSemiColon => "unexpected single ';' (comments begin with \";;\"".to_string(),
             UnknownSymbol(c) => format!("unknown symbol, '{}'", c),
             NoteToMatchThis(c) => format!("to match this '{}'", c),
+            UnsupportedLineEnding => "unsupported line-ending '\\r', only '\\n' is supported".to_string(),
         }
     }
 
