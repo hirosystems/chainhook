@@ -23,6 +23,8 @@ pub struct Lexer<'a> {
     // While lexing, collect diagnostics and continue on (when possible)
     pub diagnostics: Vec<PlacedError>,
     pub success: bool,
+    // Used to report an error for line-endings only on the first instance
+    line_endings: bool,
 }
 
 fn is_separator(ch: char) -> bool {
@@ -44,6 +46,7 @@ impl<'a> Lexer<'a> {
             last_column: 0,
             diagnostics: vec![],
             success: true,
+            line_endings: false,
         };
         s.read_char(); // Initialize with the first character
         s
@@ -77,7 +80,21 @@ impl<'a> Lexer<'a> {
     pub fn skip_whitespace(&mut self) {
         while self.next != '\0' {
             match self.next {
-                ' ' | '\t' | '\r' | '\n' => (),
+                ' ' | '\t' | '\n' => (),
+                '\r' => {
+                    if !self.line_endings {
+                        self.line_endings = true;
+                        self.add_diagnostic(PlacedError {
+                            span: Span {
+                                start_line: self.line as u32,
+                                start_column: self.column as u32,
+                                end_line: self.line as u32,
+                                end_column: self.column as u32,
+                            },
+                            e: LexerError::UnsupportedLineEnding,
+                        });
+                    }
+                }
                 _ => break,
             }
             self.read_char();
@@ -92,7 +109,20 @@ impl<'a> Lexer<'a> {
                     break;
                 }
                 '\0' => break,
-                '\r' => (),
+                '\r' => {
+                    if !self.line_endings {
+                        self.line_endings = true;
+                        self.add_diagnostic(PlacedError {
+                            span: Span {
+                                start_line: self.line as u32,
+                                start_column: self.column as u32,
+                                end_line: self.line as u32,
+                                end_column: self.column as u32,
+                            },
+                            e: LexerError::UnsupportedLineEnding,
+                        });
+                    }
+                }
                 ch => line.push(ch),
             }
             self.read_char();
@@ -724,7 +754,8 @@ mod tests {
 
         let mut lexer = Lexer::new("\r");
         assert_eq!(lexer.read_token().token, Token::Whitespace);
-        assert_eq!(lexer.diagnostics.len(), 0);
+        assert_eq!(lexer.diagnostics.len(), 1);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::UnsupportedLineEnding);
 
         lexer = Lexer::new("(");
         assert_eq!(lexer.read_token().token, Token::Lparen);
@@ -1080,7 +1111,8 @@ mod tests {
             lexer.read_token().token,
             Token::Comment("this is a comment".to_string())
         );
-        assert_eq!(lexer.diagnostics.len(), 0);
+        assert_eq!(lexer.diagnostics.len(), 1);
+        assert_eq!(lexer.diagnostics[0].e, LexerError::UnsupportedLineEnding);
 
         lexer = Lexer::new("; this is not a comment");
         assert_eq!(
