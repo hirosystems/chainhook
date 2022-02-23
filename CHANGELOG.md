@@ -1,3 +1,15 @@
+# [0.23.0](https://github.com/hirosystems/clarity-repl/compare/v0.22.2...v0.23.0) (2022-02-23)
+
+
+### Bug Fixes
+
+* report an error for CRLF line-endings ([5a4ccf0](https://github.com/hirosystems/clarity-repl/commit/5a4ccf083e3965569749d39b4ccd9345b93cdf22)), closes [#98](https://github.com/hirosystems/clarity-repl/issues/98)
+
+
+### Features
+
+* add note about CRLF -> LF mode ([5c1d2b6](https://github.com/hirosystems/clarity-repl/commit/5c1d2b6498b7fb0f6527cfd2c67b8d76e9775507))
+
 ## [0.22.2](https://github.com/hirosystems/clarity-repl/compare/v0.22.1...v0.22.2) (2022-02-18)
 
 
