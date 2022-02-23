@@ -25,6 +25,7 @@ pub enum LexerError {
     UnknownSymbol(char),
     NoteToMatchThis(char),
     UnsupportedLineEnding,
+    EditorCRLFMode,
 }
 
 #[derive(Debug)]
@@ -57,6 +58,7 @@ impl DiagnosableError for LexerError {
             UnknownSymbol(c) => format!("unknown symbol, '{}'", c),
             NoteToMatchThis(c) => format!("to match this '{}'", c),
             UnsupportedLineEnding => "unsupported line-ending '\\r', only '\\n' is supported".to_string(),
+            EditorCRLFMode => "you may need to change your editor from CRLF mode to LF mode".to_string(),
         }
     }
 
@@ -69,6 +71,7 @@ impl DiagnosableError for LexerError {
         match self {
             NoteToMatchThis(_) => Level::Note,
             WarningCharIdent(_) => Level::Warning,
+            EditorCRLFMode => Level::Note,
             _ => Level::Error,
         }
     }
