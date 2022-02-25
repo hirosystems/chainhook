@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::analysis::annotation::{Annotation, AnnotationKind};
-use crate::analysis::contract_call_detector::ContractCallDetector;
+use crate::analysis::dependency_detector::DependencyDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
 use crate::clarity;
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
@@ -190,7 +190,7 @@ impl ClarityInterpreter {
             LimitedCostTracker::new_free(),
         );
         let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-        match ContractCallDetector::run_pass(
+        match DependencyDetector::run_pass(
             &mut contract_analysis,
             &mut analysis_db,
             &vec![],
