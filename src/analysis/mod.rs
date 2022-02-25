@@ -2,7 +2,7 @@ pub mod annotation;
 pub mod ast_visitor;
 pub mod call_checker;
 pub mod check_checker;
-pub mod contract_call_detector;
+pub mod dependency_detector;
 
 use serde::de::Deserialize;
 use serde::Serialize;
@@ -14,7 +14,7 @@ use crate::clarity::diagnostic::Diagnostic;
 
 use self::call_checker::CallChecker;
 use self::check_checker::CheckChecker;
-use self::contract_call_detector::ContractCallDetector;
+use self::dependency_detector::DependencyDetector;
 
 pub type AnalysisResult = Result<Vec<Diagnostic>, Vec<Diagnostic>>;
 
@@ -124,7 +124,7 @@ pub fn run_analysis(
             &Vec<Annotation>,
             settings: &Settings,
         ) -> AnalysisResult,
-    > = vec![ContractCallDetector::run_pass, CallChecker::run_pass];
+    > = vec![DependencyDetector::run_pass, CallChecker::run_pass];
     for pass in &settings.passes {
         match pass {
             Pass::CheckChecker => passes.push(CheckChecker::run_pass),
@@ -132,16 +132,17 @@ pub fn run_analysis(
         }
     }
 
-    for pass in passes {
-        // Collect warnings and continue, or if there is an error, return.
-        match pass(contract_analysis, analysis_db, annotations, &settings) {
-            Ok(mut w) => errors.append(&mut w),
-            Err(mut e) => {
-                errors.append(&mut e);
-                return Err(errors);
+    analysis_db.execute(|db| {
+        for pass in passes {
+            // Collect warnings and continue, or if there is an error, return.
+            match pass(contract_analysis, db, annotations, &settings) {
+                Ok(mut w) => errors.append(&mut w),
+                Err(mut e) => {
+                    errors.append(&mut e);
+                    return Err(errors);
+                }
             }
         }
-    }
-
-    Ok(errors)
+        Ok(errors)
+    })
 }
