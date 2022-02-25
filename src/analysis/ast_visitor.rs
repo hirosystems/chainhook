@@ -6,6 +6,7 @@ use crate::clarity::types::{PrincipalData, QualifiedContractIdentifier, TraitIde
 use crate::clarity::{ClarityName, SymbolicExpression, SymbolicExpressionType};
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct TypedVar<'a> {
     pub name: &'a ClarityName,
     pub type_expr: &'a SymbolicExpression,
