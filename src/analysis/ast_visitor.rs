@@ -733,7 +733,8 @@ pub trait ASTVisitor<'a> {
         then_expr: &'a SymbolicExpression,
         else_expr: &'a SymbolicExpression,
     ) -> bool {
-        self.traverse_expr(then_expr)
+        self.traverse_expr(cond)
+            && self.traverse_expr(then_expr)
             && self.traverse_expr(else_expr)
             && self.visit_if(expr, cond, then_expr, else_expr)
     }
