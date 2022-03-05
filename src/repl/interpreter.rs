@@ -13,6 +13,7 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
+use crate::clarity::debug::DebugState;
 use crate::clarity::diagnostic::{Diagnostic, Level};
 use crate::clarity::errors::Error;
 use crate::clarity::events::*;
@@ -112,6 +113,7 @@ impl ClarityInterpreter {
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
+        debug: bool,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (mut ast, mut diagnostics, success) = self.build_ast(
@@ -144,6 +146,7 @@ impl ClarityInterpreter {
             snippet,
             analysis,
             cost_track,
+            debug,
             coverage_reporter,
         ) {
             Ok(result) => result,
@@ -385,6 +388,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
         snippet: String,
         contract_analysis: ContractAnalysis,
         cost_track: bool,
+        debug: bool,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut execution_result = ExecutionResult::default();
@@ -410,6 +414,9 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             };
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
             global_context.coverage_reporting = coverage_reporter;
+            if debug {
+                global_context.debug_state = Some(DebugState::new());
+            }
             global_context.begin();
 
             let result = global_context.execute(|g| {

@@ -335,6 +335,7 @@ impl Session {
                     code.to_string(),
                     Some(contract_name.to_string()),
                     true,
+                    false,
                     None,
                 ) {
                     Ok((mut logs, _)) => output.append(&mut logs),
@@ -378,6 +379,7 @@ impl Session {
                     contract.code,
                     contract.name,
                     true,
+                    false,
                     Some("Deployment".into()),
                 ) {
                     Ok((ref mut res_output, result)) => {
@@ -430,6 +432,7 @@ impl Session {
                 POX_CONTRACT.to_string(),
                 Some("pox".to_string()),
                 false,
+                false,
                 None,
             )
             .expect("Unable to deploy POX");
@@ -442,6 +445,7 @@ impl Session {
             self.formatted_interpretation(
                 BNS_CONTRACT.to_string(),
                 Some("bns".to_string()),
+                false,
                 false,
                 None,
             )
@@ -456,6 +460,7 @@ impl Session {
                 COSTS_V1_CONTRACT.to_string(),
                 Some("costs-v1".to_string()),
                 false,
+                false,
                 None,
             )
             .expect("Unable to deploy COSTS");
@@ -468,6 +473,7 @@ impl Session {
             self.formatted_interpretation(
                 COSTS_V2_CONTRACT.to_string(),
                 Some("costs-v2".to_string()),
+                false,
                 false,
                 None,
             )
@@ -532,6 +538,7 @@ impl Session {
             cmd if cmd.starts_with("::toggle_costs") => self.toggle_costs(&mut output),
             cmd if cmd.starts_with("::encode") => self.encode(&mut output, cmd),
             cmd if cmd.starts_with("::decode") => self.decode(&mut output, cmd),
+            cmd if cmd.starts_with("::debug") => self.debug(&mut output, cmd),
 
             snippet => {
                 if self.show_costs {
@@ -541,6 +548,7 @@ impl Session {
                         snippet.to_string(),
                         None,
                         true,
+                        false,
                         None,
                     ) {
                         Ok((mut output, result)) => {
@@ -564,11 +572,18 @@ impl Session {
         snippet: String,
         name: Option<String>,
         cost_track: bool,
+        debug: bool,
         test_name: Option<String>,
     ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
 
-        let result = self.interpret(snippet.to_string(), name.clone(), cost_track, test_name);
+        let result = self.interpret(
+            snippet.to_string(),
+            name.clone(),
+            cost_track,
+            debug,
+            test_name,
+        );
         let mut output = Vec::<String>::new();
         let lines = snippet.lines();
         let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
@@ -599,6 +614,30 @@ impl Session {
         }
     }
 
+    pub fn debug(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let snippet = match cmd.split_once(" ") {
+            Some((_, snippet)) => snippet,
+            _ => return output.push(red!("Usage: ::debug <expr>")),
+        };
+        let mut result = match self.formatted_interpretation(
+            snippet.to_string(),
+            None,
+            true,
+            true,
+            None,
+        ) {
+            Ok((mut output, result)) => {
+                if let Some((ref contract_name, _, _, _, _)) = result.contract {
+                    let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
+                    output.push(green!(snippet));
+                }
+                output
+            }
+            Err(result) => result,
+        };
+        output.append(&mut result);
+    }
+
     pub fn invoke_contract_call(
         &mut self,
         contract: &str,
@@ -624,7 +663,7 @@ impl Session {
         );
 
         self.set_tx_sender(sender.into());
-        let result = self.interpret(snippet, None, true, Some(test_name.clone()))?;
+        let result = self.interpret(snippet, None, true, false, Some(test_name.clone()))?;
         if let Some(ref cost) = result.cost {
             self.costs_reports.push(CostsReport {
                 test_name,
@@ -643,6 +682,7 @@ impl Session {
         snippet: String,
         name: Option<String>,
         cost_track: bool,
+        debug: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (contract_name, is_tx) = match name {
@@ -667,10 +707,13 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self
-            .interpreter
-            .run(snippet, contract_identifier.clone(), cost_track, report)
-        {
+        match self.interpreter.run(
+            snippet,
+            contract_identifier.clone(),
+            cost_track,
+            debug,
+            report,
+        ) {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
@@ -847,7 +890,7 @@ impl Session {
             _ => return output.push(red!("Usage: ::encode <expr>")),
         };
 
-        let result = self.interpret(snippet.to_string(), None, false, None);
+        let result = self.interpret(snippet.to_string(), None, false, false, None);
         let value = match result {
             Ok(result) => {
                 let mut tx_bytes = vec![];
@@ -896,10 +939,11 @@ impl Session {
     #[cfg(feature = "cli")]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
-            Ok((output, result)) => (output, result.cost.clone()),
-            Err(output) => (output, None),
-        };
+        let (mut result, cost) =
+            match self.formatted_interpretation(snippet, None, true, false, None) {
+                Ok((output, result)) => (output, result.cost.clone()),
+                Err(output) => (output, None),
+            };
 
         if let Some(cost) = cost {
             let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];

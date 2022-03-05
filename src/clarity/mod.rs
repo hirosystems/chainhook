@@ -30,6 +30,7 @@ pub mod analysis;
 pub mod docs;
 
 pub mod coverage;
+pub mod debug;
 
 use crate::clarity::callables::CallableType;
 use crate::clarity::contexts::GlobalContext;
@@ -219,6 +220,10 @@ pub fn eval<'a>(
         Atom, AtomValue, Field, List, LiteralValue, TraitReference,
     };
 
+    if let Some(ref mut debug_state) = env.global_context.debug_state {
+        debug_state.begin_eval(&env.contract_context.contract_identifier, context, exp);
+    }
+
     if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
         coverage_tracker.report_eval(&env.contract_context.contract_identifier, exp);
     }
@@ -260,6 +265,11 @@ pub fn eval<'a>(
             _ => {}
         };
     }
+
+    if let Some(ref mut debug_state) = env.global_context.debug_state {
+        debug_state.finish_eval(&env.contract_context.contract_identifier, context, exp, &res);
+    }
+
     res
 }
 
