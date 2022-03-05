@@ -16,6 +16,7 @@ use crate::clarity::database::structures::{
     DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
 };
 use crate::clarity::database::ClarityDatabase;
+use crate::clarity::debug::DebugState;
 use crate::clarity::errors::{
     CheckErrors, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
 };
@@ -92,6 +93,7 @@ pub struct GlobalContext<'a> {
     pub mainnet: bool,
     pub coverage_reporting: Option<TestCoverageReport>,
     pub costs_reporting: Option<CostsReport>,
+    pub debug_state: Option<DebugState>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1198,6 +1200,7 @@ impl<'a> GlobalContext<'a> {
             mainnet,
             coverage_reporting: None,
             costs_reporting: None,
+            debug_state: None,
         }
     }
 
