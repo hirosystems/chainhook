@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use crate::clarity::contexts::{CallStack, ContractContext, Environment, LocalContext};
+use crate::clarity::database::ClarityDatabase;
 use crate::clarity::errors::Error;
 use crate::clarity::representations::Span;
 use crate::clarity::representations::SymbolicExpression;
@@ -79,7 +82,7 @@ impl DebugState {
         }
     }
 
-    fn prompt(&mut self, expr: &SymbolicExpression, finish: bool) {
+    fn prompt(&mut self, context: &LocalContext, expr: &SymbolicExpression, finish: bool) {
         let prompt = "(debug) ";
         loop {
             let readline = self.editor.readline(prompt);
@@ -92,7 +95,7 @@ impl DebugState {
                         }
                     }
                     self.editor.add_history_entry(&command);
-                    self.handle_command(&command, expr, finish)
+                    self.handle_command(&command, context, expr, finish)
                 }
                 Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                     println!("Use \"q\" or \"quit\" to exit debug mode");
@@ -110,8 +113,61 @@ impl DebugState {
         }
     }
 
+    // Print the source of the current expr (if it has a valid span).
+    fn print_source(
+        &mut self,
+        db: &mut ClarityDatabase,
+        contract: &QualifiedContractIdentifier,
+        expr: &SymbolicExpression,
+    ) {
+        if expr.span.start_line != 0 {
+            match db.get_contract_src(contract) {
+                Some(contract_source) => {
+                    println!(
+                        "{}:{}:{}",
+                        blue!(format!("{}", contract)),
+                        expr.span.start_line,
+                        expr.span.start_column
+                    );
+                    let lines: Vec<&str> = contract_source.lines().collect();
+                    let first_line = (expr.span.start_line - 1).saturating_sub(3) as usize;
+                    let last_line =
+                        std::cmp::min(lines.len() - 1, expr.span.start_line as usize + 3);
+                    for line in first_line..last_line {
+                        if line == (expr.span.start_line as usize - 1) {
+                            print!("{}", blue!("-> "));
+                        } else {
+                            print!("   ");
+                        }
+                        println!("{} {}", black!(format!("{: <6}", line + 1)), lines[line]);
+                        if line == (expr.span.start_line as usize - 1) {
+                            println!(
+                                "{}",
+                                blue!(format!(
+                                    "          {: <1$}^",
+                                    "",
+                                    (expr.span.start_column - 1) as usize
+                                ))
+                            );
+                        }
+                    }
+                }
+                None => {
+                    println!("{}", yellow!("source not found"));
+                    println!(
+                        "{}:{}:{}",
+                        contract, expr.span.start_line, expr.span.start_column
+                    );
+                }
+            }
+        } else {
+            println!("{}", yellow!("source information unknown"));
+        }
+    }
+
     pub fn begin_eval(
         &mut self,
+        db: &mut ClarityDatabase,
         contract: &QualifiedContractIdentifier,
         context: &LocalContext,
         expr: &SymbolicExpression,
@@ -131,11 +187,6 @@ impl DebugState {
             _ => return,
         };
 
-        println!(
-            "DEBUG {}:{}:{}",
-            contract, expr.span.start_line, expr.span.start_column
-        );
-
         match self.state {
             State::Continue | State::Quit | State::Finish(_) => return,
             State::StepOver(step_over_id) => {
@@ -148,11 +199,13 @@ impl DebugState {
             State::Start | State::StepIn => (),
         };
 
-        self.prompt(expr, false);
+        self.print_source(db, contract, expr);
+        self.prompt(context, expr, false);
     }
 
     pub fn finish_eval(
         &mut self,
+        db: &mut ClarityDatabase,
         contract: &QualifiedContractIdentifier,
         context: &LocalContext,
         expr: &SymbolicExpression,
@@ -167,16 +220,22 @@ impl DebugState {
             _ => return,
         }
 
-        // Print the returned value and prompt.
-        println!(
-            "FINISH {}:{}:{}",
-            contract, expr.span.start_line, expr.span.start_column
-        );
-        println!("Return value: {:?}", res);
-        self.prompt(expr, true);
+        match res {
+            Ok(value) => println!("{}: {}", green!("Return value"), black!(format!("{}", value))),
+            Err(e) => println!("{}: {}", red!("error"), e),
+        }
+
+        self.print_source(db, contract, expr);
+        self.prompt(context, expr, true);
     }
 
-    fn handle_command(&mut self, command: &str, expr: &SymbolicExpression, finish: bool) -> bool {
+    fn handle_command(
+        &mut self,
+        command: &str,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+        finish: bool,
+    ) -> bool {
         let (cmd, args) = match command.split_once(" ") {
             None => (command, ""),
             Some((cmd, args)) => (cmd, args),
@@ -225,6 +284,13 @@ impl DebugState {
                 }
                 true
             }
+            "p" | "print" => {
+                match context.lookup_variable(args) {
+                    Some(value) => println!("{}", value),
+                    None => println!("{}: unknown variable", red!("error")),
+                };
+                false
+            }
             "q" | "quit" => {
                 self.state = State::Quit;
                 true
@@ -248,13 +314,14 @@ fn print_help(args: &str) {
 fn print_help_main() {
     println!(
         r#"Debugger commands:
-  b | breakpoint  -- Commands for operating on breakpoints (see 'help b' for details)
-  c | continue    -- Continue execution until next breakpoint or completion
-  f | finish      -- Continue execution until returning from the current expression
-  n | next        -- Single step, stepping over sub-expressions
-  q | quit        -- Quit the debugger
-  r | run         -- Begin execution
-  s | step        -- Single step, stepping into sub-expressions
+  b | breakpoint   -- Commands for operating on breakpoints (see 'help b' for details)
+  c | continue     -- Continue execution until next breakpoint or completion
+  f | finish       -- Continue execution until returning from the current expression
+  n | next         -- Single step, stepping over sub-expressions
+  p | print <name> -- Print the value of a variable
+  q | quit         -- Quit the debugger
+  r | run          -- Begin execution
+  s | step         -- Single step, stepping into sub-expressions
 "#
     );
 }
