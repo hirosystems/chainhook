@@ -221,7 +221,7 @@ pub fn eval<'a>(
     };
 
     if let Some(ref mut debug_state) = env.global_context.debug_state {
-        debug_state.begin_eval(&env.contract_context.contract_identifier, context, exp);
+        debug_state.begin_eval(&mut env.global_context.database, &env.contract_context.contract_identifier, context, exp);
     }
 
     if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
@@ -267,7 +267,7 @@ pub fn eval<'a>(
     }
 
     if let Some(ref mut debug_state) = env.global_context.debug_state {
-        debug_state.finish_eval(&env.contract_context.contract_identifier, context, exp, &res);
+        debug_state.finish_eval(&mut env.global_context.database, &env.contract_context.contract_identifier, context, exp, &res);
     }
 
     res
