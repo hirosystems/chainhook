@@ -73,19 +73,24 @@ impl<'a> Parser<'a> {
         Some(token)
     }
 
-    fn ignore_whitespace(&mut self) {
+    fn ignore_whitespace(&mut self) -> bool {
+        let mut found = false;
         loop {
             if self.next_token >= self.tokens.len() {
-                return;
+                return found;
             }
             let token = &self.tokens[self.next_token];
             match &token.token {
-                Token::Whitespace => self.next_token = self.next_token + 1,
+                Token::Whitespace => {
+                    self.next_token = self.next_token + 1;
+                    found = true;
+                }
                 Token::Comment(comment) => {
                     self.comments.push(comment.clone());
                     self.next_token = self.next_token + 1;
+                    found = true;
                 }
-                _ => return,
+                _ => return found,
             }
         }
     }
@@ -93,9 +98,17 @@ impl<'a> Parser<'a> {
     fn parse_list(&mut self, lparen: PlacedToken) -> PreSymbolicExpression {
         let mut nodes = vec![];
         let mut span = lparen.span.clone();
+        let mut whitespace = true;
         loop {
             if let Some(node) = self.parse_node() {
+                if !whitespace {
+                    self.add_diagnostic(PlacedError {
+                        e: ParserError::ExpectedWhitespace,
+                        span: node.span.clone(),
+                    });
+                }
                 nodes.push(node);
+                whitespace = self.ignore_whitespace();
             } else {
                 let token = self.tokens[self.next_token - 1].clone();
                 match token.token {
@@ -128,6 +141,7 @@ impl<'a> Parser<'a> {
                             e: ParserError::UnexpectedToken(token.token.clone()),
                             span: token.span.clone(),
                         });
+                        whitespace = self.ignore_whitespace();
                     }
                 };
             }
@@ -2337,5 +2351,28 @@ mod tests {
         assert_eq!(success, true);
         assert_eq!(stmts.len(), 1);
         assert_eq!(diagnostics.len(), 0);
+    }
+
+    #[test]
+    fn test_missing_whitespace() {
+        let (stmts, diagnostics, success) = parse("(foo(bar))");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        let exprs = stmts[0].match_list().unwrap();
+        assert_eq!(exprs.len(), 2);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 5,
+                end_line: 1,
+                end_column: 9
+            }
+        );
+        assert_eq!(
+            diagnostics[0].message,
+            "expected whitespace before expression"
+        );
     }
 }
