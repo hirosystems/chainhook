@@ -1,3 +1,14 @@
+## [0.23.1](https://github.com/hirosystems/clarity-repl/compare/v0.23.0...v0.23.1) (2022-03-08)
+
+
+### Bug Fixes
+
+* add missing traversal of cond in if expr ([49c0688](https://github.com/hirosystems/clarity-repl/commit/49c068849e555c2ce2bd7a0e3c5080cb7c5d5196))
+* check for whitespace between exprs in list ([5cf0f06](https://github.com/hirosystems/clarity-repl/commit/5cf0f061adc2950c8217979fbf998fa68be564e1)), closes [#110](https://github.com/hirosystems/clarity-repl/issues/110)
+* consider as-contract in check-checker ([00bd603](https://github.com/hirosystems/clarity-repl/commit/00bd60373deb3d480d576a4e4e88c9035e436af0))
+* detect dependency through principal literal ([e6dfe4b](https://github.com/hirosystems/clarity-repl/commit/e6dfe4b287276bbbfb4183bf6402fe5570920e0e))
+* improve error in type checker ([e6e7267](https://github.com/hirosystems/clarity-repl/commit/e6e72679d893128c624dd500a61b191007e81c1d))
+
 # [0.23.0](https://github.com/hirosystems/clarity-repl/compare/v0.22.2...v0.23.0) (2022-02-23)
 
 
