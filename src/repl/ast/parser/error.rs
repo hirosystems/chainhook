@@ -25,6 +25,7 @@ pub enum ParserError {
     IllegalClarityName(String),
     IllegalASCIIString(String),
     IllegalUtf8String(String),
+    ExpectedWhitespace,
     // Notes
     NoteToMatchThis(Token),
 }
@@ -57,6 +58,7 @@ impl DiagnosableError for ParserError {
             IllegalClarityName(name) => format!("illegal clarity name, '{}'", name),
             IllegalASCIIString(s) => format!("illegal ascii string \"{}\"", s),
             IllegalUtf8String(s) => format!("illegal UTF8 string \"{}\"", s),
+            ExpectedWhitespace => "expected whitespace before expression".to_string(),
             NoteToMatchThis(token) => format!("to match this '{}'", token),
         }
     }
