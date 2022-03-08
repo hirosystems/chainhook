@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
-use crate::clarity::contexts::{CallStack, ContractContext, Environment, LocalContext};
+use crate::clarity::contexts::{Environment, LocalContext};
 use crate::clarity::database::ClarityDatabase;
+use crate::clarity::diagnostic::Level;
 use crate::clarity::errors::Error;
+use crate::clarity::eval;
 use crate::clarity::representations::Span;
 use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::types::Value;
 use crate::clarity::SymbolicExpressionType;
+use crate::repl::ast::build_ast;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
@@ -82,7 +85,13 @@ impl DebugState {
         }
     }
 
-    fn prompt(&mut self, context: &LocalContext, expr: &SymbolicExpression, finish: bool) {
+    fn prompt(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+        finish: bool,
+    ) {
         let prompt = "(debug) ";
         loop {
             let readline = self.editor.readline(prompt);
@@ -95,7 +104,7 @@ impl DebugState {
                         }
                     }
                     self.editor.add_history_entry(&command);
-                    self.handle_command(&command, context, expr, finish)
+                    self.handle_command(&command, env, context, expr, finish)
                 }
                 Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                     println!("Use \"q\" or \"quit\" to exit debug mode");
@@ -114,14 +123,10 @@ impl DebugState {
     }
 
     // Print the source of the current expr (if it has a valid span).
-    fn print_source(
-        &mut self,
-        db: &mut ClarityDatabase,
-        contract: &QualifiedContractIdentifier,
-        expr: &SymbolicExpression,
-    ) {
+    fn print_source(&mut self, env: &mut Environment, expr: &SymbolicExpression) {
+        let contract = &env.contract_context.contract_identifier;
         if expr.span.start_line != 0 {
-            match db.get_contract_src(contract) {
+            match env.global_context.database.get_contract_src(contract) {
                 Some(contract_source) => {
                     println!(
                         "{}:{}:{}",
@@ -167,8 +172,7 @@ impl DebugState {
 
     pub fn begin_eval(
         &mut self,
-        db: &mut ClarityDatabase,
-        contract: &QualifiedContractIdentifier,
+        env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
     ) {
@@ -199,14 +203,13 @@ impl DebugState {
             State::Start | State::StepIn => (),
         };
 
-        self.print_source(db, contract, expr);
-        self.prompt(context, expr, false);
+        self.print_source(env, expr);
+        self.prompt(env, context, expr, false);
     }
 
     pub fn finish_eval(
         &mut self,
-        db: &mut ClarityDatabase,
-        contract: &QualifiedContractIdentifier,
+        env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
@@ -221,17 +224,22 @@ impl DebugState {
         }
 
         match res {
-            Ok(value) => println!("{}: {}", green!("Return value"), black!(format!("{}", value))),
+            Ok(value) => println!(
+                "{}: {}",
+                green!("Return value"),
+                black!(format!("{}", value))
+            ),
             Err(e) => println!("{}: {}", red!("error"), e),
         }
 
-        self.print_source(db, contract, expr);
-        self.prompt(context, expr, true);
+        self.print_source(env, expr);
+        self.prompt(env, context, expr, true);
     }
 
     fn handle_command(
         &mut self,
         command: &str,
+        env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
         finish: bool,
@@ -285,10 +293,23 @@ impl DebugState {
                 true
             }
             "p" | "print" => {
-                match context.lookup_variable(args) {
-                    Some(value) => println!("{}", value),
-                    None => println!("{}: unknown variable", red!("error")),
-                };
+                let contract_id = QualifiedContractIdentifier::transient();
+                let (ast, mut diagnostics, success) = build_ast(&contract_id, args, &mut ());
+                if ast.expressions.len() != 1 {
+                    println!("{}: expected a single expression", red!("error"));
+                    return false;
+                }
+                if !success {
+                    for diagnostic in diagnostics.drain(..).filter(|d| d.level == Level::Error) {
+                        println!("{}: {}", red!("error"), diagnostic.message);
+                    }
+                    return false;
+                }
+
+                match eval(&ast.expressions[0], env, &context) {
+                    Ok(value) => println!("{}", value),
+                    Err(e) => println!("{}: {}", red!("error"), e),
+                }
                 false
             }
             "q" | "quit" => {
