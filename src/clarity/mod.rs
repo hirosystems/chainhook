@@ -220,8 +220,9 @@ pub fn eval<'a>(
         Atom, AtomValue, Field, List, LiteralValue, TraitReference,
     };
 
-    if let Some(ref mut debug_state) = env.global_context.debug_state {
-        debug_state.begin_eval(&mut env.global_context.database, &env.contract_context.contract_identifier, context, exp);
+    if let Some(mut debug_state) = env.global_context.debug_state.take() {
+        debug_state.begin_eval(env, context, exp);
+        env.global_context.debug_state = Some(debug_state);
     }
 
     if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
@@ -266,8 +267,9 @@ pub fn eval<'a>(
         };
     }
 
-    if let Some(ref mut debug_state) = env.global_context.debug_state {
-        debug_state.finish_eval(&mut env.global_context.database, &env.contract_context.contract_identifier, context, exp, &res);
+    if let Some(mut debug_state) = env.global_context.debug_state.take() {
+        debug_state.finish_eval(env, context, exp, &res);
+        env.global_context.debug_state = Some(debug_state);
     }
 
     res
