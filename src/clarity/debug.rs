@@ -100,6 +100,7 @@ enum State {
     StepOver(u64),
     StepIn,
     Finish(u64),
+    Break,
     Quit,
 }
 
@@ -108,6 +109,7 @@ pub struct DebugState {
     breakpoints: BTreeMap<usize, Breakpoint>,
     break_functions: HashMap<(QualifiedContractIdentifier, String), HashSet<usize>>,
     break_locations: HashMap<QualifiedContractIdentifier, HashSet<usize>>,
+    active_breakpoints: Vec<Breakpoint>,
     state: State,
     stack: Vec<u64>,
     unique_id: usize,
@@ -125,6 +127,7 @@ impl DebugState {
             breakpoints: BTreeMap::new(),
             break_functions: HashMap::new(),
             break_locations: HashMap::new(),
+            active_breakpoints: Vec::new(),
             state: State::Start,
             stack: Vec::new(),
             unique_id: 0,
@@ -191,6 +194,31 @@ impl DebugState {
         } else {
             false
         }
+    }
+
+    fn did_hit_source_breakpoint(
+        &self,
+        contract_id: &QualifiedContractIdentifier,
+        span: &Span,
+    ) -> Option<&Breakpoint> {
+        if let Some(set) = self.break_locations.get(contract_id) {
+            for id in set {
+                let breakpoint = match self.breakpoints.get(id) {
+                    Some(breakpoint) => breakpoint,
+                    None => panic!("internal error: breakpoint {} not found", id),
+                };
+
+                if let Some(break_span) = &breakpoint.span {
+                    if break_span.start_line == span.start_line
+                        && (break_span.start_column == 0
+                            || break_span.start_column == span.start_column)
+                    {
+                        return Some(breakpoint);
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn prompt(
@@ -295,6 +323,13 @@ impl DebugState {
         }
 
         // Check if we have hit a breakpoint
+        if let Some(breakpoint) =
+            self.did_hit_source_breakpoint(&env.contract_context.contract_identifier, &expr.span)
+        {
+            // TODO: Only hit a breakpoint with column == 0 once, not for every expression on that line
+            println!("{} hit breakpoint {}", black!("*"), breakpoint.id);
+            self.state = State::Break;
+        }
 
         // Always skip over non-list expressions (values).
         match expr.expr {
@@ -311,7 +346,7 @@ impl DebugState {
                     return;
                 }
             }
-            State::Start | State::StepIn => (),
+            State::Start | State::StepIn | State::Break => (),
         };
 
         self.print_source(env, expr);
