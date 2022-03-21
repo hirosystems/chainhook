@@ -104,14 +104,34 @@ enum State {
     Quit,
 }
 
+struct ExprState {
+    id: u64,
+    active_breakpoints: Vec<usize>,
+}
+
+impl ExprState {
+    pub fn new(id: u64) -> ExprState {
+        ExprState {
+            id,
+            active_breakpoints: Vec::new(),
+        }
+    }
+}
+
+impl PartialEq for ExprState {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 pub struct DebugState {
     editor: Editor<()>,
     breakpoints: BTreeMap<usize, Breakpoint>,
     break_functions: HashMap<(QualifiedContractIdentifier, String), HashSet<usize>>,
     break_locations: HashMap<QualifiedContractIdentifier, HashSet<usize>>,
-    active_breakpoints: Vec<Breakpoint>,
+    active_breakpoints: HashSet<usize>,
     state: State,
-    stack: Vec<u64>,
+    stack: Vec<ExprState>,
     unique_id: usize,
 }
 
@@ -127,7 +147,7 @@ impl DebugState {
             breakpoints: BTreeMap::new(),
             break_functions: HashMap::new(),
             break_locations: HashMap::new(),
-            active_breakpoints: Vec::new(),
+            active_breakpoints: HashSet::new(),
             state: State::Start,
             stack: Vec::new(),
             unique_id: 0,
@@ -200,9 +220,15 @@ impl DebugState {
         &self,
         contract_id: &QualifiedContractIdentifier,
         span: &Span,
-    ) -> Option<&Breakpoint> {
+    ) -> Option<usize> {
         if let Some(set) = self.break_locations.get(contract_id) {
             for id in set {
+                // Don't break in a subexpression of an expression which has
+                // already triggered this breakpoint
+                if self.active_breakpoints.contains(id) {
+                    continue;
+                }
+
                 let breakpoint = match self.breakpoints.get(id) {
                     Some(breakpoint) => breakpoint,
                     None => panic!("internal error: breakpoint {} not found", id),
@@ -213,7 +239,7 @@ impl DebugState {
                         && (break_span.start_column == 0
                             || break_span.start_column == span.start_column)
                     {
-                        return Some(breakpoint);
+                        return Some(breakpoint.id);
                     }
                 }
             }
@@ -315,7 +341,7 @@ impl DebugState {
         context: &LocalContext,
         expr: &SymbolicExpression,
     ) {
-        self.stack.push(expr.id);
+        self.stack.push(ExprState::new(expr.id));
 
         // If user quit debug session, we can't stop executing, but don't do anything else.
         if self.state == State::Quit {
@@ -326,8 +352,11 @@ impl DebugState {
         if let Some(breakpoint) =
             self.did_hit_source_breakpoint(&env.contract_context.contract_identifier, &expr.span)
         {
-            // TODO: Only hit a breakpoint with column == 0 once, not for every expression on that line
-            println!("{} hit breakpoint {}", black!("*"), breakpoint.id);
+            self.active_breakpoints.insert(breakpoint);
+            let top = self.stack.last_mut().unwrap();
+            top.active_breakpoints.push(breakpoint);
+
+            println!("{} hit breakpoint {}", black!("*"), breakpoint);
             self.state = State::Break;
         }
 
@@ -340,7 +369,12 @@ impl DebugState {
         match self.state {
             State::Continue | State::Quit | State::Finish(_) => return,
             State::StepOver(step_over_id) => {
-                if self.stack.contains(&step_over_id) {
+                if self
+                    .stack
+                    .iter()
+                    .find(|&state| state.id == step_over_id)
+                    .is_some()
+                {
                     // We're still inside the expression which should be stepped over,
                     // so return to execution.
                     return;
@@ -360,12 +394,17 @@ impl DebugState {
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
     ) {
-        let id = self.stack.pop().unwrap();
-        assert_eq!(id, expr.id);
+        let state = self.stack.pop().unwrap();
+        assert_eq!(state.id, expr.id);
+
+        // Remove any active breakpoints for this expression
+        for breakpoint in state.active_breakpoints {
+            self.active_breakpoints.remove(&breakpoint);
+        }
 
         // Only print the returned value if this resolves a finish command
         match self.state {
-            State::Finish(finish_id) if finish_id == id => (),
+            State::Finish(finish_id) if finish_id == state.id => (),
             _ => return,
         }
 
@@ -425,13 +464,13 @@ impl DebugState {
                 // parent expression is the penultimate id on the stack.
                 if finish {
                     if self.stack.len() >= 1 {
-                        self.state = State::Finish(*self.stack.last().unwrap());
+                        self.state = State::Finish(self.stack.last().unwrap().id);
                     } else {
                         self.state = State::Continue;
                     }
                 } else {
                     if self.stack.len() >= 2 {
-                        self.state = State::Finish(self.stack[self.stack.len() - 2]);
+                        self.state = State::Finish(self.stack[self.stack.len() - 2].id);
                     } else {
                         self.state = State::Continue;
                     }
