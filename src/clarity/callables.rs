@@ -41,7 +41,7 @@ pub struct DefinedFunction {
     pub arg_types: Vec<TypeSignature>,
     pub define_type: DefineType,
     pub arguments: Vec<ClarityName>,
-    body: SymbolicExpression,
+    pub body: SymbolicExpression,
 }
 
 pub enum NativeHandle {

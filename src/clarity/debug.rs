@@ -7,6 +7,7 @@ use crate::clarity::database::ClarityDatabase;
 use crate::clarity::diagnostic::Level;
 use crate::clarity::errors::Error;
 use crate::clarity::eval;
+use crate::clarity::functions::NativeFunctions;
 use crate::clarity::representations::Span;
 use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::types::QualifiedContractIdentifier;
@@ -162,54 +163,25 @@ impl DebugState {
     fn add_breakpoint(&mut self, mut breakpoint: Breakpoint) {
         breakpoint.id = self.get_unique_id();
 
-        match &breakpoint.data {
-            BreakpointData::Function(function) => {
-                if let Some(set) = self
-                    .break_functions
-                    .get_mut(&(breakpoint.source.name.clone(), function.name.clone()))
-                {
-                    set.insert(breakpoint.id);
-                } else {
-                    let mut set = HashSet::new();
-                    set.insert(breakpoint.id);
-                    self.break_functions
-                        .insert((breakpoint.source.name.clone(), function.name.clone()), set);
-                }
-            }
-            BreakpointData::Source(source) => {
-                if let Some(set) = self.break_locations.get_mut(&breakpoint.source.name) {
-                    set.insert(breakpoint.id);
-                } else {
-                    let mut set = HashSet::new();
-                    set.insert(breakpoint.id);
-                    self.break_locations
-                        .insert(breakpoint.source.name.clone(), set);
-                }
-            }
-        };
+        if let Some(set) = self.break_locations.get_mut(&breakpoint.source.name) {
+            set.insert(breakpoint.id);
+        } else {
+            let mut set = HashSet::new();
+            set.insert(breakpoint.id);
+            self.break_locations
+                .insert(breakpoint.source.name.clone(), set);
+        }
 
         self.breakpoints.insert(breakpoint.id, breakpoint);
     }
 
     fn delete_breakpoint(&mut self, id: usize) -> bool {
         if let Some(breakpoint) = self.breakpoints.remove(&id) {
-            match breakpoint.data {
-                BreakpointData::Function(function) => {
-                    let name = function.name;
-                    let set = self
-                        .break_functions
-                        .get_mut(&(breakpoint.source.name.clone(), name.clone()))
-                        .unwrap();
-                    set.remove(&breakpoint.id);
-                }
-                BreakpointData::Source(source) => {
-                    let set = self
-                        .break_locations
-                        .get_mut(&breakpoint.source.name)
-                        .unwrap();
-                    set.remove(&breakpoint.id);
-                }
-            };
+            let set = self
+                .break_locations
+                .get_mut(&breakpoint.source.name)
+                .unwrap();
+            set.remove(&breakpoint.id);
             true
         } else {
             false
@@ -682,12 +654,12 @@ impl DebugState {
                             return;
                         }
                     };
-                    match contract.contract_context.lookup_function(function_name) {
+                    let function = match contract.contract_context.lookup_function(function_name) {
                         None => {
                             println!("{}: no such function", red!("error"));
                             return;
                         }
-                        _ => (),
+                        Some(function) => function,
                     };
 
                     self.add_breakpoint(Breakpoint {
@@ -697,7 +669,7 @@ impl DebugState {
                             name: function_name.to_string(),
                         }),
                         source: Source { name: contract_id },
-                        span: None, // TODO: get a span for the function
+                        span: Some(function.body.span.clone()),
                     });
                 }
             }
