@@ -13,6 +13,7 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
+#[cfg(feature = "cli")]
 use crate::clarity::debug::DebugState;
 use crate::clarity::diagnostic::{Diagnostic, Level};
 use crate::clarity::errors::Error;
@@ -414,6 +415,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             };
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
             global_context.coverage_reporting = coverage_reporter;
+            #[cfg(feature = "cli")]
             if debug {
                 global_context.debug_state = Some(DebugState::new());
             }
