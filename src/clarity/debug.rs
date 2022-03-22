@@ -46,6 +46,7 @@ impl Display for Breakpoint {
 pub enum BreakpointData {
     Source(SourceBreakpoint),
     Function(FunctionBreakpoint),
+    Data(DataBreakpoint),
 }
 
 impl Display for BreakpointData {
@@ -53,6 +54,7 @@ impl Display for BreakpointData {
         match self {
             BreakpointData::Source(source) => write!(f, "{}", source),
             BreakpointData::Function(function) => write!(f, "{}", function),
+            BreakpointData::Data(data) => write!(f, "{}", data),
         }
     }
 }
@@ -74,14 +76,32 @@ impl Display for SourceBreakpoint {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum AccessType {
     Read,
     Write,
     ReadWrite,
 }
+
+impl Display for AccessType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AccessType::Read => write!(f, "(r)"),
+            AccessType::Write => write!(f, "(w)"),
+            AccessType::ReadWrite => write!(f, "(rw)"),
+        }
+    }
+}
+
 pub struct DataBreakpoint {
     name: String,
     access_type: AccessType,
+}
+
+impl Display for DataBreakpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, ".{} {}", self.name, self.access_type)
+    }
 }
 
 pub struct FunctionBreakpoint {
@@ -128,8 +148,9 @@ impl PartialEq for ExprState {
 pub struct DebugState {
     editor: Editor<()>,
     breakpoints: BTreeMap<usize, Breakpoint>,
-    break_functions: HashMap<(QualifiedContractIdentifier, String), HashSet<usize>>,
+    watchpoints: BTreeMap<usize, Breakpoint>,
     break_locations: HashMap<QualifiedContractIdentifier, HashSet<usize>>,
+    watch_variables: HashMap<(QualifiedContractIdentifier, String), HashSet<usize>>,
     active_breakpoints: HashSet<usize>,
     state: State,
     stack: Vec<ExprState>,
@@ -146,8 +167,9 @@ impl DebugState {
         DebugState {
             editor,
             breakpoints: BTreeMap::new(),
-            break_functions: HashMap::new(),
+            watchpoints: BTreeMap::new(),
             break_locations: HashMap::new(),
+            watch_variables: HashMap::new(),
             active_breakpoints: HashSet::new(),
             state: State::Start,
             stack: Vec::new(),
@@ -188,6 +210,42 @@ impl DebugState {
         }
     }
 
+    fn add_watchpoint(&mut self, mut breakpoint: Breakpoint) {
+        breakpoint.id = self.get_unique_id();
+        let name = match &breakpoint.data {
+            BreakpointData::Data(data) => data.name.clone(),
+            _ => panic!("called add_watchpoint with non-data breakpoint"),
+        };
+
+        let key = (breakpoint.source.name.clone(), name);
+        if let Some(set) = self.watch_variables.get_mut(&key) {
+            set.insert(breakpoint.id);
+        } else {
+            let mut set = HashSet::new();
+            set.insert(breakpoint.id);
+            self.watch_variables.insert(key, set);
+        }
+
+        self.watchpoints.insert(breakpoint.id, breakpoint);
+    }
+
+    fn delete_watchpoint(&mut self, id: usize) -> bool {
+        if let Some(breakpoint) = self.watchpoints.remove(&id) {
+            let name = match breakpoint.data {
+                BreakpointData::Data(data) => data.name,
+                _ => panic!("called delete_watchpoint with non-data breakpoint"),
+            };
+            let set = self
+                .watch_variables
+                .get_mut(&(breakpoint.source.name, name))
+                .unwrap();
+            set.remove(&breakpoint.id);
+            true
+        } else {
+            false
+        }
+    }
+
     fn did_hit_source_breakpoint(
         &self,
         contract_id: &QualifiedContractIdentifier,
@@ -217,6 +275,81 @@ impl DebugState {
             }
         }
         None
+    }
+
+    fn did_hit_data_breakpoint(
+        &self,
+        contract_id: &QualifiedContractIdentifier,
+        expr: &SymbolicExpression,
+    ) -> Option<usize> {
+        match &expr.expr {
+            SymbolicExpressionType::List(list) => {
+                // Check if we hit a data breakpoint
+                if let Some((function_name, args)) = list.split_first() {
+                    if let Some(function_name) = function_name.match_atom() {
+                        if let Some(native_function) =
+                            NativeFunctions::lookup_by_name(function_name)
+                        {
+                            use crate::clarity::functions::NativeFunctions::*;
+                            if let Some((name, access_type)) = match native_function {
+                                FetchVar => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Read,
+                                )),
+                                SetVar => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Write,
+                                )),
+                                FetchEntry => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Read,
+                                )),
+                                SetEntry => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Write,
+                                )),
+                                InsertEntry => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Write,
+                                )),
+                                DeleteEntry => Some((
+                                    args[0].match_atom().unwrap().to_string(),
+                                    AccessType::Write,
+                                )),
+                                _ => None,
+                            } {
+                                let key = (contract_id.clone(), name);
+                                if let Some(set) = self.watch_variables.get(&key) {
+                                    for id in set {
+                                        let watchpoint = match self.watchpoints.get(id) {
+                                            Some(watchpoint) => watchpoint,
+                                            None => panic!(
+                                                "internal error: watchpoint {} not found",
+                                                id
+                                            ),
+                                        };
+
+                                        if let BreakpointData::Data(data) = &watchpoint.data {
+                                            match (data.access_type, access_type) {
+                                                (AccessType::Read, AccessType::Read)
+                                                | (AccessType::Write, AccessType::Write)
+                                                | (AccessType::ReadWrite, AccessType::Read)
+                                                | (AccessType::ReadWrite, AccessType::Write) => {
+                                                    return Some(watchpoint.id)
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
     }
 
     fn prompt(
@@ -320,7 +453,7 @@ impl DebugState {
             return;
         }
 
-        // Check if we have hit a breakpoint
+        // Check if we have hit a source breakpoint
         if let Some(breakpoint) =
             self.did_hit_source_breakpoint(&env.contract_context.contract_identifier, &expr.span)
         {
@@ -337,6 +470,13 @@ impl DebugState {
             SymbolicExpressionType::List(_) => (),
             _ => return,
         };
+
+        if let Some(watchpoint) =
+            self.did_hit_data_breakpoint(&env.contract_context.contract_identifier, expr)
+        {
+            println!("{} hit watchpoint {}", black!("*"), watchpoint);
+            self.state = State::Break;
+        }
 
         match self.state {
             State::Continue | State::Quit | State::Finish(_) => return,
@@ -451,6 +591,18 @@ impl DebugState {
             }
             "b" | "break" => {
                 self.break_command(args, env);
+                false
+            }
+            "w" | "watch" => {
+                self.watch_command(args, env, AccessType::Write);
+                false
+            }
+            "rw" | "rwatch" => {
+                self.watch_command(args, env, AccessType::Read);
+                false
+            }
+            "aw" | "awatch" => {
+                self.watch_command(args, env, AccessType::ReadWrite);
                 false
             }
             "p" | "print" => {
@@ -675,6 +827,121 @@ impl DebugState {
             }
         }
     }
+
+    fn watch_command(&mut self, args: &str, env: &mut Environment, access_type: AccessType) {
+        if args.is_empty() {
+            println!("{}: invalid watch command", red!("error"));
+            print_help_watchpoint();
+            return;
+        }
+
+        let arg_list: Vec<&str> = args.split_ascii_whitespace().collect();
+        match arg_list[0] {
+            "l" | "list" => {
+                if self.watchpoints.is_empty() {
+                    println!("No watchpoints set.")
+                } else {
+                    for (_, watchpoint) in &self.watchpoints {
+                        println!("{}", watchpoint);
+                    }
+                }
+            }
+            "del" | "delete" => {
+                let id = match arg_list[1].parse::<usize>() {
+                    Ok(id) => id,
+                    Err(_) => {
+                        println!("{}: unable to parse watchpoint identifier", red!("error"));
+                        return;
+                    }
+                };
+                if self.delete_watchpoint(id) {
+                    println!("watchpoint deleted");
+                } else {
+                    println!(
+                        "{}: '{}' is not a currently valid watchpoint id",
+                        red!("error"),
+                        id
+                    );
+                }
+            }
+            _ => {
+                if arg_list.len() != 1 {
+                    println!("{}: invalid watch command", red!("error"));
+                    print_help_watchpoint();
+                    return;
+                }
+
+                // Syntax could be:
+                // - principal.contract.name
+                // - .contract.name
+                // - name
+                let parts: Vec<&str> = args.split('.').collect();
+                let (contract_id, name) = match parts.len() {
+                    1 => (env.contract_context.contract_identifier.clone(), parts[0]),
+                    3 => {
+                        let contract_id = if parts[0].is_empty() {
+                            QualifiedContractIdentifier::new(
+                                env.contract_context.contract_identifier.issuer.clone(),
+                                ContractName::try_from(parts[1]).unwrap(),
+                            )
+                        } else {
+                            match QualifiedContractIdentifier::parse(
+                                args.rsplit_once('.').unwrap().0,
+                            ) {
+                                Ok(contract_identifier) => contract_identifier,
+                                Err(e) => {
+                                    println!(
+                                        "{}: unable to parse watchpoint contract identifier: {}",
+                                        red!("error"),
+                                        e
+                                    );
+                                    print_help_watchpoint();
+                                    return;
+                                }
+                            }
+                        };
+                        (contract_id, parts[2])
+                    }
+                    _ => {
+                        println!("{}: invalid watchpoint format", red!("error"),);
+                        print_help_watchpoint();
+                        return;
+                    }
+                };
+
+                let contract = match env.global_context.database.get_contract(&contract_id) {
+                    Ok(contract) => contract,
+                    Err(e) => {
+                        println!("{}: {}", red!("error"), e);
+                        return;
+                    }
+                };
+
+                if contract.contract_context.meta_data_var.get(name).is_none()
+                    && contract.contract_context.meta_data_map.get(name).is_none()
+                {
+                    println!(
+                        "{}: no such variable: {}.{}",
+                        red!("error"),
+                        contract_id,
+                        name
+                    );
+                    return;
+                }
+
+                self.add_watchpoint(Breakpoint {
+                    id: 0,
+                    verified: true,
+                    data: BreakpointData::Data(DataBreakpoint {
+                        name: name.to_string(),
+                        access_type,
+                    }),
+                    source: Source { name: contract_id },
+                    span: None,
+                });
+            }
+        }
+    }
 }
 
 fn print_help(args: &str) {
@@ -687,21 +954,24 @@ fn print_help(args: &str) {
 fn print_help_main() {
     println!(
         r#"Debugger commands:
+  aw | awatch      -- Read/write watchpoint, see `help watch' for details)
   b | breakpoint   -- Commands for operating on breakpoints (see 'help b' for details)
   c | continue     -- Continue execution until next breakpoint or completion
   f | finish       -- Continue execution until returning from the current expression
   n | next         -- Single step, stepping over sub-expressions
-  p | print <name> -- Print the value of a variable
+  p | print <expr> -- Evaluate an expression and print the result
   q | quit         -- Quit the debugger
   r | run          -- Begin execution
+  rw | rwatch      -- Read watchpoint, see `help watch' for details)
   s | step         -- Single step, stepping into sub-expressions
+  w | watch        -- Commands for operating on watchpoints (see 'help w' for details)
 "#
     );
 }
 
 fn print_help_breakpoint() {
     println!(
-        r#"Set a breakpoint using one of the following formats:
+        r#"Set a breakpoint using 'b' or 'break' and one of these formats
   b <principal?>.<contract>:<linenum>:<colnum>
     SP000000000000000000002Q6VF78.bns:604:9
         Break at line 604, column 9 of the bns contract deployed by 
@@ -712,26 +982,66 @@ fn print_help_breakpoint() {
         Break at line 193 of the my-contract contract deployed by the current
           tx-sender
 
-  b <linenum>:<colnum>
+  b :<linenum>:<colnum>
     :12:4
         Break at line 12, column 4 of the current contract
 
-  b <linenum>
+  b :<linenum>
     :12
         Break at line 12 of the current contract
 
-  b <principal?>.<contract>.<function>
+  b <principal>.<contract>.<function>
     SP000000000000000000002Q6VF78.bns.name-preorder
         Break at the function name-preorder from the bns contract deployed by
           SP000000000000000000002Q6VF78
 
+  b .<contract>.<function>
+    .foo.do-something
+        Break at the function 'do-something from the 'foo' contract deployed by
+          the current principal
+
+  b <function>
+    take-action
+        Break at the function 'take-action' current contract
+
 List current breakpoints
-  b l
   b list
+  b l
 
 Delete a breakpoint using its identifier
-  b del <breakpoint-id>
   b delete <breakpoint-id>
+  b del <breakpoint-id>
+"#
+    );
+}
+
+fn print_help_watchpoint() {
+    println!(
+        r#"Set a watchpoint using 'w' or 'watch' and one of these formats
+  w <principal>.<contract>.<name>
+    SP000000000000000000002Q6VF78.bns.owner-name
+        Break on writes to the map 'owner-name' from the 'bns' contract
+          deployed by SP000000000000000000002Q6VF78
+  w .<contract>.<name>
+    .foo.bar
+        Break on writes to the variable 'bar' from the 'foo' contract
+          deployed by the current principal
+  w <name>
+    something
+        Watch the variable 'something' from the current contract
+
+Default watchpoints break when the variable or map is written. Using the same
+formats, the command 'rwatch' sets a read watchpoint to break when the variable
+or map is read, and 'awatch' sets a read/write watchpoint to break on read or
+write.
+
+List current watchpoints
+  w list
+  w l
+
+Delete a watchpoint using its identifier
+  w delete <watchpoint-id>
+  w del <watchpoint-id>
 "#
     );
 }
