@@ -64,6 +64,7 @@ pub struct Session {
     pub costs_reports: Vec<CostsReport>,
     pub initial_contracts_analysis: Vec<(ContractAnalysis, String, String)>,
     pub show_costs: bool,
+    pub executed: Vec<String>,
 }
 
 impl Session {
@@ -90,6 +91,7 @@ impl Session {
             initial_contracts_analysis: vec![],
             show_costs: false,
             settings,
+            executed: Vec::new(),
         }
     }
 

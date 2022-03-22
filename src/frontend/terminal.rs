@@ -73,6 +73,7 @@ impl Terminal {
                                 println!("{}", line);
                             }
                             prompt = String::from(">> ");
+                            self.session.executed.push(input.clone());
                             editor.add_history_entry(&input);
                             input_buffer.clear();
                         }
