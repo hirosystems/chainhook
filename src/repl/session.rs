@@ -540,6 +540,7 @@ impl Session {
             cmd if cmd.starts_with("::toggle_costs") => self.toggle_costs(&mut output),
             cmd if cmd.starts_with("::encode") => self.encode(&mut output, cmd),
             cmd if cmd.starts_with("::decode") => self.decode(&mut output, cmd),
+            #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::debug") => self.debug(&mut output, cmd),
 
             snippet => {
@@ -616,6 +617,7 @@ impl Session {
         }
     }
 
+    #[cfg(feature = "cli")]
     pub fn debug(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = match cmd.split_once(" ") {
             Some((_, snippet)) => snippet,
@@ -1052,10 +1054,11 @@ impl Session {
     #[cfg(not(feature = "cli"))]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) = match self.formatted_interpretation(snippet, None, true, None) {
-            Ok((output, result)) => (output, result.cost.clone()),
-            Err(output) => (output, None),
-        };
+        let (mut result, cost) =
+            match self.formatted_interpretation(snippet, None, true, false, None) {
+                Ok((output, result)) => (output, result.cost.clone()),
+                Err(output) => (output, None),
+            };
 
         if let Some(cost) = cost {
             output.push(format!(

@@ -16,6 +16,7 @@ use crate::clarity::database::structures::{
     DataMapMetadata, DataVariableMetadata, FungibleTokenMetadata, NonFungibleTokenMetadata,
 };
 use crate::clarity::database::ClarityDatabase;
+#[cfg(feature = "cli")]
 use crate::clarity::debug::DebugState;
 use crate::clarity::errors::{
     CheckErrors, InterpreterError, InterpreterResult as Result, RuntimeErrorType,
@@ -93,6 +94,7 @@ pub struct GlobalContext<'a> {
     pub mainnet: bool,
     pub coverage_reporting: Option<TestCoverageReport>,
     pub costs_reporting: Option<CostsReport>,
+    #[cfg(feature = "cli")]
     pub debug_state: Option<DebugState>,
 }
 
@@ -1200,6 +1202,7 @@ impl<'a> GlobalContext<'a> {
             mainnet,
             coverage_reporting: None,
             costs_reporting: None,
+            #[cfg(feature = "cli")]
             debug_state: None,
         }
     }
