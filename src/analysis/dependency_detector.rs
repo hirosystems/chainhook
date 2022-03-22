@@ -267,7 +267,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 0);
@@ -290,7 +296,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("foo".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("foo".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -299,7 +305,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 1);
@@ -326,7 +338,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("bar".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("bar".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -341,7 +353,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 1);
@@ -368,7 +386,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("bar".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("bar".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -381,7 +399,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 1);
@@ -405,7 +429,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("bar".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("bar".to_string()), false, false, None)
             .unwrap();
 
         let snippet2 = "
@@ -414,7 +438,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet2, Some("my-trait".to_string()), false, None)
+            .formatted_interpretation(snippet2, Some("my-trait".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -427,7 +451,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 2);
@@ -452,7 +482,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("other".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("other".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -462,7 +492,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 1);
@@ -486,7 +522,7 @@ mod tests {
 )"
         .to_string();
         let _ = session
-            .formatted_interpretation(snippet1, Some("other".to_string()), false, None)
+            .formatted_interpretation(snippet1, Some("other".to_string()), false, false, None)
             .unwrap();
 
         let snippet = "
@@ -496,7 +532,13 @@ mod tests {
 (define-public (foo) (ok true))
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("test".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("test".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 let (_, _, _, _, ref analysis) = result.contract.unwrap();
                 assert_eq!(analysis.dependencies.len(), 1);
