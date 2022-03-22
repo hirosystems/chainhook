@@ -30,6 +30,7 @@ pub mod analysis;
 pub mod docs;
 
 pub mod coverage;
+#[cfg(feature = "cli")]
 pub mod debug;
 
 use crate::clarity::callables::CallableType;
@@ -220,6 +221,7 @@ pub fn eval<'a>(
         Atom, AtomValue, Field, List, LiteralValue, TraitReference,
     };
 
+    #[cfg(feature = "cli")]
     if let Some(mut debug_state) = env.global_context.debug_state.take() {
         debug_state.begin_eval(env, context, exp);
         env.global_context.debug_state = Some(debug_state);
@@ -267,6 +269,7 @@ pub fn eval<'a>(
         };
     }
 
+    #[cfg(feature = "cli")]
     if let Some(mut debug_state) = env.global_context.debug_state.take() {
         debug_state.finish_eval(env, context, exp, &res);
         env.global_context.debug_state = Some(debug_state);
