@@ -909,7 +909,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -949,7 +955,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -991,7 +1003,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1034,7 +1052,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1056,7 +1080,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1078,7 +1108,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1100,7 +1136,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1121,7 +1163,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 9);
                 assert_eq!(
@@ -1182,7 +1230,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1229,7 +1283,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1251,7 +1311,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1270,7 +1336,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1289,7 +1361,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1331,7 +1409,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1371,7 +1455,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1393,7 +1483,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1432,7 +1528,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1472,7 +1574,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1494,7 +1602,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -1531,7 +1645,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1553,7 +1673,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1600,7 +1726,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1623,7 +1755,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1671,7 +1809,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1694,7 +1838,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1745,7 +1895,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1768,7 +1924,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1819,7 +1981,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1870,7 +2038,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1893,7 +2067,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -1950,7 +2130,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -1973,7 +2159,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -2024,7 +2216,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2062,7 +2260,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -2136,7 +2340,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -2201,7 +2411,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -2275,7 +2491,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 12);
                 assert_eq!(
@@ -2340,7 +2562,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2380,7 +2608,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2421,7 +2655,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2443,7 +2683,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2483,7 +2729,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2527,7 +2779,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2568,7 +2826,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2609,7 +2873,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2632,7 +2902,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2655,7 +2931,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2678,7 +2960,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2698,7 +2986,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2720,7 +3014,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2740,7 +3040,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2763,7 +3069,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2807,7 +3119,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -2858,7 +3176,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2892,7 +3216,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2916,7 +3246,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2940,7 +3276,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2964,7 +3306,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -2988,7 +3336,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3013,7 +3367,13 @@ mod tests {
 )
         "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -3068,7 +3428,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3091,7 +3457,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3121,7 +3493,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3145,7 +3523,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3170,7 +3554,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3194,7 +3584,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -3236,7 +3632,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3261,7 +3663,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3285,7 +3693,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
@@ -3336,7 +3750,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((_, result)) => {
                 assert_eq!(result.diagnostics.len(), 0);
             }
@@ -3370,7 +3790,13 @@ mod tests {
 )
 "
         .to_string();
-        match session.formatted_interpretation(snippet, Some("checker".to_string()), false, None) {
+        match session.formatted_interpretation(
+            snippet,
+            Some("checker".to_string()),
+            false,
+            false,
+            None,
+        ) {
             Ok((output, _)) => {
                 assert_eq!(output.len(), 6);
                 assert_eq!(
