@@ -417,7 +417,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             global_context.coverage_reporting = coverage_reporter;
             #[cfg(feature = "cli")]
             if debug {
-                global_context.debug_state = Some(DebugState::new());
+                global_context.debug_state = Some(DebugState::new(&contract_identifier, &snippet));
             }
             global_context.begin();
 
