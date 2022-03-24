@@ -155,10 +155,12 @@ pub struct DebugState {
     state: State,
     stack: Vec<ExprState>,
     unique_id: usize,
+    debug_cmd_contract: QualifiedContractIdentifier,
+    debug_cmd_source: String,
 }
 
 impl DebugState {
-    pub fn new() -> DebugState {
+    pub fn new(contract_id: &QualifiedContractIdentifier, snippet: &str) -> DebugState {
         let mut editor = Editor::<()>::new();
         editor
             .load_history(HISTORY_FILE.unwrap_or(".debug_history"))
@@ -174,6 +176,8 @@ impl DebugState {
             state: State::Start,
             stack: Vec::new(),
             unique_id: 0,
+            debug_cmd_contract: contract_id.clone(),
+            debug_cmd_source: snippet.to_string(),
         }
     }
 
@@ -392,40 +396,53 @@ impl DebugState {
             .unwrap();
     }
 
+    fn print_source_from_str(&self, contract_id: &str, contract_source: &str, span: Span) {
+        if span.start_line != 0 {
+            println!(
+                "{}:{}:{}",
+                blue!(format!("{}", contract_id)),
+                span.start_line,
+                span.start_column
+            );
+            let lines: Vec<&str> = contract_source.lines().collect();
+            let first_line = (span.start_line - 1).saturating_sub(3) as usize;
+            let last_line = std::cmp::min(lines.len(), span.start_line as usize + 3);
+            for line in first_line..last_line {
+                if line == (span.start_line as usize - 1) {
+                    print!("{}", blue!("-> "));
+                } else {
+                    print!("   ");
+                }
+                println!("{} {}", black!(format!("{: <6}", line + 1)), lines[line]);
+                if line == (span.start_line as usize - 1) {
+                    println!(
+                        "{}",
+                        blue!(format!(
+                            "          {: <1$}^",
+                            "",
+                            (span.start_column - 1) as usize
+                        ))
+                    );
+                }
+            }
+        } else {
+            println!("{}", yellow!("source information unknown"));
+        }
+    }
+
     // Print the source of the current expr (if it has a valid span).
     fn print_source(&mut self, env: &mut Environment, expr: &SymbolicExpression) {
         let contract_id = &env.contract_context.contract_identifier;
-        if expr.span.start_line != 0 {
+        if contract_id == &self.debug_cmd_contract {
+            self.print_source_from_str("<command>", &self.debug_cmd_source, expr.span.clone());
+        } else {
             match env.global_context.database.get_contract_src(contract_id) {
                 Some(contract_source) => {
-                    println!(
-                        "{}:{}:{}",
-                        blue!(format!("{}", contract_id)),
-                        expr.span.start_line,
-                        expr.span.start_column
+                    self.print_source_from_str(
+                        &contract_id.to_string(),
+                        &contract_source,
+                        expr.span.clone(),
                     );
-                    let lines: Vec<&str> = contract_source.lines().collect();
-                    let first_line = (expr.span.start_line - 1).saturating_sub(3) as usize;
-                    let last_line =
-                        std::cmp::min(lines.len() - 1, expr.span.start_line as usize + 3);
-                    for line in first_line..last_line {
-                        if line == (expr.span.start_line as usize - 1) {
-                            print!("{}", blue!("-> "));
-                        } else {
-                            print!("   ");
-                        }
-                        println!("{} {}", black!(format!("{: <6}", line + 1)), lines[line]);
-                        if line == (expr.span.start_line as usize - 1) {
-                            println!(
-                                "{}",
-                                blue!(format!(
-                                    "          {: <1$}^",
-                                    "",
-                                    (expr.span.start_column - 1) as usize
-                                ))
-                            );
-                        }
-                    }
                 }
                 None => {
                     println!("{}", yellow!("source not found"));
@@ -433,10 +450,9 @@ impl DebugState {
                         "{}:{}:{}",
                         contract_id, expr.span.start_line, expr.span.start_column
                     );
+                    return;
                 }
             }
-        } else {
-            println!("{}", yellow!("source information unknown"));
         }
     }
 
