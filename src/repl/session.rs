@@ -1,4 +1,5 @@
 use super::{ClarityInterpreter, ExecutionResult};
+use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::codec::StacksMessageCodec;
@@ -364,9 +365,13 @@ impl Session {
 
         let mut contracts = vec![];
         if self.settings.initial_contracts.len() > 0 {
-            let mut initial_contracts = self.settings.initial_contracts.clone();
+            let initial_contracts = self.settings.initial_contracts.clone();
+            let mut initial_contracts_map = HashMap::new();
+            let mut contract_asts = HashMap::new();
             let default_tx_sender = self.interpreter.get_tx_sender();
-            for contract in initial_contracts.drain(..) {
+
+            // Parse all contracts and save the ASTs
+            for contract in &initial_contracts {
                 let deployer = {
                     let address = match contract.deployer {
                         Some(ref entry) => entry.clone(),
@@ -377,9 +382,28 @@ impl Session {
                 };
 
                 self.interpreter.set_tx_sender(deployer);
-                match self.formatted_interpretation(
-                    contract.code,
-                    contract.name,
+
+                match self.build_ast(&contract.code, contract.name.as_deref()) {
+                    Ok((contract_identifier, ast, mut contract_output)) => {
+                        contract_asts.insert(contract_identifier.clone(), ast);
+                        initial_contracts_map.insert(contract_identifier, contract);
+                        output.append(&mut contract_output)
+                    }
+                    Err(mut output) => output_err.append(&mut output),
+                }
+            }
+
+            let dependencies = ASTDependencyDetector::detect_dependencies(&contract_asts);
+            let ordered_contracts = ASTDependencyDetector::order_contracts(&dependencies);
+
+            // interpret the contract ASTs in order
+            for contract_identifier in ordered_contracts {
+                let contract = initial_contracts_map[contract_identifier];
+                let ast = contract_asts.remove(contract_identifier).unwrap();
+                match self.formatted_interpretation_ast(
+                    contract.code.to_string(),
+                    ast,
+                    contract_identifier.clone(),
                     true,
                     false,
                     Some("Deployment".into()),
@@ -642,6 +666,55 @@ impl Session {
         output.append(&mut result);
     }
 
+    pub fn formatted_interpretation_ast(
+        &mut self,
+        snippet: String,
+        ast: ContractAST,
+        contract_identifier: QualifiedContractIdentifier,
+        cost_track: bool,
+        debug: bool,
+        test_name: Option<String>,
+    ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
+        let light_red = Colour::Red.bold();
+
+        let result = self.interpret_ast(
+            &contract_identifier,
+            ast,
+            snippet.to_string(),
+            cost_track,
+            debug,
+            test_name,
+        );
+        let mut output = Vec::<String>::new();
+        let lines = snippet.lines();
+        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+        let contract_name = contract_identifier.name.to_string();
+
+        match result {
+            Ok(result) => {
+                for diagnostic in &result.diagnostics {
+                    output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
+                }
+                if result.events.len() > 0 {
+                    output.push(black!("Events emitted"));
+                    for event in result.events.iter() {
+                        output.push(black!(format!("{}", event)));
+                    }
+                }
+                if let Some(ref result) = result.result {
+                    output.push(green!(format!("{}", result)));
+                }
+                Ok((output, result))
+            }
+            Err(diagnostics) => {
+                for d in diagnostics {
+                    output.append(&mut d.output(&contract_name, &formatted_lines));
+                }
+                Err(output)
+            }
+        }
+    }
+
     pub fn invoke_contract_call(
         &mut self,
         contract: &str,
@@ -679,6 +752,83 @@ impl Session {
         }
         self.set_tx_sender(initial_tx_sender);
         Ok(result)
+    }
+
+    pub fn build_ast(
+        &mut self,
+        snippet: &str,
+        name: Option<&str>,
+    ) -> Result<(QualifiedContractIdentifier, ContractAST, Vec<String>), Vec<String>> {
+        let (contract_name, is_tx) = match name {
+            Some(name) => (name.to_string(), false),
+            None => (format!("contract-{}", self.contracts.len()), true),
+        };
+        let tx_sender = self.interpreter.get_tx_sender().to_address();
+        let id = format!("{}.{}", tx_sender, contract_name);
+        let contract_identifier = QualifiedContractIdentifier::parse(&id).unwrap();
+
+        let (ast, diagnostics, success) = self.interpreter.build_ast(
+            contract_identifier.clone(),
+            snippet.to_string(),
+            self.settings.repl_settings.parser_version,
+        );
+
+        let mut output = Vec::<String>::new();
+        let lines = snippet.lines();
+        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+        for diagnostic in &diagnostics {
+            output.append(&mut diagnostic.output(&contract_name, &formatted_lines));
+        }
+        if success {
+            Ok((contract_identifier, ast, output))
+        } else {
+            Err(output)
+        }
+    }
+
+    pub fn interpret_ast(
+        &mut self,
+        contract_identifier: &QualifiedContractIdentifier,
+        ast: ContractAST,
+        snippet: String,
+        cost_track: bool,
+        debug: bool,
+        test_name: Option<String>,
+    ) -> Result<ExecutionResult, Vec<Diagnostic>> {
+        let report = if let Some(test_name) = test_name {
+            let coverage = TestCoverageReport::new(test_name.into());
+            Some(coverage)
+        } else {
+            None
+        };
+        match self.interpreter.run_ast(
+            ast,
+            snippet,
+            contract_identifier.clone(),
+            cost_track,
+            debug,
+            report,
+        ) {
+            Ok(result) => {
+                if let Some(ref coverage) = result.coverage {
+                    self.coverage_reports.push(coverage.clone());
+                }
+                if let Some((
+                    ref contract_identifier_str,
+                    ref source,
+                    ref contract,
+                    ref ast,
+                    ref analysis,
+                )) = result.contract
+                {
+                    self.asts.insert(contract_identifier.clone(), ast.clone());
+                    self.contracts
+                        .insert(contract_identifier_str.clone(), contract.clone());
+                }
+                Ok(result)
+            }
+            Err(res) => Err(res),
+        }
     }
 
     pub fn interpret(

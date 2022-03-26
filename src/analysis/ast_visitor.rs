@@ -1037,7 +1037,7 @@ pub trait ASTVisitor<'a> {
     fn traverse_static_contract_call(
         &mut self,
         expr: &'a SymbolicExpression,
-        contract_identifier: &QualifiedContractIdentifier,
+        contract_identifier: &'a QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
@@ -1052,7 +1052,7 @@ pub trait ASTVisitor<'a> {
     fn visit_static_contract_call(
         &mut self,
         expr: &'a SymbolicExpression,
-        contract_identifier: &QualifiedContractIdentifier,
+        contract_identifier: &'a QualifiedContractIdentifier,
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
