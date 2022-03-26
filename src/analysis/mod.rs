@@ -1,4 +1,5 @@
 pub mod annotation;
+pub mod ast_dependency_detector;
 pub mod ast_visitor;
 pub mod call_checker;
 pub mod check_checker;
@@ -12,6 +13,7 @@ use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 use crate::clarity::analysis::types::ContractAnalysis;
 use crate::clarity::diagnostic::Diagnostic;
 
+use self::ast_dependency_detector::ASTDependencyDetector;
 use self::call_checker::CallChecker;
 use self::check_checker::CheckChecker;
 use self::dependency_detector::DependencyDetector;

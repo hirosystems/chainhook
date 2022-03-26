@@ -175,6 +175,62 @@ impl ClarityInterpreter {
         Ok(result)
     }
 
+    pub fn run_ast(
+        &mut self,
+        mut ast: ContractAST,
+        snippet: String,
+        contract_identifier: QualifiedContractIdentifier,
+        cost_track: bool,
+        debug: bool,
+        coverage_reporter: Option<TestCoverageReport>,
+    ) -> Result<ExecutionResult, Vec<Diagnostic>> {
+        let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
+
+        let (analysis, mut analysis_diagnostics) =
+            match self.run_analysis(contract_identifier.clone(), &mut ast, &annotations) {
+                Ok((analysis, diagnostics)) => (analysis, diagnostics),
+                Err((_, Some(diagnostic), _)) => {
+                    diagnostics.push(diagnostic);
+                    return Err(diagnostics);
+                }
+                Err(_) => return Err(diagnostics),
+            };
+        diagnostics.append(&mut analysis_diagnostics);
+
+        let mut result = match self.execute(
+            contract_identifier,
+            &mut ast,
+            snippet,
+            analysis,
+            cost_track,
+            debug,
+            coverage_reporter,
+        ) {
+            Ok(result) => result,
+            Err((_, Some(diagnostic), _)) => {
+                diagnostics.push(diagnostic);
+                return Err(diagnostics);
+            }
+            Err((e, _, _)) => {
+                diagnostics.push(Diagnostic {
+                    level: Level::Error,
+                    message: format!("Runtime Error: {}", e),
+                    spans: vec![],
+                    suggestion: None,
+                });
+                return Err(diagnostics);
+            }
+        };
+
+        result.diagnostics = diagnostics;
+
+        // todo: instead of just returning the value, we should be returning:
+        // - value
+        // - execution cost
+        // - events emitted
+        Ok(result)
+    }
+
     pub fn detect_dependencies(
         &mut self,
         contract_id: String,
