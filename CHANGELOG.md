@@ -1,3 +1,25 @@
+# [0.24.0](https://github.com/hirosystems/clarity-repl/compare/v0.23.1...v0.24.0) (2022-03-30)
+
+
+### Bug Fixes
+
+* **debugger:** handle breaking in debug command ([58d7695](https://github.com/hirosystems/clarity-repl/commit/58d7695e0ba590086220fb3ad6eaccf6c3b75290))
+* enable debug only with cli feature ([594c59a](https://github.com/hirosystems/clarity-repl/commit/594c59a943b21def7002c3d555ba4ce5e00d05c5))
+* update tests after debugger changes ([d760a7a](https://github.com/hirosystems/clarity-repl/commit/d760a7a1370755f03977614bb7993d0cf07b5a69))
+
+
+### Features
+
+* **debugger:** add breakpoint management ([354386a](https://github.com/hirosystems/clarity-repl/commit/354386a979c4a6883ba7a86494812d5eecbf99db))
+* **debugger:** add print command and print source ([332ca5c](https://github.com/hirosystems/clarity-repl/commit/332ca5c2be397686dc86666fa853aa846ae6b90d))
+* **debugger:** add watchpoints ([cac728c](https://github.com/hirosystems/clarity-repl/commit/cac728c5e3cd1ef61d31d1874460285352a457ca))
+* **debugger:** avoid repeated breakpoints ([e4dc660](https://github.com/hirosystems/clarity-repl/commit/e4dc66088a1c6e0874875f45a18607d5afe98e42))
+* **debugger:** implement source breakpoints ([d427609](https://github.com/hirosystems/clarity-repl/commit/d4276091c9e5629ec486ce68bcb2434148da4573))
+* **debugger:** implement source breakpoints ([5a9331e](https://github.com/hirosystems/clarity-repl/commit/5a9331ea659071dc63e280b1d184f8c46bca4858))
+* **debugger:** print any expression with 'print' ([d9875ce](https://github.com/hirosystems/clarity-repl/commit/d9875ce6d36dbf8a1a8b9f8a6a985f8d13d59968))
+* implement a step-debugger in the REPL ([14ac56e](https://github.com/hirosystems/clarity-repl/commit/14ac56eb08ed2039e1bcd8edb64662fd5582d3e2))
+* record executed commands in the session ([3af06aa](https://github.com/hirosystems/clarity-repl/commit/3af06aa86b251d52d29a4fde09a3aff061a40b1b))
+
 ## [0.23.1](https://github.com/hirosystems/clarity-repl/compare/v0.23.0...v0.23.1) (2022-03-08)
 
 
