@@ -805,6 +805,11 @@ impl Session {
         output.push(format!(
             "{}",
             help_colour.paint("::toggle_costs\t\t\t\tDisplay cost analysis after every expression")
+        ));
+        output.push(format!(
+            "{}",
+            help_colour
+                .paint("::debug <expr>\t\t\t\tStart an interactive debug session executing <expr>")
         ))
     }
 
