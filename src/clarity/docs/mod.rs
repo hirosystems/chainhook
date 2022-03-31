@@ -537,7 +537,7 @@ and returns a concatenated buffer or list of the same entry type, with max_len =
 
 const APPEND_API: SpecialAPI = SpecialAPI {
     input_type: "list A, A",
-    snippet: "concat ${1:list} ${2:element}",
+    snippet: "append ${1:list} ${2:element}",
     output_type: "list",
     signature: "(append (list 1 2 3 4) 5)",
     description: "The `append` function takes a list and another value with the same entry type,
