@@ -201,6 +201,17 @@ impl DebugState {
         self.breakpoints.insert(breakpoint.id, breakpoint);
     }
 
+    fn delete_all_breakpoints(&mut self) {
+        for (id, breakpoint) in &self.breakpoints {
+            let set = self
+                .break_locations
+                .get_mut(&breakpoint.source.name)
+                .unwrap();
+            set.remove(&breakpoint.id);
+        }
+        self.breakpoints.clear();
+    }
+
     fn delete_breakpoint(&mut self, id: usize) -> bool {
         if let Some(breakpoint) = self.breakpoints.remove(&id) {
             let set = self
@@ -231,6 +242,21 @@ impl DebugState {
         }
 
         self.watchpoints.insert(breakpoint.id, breakpoint);
+    }
+
+    fn delete_all_watchpoints(&mut self) {
+        for (id, breakpoint) in &self.watchpoints {
+            let name = match &breakpoint.data {
+                BreakpointData::Data(data) => data.name.clone(),
+                _ => continue,
+            };
+            let set = self
+                .watch_variables
+                .get_mut(&(breakpoint.source.name.clone(), name))
+                .unwrap();
+            set.remove(&breakpoint.id);
+        }
+        self.watchpoints.clear();
     }
 
     fn delete_watchpoint(&mut self, id: usize) -> bool {
@@ -672,21 +698,26 @@ impl DebugState {
                 }
             }
             "del" | "delete" => {
-                let id = match arg_list[1].parse::<usize>() {
-                    Ok(id) => id,
-                    Err(_) => {
-                        println!("{}: unable to parse breakpoint identifier", red!("error"));
-                        return;
-                    }
-                };
-                if self.delete_breakpoint(id) {
-                    println!("breakpoint deleted");
+                // if no argument is passed, delete all watchpoints
+                if arg_list.len() == 1 {
+                    self.delete_all_breakpoints();
                 } else {
-                    println!(
-                        "{}: '{}' is not a currently valid breakpoint id",
-                        red!("error"),
-                        id
-                    );
+                    let id = match arg_list[1].parse::<usize>() {
+                        Ok(id) => id,
+                        Err(_) => {
+                            println!("{}: unable to parse breakpoint identifier", red!("error"));
+                            return;
+                        }
+                    };
+                    if self.delete_breakpoint(id) {
+                        println!("breakpoint deleted");
+                    } else {
+                        println!(
+                            "{}: '{}' is not a currently valid breakpoint id",
+                            red!("error"),
+                            id
+                        );
+                    }
                 }
             }
             _ => {
@@ -863,21 +894,26 @@ impl DebugState {
                 }
             }
             "del" | "delete" => {
-                let id = match arg_list[1].parse::<usize>() {
-                    Ok(id) => id,
-                    Err(_) => {
-                        println!("{}: unable to parse watchpoint identifier", red!("error"));
-                        return;
-                    }
-                };
-                if self.delete_watchpoint(id) {
-                    println!("watchpoint deleted");
+                // if no argument is passed, delete all watchpoints
+                if arg_list.len() == 1 {
+                    self.delete_all_watchpoints();
                 } else {
-                    println!(
-                        "{}: '{}' is not a currently valid watchpoint id",
-                        red!("error"),
-                        id
-                    );
+                    let id = match arg_list[1].parse::<usize>() {
+                        Ok(id) => id,
+                        Err(_) => {
+                            println!("{}: unable to parse watchpoint identifier", red!("error"));
+                            return;
+                        }
+                    };
+                    if self.delete_watchpoint(id) {
+                        println!("watchpoint deleted");
+                    } else {
+                        println!(
+                            "{}: '{}' is not a currently valid watchpoint id",
+                            red!("error"),
+                            id
+                        );
+                    }
                 }
             }
             _ => {
@@ -1028,6 +1064,10 @@ List current breakpoints
 Delete a breakpoint using its identifier
   b delete <breakpoint-id>
   b del <breakpoint-id>
+
+Delete all breakpoints
+  b delete
+  b del
 "#
     );
 }
@@ -1059,6 +1099,10 @@ List current watchpoints
 Delete a watchpoint using its identifier
   w delete <watchpoint-id>
   w del <watchpoint-id>
+
+Delete all watchpoints
+  w delete
+  w del
 "#
     );
 }
