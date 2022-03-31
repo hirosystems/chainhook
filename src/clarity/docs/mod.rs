@@ -1227,7 +1227,7 @@ Assets defined using `define-non-fungible-token` may be used in `nft-transfer?`,
 
 const DEFINE_PUBLIC_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-public ${1:func-name} ${2:body}",
+    snippet: "define-public (${1:func-name}) ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-public (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-public` is used to define a _public_ function and transaction for a smart contract. Public
@@ -1268,7 +1268,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const DEFINE_PRIVATE_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-private ${1:func-name} ${2:body}",
+    snippet: "define-private (${1:func-name}) ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-private (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-private` is used to define _private_ functions for a smart contract. Private
@@ -1290,7 +1290,7 @@ Private functions may return any type.",
 
 const DEFINE_READ_ONLY_API: DefineAPI = DefineAPI {
     input_type: "MethodSignature, MethodBody",
-    snippet: "define-read-only ${1:func-name} ${2:body}",
+    snippet: "define-read-only (${1:func-name}) ${2:body}",
     output_type: "Not Applicable",
     signature: "(define-read-only (function-name (arg-name-0 arg-type-0) (arg-name-1 arg-type-1) ...) function-body)",
     description: "`define-read-only` is used to define a _public read-only_ function for a smart contract. Such
@@ -1311,7 +1311,7 @@ be invoked by other contracts via `contract-call?`.",
 
 const DEFINE_MAP_API: DefineAPI = DefineAPI {
     input_type: "MapName, TypeDefinition, TypeDefinition",
-    snippet: "define-map ${1:map-name} {{ ${2:key-name-1}: ${3:key-type-1} }} {{ ${4:val-name-1}: ${5:vals-type-1} }}",
+    snippet: "define-map ${1:map-name} { ${2:key-name-1}: ${3:key-type-1} } { ${4:val-name-1}: ${5:vals-type-1} }",
     output_type: "Not Applicable",
     signature: "(define-map map-name key-type value-type)",
     description: "`define-map` is used to define a new datamap for use in a smart contract. Such
@@ -1356,7 +1356,7 @@ definition (i.e., you cannot put a define statement in the middle of a function 
 
 const DEFINE_TRAIT_API: DefineAPI = DefineAPI {
     input_type: "VarName, [MethodSignature]",
-    snippet: "define-trait ${1:trait-name} ${2:trait-definition}",
+    snippet: "define-trait ${1:trait-name} ((${2:func-name} (${3:func-param-types}) (response ${4:ok-type} ${5:err-type})))",
     output_type: "Not Applicable",
     signature: "(define-trait trait-name ((func1-name (arg1-type arg2-type ...) (return-type))))",
     description: "`define-trait` is used to define a new trait definition for use in a smart contract. Other contracts
