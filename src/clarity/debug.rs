@@ -963,6 +963,7 @@ impl DebugState {
 fn print_help(args: &str) {
     match args {
         "b" | "breakpoint" => print_help_breakpoint(),
+        "w" | "watch" | "aw" | "awatch" | "rw" | "rwatch" => print_help_watchpoint(),
         _ => print_help_main(),
     }
 }
