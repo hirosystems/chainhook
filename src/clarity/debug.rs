@@ -558,7 +558,7 @@ impl DebugState {
 
         // Only print the returned value if this resolves a finish command
         match self.state {
-            State::Finish(finish_id) if finish_id == state.id => (),
+            State::Finish(finish_id) if finish_id == state.id => self.state = State::Break,
             _ => return,
         }
 
@@ -570,9 +570,6 @@ impl DebugState {
             ),
             Err(e) => println!("{}: {}", red!("error"), e),
         }
-
-        self.print_source(env, expr);
-        self.prompt(env, context, expr, true);
     }
 
     fn handle_command(
