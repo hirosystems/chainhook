@@ -10,6 +10,7 @@ use crate::clarity::types::{
     TraitIdentifier, TypeSignature, Value,
 };
 use crate::clarity::{ClarityName, SymbolicExpressionType};
+use crate::repl::settings::InitialLink;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::FromIterator;
 use std::process;
@@ -44,11 +45,13 @@ pub struct ASTDependencyDetector<'a> {
         )>,
     >,
     params: Option<Vec<TypedVar<'a>>>,
+    requirements: Vec<String>,
 }
 
 impl<'a> ASTDependencyDetector<'a> {
     pub fn detect_dependencies(
         contract_asts: &'a HashMap<QualifiedContractIdentifier, ContractAST>,
+        requirements: &'a Vec<InitialLink>,
     ) -> HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>> {
         let mut detector = Self {
             dependencies: HashMap::new(),
@@ -58,6 +61,7 @@ impl<'a> ASTDependencyDetector<'a> {
             pending_function_checks: HashMap::new(),
             pending_trait_checks: HashMap::new(),
             params: None,
+            requirements: requirements.iter().map(|r| r.contract_id.to_string()).collect::<Vec<String>>(),
         };
 
         for (contract_identifier, ast) in contract_asts {
@@ -140,6 +144,9 @@ impl<'a> ASTDependencyDetector<'a> {
         from: &QualifiedContractIdentifier,
         to: &QualifiedContractIdentifier,
     ) {
+        if self.requirements.contains(&from.to_string()) || self.requirements.contains(&to.to_string()) {
+            return;
+        }
         if let Some(set) = self.dependencies.get_mut(from) {
             set.insert(to.clone());
         } else {
