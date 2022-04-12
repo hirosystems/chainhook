@@ -327,6 +327,9 @@ impl Session {
                 let components: Vec<&str> = contract_id.split('.').collect();
                 let contract_deployer = components.first().expect("");
                 let contract_name = components.last().expect("");
+                if self.settings.include_boot_contracts.contains(&contract_name.to_string()) {
+                    continue;
+                }
 
                 let deployer = {
                     PrincipalData::parse_standard_principal(&contract_deployer)
@@ -393,7 +396,7 @@ impl Session {
                 }
             }
 
-            let dependencies = ASTDependencyDetector::detect_dependencies(&contract_asts);
+            let dependencies = ASTDependencyDetector::detect_dependencies(&contract_asts, &self.settings.initial_links);
             let ordered_contracts = ASTDependencyDetector::order_contracts(&dependencies);
 
             // interpret the contract ASTs in order

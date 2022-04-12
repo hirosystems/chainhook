@@ -1,5 +1,6 @@
 use crate::analysis::annotation::Annotation;
 use crate::analysis::ast_visitor::{traverse, ASTVisitor};
+use crate::clarity::analysis::CheckError;
 use crate::analysis::{AnalysisPass, AnalysisResult, Settings};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 pub use crate::clarity::analysis::types::ContractAnalysis;
@@ -122,10 +123,22 @@ impl<'a, 'b> ASTVisitor<'a> for DependencyDetector<'a, 'b> {
         args: &'a [SymbolicExpression],
     ) -> bool {
         self.deps.insert(contract_identifier.clone());
-        if let Ok(Some(function_type)) = self
-            .analysis_db
-            .get_public_function_type(contract_identifier, function_name.as_str())
-        {
+
+        let function: Result<FunctionType, CheckError> = self.analysis_db.execute(|db| {
+            let res = db
+                .get_public_function_type(contract_identifier, function_name.as_str())?;
+            if let Some(function) = res {
+                return Ok(function);
+            }
+            let res = db
+                .get_read_only_function_type(contract_identifier, function_name.as_str())?;
+            if let Some(function) = res {
+                return Ok(function);
+            }
+            unreachable!()
+        });
+
+        if let Ok(function_type) = function {
             match function_type {
                 FunctionType::Fixed(fixed_func) => {
                     for (i, arg) in fixed_func.args.iter().enumerate() {
