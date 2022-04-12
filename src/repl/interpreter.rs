@@ -718,12 +718,12 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             return Ok(execution_result);
         }
 
-        let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-        analysis_db.begin();
-        analysis_db
-            .insert_contract(&contract_identifier, &contract_analysis)
-            .unwrap();
-        analysis_db.commit();
+        {
+            let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
+            let _ = analysis_db.execute(|db| {
+                db.insert_contract(&contract_identifier, &contract_analysis)
+            }).expect("Unable to save data");
+        }
 
         Ok(execution_result)
     }
