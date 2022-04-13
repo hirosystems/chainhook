@@ -134,8 +134,14 @@ impl Session {
                 name = contract_name
             );
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let response = rt.block_on(async { fetch_contract(request_url).await });
+            let (handle, rt) = match tokio::runtime::Handle::try_current() {
+                Ok(h) => (h, None),
+                Err(_) => {
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    (rt.handle().clone(), Some(rt))
+                }
+            };
+            let response = handle.block_on(async { fetch_contract(request_url).await });
             response.source.to_string()
         } else {
             contract_source.unwrap()
