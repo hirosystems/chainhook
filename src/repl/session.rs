@@ -13,6 +13,7 @@ use crate::clarity::types::{
 };
 use crate::clarity::util::StacksAddress;
 use crate::clarity::variables::NativeVariables;
+use crate::clarity::EvalHook;
 use crate::contracts::{BNS_CONTRACT, COSTS_V1_CONTRACT, COSTS_V2_CONTRACT, POX_CONTRACT};
 use crate::repl::CostSynthesis;
 use crate::{clarity::diagnostic::Diagnostic, repl::settings::InitialContract};
@@ -345,7 +346,7 @@ impl Session {
                     code.to_string(),
                     Some(contract_name.to_string()),
                     true,
-                    false,
+                    None,
                     None,
                 ) {
                     Ok((mut logs, _)) => output.append(&mut logs),
@@ -413,7 +414,7 @@ impl Session {
                             ast,
                             contract_identifier.clone(),
                             true,
-                            false,
+                            None,
                             Some("Deployment".into()),
                         ) {
                             Ok((ref mut res_output, result)) => {
@@ -471,7 +472,7 @@ impl Session {
                 POX_CONTRACT.to_string(),
                 Some("pox".to_string()),
                 false,
-                false,
+                None,
                 None,
             )
             .expect("Unable to deploy POX");
@@ -485,7 +486,7 @@ impl Session {
                 BNS_CONTRACT.to_string(),
                 Some("bns".to_string()),
                 false,
-                false,
+                None,
                 None,
             )
             .expect("Unable to deploy BNS");
@@ -499,7 +500,7 @@ impl Session {
                 COSTS_V1_CONTRACT.to_string(),
                 Some("costs-v1".to_string()),
                 false,
-                false,
+                None,
                 None,
             )
             .expect("Unable to deploy COSTS");
@@ -513,7 +514,7 @@ impl Session {
                 COSTS_V2_CONTRACT.to_string(),
                 Some("costs-v2".to_string()),
                 false,
-                false,
+                None,
                 None,
             )
             .expect("Unable to deploy COSTS");
@@ -590,7 +591,7 @@ impl Session {
                         snippet.to_string(),
                         None,
                         true,
-                        false,
+                        None,
                         None,
                     ) {
                         Ok((mut output, result)) => {
@@ -614,7 +615,7 @@ impl Session {
         snippet: String,
         name: Option<String>,
         cost_track: bool,
-        debug: bool,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         test_name: Option<String>,
     ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
@@ -622,8 +623,8 @@ impl Session {
         let result = self.interpret(
             snippet.to_string(),
             name.clone(),
+            eval_hooks,
             cost_track,
-            debug,
             test_name,
         );
         let mut output = Vec::<String>::new();
@@ -658,15 +659,20 @@ impl Session {
 
     #[cfg(feature = "cli")]
     pub fn debug(&mut self, output: &mut Vec<String>, cmd: &str) {
+        use crate::clarity::debug::cli::CLIDebugger;
+
         let snippet = match cmd.split_once(" ") {
             Some((_, snippet)) => snippet,
             _ => return output.push(red!("Usage: ::debug <expr>")),
         };
+
+        let debugger = CLIDebugger::new(&QualifiedContractIdentifier::transient(), snippet);
+
         let mut result = match self.formatted_interpretation(
             snippet.to_string(),
             None,
             true,
-            true,
+            Some(vec![Box::new(debugger)]),
             None,
         ) {
             Ok((mut output, result)) => {
@@ -733,7 +739,7 @@ impl Session {
         ast: ContractAST,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
-        debug: bool,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         test_name: Option<String>,
     ) -> Result<(Vec<String>, ExecutionResult), Vec<String>> {
         let light_red = Colour::Red.bold();
@@ -742,8 +748,8 @@ impl Session {
             &contract_identifier,
             ast,
             snippet.to_string(),
+            eval_hooks,
             cost_track,
-            debug,
             test_name,
         );
         let mut output = Vec::<String>::new();
@@ -801,7 +807,7 @@ impl Session {
         );
 
         self.set_tx_sender(sender.into());
-        let result = self.interpret(snippet, None, true, false, Some(test_name.clone()))?;
+        let result = self.interpret(snippet, None, None, true, Some(test_name.clone()))?;
         if let Some(ref cost) = result.cost {
             self.costs_reports.push(CostsReport {
                 test_name,
@@ -852,8 +858,8 @@ impl Session {
         contract_identifier: &QualifiedContractIdentifier,
         ast: ContractAST,
         snippet: String,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         cost_track: bool,
-        debug: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let report = if let Some(test_name) = test_name {
@@ -867,7 +873,7 @@ impl Session {
             snippet,
             contract_identifier.clone(),
             cost_track,
-            debug,
+            eval_hooks,
             report,
         ) {
             Ok(result) => {
@@ -896,8 +902,8 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         cost_track: bool,
-        debug: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (contract_name, is_tx) = match name {
@@ -926,7 +932,7 @@ impl Session {
             snippet,
             contract_identifier.clone(),
             cost_track,
-            debug,
+            eval_hooks,
             report,
         ) {
             Ok(result) => {
@@ -1114,7 +1120,7 @@ impl Session {
             _ => return output.push(red!("Usage: ::encode <expr>")),
         };
 
-        let result = self.interpret(snippet.to_string(), None, false, false, None);
+        let result = self.interpret(snippet.to_string(), None, None, false, None);
         let value = match result {
             Ok(result) => {
                 let mut tx_bytes = vec![];
@@ -1164,7 +1170,7 @@ impl Session {
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
         let (mut result, cost) =
-            match self.formatted_interpretation(snippet, None, true, false, None) {
+            match self.formatted_interpretation(snippet, None, true, None, None) {
                 Ok((output, result)) => (output, result.cost.clone()),
                 Err(output) => (output, None),
             };

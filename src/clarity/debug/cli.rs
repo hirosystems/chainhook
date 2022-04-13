@@ -1,394 +1,48 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryFrom;
-use std::fmt::Display;
+use std::thread::AccessError;
 
-use crate::clarity::contexts::{Environment, LocalContext};
-use crate::clarity::database::ClarityDatabase;
-use crate::clarity::diagnostic::Level;
 use crate::clarity::errors::Error;
-use crate::clarity::eval;
-use crate::clarity::functions::NativeFunctions;
-use crate::clarity::representations::Span;
-use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::types::QualifiedContractIdentifier;
 use crate::clarity::types::Value;
-use crate::clarity::{ContractName, SymbolicExpressionType};
-use crate::repl::ast::build_ast;
+use crate::{
+    clarity::{
+        contexts::{Environment, LocalContext},
+        diagnostic::Level,
+        eval,
+        representations::Span,
+        types::QualifiedContractIdentifier,
+        ContractName, EvalHook, SymbolicExpression,
+    },
+    repl::ast::build_ast,
+};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
+use super::{
+    AccessType, Breakpoint, BreakpointData, DataBreakpoint, DebugState, FunctionBreakpoint, Source,
+    SourceBreakpoint, State,
+};
+
 const HISTORY_FILE: Option<&'static str> = option_env!("CLARITY_DEBUG_HISTORY_FILE");
 
-pub struct Source {
-    name: QualifiedContractIdentifier,
-}
-
-impl Display for Source {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-pub struct Breakpoint {
-    id: usize,
-    verified: bool,
-    data: BreakpointData,
-    source: Source,
-    span: Option<Span>,
-}
-
-impl Display for Breakpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}{}", self.id, self.source, self.data)
-    }
-}
-
-pub enum BreakpointData {
-    Source(SourceBreakpoint),
-    Function(FunctionBreakpoint),
-    Data(DataBreakpoint),
-}
-
-impl Display for BreakpointData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BreakpointData::Source(source) => write!(f, "{}", source),
-            BreakpointData::Function(function) => write!(f, "{}", function),
-            BreakpointData::Data(data) => write!(f, "{}", data),
-        }
-    }
-}
-
-pub struct SourceBreakpoint {
-    line: u32,
-    column: Option<u32>,
-    log_message: Option<String>,
-}
-
-impl Display for SourceBreakpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let column = if let Some(column) = self.column {
-            format!(":{}", column)
-        } else {
-            String::new()
-        };
-        write!(f, ":{}{}", self.line, column)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum AccessType {
-    Read,
-    Write,
-    ReadWrite,
-}
-
-impl Display for AccessType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AccessType::Read => write!(f, "(r)"),
-            AccessType::Write => write!(f, "(w)"),
-            AccessType::ReadWrite => write!(f, "(rw)"),
-        }
-    }
-}
-
-pub struct DataBreakpoint {
-    name: String,
-    access_type: AccessType,
-}
-
-impl Display for DataBreakpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, ".{} {}", self.name, self.access_type)
-    }
-}
-
-pub struct FunctionBreakpoint {
-    name: String,
-}
-
-impl Display for FunctionBreakpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, ".{}", self.name)
-    }
-}
-
-#[derive(PartialEq, Debug)]
-enum State {
-    Start,
-    Continue,
-    StepOver(u64),
-    StepIn,
-    Finish(u64),
-    Break,
-    Quit,
-}
-
-struct ExprState {
-    id: u64,
-    active_breakpoints: Vec<usize>,
-}
-
-impl ExprState {
-    pub fn new(id: u64) -> ExprState {
-        ExprState {
-            id,
-            active_breakpoints: Vec::new(),
-        }
-    }
-}
-
-impl PartialEq for ExprState {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-pub struct DebugState {
+pub struct CLIDebugger {
     editor: Editor<()>,
-    breakpoints: BTreeMap<usize, Breakpoint>,
-    watchpoints: BTreeMap<usize, Breakpoint>,
-    break_locations: HashMap<QualifiedContractIdentifier, HashSet<usize>>,
-    watch_variables: HashMap<(QualifiedContractIdentifier, String), HashSet<usize>>,
-    active_breakpoints: HashSet<usize>,
-    state: State,
-    stack: Vec<ExprState>,
-    unique_id: usize,
-    debug_cmd_contract: QualifiedContractIdentifier,
-    debug_cmd_source: String,
+    state: DebugState,
 }
 
-impl DebugState {
-    pub fn new(contract_id: &QualifiedContractIdentifier, snippet: &str) -> DebugState {
+impl CLIDebugger {
+    pub fn new(contract_id: &QualifiedContractIdentifier, snippet: &str) -> Self {
         let mut editor = Editor::<()>::new();
         editor
             .load_history(HISTORY_FILE.unwrap_or(".debug_history"))
             .ok();
 
-        DebugState {
+        Self {
             editor,
-            breakpoints: BTreeMap::new(),
-            watchpoints: BTreeMap::new(),
-            break_locations: HashMap::new(),
-            watch_variables: HashMap::new(),
-            active_breakpoints: HashSet::new(),
-            state: State::Start,
-            stack: Vec::new(),
-            unique_id: 0,
-            debug_cmd_contract: contract_id.clone(),
-            debug_cmd_source: snippet.to_string(),
+            state: DebugState::new(contract_id, snippet),
         }
     }
 
-    fn get_unique_id(&mut self) -> usize {
-        self.unique_id += 1;
-        self.unique_id
-    }
-
-    fn add_breakpoint(&mut self, mut breakpoint: Breakpoint) {
-        breakpoint.id = self.get_unique_id();
-
-        if let Some(set) = self.break_locations.get_mut(&breakpoint.source.name) {
-            set.insert(breakpoint.id);
-        } else {
-            let mut set = HashSet::new();
-            set.insert(breakpoint.id);
-            self.break_locations
-                .insert(breakpoint.source.name.clone(), set);
-        }
-
-        self.breakpoints.insert(breakpoint.id, breakpoint);
-    }
-
-    fn delete_all_breakpoints(&mut self) {
-        for (id, breakpoint) in &self.breakpoints {
-            let set = self
-                .break_locations
-                .get_mut(&breakpoint.source.name)
-                .unwrap();
-            set.remove(&breakpoint.id);
-        }
-        self.breakpoints.clear();
-    }
-
-    fn delete_breakpoint(&mut self, id: usize) -> bool {
-        if let Some(breakpoint) = self.breakpoints.remove(&id) {
-            let set = self
-                .break_locations
-                .get_mut(&breakpoint.source.name)
-                .unwrap();
-            set.remove(&breakpoint.id);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn add_watchpoint(&mut self, mut breakpoint: Breakpoint) {
-        breakpoint.id = self.get_unique_id();
-        let name = match &breakpoint.data {
-            BreakpointData::Data(data) => data.name.clone(),
-            _ => panic!("called add_watchpoint with non-data breakpoint"),
-        };
-
-        let key = (breakpoint.source.name.clone(), name);
-        if let Some(set) = self.watch_variables.get_mut(&key) {
-            set.insert(breakpoint.id);
-        } else {
-            let mut set = HashSet::new();
-            set.insert(breakpoint.id);
-            self.watch_variables.insert(key, set);
-        }
-
-        self.watchpoints.insert(breakpoint.id, breakpoint);
-    }
-
-    fn delete_all_watchpoints(&mut self) {
-        for (id, breakpoint) in &self.watchpoints {
-            let name = match &breakpoint.data {
-                BreakpointData::Data(data) => data.name.clone(),
-                _ => continue,
-            };
-            let set = self
-                .watch_variables
-                .get_mut(&(breakpoint.source.name.clone(), name))
-                .unwrap();
-            set.remove(&breakpoint.id);
-        }
-        self.watchpoints.clear();
-    }
-
-    fn delete_watchpoint(&mut self, id: usize) -> bool {
-        if let Some(breakpoint) = self.watchpoints.remove(&id) {
-            let name = match breakpoint.data {
-                BreakpointData::Data(data) => data.name,
-                _ => panic!("called delete_watchpoint with non-data breakpoint"),
-            };
-            let set = self
-                .watch_variables
-                .get_mut(&(breakpoint.source.name, name))
-                .unwrap();
-            set.remove(&breakpoint.id);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn did_hit_source_breakpoint(
-        &self,
-        contract_id: &QualifiedContractIdentifier,
-        span: &Span,
-    ) -> Option<usize> {
-        if let Some(set) = self.break_locations.get(contract_id) {
-            for id in set {
-                // Don't break in a subexpression of an expression which has
-                // already triggered this breakpoint
-                if self.active_breakpoints.contains(id) {
-                    continue;
-                }
-
-                let breakpoint = match self.breakpoints.get(id) {
-                    Some(breakpoint) => breakpoint,
-                    None => panic!("internal error: breakpoint {} not found", id),
-                };
-
-                if let Some(break_span) = &breakpoint.span {
-                    if break_span.start_line == span.start_line
-                        && (break_span.start_column == 0
-                            || break_span.start_column == span.start_column)
-                    {
-                        return Some(breakpoint.id);
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn did_hit_data_breakpoint(
-        &self,
-        contract_id: &QualifiedContractIdentifier,
-        expr: &SymbolicExpression,
-    ) -> Option<usize> {
-        match &expr.expr {
-            SymbolicExpressionType::List(list) => {
-                // Check if we hit a data breakpoint
-                if let Some((function_name, args)) = list.split_first() {
-                    if let Some(function_name) = function_name.match_atom() {
-                        if let Some(native_function) =
-                            NativeFunctions::lookup_by_name(function_name)
-                        {
-                            use crate::clarity::functions::NativeFunctions::*;
-                            if let Some((name, access_type)) = match native_function {
-                                FetchVar => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Read,
-                                )),
-                                SetVar => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Write,
-                                )),
-                                FetchEntry => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Read,
-                                )),
-                                SetEntry => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Write,
-                                )),
-                                InsertEntry => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Write,
-                                )),
-                                DeleteEntry => Some((
-                                    args[0].match_atom().unwrap().to_string(),
-                                    AccessType::Write,
-                                )),
-                                _ => None,
-                            } {
-                                let key = (contract_id.clone(), name);
-                                if let Some(set) = self.watch_variables.get(&key) {
-                                    for id in set {
-                                        let watchpoint = match self.watchpoints.get(id) {
-                                            Some(watchpoint) => watchpoint,
-                                            None => panic!(
-                                                "internal error: watchpoint {} not found",
-                                                id
-                                            ),
-                                        };
-
-                                        if let BreakpointData::Data(data) = &watchpoint.data {
-                                            match (data.access_type, access_type) {
-                                                (AccessType::Read, AccessType::Read)
-                                                | (AccessType::Write, AccessType::Write)
-                                                | (AccessType::ReadWrite, AccessType::Read)
-                                                | (AccessType::ReadWrite, AccessType::Write) => {
-                                                    return Some(watchpoint.id)
-                                                }
-                                                _ => (),
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    fn prompt(
-        &mut self,
-        env: &mut Environment,
-        context: &LocalContext,
-        expr: &SymbolicExpression,
-        finish: bool,
-    ) {
+    fn prompt(&mut self, env: &mut Environment, context: &LocalContext, expr: &SymbolicExpression) {
         let prompt = black!("(debug) ");
         loop {
             let readline = self.editor.readline(&prompt);
@@ -401,7 +55,7 @@ impl DebugState {
                         }
                     }
                     self.editor.add_history_entry(&command);
-                    self.handle_command(&command, env, context, expr, finish)
+                    self.handle_command(&command, env, context, expr)
                 }
                 Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                     println!("Use \"q\" or \"quit\" to exit debug mode");
@@ -459,8 +113,12 @@ impl DebugState {
     // Print the source of the current expr (if it has a valid span).
     fn print_source(&mut self, env: &mut Environment, expr: &SymbolicExpression) {
         let contract_id = &env.contract_context.contract_identifier;
-        if contract_id == &self.debug_cmd_contract {
-            self.print_source_from_str("<command>", &self.debug_cmd_source, expr.span.clone());
+        if contract_id == &self.state.debug_cmd_contract {
+            self.print_source_from_str(
+                "<command>",
+                &self.state.debug_cmd_source,
+                expr.span.clone(),
+            );
         } else {
             match env.global_context.database.get_contract_src(contract_id) {
                 Some(contract_source) => {
@@ -482,103 +140,14 @@ impl DebugState {
         }
     }
 
-    pub fn begin_eval(
-        &mut self,
-        env: &mut Environment,
-        context: &LocalContext,
-        expr: &SymbolicExpression,
-    ) {
-        self.stack.push(ExprState::new(expr.id));
-
-        // If user quit debug session, we can't stop executing, but don't do anything else.
-        if self.state == State::Quit {
-            return;
-        }
-
-        // Check if we have hit a source breakpoint
-        if let Some(breakpoint) =
-            self.did_hit_source_breakpoint(&env.contract_context.contract_identifier, &expr.span)
-        {
-            self.active_breakpoints.insert(breakpoint);
-            let top = self.stack.last_mut().unwrap();
-            top.active_breakpoints.push(breakpoint);
-
-            println!("{} hit breakpoint {}", black!("*"), breakpoint);
-            self.state = State::Break;
-        }
-
-        // Always skip over non-list expressions (values).
-        match expr.expr {
-            SymbolicExpressionType::List(_) => (),
-            _ => return,
-        };
-
-        if let Some(watchpoint) =
-            self.did_hit_data_breakpoint(&env.contract_context.contract_identifier, expr)
-        {
-            println!("{} hit watchpoint {}", black!("*"), watchpoint);
-            self.state = State::Break;
-        }
-
-        match self.state {
-            State::Continue | State::Quit | State::Finish(_) => return,
-            State::StepOver(step_over_id) => {
-                if self
-                    .stack
-                    .iter()
-                    .find(|&state| state.id == step_over_id)
-                    .is_some()
-                {
-                    // We're still inside the expression which should be stepped over,
-                    // so return to execution.
-                    return;
-                }
-            }
-            State::Start | State::StepIn | State::Break => (),
-        };
-
-        self.print_source(env, expr);
-        self.prompt(env, context, expr, false);
-    }
-
-    pub fn finish_eval(
-        &mut self,
-        env: &mut Environment,
-        context: &LocalContext,
-        expr: &SymbolicExpression,
-        res: &Result<Value, Error>,
-    ) {
-        let state = self.stack.pop().unwrap();
-        assert_eq!(state.id, expr.id);
-
-        // Remove any active breakpoints for this expression
-        for breakpoint in state.active_breakpoints {
-            self.active_breakpoints.remove(&breakpoint);
-        }
-
-        // Only print the returned value if this resolves a finish command
-        match self.state {
-            State::Finish(finish_id) if finish_id == state.id => self.state = State::Break,
-            _ => return,
-        }
-
-        match res {
-            Ok(value) => println!(
-                "{}: {}",
-                green!("Return value"),
-                black!(format!("{}", value))
-            ),
-            Err(e) => println!("{}: {}", red!("error"), e),
-        }
-    }
-
+    // Returns a bool which indicates if execution should resume (true) or if
+    // it should wait for input (false).
     fn handle_command(
         &mut self,
         command: &str,
         env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
-        finish: bool,
     ) -> bool {
         let (cmd, args) = match command.split_once(" ") {
             None => (command, ""),
@@ -590,42 +159,19 @@ impl DebugState {
                 false
             }
             "r" | "run" | "c" | "continue" => {
-                self.state = State::Continue;
+                self.state.continue_execution();
                 true
             }
             "n" | "next" => {
-                if finish {
-                    // When an expression is finished eval-ing, then next acts the same as step
-                    self.state = State::StepIn;
-                    true
-                } else {
-                    self.state = State::StepOver(expr.id);
-                    true
-                }
+                self.state.step_over(expr.id);
+                true
             }
             "s" | "step" => {
-                self.state = State::StepIn;
+                self.state.step_in();
                 true
             }
             "f" | "finish" => {
-                // A finish command indicates that we should continue until the parent expression
-                // completes. If we entered here from a finish hook, then the current
-                // expression has already popped from the stack, so the last expression id
-                // on the stack is the parent. If we entered here from an entry hook, the
-                // parent expression is the penultimate id on the stack.
-                if finish {
-                    if self.stack.len() >= 1 {
-                        self.state = State::Finish(self.stack.last().unwrap().id);
-                    } else {
-                        self.state = State::Continue;
-                    }
-                } else {
-                    if self.stack.len() >= 2 {
-                        self.state = State::Finish(self.stack[self.stack.len() - 2].id);
-                    } else {
-                        self.state = State::Continue;
-                    }
-                }
+                self.state.finish();
                 true
             }
             "b" | "break" => {
@@ -665,7 +211,7 @@ impl DebugState {
                 false
             }
             "q" | "quit" => {
-                self.state = State::Quit;
+                self.state.quit();
                 true
             }
             _ => {
@@ -686,10 +232,10 @@ impl DebugState {
         let arg_list: Vec<&str> = args.split_ascii_whitespace().collect();
         match arg_list[0] {
             "l" | "list" => {
-                if self.breakpoints.is_empty() {
+                if self.state.breakpoints.is_empty() {
                     println!("No breakpoints set.")
                 } else {
-                    for (_, breakpoint) in &self.breakpoints {
+                    for (_, breakpoint) in &self.state.breakpoints {
                         println!("{}", breakpoint);
                     }
                 }
@@ -697,7 +243,7 @@ impl DebugState {
             "del" | "delete" => {
                 // if no argument is passed, delete all watchpoints
                 if arg_list.len() == 1 {
-                    self.delete_all_breakpoints();
+                    self.state.delete_all_breakpoints();
                 } else {
                     let id = match arg_list[1].parse::<usize>() {
                         Ok(id) => id,
@@ -706,7 +252,7 @@ impl DebugState {
                             return;
                         }
                     };
-                    if self.delete_breakpoint(id) {
+                    if self.state.delete_breakpoint(id) {
                         println!("breakpoint deleted");
                     } else {
                         println!(
@@ -788,13 +334,12 @@ impl DebugState {
                         0
                     };
 
-                    self.add_breakpoint(Breakpoint {
+                    self.state.add_breakpoint(Breakpoint {
                         id: 0,
                         verified: true,
                         data: BreakpointData::Source(SourceBreakpoint {
                             line,
                             column: if column == 0 { None } else { Some(column) },
-                            log_message: None,
                         }),
                         source: Source { name: contract_id },
                         span: Some(Span {
@@ -858,7 +403,7 @@ impl DebugState {
                         Some(function) => function,
                     };
 
-                    self.add_breakpoint(Breakpoint {
+                    self.state.add_breakpoint(Breakpoint {
                         id: 0,
                         verified: true,
                         data: BreakpointData::Function(FunctionBreakpoint {
@@ -882,10 +427,10 @@ impl DebugState {
         let arg_list: Vec<&str> = args.split_ascii_whitespace().collect();
         match arg_list[0] {
             "l" | "list" => {
-                if self.watchpoints.is_empty() {
+                if self.state.watchpoints.is_empty() {
                     println!("No watchpoints set.")
                 } else {
-                    for (_, watchpoint) in &self.watchpoints {
+                    for (_, watchpoint) in &self.state.watchpoints {
                         println!("{}", watchpoint);
                     }
                 }
@@ -893,7 +438,7 @@ impl DebugState {
             "del" | "delete" => {
                 // if no argument is passed, delete all watchpoints
                 if arg_list.len() == 1 {
-                    self.delete_all_watchpoints();
+                    self.state.delete_all_watchpoints();
                 } else {
                     let id = match arg_list[1].parse::<usize>() {
                         Ok(id) => id,
@@ -902,7 +447,7 @@ impl DebugState {
                             return;
                         }
                     };
-                    if self.delete_watchpoint(id) {
+                    if self.state.delete_watchpoint(id) {
                         println!("watchpoint deleted");
                     } else {
                         println!(
@@ -978,7 +523,7 @@ impl DebugState {
                     return;
                 }
 
-                self.add_watchpoint(Breakpoint {
+                self.state.add_watchpoint(Breakpoint {
                     id: 0,
                     verified: true,
                     data: BreakpointData::Data(DataBreakpoint {
@@ -988,6 +533,53 @@ impl DebugState {
                     source: Source { name: contract_id },
                     span: None,
                 });
+            }
+        }
+    }
+}
+
+impl EvalHook for CLIDebugger {
+    fn begin_eval(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+    ) {
+        if !self.state.begin_eval(env, context, expr) {
+            match self.state.state {
+                State::Break(id) => println!("{} hit breakpoint {}", black!("*"), id),
+                State::DataBreak(id, access_type) => println!(
+                    "{} hit watchpoint {} ({})",
+                    black!("*"),
+                    id,
+                    if access_type == AccessType::Read {
+                        "read"
+                    } else {
+                        "write"
+                    }
+                ),
+                _ => (),
+            }
+            self.print_source(env, expr);
+            self.prompt(env, context, expr);
+        }
+    }
+
+    fn finish_eval(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+        res: &Result<Value, Error>,
+    ) {
+        if self.state.finish_eval(env, context, expr, res) {
+            match res {
+                Ok(value) => println!(
+                    "{}: {}",
+                    green!("Return value"),
+                    black!(format!("{}", value))
+                ),
+                Err(e) => println!("{}: {}", red!("error"), e),
             }
         }
     }
