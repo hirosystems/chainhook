@@ -82,6 +82,25 @@ impl_array_newtype!(BurnchainHeaderHash, u8, 32);
 impl_array_hexstring_fmt!(BurnchainHeaderHash);
 // impl_byte_array_newtype!(BurnchainHeaderHash, u8, 32);
 
+/** EvalHook defines an interface for hooks to execute during evaluation. */
+pub trait EvalHook {
+    fn begin_eval(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+    ) {
+    }
+    fn finish_eval(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        expr: &SymbolicExpression,
+        res: &core::result::Result<Value, crate::clarity::errors::Error>,
+    ) {
+    }
+}
+
 fn lookup_variable(name: &str, context: &LocalContext, env: &mut Environment) -> Result<Value> {
     if name.starts_with(char::is_numeric) || name.starts_with('\'') {
         Err(InterpreterError::BadSymbolicRepresentation(format!(
@@ -221,15 +240,16 @@ pub fn eval<'a>(
         Atom, AtomValue, Field, List, LiteralValue, TraitReference,
     };
 
-    #[cfg(feature = "cli")]
-    if let Some(mut debug_state) = env.global_context.debug_state.take() {
-        debug_state.begin_eval(env, context, exp);
-        env.global_context.debug_state = Some(debug_state);
+    if let Some(mut eval_hooks) = env.global_context.eval_hooks.take() {
+        for hook in eval_hooks.iter_mut() {
+            hook.begin_eval(env, context, exp);
+        }
+        env.global_context.eval_hooks = Some(eval_hooks);
     }
 
-    if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
-        coverage_tracker.report_eval(&env.contract_context.contract_identifier, exp);
-    }
+    // if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
+    //     coverage_tracker.report_eval(&env.contract_context.contract_identifier, exp);
+    // }
 
     let mut res = match exp.expr {
         AtomValue(ref value) | LiteralValue(ref value) => Ok(value.clone()),
@@ -269,10 +289,11 @@ pub fn eval<'a>(
         };
     }
 
-    #[cfg(feature = "cli")]
-    if let Some(mut debug_state) = env.global_context.debug_state.take() {
-        debug_state.finish_eval(env, context, exp, &res);
-        env.global_context.debug_state = Some(debug_state);
+    if let Some(mut eval_hooks) = env.global_context.eval_hooks.take() {
+        for hook in eval_hooks.iter_mut() {
+            hook.finish_eval(env, context, exp, &res);
+        }
+        env.global_context.eval_hooks = Some(eval_hooks);
     }
 
     res

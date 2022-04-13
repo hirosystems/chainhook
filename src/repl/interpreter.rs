@@ -4,7 +4,7 @@ use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 use crate::analysis::annotation::{Annotation, AnnotationKind};
 use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
-use crate::clarity;
+use crate::clarity::{self, EvalHook};
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
 use crate::clarity::ast::ContractAST;
 use crate::clarity::contexts::{
@@ -14,6 +14,7 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
+use crate::clarity::debug::cli::CLIDebugger;
 #[cfg(feature = "cli")]
 use crate::clarity::debug::DebugState;
 use crate::clarity::diagnostic::{Diagnostic, Level};
@@ -115,7 +116,7 @@ impl ClarityInterpreter {
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
-        debug: bool,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (mut ast, mut diagnostics, success) = self.build_ast(
@@ -148,7 +149,7 @@ impl ClarityInterpreter {
             snippet,
             analysis,
             cost_track,
-            debug,
+            eval_hooks,
             coverage_reporter,
         ) {
             Ok(result) => result,
@@ -182,7 +183,7 @@ impl ClarityInterpreter {
         snippet: String,
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
-        debug: bool,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
@@ -204,7 +205,7 @@ impl ClarityInterpreter {
             snippet,
             analysis,
             cost_track,
-            debug,
+            eval_hooks,
             coverage_reporter,
         ) {
             Ok(result) => result,
@@ -440,7 +441,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
         snippet: String,
         contract_analysis: ContractAnalysis,
         cost_track: bool,
-        debug: bool,
+        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut execution_result = ExecutionResult::default();
@@ -466,10 +467,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             };
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
             global_context.coverage_reporting = coverage_reporter;
-            #[cfg(feature = "cli")]
-            if debug {
-                global_context.debug_state = Some(DebugState::new(&contract_identifier, &snippet));
-            }
+            global_context.eval_hooks = eval_hooks;
             global_context.begin();
 
             let result = global_context.execute(|g| {

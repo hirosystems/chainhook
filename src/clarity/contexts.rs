@@ -35,6 +35,8 @@ use crate::clarity::StacksBlockId;
 
 use serde::Serialize;
 
+use super::EvalHook;
+
 pub const MAX_CONTEXT_DEPTH: u16 = 256;
 
 // TODO:
@@ -94,8 +96,7 @@ pub struct GlobalContext<'a> {
     pub mainnet: bool,
     pub coverage_reporting: Option<TestCoverageReport>,
     pub costs_reporting: Option<CostsReport>,
-    #[cfg(feature = "cli")]
-    pub debug_state: Option<DebugState>,
+    pub eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1202,8 +1203,7 @@ impl<'a> GlobalContext<'a> {
             mainnet,
             coverage_reporting: None,
             costs_reporting: None,
-            #[cfg(feature = "cli")]
-            debug_state: None,
+            eval_hooks: Some(Vec::new()),
         }
     }
 
