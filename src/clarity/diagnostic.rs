@@ -57,7 +57,7 @@ impl Diagnostic {
 
     // Generate the formatted output for this diagnostic, given the source code.
     // TODO: Preferably a filename would be saved in the Span, but for now, pass a name here.
-    pub fn output(&self, name: &String, lines: &Vec<String>) -> Vec<String> {
+    pub fn output(&self, name: &str, lines: &Vec<String>) -> Vec<String> {
         let mut output = Vec::new();
         if self.spans.len() > 0 {
             output.push(format!(
