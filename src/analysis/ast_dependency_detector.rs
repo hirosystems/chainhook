@@ -45,13 +45,13 @@ pub struct ASTDependencyDetector<'a> {
         )>,
     >,
     params: Option<Vec<TypedVar<'a>>>,
-    requirements: Vec<String>,
+    preloaded: &'a BTreeMap<QualifiedContractIdentifier, ContractAST>,
 }
 
 impl<'a> ASTDependencyDetector<'a> {
     pub fn detect_dependencies(
         contract_asts: &'a HashMap<QualifiedContractIdentifier, ContractAST>,
-        requirements: &'a Vec<InitialLink>,
+        preloaded: &'a BTreeMap<QualifiedContractIdentifier, ContractAST>,
     ) -> HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>> {
         let mut detector = Self {
             dependencies: HashMap::new(),
@@ -61,8 +61,18 @@ impl<'a> ASTDependencyDetector<'a> {
             pending_function_checks: HashMap::new(),
             pending_trait_checks: HashMap::new(),
             params: None,
-            requirements: requirements.iter().map(|r| r.contract_id.to_string()).collect::<Vec<String>>(),
+            preloaded,
         };
+
+        let mut preloaded_visitor = PreloadedVisitor {
+            detector: &mut detector,
+            current_contract: None,
+        };
+
+        for (contract_identifier, ast) in preloaded {
+            preloaded_visitor.current_contract = Some(contract_identifier);
+            traverse(&mut preloaded_visitor, &ast.expressions);
+        }
 
         for (contract_identifier, ast) in contract_asts {
             detector
@@ -144,7 +154,7 @@ impl<'a> ASTDependencyDetector<'a> {
         from: &QualifiedContractIdentifier,
         to: &QualifiedContractIdentifier,
     ) {
-        if self.requirements.contains(&from.to_string()) || self.requirements.contains(&to.to_string()) {
+        if self.preloaded.contains_key(to) {
             return;
         }
         if let Some(set) = self.dependencies.get_mut(from) {
@@ -304,16 +314,17 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        if let Some(parameters) = parameters {
-            let param_types: Vec<TypeSignature> = parameters
+        let param_types = match parameters {
+            Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
                     TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
                 })
-                .collect();
-
-            self.add_defined_function(self.current_contract.unwrap(), name, param_types);
+                .collect(),
+            None => Vec::new(),
         };
+
+        self.add_defined_function(self.current_contract.unwrap(), name, param_types);
         true
     }
 
@@ -338,16 +349,17 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        if let Some(parameters) = parameters {
-            let param_types: Vec<TypeSignature> = parameters
+        let param_types = match parameters {
+            Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
                     TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
                 })
-                .collect();
-
-            self.add_defined_function(self.current_contract.unwrap(), name, param_types);
+                .collect(),
+            None => Vec::new(),
         };
+
+        self.add_defined_function(self.current_contract.unwrap(), name, param_types);
         true
     }
 
@@ -372,16 +384,17 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         parameters: Option<Vec<TypedVar<'a>>>,
         body: &'a SymbolicExpression,
     ) -> bool {
-        if let Some(parameters) = parameters {
-            let param_types: Vec<TypeSignature> = parameters
+        let param_types = match parameters {
+            Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
                     TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
                 })
-                .collect();
-
-            self.add_defined_function(self.current_contract.unwrap(), name, param_types);
+                .collect(),
+            None => Vec::new(),
         };
+
+        self.add_defined_function(self.current_contract.unwrap(), name, param_types);
         true
     }
 
@@ -512,6 +525,70 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
     }
 }
 
+// Traverses the preloaded contracts and saves function signatures only
+struct PreloadedVisitor<'a, 'b> {
+    detector: &'b mut ASTDependencyDetector<'a>,
+    current_contract: Option<&'a QualifiedContractIdentifier>,
+}
+impl<'a, 'b> ASTVisitor<'a> for PreloadedVisitor<'a, 'b> {
+    fn traverse_define_read_only(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        let param_types = match parameters {
+            Some(parameters) => parameters
+                .iter()
+                .map(|typed_var| {
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+
+        self.detector
+            .add_defined_function(self.current_contract.unwrap(), name, param_types);
+        true
+    }
+
+    fn traverse_define_public(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        parameters: Option<Vec<TypedVar<'a>>>,
+        body: &'a SymbolicExpression,
+    ) -> bool {
+        let param_types = match parameters {
+            Some(parameters) => parameters
+                .iter()
+                .map(|typed_var| {
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+
+        self.detector
+            .add_defined_function(self.current_contract.unwrap(), name, param_types);
+        true
+    }
+
+    fn traverse_define_trait(
+        &mut self,
+        expr: &'a SymbolicExpression,
+        name: &'a ClarityName,
+        functions: &'a [SymbolicExpression],
+    ) -> bool {
+        if let Ok(trait_definition) = TypeSignature::parse_trait_type_repr(functions, &mut ()) {
+            self.detector
+                .add_defined_trait(self.current_contract.unwrap(), name, trait_definition);
+        }
+        true
+    }
+}
+
 struct Graph {
     pub adjacency_list: Vec<Vec<usize>>,
 }
@@ -635,7 +712,8 @@ mod tests {
             Ok((contract_identifier, ast, _)) => {
                 let mut contracts = HashMap::new();
                 contracts.insert(contract_identifier.clone(), ast);
-                let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+                let dependencies =
+                    ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
                 assert_eq!(dependencies[&contract_identifier].len(), 0);
             }
             Err(_) => panic!("expected success"),
@@ -673,7 +751,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&foo));
     }
@@ -718,7 +796,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&bar));
     }
@@ -761,7 +839,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&bar));
     }
@@ -814,7 +892,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 2);
         assert!(dependencies[&test_identifier].contains(&bar));
         assert!(dependencies[&test_identifier].contains(&my_trait));
@@ -852,7 +930,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&other));
     }
@@ -889,7 +967,7 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts);
+        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&other));
     }

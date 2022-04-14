@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::analysis::annotation::{Annotation, AnnotationKind};
-use crate::analysis::dependency_detector::DependencyDetector;
+use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
 use crate::clarity;
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
@@ -244,21 +245,15 @@ impl ClarityInterpreter {
             return Err("error parsing source".to_string());
         }
 
-        let mut contract_analysis = ContractAnalysis::new(
-            contract_id.clone(),
-            ast.expressions,
-            LimitedCostTracker::new_free(),
-        );
-        let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-        match DependencyDetector::run_pass(
-            &mut contract_analysis,
-            &mut analysis_db,
-            &vec![],
-            &self.repl_settings.analysis,
-        ) {
-            Ok(_) => Ok(contract_analysis.dependencies),
-            Err(e) => Err(format!("{:?}", e)),
-        }
+        let mut contract_map = HashMap::new();
+        contract_map.insert(contract_id.clone(), ast);
+        let mut all_dependencies =
+            ASTDependencyDetector::detect_dependencies(&contract_map, &BTreeMap::new());
+        let dependencies = match all_dependencies.remove(&contract_id) {
+            Some(mut dependencies_set) => dependencies_set.drain().collect(),
+            None => vec![],
+        };
+        Ok(dependencies)
     }
 
     pub fn build_ast(
@@ -720,9 +715,9 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
 
         {
             let mut analysis_db = AnalysisDatabase::new(&mut self.datastore);
-            let _ = analysis_db.execute(|db| {
-                db.insert_contract(&contract_identifier, &contract_analysis)
-            }).expect("Unable to save data");
+            let _ = analysis_db
+                .execute(|db| db.insert_contract(&contract_identifier, &contract_analysis))
+                .expect("Unable to save data");
         }
 
         Ok(execution_result)
