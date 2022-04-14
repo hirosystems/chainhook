@@ -3,7 +3,6 @@ pub mod ast_dependency_detector;
 pub mod ast_visitor;
 pub mod call_checker;
 pub mod check_checker;
-pub mod dependency_detector;
 
 use serde::de::Deserialize;
 use serde::Serialize;
@@ -16,7 +15,6 @@ use crate::clarity::diagnostic::Diagnostic;
 use self::ast_dependency_detector::ASTDependencyDetector;
 use self::call_checker::CallChecker;
 use self::check_checker::CheckChecker;
-use self::dependency_detector::DependencyDetector;
 
 pub type AnalysisResult = Result<Vec<Diagnostic>, Vec<Diagnostic>>;
 
@@ -126,7 +124,7 @@ pub fn run_analysis(
             &Vec<Annotation>,
             settings: &Settings,
         ) -> AnalysisResult,
-    > = vec![DependencyDetector::run_pass, CallChecker::run_pass];
+    > = vec![CallChecker::run_pass];
     for pass in &settings.passes {
         match pass {
             Pass::CheckChecker => passes.push(CheckChecker::run_pass),
