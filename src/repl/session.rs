@@ -402,36 +402,41 @@ impl Session {
 
             let dependencies =
                 ASTDependencyDetector::detect_dependencies(&contract_asts, &self.asts);
-            let ordered_contracts = ASTDependencyDetector::order_contracts(&dependencies);
-
-            // interpret the contract ASTs in order
-            for contract_identifier in ordered_contracts {
-                let contract = initial_contracts_map[contract_identifier];
-                let ast = contract_asts.remove(contract_identifier).unwrap();
-                match self.formatted_interpretation_ast(
-                    contract.code.to_string(),
-                    ast,
-                    contract_identifier.clone(),
-                    true,
-                    false,
-                    Some("Deployment".into()),
-                ) {
-                    Ok((ref mut res_output, result)) => {
-                        output.append(res_output);
-                        if result.contract.is_none() {
-                            continue;
-                        }
-                        let analysis_result = result.contract.unwrap();
-                        contracts.push((
-                            analysis_result.4.clone(),
-                            analysis_result.1.clone(),
-                            contract.path.clone(),
-                        ))
+            match ASTDependencyDetector::order_contracts(&dependencies) {
+                Ok(ordered_contracts) => {
+                    // interpret the contract ASTs in order
+                    for contract_identifier in ordered_contracts {
+                        let contract = initial_contracts_map[contract_identifier];
+                        let ast = contract_asts.remove(contract_identifier).unwrap();
+                        match self.formatted_interpretation_ast(
+                            contract.code.to_string(),
+                            ast,
+                            contract_identifier.clone(),
+                            true,
+                            false,
+                            Some("Deployment".into()),
+                        ) {
+                            Ok((ref mut res_output, result)) => {
+                                output.append(res_output);
+                                if result.contract.is_none() {
+                                    continue;
+                                }
+                                let analysis_result = result.contract.unwrap();
+                                contracts.push((
+                                    analysis_result.4.clone(),
+                                    analysis_result.1.clone(),
+                                    contract.path.clone(),
+                                ))
+                            }
+                            Err(ref mut result) => output_err.append(result),
+                        };
                     }
-                    Err(ref mut result) => output_err.append(result),
-                };
+                    self.interpreter.set_tx_sender(default_tx_sender);
+                }
+                Err(e) => {
+                    output_err.push(format!("{}: {}", red!("error"), e));
+                }
             }
-            self.interpreter.set_tx_sender(default_tx_sender);
         }
         if output_err.len() > 0 {
             return Err(output_err);
