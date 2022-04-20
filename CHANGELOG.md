@@ -1,3 +1,16 @@
+# [0.26.0](https://github.com/hirosystems/clarity-repl/compare/v0.25.0...v0.26.0) (2022-04-20)
+
+
+### Bug Fixes
+
+* finish AST dependency detector ([3f09ce5](https://github.com/hirosystems/clarity-repl/commit/3f09ce54bf0657a6a30160034a521f81a7f5b81a))
+* hint for patches ([34766f5](https://github.com/hirosystems/clarity-repl/commit/34766f5e1d9f778b5373d791f8c08e0a17c23cc5))
+
+
+### Features
+
+* add AST-based dependency checker ([237691f](https://github.com/hirosystems/clarity-repl/commit/237691fef279c425085f5c6c90125a8d50e0d3ea))
+
 # [0.25.0](https://github.com/hirosystems/clarity-repl/compare/v0.24.0...v0.25.0) (2022-04-04)
 
 
