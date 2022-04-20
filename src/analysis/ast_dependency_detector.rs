@@ -3,6 +3,7 @@ use crate::analysis::ast_visitor::{traverse, ASTVisitor};
 use crate::analysis::{AnalysisPass, AnalysisResult, Settings};
 use crate::clarity::analysis::analysis_db::AnalysisDatabase;
 pub use crate::clarity::analysis::types::ContractAnalysis;
+use crate::clarity::analysis::{CheckErrors, CheckResult};
 use crate::clarity::ast::ContractAST;
 use crate::clarity::representations::{SymbolicExpression, TraitDefinition};
 use crate::clarity::types::{
@@ -87,14 +88,14 @@ impl<'a> ASTDependencyDetector<'a> {
 
     pub fn order_contracts(
         dependencies: &HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
-    ) -> Vec<&QualifiedContractIdentifier> {
+    ) -> CheckResult<Vec<&QualifiedContractIdentifier>> {
         let mut lookup = BTreeMap::new();
         let mut reverse_lookup = Vec::new();
 
         let mut index: usize = 0;
 
         if dependencies.is_empty() {
-            return vec![];
+            return Ok(vec![]);
         }
 
         for (contract, _) in dependencies {
@@ -111,14 +112,7 @@ impl<'a> ASTDependencyDetector<'a> {
                 let dep_id = match lookup.get(dep) {
                     Some(id) => id,
                     None => {
-                        println!(
-                            "{}: {} depends on {}, but {} is not found",
-                            red!("error"),
-                            contract,
-                            dep,
-                            dep
-                        );
-                        process::exit(1);
+                        return Err(CheckErrors::NoSuchContract(dep.to_string()).into());
                     }
                 };
                 graph.add_directed_edge(*contract_id, *dep_id);
@@ -135,18 +129,13 @@ impl<'a> ASTDependencyDetector<'a> {
                 let contract = reverse_lookup[*index];
                 contracts.push(contract.name.as_str());
             }
-            println!(
-                "{}: cycling dependencies: {}",
-                red!("error"),
-                contracts.join(", ")
-            );
-            process::exit(1);
+            return Err(CheckErrors::CircularContractDependency(contracts.join(", ")).into());
         }
 
-        sorted_indexes
+        Ok(sorted_indexes
             .iter()
             .map(|index| reverse_lookup[*index])
-            .collect()
+            .collect())
     }
 
     fn add_dependency(
