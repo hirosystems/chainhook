@@ -4,7 +4,6 @@ use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 use crate::analysis::annotation::{Annotation, AnnotationKind};
 use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
-use crate::clarity::{self, EvalHook};
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
 use crate::clarity::ast::ContractAST;
 use crate::clarity::contexts::{
@@ -26,6 +25,7 @@ use crate::clarity::types::{
     self, PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
 };
 use crate::clarity::util::StacksAddress;
+use crate::clarity::{self, EvalHook};
 use crate::clarity::{analysis::AnalysisDatabase, database::ClarityBackingStore};
 use crate::clarity::{eval, eval_all};
 use crate::repl::ast;
@@ -526,14 +526,17 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
                 Err(e) => {
-                    return Err((
-                        format!(
-                            "Runtime error while interpreting {}: {:?}",
-                            contract_identifier, e
-                        ),
-                        None,
-                        None,
-                    ));
+                    let err = format!(
+                        "Runtime error while interpreting {}: {:?}",
+                        contract_identifier, e
+                    );
+                    if let Some(mut eval_hooks) = global_context.eval_hooks.take() {
+                        for hook in eval_hooks.iter_mut() {
+                            hook.complete(Err(err.clone()));
+                        }
+                        global_context.eval_hooks = Some(eval_hooks);
+                    }
+                    return Err((err, None, None));
                 }
             };
 
@@ -693,6 +696,14 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                     .unwrap();
             }
             global_context.commit().unwrap();
+
+            if let Some(mut eval_hooks) = global_context.eval_hooks.take() {
+                for hook in eval_hooks.iter_mut() {
+                    hook.complete(Ok((value.clone(), serialized_events.clone())));
+                }
+                global_context.eval_hooks = Some(eval_hooks);
+            }
+
             value
         };
 
