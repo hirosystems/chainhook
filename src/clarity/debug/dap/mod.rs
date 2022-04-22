@@ -677,6 +677,65 @@ impl EvalHook for DAPDebugger {
         expr: &SymbolicExpression,
     ) {
         writeln!(self.log_file, "in begin_eval: {:?}", expr);
+
+        let source = Source {
+            name: Some(env.contract_context.contract_identifier.to_string()),
+            path: Some(
+                match self
+                    .contract_id_to_path
+                    .get(&env.contract_context.contract_identifier)
+                {
+                    Some(path) => path.clone(),
+                    _ => "debugger".to_string(),
+                },
+            ),
+            source_reference: None,
+            presentation_hint: None,
+            origin: None,
+            sources: None,
+            adapter_data: None,
+            checksums: None,
+        };
+
+        // Find the current function frame, ignoring builtin functions.
+        let mut current_function = None;
+        for function in env.call_stack.stack.iter().rev() {
+            if !function.identifier.starts_with("_native_:") {
+                current_function = Some(function);
+                break;
+            }
+        }
+        if let Some(current_function) = current_function {
+            if let Some(stack_top) = self.stack_frames.get_mut(current_function) {
+                stack_top.stack_frame.line = expr.span.start_line;
+                stack_top.stack_frame.column = expr.span.start_column;
+                stack_top.stack_frame.end_line = Some(expr.span.end_line);
+                stack_top.stack_frame.end_column = Some(expr.span.end_column);
+
+                // FIXME: update the scopes here
+            } else {
+                self.stack_frames.insert(
+                    current_function.clone(),
+                    Frame {
+                        stack_frame: StackFrame {
+                            id: env.call_stack.stack.len() as i32,
+                            name: current_function.identifier.clone(),
+                            source: Some(source.clone()),
+                            line: expr.span.start_line,
+                            column: expr.span.start_column,
+                            end_line: Some(expr.span.end_line),
+                            end_column: Some(expr.span.end_column),
+                            can_restart: None,
+                            instruction_pointer_reference: None,
+                            module_id: None,
+                            presentation_hint: Some(PresentationHint::Normal),
+                        },
+                        scopes: Vec::new(),
+                    },
+                );
+            }
+        }
+
         if !self.get_state().begin_eval(env, context, expr) {
             if self.get_state().state == State::Start {
                 // Sending this initialized event triggers the configuration
@@ -723,58 +782,6 @@ impl EvalHook for DAPDebugger {
 
             writeln!(self.log_file, "  wait for command");
             writeln!(self.log_file, "stack: {:?}", env.call_stack.stack);
-
-            let source = Source {
-                name: Some(env.contract_context.contract_identifier.to_string()),
-                path: Some(
-                    self.contract_id_to_path[&env.contract_context.contract_identifier].clone(),
-                ),
-                source_reference: None,
-                presentation_hint: None,
-                origin: None,
-                sources: None,
-                adapter_data: None,
-                checksums: None,
-            };
-
-            // Find the current function scope, ignoring builtin functions.
-            let mut current_function = None;
-            for function in env.call_stack.stack.iter().rev() {
-                if !function.identifier.starts_with("_native_:") {
-                    current_function = Some(function);
-                    break;
-                }
-            }
-            if let Some(current_function) = current_function {
-                if let Some(stack_top) = self.stack_frames.get_mut(current_function) {
-                    stack_top.stack_frame.line = expr.span.start_line;
-                    stack_top.stack_frame.column = expr.span.start_column;
-                    stack_top.stack_frame.end_line = Some(expr.span.end_line);
-                    stack_top.stack_frame.end_column = Some(expr.span.end_column);
-
-                    // FIXME: update the scopes here
-                } else {
-                    self.stack_frames.insert(
-                        current_function.clone(),
-                        Frame {
-                            stack_frame: StackFrame {
-                                id: env.call_stack.stack.len() as i32,
-                                name: current_function.identifier.clone(),
-                                source: Some(source.clone()),
-                                line: expr.span.start_line,
-                                column: expr.span.start_column,
-                                end_line: Some(expr.span.end_line),
-                                end_column: Some(expr.span.end_column),
-                                can_restart: None,
-                                instruction_pointer_reference: None,
-                                module_id: None,
-                                presentation_hint: Some(PresentationHint::Normal),
-                            },
-                            scopes: Vec::new(),
-                        },
-                    );
-                }
-            }
 
             // Save the current state, which may be needed to respond to incoming requests
 
