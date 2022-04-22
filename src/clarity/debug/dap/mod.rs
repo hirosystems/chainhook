@@ -5,9 +5,11 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use super::State;
+use crate::clarity::callables::FunctionIdentifier;
 use crate::clarity::errors::Error;
 use crate::clarity::representations::Span;
 use crate::clarity::types::Value;
+use crate::clarity::SymbolicExpressionType::List;
 use crate::clarity::{
     contexts::{Environment, LocalContext},
     types::QualifiedContractIdentifier,
@@ -53,6 +55,12 @@ struct Current {
     source: Source,
     span: Span,
     expr_id: u64,
+    stack: Vec<FunctionIdentifier>,
+    scopes: Vec<Scope>,
+}
+
+struct Frame {
+    stack_frame: StackFrame,
     scopes: Vec<Scope>,
 }
 
@@ -69,6 +77,7 @@ pub struct DAPDebugger {
     launch_seq: i64,
     current: Option<Current>,
     init_complete: bool,
+    stack_frames: HashMap<FunctionIdentifier, Frame>,
 }
 
 impl DAPDebugger {
@@ -104,6 +113,7 @@ impl DAPDebugger {
             launch_seq: 0,
             current: None,
             init_complete: false,
+            stack_frames: HashMap::new(),
         }
     }
 
@@ -218,6 +228,7 @@ impl DAPDebugger {
             StepOut(arguments) => self.step_out(seq, arguments).await,
             Next(arguments) => self.next(seq, arguments).await,
             Continue(arguments) => self.continue_(seq, arguments).await,
+            Pause(arguments) => self.pause(seq, arguments).await,
             _ => {
                 self.send_response(Response {
                     request_seq: seq,
@@ -310,6 +321,45 @@ impl DAPDebugger {
         .await;
 
         false
+    }
+
+    pub fn log<S: Into<String>>(&mut self, message: S) {
+        block_on(self.send_event(EventBody::Output(OutputEvent {
+            category: Some(Category::Console),
+            output: message.into(),
+            group: None,
+            variables_reference: None,
+            source: None,
+            line: None,
+            column: None,
+            data: None,
+        })));
+    }
+
+    pub fn stdout<S: Into<String>>(&mut self, message: S) {
+        block_on(self.send_event(EventBody::Output(OutputEvent {
+            category: Some(Category::Stdout),
+            output: message.into(),
+            group: None,
+            variables_reference: None,
+            source: None,
+            line: None,
+            column: None,
+            data: None,
+        })));
+    }
+
+    pub fn stderr<S: Into<String>>(&mut self, message: S) {
+        block_on(self.send_event(EventBody::Output(OutputEvent {
+            category: Some(Category::Stderr),
+            output: message.into(),
+            group: None,
+            variables_reference: None,
+            source: None,
+            line: None,
+            column: None,
+            data: None,
+        })));
     }
 
     async fn launch(&mut self, seq: i64, arguments: LaunchRequestArguments) -> bool {
@@ -498,27 +548,22 @@ impl DAPDebugger {
 
     async fn stack_trace(&mut self, seq: i64, arguments: StackTraceArguments) -> bool {
         let current = self.current.as_ref().unwrap();
-        let frame = StackFrame {
-            id: 0,
-            name: "name".to_string(), // FIXME
-            source: Some(current.source.clone()),
-            line: current.span.start_line,
-            column: current.span.start_column,
-            end_line: Some(current.span.end_line),
-            end_column: Some(current.span.end_column),
-            can_restart: None,
-            instruction_pointer_reference: None,
-            module_id: None,
-            presentation_hint: None,
-        };
+        let frames: Vec<_> = current
+            .stack
+            .iter()
+            .rev()
+            .filter(|function| !function.identifier.starts_with("_native_:"))
+            .map(|function| self.stack_frames[function].stack_frame.clone())
+            .collect();
 
+        let len = current.stack.len() as i32;
         self.send_response(Response {
             request_seq: seq,
             success: true,
             message: None,
             body: Some(ResponseBody::StackTrace(StackTraceResponse {
-                stack_frames: vec![frame],
-                total_frames: Some(1),
+                stack_frames: frames,
+                total_frames: Some(len),
             })),
         })
         .await;
@@ -585,7 +630,22 @@ impl DAPDebugger {
             request_seq: seq,
             success: true,
             message: None,
-            body: Some(ResponseBody::Continue(ContinueResponse{ all_threads_continued: None })),
+            body: Some(ResponseBody::Continue(ContinueResponse {
+                all_threads_continued: None,
+            })),
+        })
+        .await;
+        true
+    }
+
+    async fn pause(&mut self, seq: i64, arguments: PauseArguments) -> bool {
+        self.get_state().pause();
+
+        self.send_response(Response {
+            request_seq: seq,
+            success: true,
+            message: None,
+            body: Some(ResponseBody::Pause),
         })
         .await;
         true
@@ -628,7 +688,7 @@ impl EvalHook for DAPDebugger {
                 let mut stopped = StoppedEvent {
                     reason: StoppedReason::Entry,
                     description: None,
-                    thread_id: None,
+                    thread_id: Some(0),
                     preserve_focus_hint: None,
                     text: None,
                     all_threads_stopped: None,
@@ -653,14 +713,17 @@ impl EvalHook for DAPDebugger {
                     State::Finished | State::StepIn | State::StepOver(_) => {
                         stopped.reason = StoppedReason::Step;
                     }
+                    State::Pause => {
+                        stopped.reason = StoppedReason::Pause;
+                    }
                     _ => unreachable!("Unexpected state"),
                 };
                 block_on(self.send_event(EventBody::Stopped(stopped)));
             }
 
             writeln!(self.log_file, "  wait for command");
+            writeln!(self.log_file, "stack: {:?}", env.call_stack.stack);
 
-            // Save the current state, which may be needed to respond to incoming requests
             let source = Source {
                 name: Some(env.contract_context.contract_identifier.to_string()),
                 path: Some(
@@ -673,9 +736,51 @@ impl EvalHook for DAPDebugger {
                 adapter_data: None,
                 checksums: None,
             };
+
+            // Find the current function scope, ignoring builtin functions.
+            let mut current_function = None;
+            for function in env.call_stack.stack.iter().rev() {
+                if !function.identifier.starts_with("_native_:") {
+                    current_function = Some(function);
+                    break;
+                }
+            }
+            if let Some(current_function) = current_function {
+                if let Some(stack_top) = self.stack_frames.get_mut(current_function) {
+                    stack_top.stack_frame.line = expr.span.start_line;
+                    stack_top.stack_frame.column = expr.span.start_column;
+                    stack_top.stack_frame.end_line = Some(expr.span.end_line);
+                    stack_top.stack_frame.end_column = Some(expr.span.end_column);
+
+                    // FIXME: update the scopes here
+                } else {
+                    self.stack_frames.insert(
+                        current_function.clone(),
+                        Frame {
+                            stack_frame: StackFrame {
+                                id: env.call_stack.stack.len() as i32,
+                                name: current_function.identifier.clone(),
+                                source: Some(source.clone()),
+                                line: expr.span.start_line,
+                                column: expr.span.start_column,
+                                end_line: Some(expr.span.end_line),
+                                end_column: Some(expr.span.end_column),
+                                can_restart: None,
+                                instruction_pointer_reference: None,
+                                module_id: None,
+                                presentation_hint: Some(PresentationHint::Normal),
+                            },
+                            scopes: Vec::new(),
+                        },
+                    );
+                }
+            }
+
+            // Save the current state, which may be needed to respond to incoming requests
+
             let scopes = vec![Scope {
-                name: "name".to_string(), // FIXME
-                presentation_hint: None,
+                name: "Arguments".to_string(), // FIXME
+                presentation_hint: Some(PresentationHint::Arguments),
                 variables_reference: 0,
                 named_variables: Some(context.variables.len()),
                 indexed_variables: None,
@@ -690,6 +795,7 @@ impl EvalHook for DAPDebugger {
                 source,
                 span: expr.span.clone(),
                 expr_id: expr.id,
+                stack: env.call_stack.stack.clone(),
                 scopes,
             });
 
