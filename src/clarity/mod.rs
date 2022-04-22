@@ -100,6 +100,8 @@ pub trait EvalHook {
         res: &core::result::Result<Value, crate::clarity::errors::Error>,
     ) {
     }
+
+    fn complete(&mut self, result: core::result::Result<(Value, Vec<serde_json::Value>), String>) {}
 }
 
 fn lookup_variable(name: &str, context: &LocalContext, env: &mut Environment) -> Result<Value> {

@@ -827,6 +827,24 @@ impl EvalHook for DAPDebugger {
         writeln!(self.log_file, "in finish_eval: {}", expr.id);
         if self.get_state().finish_eval(env, context, expr, res) {}
     }
+
+    fn complete(&mut self, result: Result<(Value, Vec<serde_json::Value>), String>) {
+        match result {
+            Ok((result, events)) => {
+                self.log("Execution completed.\n");
+                if !events.is_empty() {
+                    self.log("\nEvents emitted:\n");
+                    for event in events {
+                        self.stdout(format!("{}\n", event));
+                    }
+                }
+
+                self.log("\nReturn value:");
+                self.stdout(format!("{}\n", result))
+            }
+            Err(e) => self.stderr(e),
+        }
+    }
 }
 
 pub fn create_basic_runtime() -> tokio::runtime::Runtime {
