@@ -126,6 +126,7 @@ pub(crate) enum State {
     Finished,
     Break(usize),
     DataBreak(usize, AccessType),
+    Pause,
     Quit,
 }
 
@@ -299,6 +300,10 @@ impl DebugState {
         }
     }
 
+    fn pause(&mut self) {
+        self.state = State::Pause;
+    }
+
     fn did_hit_source_breakpoint(
         &self,
         contract_id: &QualifiedContractIdentifier,
@@ -461,6 +466,7 @@ impl DebugState {
             | State::StepIn
             | State::Break(_)
             | State::DataBreak(..)
+            | State::Pause
             | State::Finished => (),
         };
 
