@@ -91,6 +91,7 @@ pub trait EvalHook {
         expr: &SymbolicExpression,
     ) {
     }
+
     fn finish_eval(
         &mut self,
         env: &mut Environment,
