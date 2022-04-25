@@ -6,9 +6,11 @@ use std::path::PathBuf;
 
 use super::State;
 use crate::clarity::callables::FunctionIdentifier;
+use crate::clarity::contexts::{ContractContext, GlobalContext};
 use crate::clarity::errors::Error;
 use crate::clarity::representations::Span;
-use crate::clarity::types::Value;
+use crate::clarity::types::{SequenceData, Value};
+use crate::clarity::ClarityName;
 use crate::clarity::SymbolicExpressionType::List;
 use crate::clarity::{
     contexts::{Environment, LocalContext},
@@ -56,12 +58,6 @@ struct Current {
     span: Span,
     expr_id: u64,
     stack: Vec<FunctionIdentifier>,
-    scopes: Vec<Scope>,
-}
-
-struct Frame {
-    stack_frame: StackFrame,
-    scopes: Vec<Scope>,
 }
 
 pub struct DAPDebugger {
@@ -77,7 +73,10 @@ pub struct DAPDebugger {
     launch_seq: i64,
     current: Option<Current>,
     init_complete: bool,
-    stack_frames: HashMap<FunctionIdentifier, Frame>,
+
+    stack_frames: HashMap<FunctionIdentifier, StackFrame>,
+    scopes: HashMap<i32, Vec<Scope>>,
+    variables: HashMap<i32, Vec<Variable>>,
 }
 
 impl DAPDebugger {
@@ -114,6 +113,8 @@ impl DAPDebugger {
             current: None,
             init_complete: false,
             stack_frames: HashMap::new(),
+            scopes: HashMap::new(),
+            variables: HashMap::new(),
         }
     }
 
@@ -224,6 +225,7 @@ impl DAPDebugger {
             Threads => self.threads(seq).await,
             StackTrace(arguments) => self.stack_trace(seq, arguments).await,
             Scopes(arguments) => self.scopes(seq, arguments).await,
+            Variables(arguments) => self.variables(seq, arguments).await,
             StepIn(arguments) => self.step_in(seq, arguments).await,
             StepOut(arguments) => self.step_out(seq, arguments).await,
             Next(arguments) => self.next(seq, arguments).await,
@@ -553,7 +555,7 @@ impl DAPDebugger {
             .iter()
             .rev()
             .filter(|function| !function.identifier.starts_with("_native_:"))
-            .map(|function| self.stack_frames[function].stack_frame.clone())
+            .map(|function| self.stack_frames[function].clone())
             .collect();
 
         let len = current.stack.len() as i32;
@@ -576,8 +578,27 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Scopes(ScopesResponse {
-                scopes: self.current.as_ref().unwrap().scopes.clone(),
+                scopes: self.scopes[&arguments.frame_id].clone(),
             })),
+        })
+        .await;
+        false
+    }
+
+    async fn variables(&mut self, seq: i64, arguments: VariablesArguments) -> bool {
+        let variables = match self.variables.get(&arguments.variables_reference) {
+            Some(variables) => variables.clone(),
+            None => {
+                self.log("unknown variable reference");
+                Vec::new()
+            }
+        };
+
+        self.send_response(Response {
+            request_seq: seq,
+            success: true,
+            message: None,
+            body: Some(ResponseBody::Variables(VariablesResponse { variables })),
         })
         .await;
         false
@@ -667,6 +688,174 @@ impl DAPDebugger {
         .await;
         true
     }
+
+    fn save_scopes_for_frame(
+        &mut self,
+        stack_frame: &StackFrame,
+        local_context: &LocalContext,
+        contract_context: &ContractContext,
+        global_context: &mut GlobalContext,
+    ) {
+        let mut scopes = Vec::new();
+        let mut current_context = Some(local_context);
+        writeln!(
+            self.log_file,
+            "initial context: variables: {:?}, callable_contracts: {:?}, depth: {}, parent: {}, function vars: {}",
+            local_context.variables,
+            local_context.callable_contracts,
+            local_context.depth(),
+            local_context.parent.is_some(),
+            local_context.function_context().variables.len(),
+        );
+        writeln!(
+            self.log_file,
+            "contract variables: {:?}",
+            contract_context.variables
+        );
+
+        // Local variable scopes
+        while let Some(ctx) = current_context {
+            let scope_id = stack_frame.id * 1000 + (scopes.len() as i32);
+            scopes.push(Scope {
+                name: if ctx.depth() == 0 {
+                    "Arguments"
+                } else {
+                    "Locals"
+                }
+                .to_string(),
+                presentation_hint: if ctx.depth() == 0 {
+                    Some(PresentationHint::Arguments)
+                } else {
+                    Some(PresentationHint::Locals)
+                },
+                variables_reference: scope_id,
+                named_variables: Some(ctx.variables.len() + ctx.callable_contracts.len()),
+                indexed_variables: None,
+                expensive: false,
+                source: stack_frame.source.clone(),
+                line: None,
+                column: None,
+                end_line: None,
+                end_column: None,
+            });
+            writeln!(
+                self.log_file,
+                "created scope {} with {} variables",
+                scope_id,
+                ctx.variables.len()
+            );
+
+            let mut variables = Vec::new();
+            for (name, value) in &ctx.variables {
+                variables.push(Variable {
+                    name: name.to_string(),
+                    value: value.to_string(),
+                    var_type: Some(type_for_value(value)),
+                    presentation_hint: None,
+                    evaluate_name: None,
+                    variables_reference: 0,
+                    named_variables: None,
+                    indexed_variables: None,
+                    memory_reference: None,
+                });
+            }
+            for (name, (contract_id, trait_id)) in &ctx.callable_contracts {
+                variables.push(Variable {
+                    name: name.to_string(),
+                    // value: format!("{}.{}", contract_id, trait_id),
+                    value: format!("{}", contract_id),
+                    var_type: Some(format!("{}", trait_id)),
+                    presentation_hint: None,
+                    evaluate_name: None,
+                    variables_reference: 0,
+                    named_variables: None,
+                    indexed_variables: None,
+                    memory_reference: None,
+                });
+            }
+            self.variables.insert(scope_id, variables);
+
+            current_context = ctx.parent;
+        }
+
+        // Contract global scope
+        let scope_id = stack_frame.id * 1000 + (scopes.len() as i32);
+        scopes.push(Scope {
+            name: "Contract Variables".to_string(),
+            presentation_hint: None,
+            variables_reference: scope_id,
+            named_variables: Some(contract_context.variables.len()),
+            indexed_variables: None,
+            expensive: true,
+            source: stack_frame.source.clone(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        });
+        let mut variables = Vec::new();
+
+        // Constants
+        for (name, value) in &contract_context.variables {
+            variables.push(Variable {
+                name: name.to_string(),
+                value: value.to_string(),
+                var_type: Some(type_for_value(value)),
+                presentation_hint: None,
+                evaluate_name: None,
+                variables_reference: 0,
+                named_variables: None,
+                indexed_variables: None,
+                memory_reference: None,
+            });
+        }
+
+        // Variables
+        for (name, metadata) in &contract_context.meta_data_var {
+            let data_types = contract_context.meta_data_var.get(name).unwrap();
+            let value = global_context
+                .database
+                .lookup_variable(
+                    &contract_context.contract_identifier,
+                    name.as_str(),
+                    data_types,
+                )
+                .unwrap();
+            variables.push(Variable {
+                name: name.to_string(),
+                value: value.to_string(),
+                var_type: Some(format!("{}", metadata.value_type)),
+                presentation_hint: None,
+                evaluate_name: None,
+                variables_reference: 0,
+                named_variables: None,
+                indexed_variables: None,
+                memory_reference: None,
+            });
+        }
+
+        // Maps
+        for (name, metadata) in &contract_context.meta_data_map {
+            // We do not grab any values for maps. Users can query map values.
+            variables.push(Variable {
+                name: name.to_string(),
+                value: "".to_string(),
+                var_type: Some(format!(
+                    "{{{}: {}}}",
+                    metadata.key_type, metadata.value_type
+                )),
+                presentation_hint: None,
+                evaluate_name: None,
+                variables_reference: 0,
+                named_variables: None,
+                indexed_variables: None,
+                memory_reference: None,
+            });
+        }
+        self.variables.insert(scope_id, variables);
+
+        self.scopes.insert(stack_frame.id, scopes);
+    }
 }
 
 impl EvalHook for DAPDebugger {
@@ -706,33 +895,46 @@ impl EvalHook for DAPDebugger {
             }
         }
         if let Some(current_function) = current_function {
-            if let Some(stack_top) = self.stack_frames.get_mut(current_function) {
-                stack_top.stack_frame.line = expr.span.start_line;
-                stack_top.stack_frame.column = expr.span.start_column;
-                stack_top.stack_frame.end_line = Some(expr.span.end_line);
-                stack_top.stack_frame.end_column = Some(expr.span.end_column);
+            if let Some(mut stack_top) = self.stack_frames.remove(current_function) {
+                stack_top.line = expr.span.start_line;
+                stack_top.column = expr.span.start_column;
+                stack_top.end_line = Some(expr.span.end_line);
+                stack_top.end_column = Some(expr.span.end_column);
 
-                // FIXME: update the scopes here
-            } else {
-                self.stack_frames.insert(
-                    current_function.clone(),
-                    Frame {
-                        stack_frame: StackFrame {
-                            id: env.call_stack.stack.len() as i32,
-                            name: current_function.identifier.clone(),
-                            source: Some(source.clone()),
-                            line: expr.span.start_line,
-                            column: expr.span.start_column,
-                            end_line: Some(expr.span.end_line),
-                            end_column: Some(expr.span.end_column),
-                            can_restart: None,
-                            instruction_pointer_reference: None,
-                            module_id: None,
-                            presentation_hint: Some(PresentationHint::Normal),
-                        },
-                        scopes: Vec::new(),
-                    },
+                writeln!(self.log_file, "updated stack frame {}", stack_top.id);
+                self.save_scopes_for_frame(
+                    &stack_top,
+                    context,
+                    &env.contract_context,
+                    &mut env.global_context,
                 );
+                writeln!(self.log_file, "{:?}", env.contract_context.variables);
+                self.stack_frames
+                    .insert(current_function.clone(), stack_top);
+            } else {
+                let stack_frame = StackFrame {
+                    id: (env.call_stack.stack.len() as i32 + 1),
+                    name: current_function.identifier.clone(),
+                    source: Some(source.clone()),
+                    line: expr.span.start_line,
+                    column: expr.span.start_column,
+                    end_line: Some(expr.span.end_line),
+                    end_column: Some(expr.span.end_column),
+                    can_restart: None,
+                    instruction_pointer_reference: None,
+                    module_id: None,
+                    presentation_hint: Some(PresentationHint::Normal),
+                };
+                writeln!(self.log_file, "created stack frame {}", stack_frame.id);
+                self.save_scopes_for_frame(
+                    &stack_frame,
+                    context,
+                    &env.contract_context,
+                    &mut env.global_context,
+                );
+
+                self.stack_frames
+                    .insert(current_function.clone(), stack_frame);
             }
         }
 
@@ -784,26 +986,11 @@ impl EvalHook for DAPDebugger {
             writeln!(self.log_file, "stack: {:?}", env.call_stack.stack);
 
             // Save the current state, which may be needed to respond to incoming requests
-
-            let scopes = vec![Scope {
-                name: "Arguments".to_string(), // FIXME
-                presentation_hint: Some(PresentationHint::Arguments),
-                variables_reference: 0,
-                named_variables: Some(context.variables.len()),
-                indexed_variables: None,
-                expensive: false,
-                source: Some(source.clone()),
-                line: None,
-                column: None,
-                end_line: None,
-                end_column: None,
-            }];
             self.current = Some(Current {
                 source,
                 span: expr.span.clone(),
                 expr_id: expr.id,
                 stack: env.call_stack.stack.clone(),
-                scopes,
             });
 
             let mut proceed = false;
@@ -819,6 +1006,7 @@ impl EvalHook for DAPDebugger {
             self.current = None;
         } else {
             // TODO: If there is already a message waiting, process it before continuing.
+            // Something with self.reader.poll_read() maybe?
 
             writeln!(self.log_file, "  continue");
         }
@@ -851,6 +1039,21 @@ impl EvalHook for DAPDebugger {
             }
             Err(e) => self.stderr(e),
         }
+    }
+}
+
+fn type_for_value(value: &Value) -> String {
+    match value {
+        Value::Int(int) => "int".to_string(),
+        Value::UInt(int) => "uint".to_string(),
+        Value::Bool(boolean) => "bool".to_string(),
+        Value::Tuple(data) => format!("{}", data.type_signature),
+        Value::Principal(principal_data) => "principal".to_string(),
+        Value::Optional(opt_data) => format!("{}", opt_data.type_signature()),
+        Value::Response(res_data) => format!("{}", res_data.type_signature()),
+        Value::Sequence(SequenceData::Buffer(vec_bytes)) => "buff".to_string(),
+        Value::Sequence(SequenceData::String(string)) => "string".to_string(),
+        Value::Sequence(SequenceData::List(list_data)) => "list".to_string(),
     }
 }
 
