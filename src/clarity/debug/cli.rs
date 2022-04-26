@@ -191,22 +191,15 @@ impl CLIDebugger {
                 false
             }
             "p" | "print" => {
-                let contract_id = QualifiedContractIdentifier::transient();
-                let (ast, mut diagnostics, success) = build_ast(&contract_id, args, &mut ());
-                if ast.expressions.len() != 1 {
-                    println!("{}: expected a single expression", red!("error"));
-                    return false;
-                }
-                if !success {
-                    for diagnostic in diagnostics.drain(..).filter(|d| d.level == Level::Error) {
-                        println!("{}: {}", red!("error"), diagnostic.message);
+                match self.state.evaluate(env, context, args) {
+                    Ok(value) => {
+                        println!("{}", value);
                     }
-                    return false;
-                }
-
-                match eval(&ast.expressions[0], env, &context) {
-                    Ok(value) => println!("{}", value),
-                    Err(e) => println!("{}: {}", red!("error"), e),
+                    Err(errors) => {
+                        for e in errors {
+                            println!("{}", e);
+                        }
+                    }
                 }
                 false
             }

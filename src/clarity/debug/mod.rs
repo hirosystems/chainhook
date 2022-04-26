@@ -304,6 +304,33 @@ impl DebugState {
         self.state = State::Pause;
     }
 
+    fn evaluate(
+        &mut self,
+        env: &mut Environment,
+        context: &LocalContext,
+        snippet: &str,
+    ) -> Result<Value, Vec<String>> {
+        let contract_id = QualifiedContractIdentifier::transient();
+        let lines = snippet.lines();
+        let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+        let (ast, mut diagnostics, success) = build_ast(&contract_id, snippet, &mut ());
+        if ast.expressions.len() != 1 {
+            return Err(vec!["expected a single expression".to_string()]);
+        }
+        if !success {
+            let mut errors = Vec::new();
+            for diagnostic in diagnostics.drain(..).filter(|d| d.level == Level::Error) {
+                errors.append(&mut diagnostic.output("print expression", &formatted_lines));
+            }
+            return Err(errors);
+        }
+
+        match eval(&ast.expressions[0], env, &context) {
+            Ok(value) => Ok(value),
+            Err(e) => Err(vec![format!("{}: {}", red!("error"), e)]),
+        }
+    }
+
     fn did_hit_source_breakpoint(
         &self,
         contract_id: &QualifiedContractIdentifier,
