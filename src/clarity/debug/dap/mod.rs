@@ -25,6 +25,7 @@ use dap_types::*;
 use futures::{SinkExt, StreamExt};
 use tokio;
 use tokio::io::{Stdin, Stdout};
+use tokio::runtime::Runtime;
 use tokio_util::codec::{FramedRead, FramedWrite};
 
 use self::codec::{DebugAdapterCodec, ParseError};
@@ -61,7 +62,7 @@ struct Current {
 }
 
 pub struct DAPDebugger {
-    // map source path to contract_id
+    rt: Runtime,
     pub path_to_contract_id: HashMap<String, QualifiedContractIdentifier>,
     pub contract_id_to_path: HashMap<QualifiedContractIdentifier, String>,
     log_file: File, // DELETE ME: For testing only
@@ -86,6 +87,10 @@ impl DAPDebugger {
 
         let reader = FramedRead::new(stdin, DebugAdapterCodec::<ProtocolMessage>::default());
         let writer = FramedWrite::new(stdout, DebugAdapterCodec::<ProtocolMessage>::default());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let mut log_file = match File::create("/Users/brice/work/debugger-demo/dap-log.txt") {
             // DELETE ME
             Ok(file) => file,
@@ -101,6 +106,7 @@ impl DAPDebugger {
         };
         writeln!(log_file, "LOG FILE CREATED");
         Self {
+            rt,
             path_to_contract_id: HashMap::new(),
             contract_id_to_path: HashMap::new(),
             log_file,
@@ -123,11 +129,11 @@ impl DAPDebugger {
     }
 
     // Process all messages before launching the REPL
-    pub async fn init(&mut self) -> Result<(String, String), ParseError> {
+    pub fn init(&mut self) -> Result<(String, String), ParseError> {
         writeln!(self.log_file, "STARTING");
 
         while self.launched.is_none() {
-            match self.wait_for_command().await {
+            match self.wait_for_command() {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
@@ -142,22 +148,22 @@ impl DAPDebugger {
     }
 
     // Successful result boolean indicates if execution should continue based on the message received
-    async fn wait_for_command(&mut self) -> Result<bool, ParseError> {
+    fn wait_for_command(&mut self) -> Result<bool, ParseError> {
         writeln!(self.log_file, "WAITING FOR MESSAGE...");
-        if let Some(msg) = self.reader.next().await {
+        if let Some(msg) = self.rt.block_on(self.reader.next()) {
             match msg {
                 Ok(msg) => {
                     writeln!(self.log_file, "message: {:?}", msg);
 
                     use dap_types::MessageKind::*;
                     Ok(match msg.message {
-                        Request(command) => self.handle_request(msg.seq, command).await,
+                        Request(command) => self.handle_request(msg.seq, command),
                         Response(response) => {
-                            self.handle_response(msg.seq, response).await;
+                            self.handle_response(msg.seq, response);
                             false
                         }
                         Event(event) => {
-                            self.handle_event(msg.seq, event).await;
+                            self.handle_event(msg.seq, event);
                             false
                         }
                     })
@@ -173,7 +179,7 @@ impl DAPDebugger {
         }
     }
 
-    async fn send_response(&mut self, response: Response) {
+    fn send_response(&mut self, response: Response) {
         let response_json = serde_json::to_string(&response).unwrap();
         writeln!(self.log_file, "::::response: {}", response_json);
 
@@ -182,7 +188,7 @@ impl DAPDebugger {
             message: MessageKind::Response(response),
         };
 
-        match self.writer.send(message).await {
+        match self.rt.block_on(self.writer.send(message)) {
             Ok(_) => (),
             Err(e) => {
                 writeln!(self.log_file, "ERROR: sending response: {}", e);
@@ -192,7 +198,7 @@ impl DAPDebugger {
         self.send_seq += 1;
     }
 
-    async fn send_event(&mut self, body: EventBody) {
+    fn send_event(&mut self, body: EventBody) {
         let event_json = serde_json::to_string(&body).unwrap();
         writeln!(self.log_file, "::::event: {}", event_json);
 
@@ -201,7 +207,7 @@ impl DAPDebugger {
             message: MessageKind::Event(Event { body: Some(body) }),
         };
 
-        match self.writer.send(message).await {
+        match self.rt.block_on(self.writer.send(message)) {
             Ok(_) => (),
             Err(e) => {
                 writeln!(self.log_file, "ERROR: sending response: {}", e);
@@ -211,34 +217,31 @@ impl DAPDebugger {
         self.send_seq += 1;
     }
 
-    pub async fn handle_request(&mut self, seq: i64, command: RequestCommand) -> bool {
+    pub fn handle_request(&mut self, seq: i64, command: RequestCommand) -> bool {
         use dap_types::requests::RequestCommand::*;
         let proceed = match command {
-            Initialize(arguments) => self.initialize(seq, arguments).await,
-            Launch(arguments) => self.launch(seq, arguments).await,
-            ConfigurationDone => self.configuration_done(seq).await,
-            SetBreakpoints(arguments) => self.setBreakpoints(seq, arguments).await,
-            SetExceptionBreakpoints(arguments) => {
-                self.setExceptionBreakpoints(seq, arguments).await
-            }
-            Disconnect(arguments) => self.quit(seq, arguments).await,
-            Threads => self.threads(seq).await,
-            StackTrace(arguments) => self.stack_trace(seq, arguments).await,
-            Scopes(arguments) => self.scopes(seq, arguments).await,
-            Variables(arguments) => self.variables(seq, arguments).await,
-            StepIn(arguments) => self.step_in(seq, arguments).await,
-            StepOut(arguments) => self.step_out(seq, arguments).await,
-            Next(arguments) => self.next(seq, arguments).await,
-            Continue(arguments) => self.continue_(seq, arguments).await,
-            Pause(arguments) => self.pause(seq, arguments).await,
+            Initialize(arguments) => self.initialize(seq, arguments),
+            Launch(arguments) => self.launch(seq, arguments),
+            ConfigurationDone => self.configuration_done(seq),
+            SetBreakpoints(arguments) => self.setBreakpoints(seq, arguments),
+            SetExceptionBreakpoints(arguments) => self.setExceptionBreakpoints(seq, arguments),
+            Disconnect(arguments) => self.quit(seq, arguments),
+            Threads => self.threads(seq),
+            StackTrace(arguments) => self.stack_trace(seq, arguments),
+            Scopes(arguments) => self.scopes(seq, arguments),
+            Variables(arguments) => self.variables(seq, arguments),
+            StepIn(arguments) => self.step_in(seq, arguments),
+            StepOut(arguments) => self.step_out(seq, arguments),
+            Next(arguments) => self.next(seq, arguments),
+            Continue(arguments) => self.continue_(seq, arguments),
+            Pause(arguments) => self.pause(seq, arguments),
             _ => {
                 self.send_response(Response {
                     request_seq: seq,
                     success: false,
                     message: Some("unsupported request".to_string()),
                     body: None,
-                })
-                .await;
+                });
                 false
             }
         };
@@ -246,29 +249,29 @@ impl DAPDebugger {
         proceed
     }
 
-    pub async fn handle_event(&mut self, seq: i64, event: Event) {
+    pub fn handle_event(&mut self, seq: i64, event: Event) {
         let response = Response {
             request_seq: seq,
             success: true,
             message: None,
             body: None,
         };
-        self.send_response(response).await;
+        self.send_response(response);
     }
 
-    pub async fn handle_response(&mut self, seq: i64, response: Response) {
+    pub fn handle_response(&mut self, seq: i64, response: Response) {
         let response = Response {
             request_seq: seq,
             success: true,
             message: None,
             body: None,
         };
-        self.send_response(response).await;
+        self.send_response(response);
     }
 
     // Request handlers
 
-    async fn initialize(&mut self, seq: i64, arguments: InitializeRequestArguments) -> bool {
+    fn initialize(&mut self, seq: i64, arguments: InitializeRequestArguments) -> bool {
         writeln!(self.log_file, "INITIALIZE");
         let capabilities = Capabilities {
             supports_configuration_done_request: Some(true),
@@ -319,14 +322,13 @@ impl DAPDebugger {
             body: Some(ResponseBody::Initialize(InitializeResponse {
                 capabilities,
             })),
-        })
-        .await;
+        });
 
         false
     }
 
     pub fn log<S: Into<String>>(&mut self, message: S) {
-        block_on(self.send_event(EventBody::Output(OutputEvent {
+        self.send_event(EventBody::Output(OutputEvent {
             category: Some(Category::Console),
             output: message.into(),
             group: None,
@@ -335,11 +337,11 @@ impl DAPDebugger {
             line: None,
             column: None,
             data: None,
-        })));
+        }));
     }
 
     pub fn stdout<S: Into<String>>(&mut self, message: S) {
-        block_on(self.send_event(EventBody::Output(OutputEvent {
+        self.send_event(EventBody::Output(OutputEvent {
             category: Some(Category::Stdout),
             output: message.into(),
             group: None,
@@ -348,11 +350,11 @@ impl DAPDebugger {
             line: None,
             column: None,
             data: None,
-        })));
+        }));
     }
 
     pub fn stderr<S: Into<String>>(&mut self, message: S) {
-        block_on(self.send_event(EventBody::Output(OutputEvent {
+        self.send_event(EventBody::Output(OutputEvent {
             category: Some(Category::Stderr),
             output: message.into(),
             group: None,
@@ -361,10 +363,10 @@ impl DAPDebugger {
             line: None,
             column: None,
             data: None,
-        })));
+        }));
     }
 
-    async fn launch(&mut self, seq: i64, arguments: LaunchRequestArguments) -> bool {
+    fn launch(&mut self, seq: i64, arguments: LaunchRequestArguments) -> bool {
         writeln!(self.log_file, "LAUNCH");
         // Verify that the manifest and expression were specified
         let manifest = match arguments.manifest {
@@ -375,8 +377,7 @@ impl DAPDebugger {
                     success: false,
                     message: Some("manifest must be specified".to_string()),
                     body: None,
-                })
-                .await;
+                });
                 return false;
             }
         };
@@ -388,8 +389,7 @@ impl DAPDebugger {
                     success: false,
                     message: Some("expression to debug must be specified".to_string()),
                     body: None,
-                })
-                .await;
+                });
                 return false;
             }
         };
@@ -403,14 +403,13 @@ impl DAPDebugger {
         false
     }
 
-    async fn configuration_done(&mut self, seq: i64) -> bool {
+    fn configuration_done(&mut self, seq: i64) -> bool {
         self.send_response(Response {
             request_seq: seq,
             success: true,
             message: None,
             body: Some(ResponseBody::ConfigurationDone),
-        })
-        .await;
+        });
 
         // Now that configuration is done, we can respond to the launch
         self.send_response(Response {
@@ -418,13 +417,12 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Launch),
-        })
-        .await;
+        });
 
         false
     }
 
-    async fn setBreakpoints(&mut self, seq: i64, arguments: SetBreakpointsArguments) -> bool {
+    fn setBreakpoints(&mut self, seq: i64, arguments: SetBreakpointsArguments) -> bool {
         let mut results = vec![];
         match arguments.breakpoints {
             Some(breakpoints) => {
@@ -480,13 +478,12 @@ impl DAPDebugger {
             body: Some(ResponseBody::SetBreakpoints(SetBreakpointsResponse {
                 breakpoints: results,
             })),
-        })
-        .await;
+        });
 
         false
     }
 
-    async fn setExceptionBreakpoints(
+    fn setExceptionBreakpoints(
         &mut self,
         seq: i64,
         arguments: SetExceptionBreakpointsArguments,
@@ -498,13 +495,12 @@ impl DAPDebugger {
             body: Some(ResponseBody::SetExceptionBreakpoints(
                 SetExceptionBreakpointsResponse { breakpoints: None },
             )),
-        })
-        .await;
+        });
 
         false
     }
 
-    async fn threads(&mut self, seq: i64) -> bool {
+    fn threads(&mut self, seq: i64) -> bool {
         // There is only ever 1 thread
         self.send_response(Response {
             request_seq: seq,
@@ -516,8 +512,7 @@ impl DAPDebugger {
                     name: "main".to_string(),
                 }],
             })),
-        })
-        .await;
+        });
 
         // VSCode doesn't seem to want to send us a ConfigurationDone request,
         // so assume that this is the end of configuration instead. This is an
@@ -528,8 +523,7 @@ impl DAPDebugger {
                 success: true,
                 message: None,
                 body: Some(ResponseBody::Launch),
-            })
-            .await;
+            });
 
             let mut stopped = StoppedEvent {
                 reason: StoppedReason::Entry,
@@ -541,14 +535,14 @@ impl DAPDebugger {
                 hit_breakpoint_ids: None,
             };
 
-            self.send_event(EventBody::Stopped(stopped)).await;
+            self.send_event(EventBody::Stopped(stopped));
             self.init_complete = true;
         }
 
         false
     }
 
-    async fn stack_trace(&mut self, seq: i64, arguments: StackTraceArguments) -> bool {
+    fn stack_trace(&mut self, seq: i64, arguments: StackTraceArguments) -> bool {
         let current = self.current.as_ref().unwrap();
         let frames: Vec<_> = current
             .stack
@@ -567,12 +561,11 @@ impl DAPDebugger {
                 stack_frames: frames,
                 total_frames: Some(len),
             })),
-        })
-        .await;
+        });
         false
     }
 
-    async fn scopes(&mut self, seq: i64, arguments: ScopesArguments) -> bool {
+    fn scopes(&mut self, seq: i64, arguments: ScopesArguments) -> bool {
         self.send_response(Response {
             request_seq: seq,
             success: true,
@@ -580,12 +573,11 @@ impl DAPDebugger {
             body: Some(ResponseBody::Scopes(ScopesResponse {
                 scopes: self.scopes[&arguments.frame_id].clone(),
             })),
-        })
-        .await;
+        });
         false
     }
 
-    async fn variables(&mut self, seq: i64, arguments: VariablesArguments) -> bool {
+    fn variables(&mut self, seq: i64, arguments: VariablesArguments) -> bool {
         let variables = match self.variables.get(&arguments.variables_reference) {
             Some(variables) => variables.clone(),
             None => {
@@ -599,12 +591,11 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Variables(VariablesResponse { variables })),
-        })
-        .await;
+        });
         false
     }
 
-    async fn step_in(&mut self, seq: i64, arguments: StepInArguments) -> bool {
+    fn step_in(&mut self, seq: i64, arguments: StepInArguments) -> bool {
         self.get_state().step_in();
 
         self.send_response(Response {
@@ -612,12 +603,11 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::StepIn),
-        })
-        .await;
+        });
         true
     }
 
-    async fn step_out(&mut self, seq: i64, arguments: StepOutArguments) -> bool {
+    fn step_out(&mut self, seq: i64, arguments: StepOutArguments) -> bool {
         self.get_state().finish();
 
         self.send_response(Response {
@@ -625,12 +615,11 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::StepOut),
-        })
-        .await;
+        });
         true
     }
 
-    async fn next(&mut self, seq: i64, arguments: NextArguments) -> bool {
+    fn next(&mut self, seq: i64, arguments: NextArguments) -> bool {
         let expr_id = self.current.as_ref().unwrap().expr_id;
         self.get_state().step_over(expr_id);
 
@@ -639,12 +628,11 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Next),
-        })
-        .await;
+        });
         true
     }
 
-    async fn continue_(&mut self, seq: i64, arguments: ContinueArguments) -> bool {
+    fn continue_(&mut self, seq: i64, arguments: ContinueArguments) -> bool {
         self.get_state().continue_execution();
 
         self.send_response(Response {
@@ -654,12 +642,11 @@ impl DAPDebugger {
             body: Some(ResponseBody::Continue(ContinueResponse {
                 all_threads_continued: None,
             })),
-        })
-        .await;
+        });
         true
     }
 
-    async fn pause(&mut self, seq: i64, arguments: PauseArguments) -> bool {
+    fn pause(&mut self, seq: i64, arguments: PauseArguments) -> bool {
         self.get_state().pause();
 
         self.send_response(Response {
@@ -667,12 +654,11 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Pause),
-        })
-        .await;
+        });
         true
     }
 
-    async fn quit(&mut self, seq: i64, arguments: DisconnectArguments) -> bool {
+    fn quit(&mut self, seq: i64, arguments: DisconnectArguments) -> bool {
         // match arguments.restart {
         //     Some(restart) => restart,
         //     None => false,
@@ -684,8 +670,7 @@ impl DAPDebugger {
             success: true,
             message: None,
             body: Some(ResponseBody::Disconnect),
-        })
-        .await;
+        });
         true
     }
 
@@ -944,7 +929,7 @@ impl EvalHook for DAPDebugger {
                 // (e.g. setting breakpoints), after which the ConfigurationDone
                 // request should be sent, but it's not, so there is an ugly
                 // hack in threads to handle that.
-                block_on(self.send_event(EventBody::Initialized));
+                self.send_event(EventBody::Initialized);
             } else {
                 let mut stopped = StoppedEvent {
                     reason: StoppedReason::Entry,
@@ -979,7 +964,7 @@ impl EvalHook for DAPDebugger {
                     }
                     _ => unreachable!("Unexpected state"),
                 };
-                block_on(self.send_event(EventBody::Stopped(stopped)));
+                self.send_event(EventBody::Stopped(stopped));
             }
 
             writeln!(self.log_file, "  wait for command");
@@ -995,7 +980,7 @@ impl EvalHook for DAPDebugger {
 
             let mut proceed = false;
             while !proceed {
-                proceed = match block_on(self.wait_for_command()) {
+                proceed = match self.wait_for_command() {
                     Ok(proceed) => proceed,
                     Err(e) => {
                         writeln!(self.log_file, "  ERROR: {}", e);
@@ -1055,21 +1040,4 @@ fn type_for_value(value: &Value) -> String {
         Value::Sequence(SequenceData::String(string)) => "string".to_string(),
         Value::Sequence(SequenceData::List(list_data)) => "list".to_string(),
     }
-}
-
-pub fn create_basic_runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .max_blocking_threads(32)
-        .build()
-        .unwrap()
-}
-
-pub fn block_on<F, R>(future: F) -> R
-where
-    F: std::future::Future<Output = R>,
-{
-    let rt = create_basic_runtime();
-    rt.block_on(future)
 }
