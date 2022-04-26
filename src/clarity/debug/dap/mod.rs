@@ -133,7 +133,7 @@ impl DAPDebugger {
         writeln!(self.log_file, "STARTING");
 
         while self.launched.is_none() {
-            match self.wait_for_command() {
+            match self.wait_for_command(None, None) {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
@@ -148,7 +148,11 @@ impl DAPDebugger {
     }
 
     // Successful result boolean indicates if execution should continue based on the message received
-    fn wait_for_command(&mut self) -> Result<bool, ParseError> {
+    fn wait_for_command(
+        &mut self,
+        env: Option<&mut Environment>,
+        context: Option<&LocalContext>,
+    ) -> Result<bool, ParseError> {
         writeln!(self.log_file, "WAITING FOR MESSAGE...");
         if let Some(msg) = self.rt.block_on(self.reader.next()) {
             match msg {
@@ -157,7 +161,7 @@ impl DAPDebugger {
 
                     use dap_types::MessageKind::*;
                     Ok(match msg.message {
-                        Request(command) => self.handle_request(msg.seq, command),
+                        Request(command) => self.handle_request(env, context, msg.seq, command),
                         Response(response) => {
                             self.handle_response(msg.seq, response);
                             false
@@ -217,7 +221,13 @@ impl DAPDebugger {
         self.send_seq += 1;
     }
 
-    pub fn handle_request(&mut self, seq: i64, command: RequestCommand) -> bool {
+    pub fn handle_request(
+        &mut self,
+        env: Option<&mut Environment>,
+        context: Option<&LocalContext>,
+        seq: i64,
+        command: RequestCommand,
+    ) -> bool {
         use dap_types::requests::RequestCommand::*;
         let proceed = match command {
             Initialize(arguments) => self.initialize(seq, arguments),
@@ -235,6 +245,7 @@ impl DAPDebugger {
             Next(arguments) => self.next(seq, arguments),
             Continue(arguments) => self.continue_(seq, arguments),
             Pause(arguments) => self.pause(seq, arguments),
+            Evaluate(arguments) => self.evaluate(seq, arguments, env, context),
             _ => {
                 self.send_response(Response {
                     request_seq: seq,
@@ -658,6 +669,51 @@ impl DAPDebugger {
         true
     }
 
+    fn evaluate(
+        &mut self,
+        seq: i64,
+        arguments: EvaluateArguments,
+        env: Option<&mut Environment>,
+        context: Option<&LocalContext>,
+    ) -> bool {
+        let (env, context) = match (env, context) {
+            (Some(env), Some(context)) => (env, context),
+            _ => {
+                self.log(
+                    "cannot evaluate an expression before initialization is complete".to_string(),
+                );
+                return true;
+            }
+        };
+        match self
+            .get_state()
+            .evaluate(env, context, &arguments.expression)
+        {
+            Ok(value) => self.send_response(Response {
+                request_seq: seq,
+                success: true,
+                message: None,
+                body: Some(ResponseBody::Evaluate(EvaluateResponse {
+                    result: value.to_string(),
+                    result_type: Some(type_for_value(&value)),
+                    presentation_hint: None,
+                    variables_reference: 0,
+                    named_variables: None,
+                    indexed_variables: None,
+                    memory_reference: None,
+                })),
+            }),
+            Err(errors) => self.send_response(Response {
+                request_seq: seq,
+                success: false,
+                message: Some(errors.join("\n")),
+                body: None,
+            }),
+        }
+
+        false
+    }
+
     fn quit(&mut self, seq: i64, arguments: DisconnectArguments) -> bool {
         // match arguments.restart {
         //     Some(restart) => restart,
@@ -980,7 +1036,7 @@ impl EvalHook for DAPDebugger {
 
             let mut proceed = false;
             while !proceed {
-                proceed = match self.wait_for_command() {
+                proceed = match self.wait_for_command(Some(env), Some(context)) {
                     Ok(proceed) => proceed,
                     Err(e) => {
                         writeln!(self.log_file, "  ERROR: {}", e);
