@@ -10,11 +10,11 @@ use crate::clarity::eval;
 use crate::clarity::functions::NativeFunctions;
 use crate::clarity::representations::Span;
 use crate::clarity::representations::SymbolicExpression;
-use crate::clarity::types::QualifiedContractIdentifier;
-use crate::clarity::types::Value;
+use crate::clarity::types::{QualifiedContractIdentifier, StandardPrincipalData, Value};
 use crate::clarity::{ContractName, SymbolicExpressionType};
 use crate::repl::ast::build_ast;
 
+use super::contracts::Contract;
 use super::EvalHook;
 
 pub mod cli;
@@ -249,8 +249,24 @@ impl DebugState {
         }
     }
 
-    fn add_watchpoint(&mut self, mut breakpoint: Breakpoint) {
-        breakpoint.id = self.get_unique_id();
+    fn add_watchpoint(
+        &mut self,
+        contract_id: &QualifiedContractIdentifier,
+        name: &str,
+        access_type: AccessType,
+    ) {
+        let breakpoint = Breakpoint {
+            id: self.get_unique_id(),
+            verified: true,
+            data: BreakpointData::Data(DataBreakpoint {
+                name: name.to_string(),
+                access_type,
+            }),
+            source: Source {
+                name: contract_id.clone(),
+            },
+            span: None,
+        };
         let name = match &breakpoint.data {
             BreakpointData::Data(data) => data.name.clone(),
             _ => panic!("called add_watchpoint with non-data breakpoint"),
@@ -525,4 +541,71 @@ impl DebugState {
             _ => false,
         }
     }
+}
+
+pub fn extract_watch_variable<'a>(
+    env: &mut Environment,
+    expr: &'a str,
+    default_sender: Option<&StandardPrincipalData>,
+) -> Result<(Contract, &'a str), String> {
+    // Syntax could be:
+    // - principal.contract.name
+    // - .contract.name
+    // - name
+    let parts: Vec<&str> = expr.split('.').collect();
+    let (contract_id, name) = match parts.len() {
+        1 => {
+            if default_sender.is_some() {
+                return Err(format!("must use qualified name"));
+            } else {
+                (env.contract_context.contract_identifier.clone(), parts[0])
+            }
+        }
+        3 => {
+            let contract_id = if parts[0].is_empty() {
+                if let Some(sender) = default_sender {
+                    QualifiedContractIdentifier::new(
+                        sender.clone(),
+                        ContractName::try_from(parts[1]).unwrap(),
+                    )
+                } else {
+                    QualifiedContractIdentifier::new(
+                        env.contract_context.contract_identifier.issuer.clone(),
+                        ContractName::try_from(parts[1]).unwrap(),
+                    )
+                }
+            } else {
+                match QualifiedContractIdentifier::parse(expr.rsplit_once('.').unwrap().0) {
+                    Ok(contract_identifier) => contract_identifier,
+                    Err(e) => {
+                        return Err(format!(
+                            "unable to parse watchpoint contract identifier: {}",
+                            e
+                        ));
+                    }
+                }
+            };
+            (contract_id, parts[2])
+        }
+        _ => return Err("invalid watchpoint format".to_string()),
+    };
+
+    let contract = if env.global_context.database.has_contract(&contract_id) {
+        match env.global_context.database.get_contract(&contract_id) {
+            Ok(contract) => contract,
+            Err(e) => {
+                return Err(format!("{}", e));
+            }
+        }
+    } else {
+        return Err(format!("{} does not exist", contract_id));
+    };
+
+    if contract.contract_context.meta_data_var.get(name).is_none()
+        && contract.contract_context.meta_data_map.get(name).is_none()
+    {
+        return Err(format!("no such variable: {}.{}", contract_id, name));
+    }
+
+    Ok((contract, name))
 }
