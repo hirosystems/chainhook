@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::thread::AccessError;
 
+use crate::clarity::debug::extract_watch_variable;
 use crate::clarity::errors::Error;
 use crate::clarity::types::Value;
 use crate::{
@@ -458,74 +459,18 @@ impl CLIDebugger {
                     return;
                 }
 
-                // Syntax could be:
-                // - principal.contract.name
-                // - .contract.name
-                // - name
-                let parts: Vec<&str> = args.split('.').collect();
-                let (contract_id, name) = match parts.len() {
-                    1 => (env.contract_context.contract_identifier.clone(), parts[0]),
-                    3 => {
-                        let contract_id = if parts[0].is_empty() {
-                            QualifiedContractIdentifier::new(
-                                env.contract_context.contract_identifier.issuer.clone(),
-                                ContractName::try_from(parts[1]).unwrap(),
-                            )
-                        } else {
-                            match QualifiedContractIdentifier::parse(
-                                args.rsplit_once('.').unwrap().0,
-                            ) {
-                                Ok(contract_identifier) => contract_identifier,
-                                Err(e) => {
-                                    println!(
-                                        "{}: unable to parse watchpoint contract identifier: {}",
-                                        red!("error"),
-                                        e
-                                    );
-                                    print_help_watchpoint();
-                                    return;
-                                }
-                            }
-                        };
-                        (contract_id, parts[2])
-                    }
-                    _ => {
-                        println!("{}: invalid watchpoint format", red!("error"),);
+                match extract_watch_variable(env, args, None) {
+                    Ok((contract, name)) => self.state.add_watchpoint(
+                        &contract.contract_context.contract_identifier,
+                        name,
+                        access_type,
+                    ),
+                    Err(e) => {
+                        println!("{}: {}", red!("error"), e);
                         print_help_watchpoint();
                         return;
                     }
                 };
-
-                let contract = match env.global_context.database.get_contract(&contract_id) {
-                    Ok(contract) => contract,
-                    Err(e) => {
-                        println!("{}: {}", red!("error"), e);
-                        return;
-                    }
-                };
-
-                if contract.contract_context.meta_data_var.get(name).is_none()
-                    && contract.contract_context.meta_data_map.get(name).is_none()
-                {
-                    println!(
-                        "{}: no such variable: {}.{}",
-                        red!("error"),
-                        contract_id,
-                        name
-                    );
-                    return;
-                }
-
-                self.state.add_watchpoint(Breakpoint {
-                    id: 0,
-                    verified: true,
-                    data: BreakpointData::Data(DataBreakpoint {
-                        name: name.to_string(),
-                        access_type,
-                    }),
-                    source: Source { name: contract_id },
-                    span: None,
-                });
             }
         }
     }
