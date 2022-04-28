@@ -4,13 +4,12 @@ use std::hash::Hash;
 use std::io::Write;
 use std::path::PathBuf;
 
-use super::State;
+use super::{extract_watch_variable, AccessType, State};
 use crate::clarity::callables::FunctionIdentifier;
 use crate::clarity::contexts::{ContractContext, GlobalContext};
 use crate::clarity::errors::Error;
 use crate::clarity::representations::Span;
-use crate::clarity::types::{SequenceData, Value};
-use crate::clarity::ClarityName;
+use crate::clarity::types::{PrincipalData, SequenceData, StandardPrincipalData, Value};
 use crate::clarity::SymbolicExpressionType::List;
 use crate::clarity::{
     contexts::{Environment, LocalContext},
@@ -63,6 +62,7 @@ struct Current {
 
 pub struct DAPDebugger {
     rt: Runtime,
+    default_sender: Option<StandardPrincipalData>,
     pub path_to_contract_id: HashMap<String, QualifiedContractIdentifier>,
     pub contract_id_to_path: HashMap<QualifiedContractIdentifier, String>,
     log_file: File, // DELETE ME: For testing only
@@ -107,6 +107,7 @@ impl DAPDebugger {
         writeln!(log_file, "LOG FILE CREATED");
         Self {
             rt,
+            default_sender: None,
             path_to_contract_id: HashMap::new(),
             contract_id_to_path: HashMap::new(),
             log_file,
@@ -536,7 +537,7 @@ impl DAPDebugger {
                 body: Some(ResponseBody::Launch),
             });
 
-            let mut stopped = StoppedEvent {
+            let stopped = StoppedEvent {
                 reason: StoppedReason::Entry,
                 description: None,
                 thread_id: Some(0),
@@ -685,32 +686,140 @@ impl DAPDebugger {
                 return true;
             }
         };
-        match self
-            .get_state()
-            .evaluate(env, context, &arguments.expression)
-        {
-            Ok(value) => self.send_response(Response {
-                request_seq: seq,
-                success: true,
-                message: None,
-                body: Some(ResponseBody::Evaluate(EvaluateResponse {
-                    result: value.to_string(),
-                    result_type: Some(type_for_value(&value)),
-                    presentation_hint: None,
-                    variables_reference: 0,
-                    named_variables: None,
-                    indexed_variables: None,
-                    memory_reference: None,
-                })),
-            }),
-            Err(errors) => self.send_response(Response {
-                request_seq: seq,
-                success: false,
-                message: Some(errors.join("\n")),
-                body: None,
-            }),
-        }
 
+        // Evaluate expressions coming from the `watch` context are handled
+        // differently. These can be references to contract variables in the
+        // format `principal.contract.variable` or `.contract.variable`. A
+        // breakpoint should be added if one does not already exist, then the
+        // value should be retrieved.
+        let response = match arguments.context {
+            Some(EvalContext::Watch) => {
+                match extract_watch_variable(
+                    env,
+                    &arguments.expression,
+                    self.default_sender.as_ref(),
+                ) {
+                    Ok((contract, name)) => {
+                        let contract_id = &contract.contract_context.contract_identifier;
+                        // Add the watchpoint (if one isn't already there)
+                        let exists = if let Some(set) = self
+                            .get_state()
+                            .watch_variables
+                            .get(&(contract_id.clone(), name.to_string()))
+                        {
+                            if set.is_empty() {
+                                false
+                            } else {
+                                true
+                            }
+                        } else {
+                            false
+                        };
+                        if !exists {
+                            self.get_state()
+                                .add_watchpoint(contract_id, name, AccessType::Write);
+                        }
+
+                        if let Some(data_types) = contract.contract_context.meta_data_var.get(name)
+                        {
+                            let value = env
+                                .global_context
+                                .database
+                                .lookup_variable(contract_id, &name, data_types)
+                                .unwrap();
+                            Response {
+                                request_seq: seq,
+                                success: true,
+                                message: None,
+                                body: Some(ResponseBody::Evaluate(EvaluateResponse {
+                                    result: value.to_string(),
+                                    result_type: Some(format!("{}", data_types.value_type)),
+                                    presentation_hint: Some(VariablePresentationHint {
+                                        kind: Some(VariableKind::Property),
+                                        attributes: Some(vec![
+                                            VariableAttribute::HasDataBreakpoint,
+                                        ]),
+                                        visibility: None,
+                                        lazy: None,
+                                    }),
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                })),
+                            }
+                        } else if let Some(data_types) =
+                            contract.contract_context.meta_data_map.get(name)
+                        {
+                            Response {
+                                request_seq: seq,
+                                success: true,
+                                message: None,
+                                body: Some(ResponseBody::Evaluate(EvaluateResponse {
+                                    result: "map".to_string(),
+                                    result_type: Some(format!(
+                                        "{{{}: {}}}",
+                                        data_types.key_type, data_types.value_type
+                                    )),
+                                    presentation_hint: Some(VariablePresentationHint {
+                                        kind: Some(VariableKind::Data),
+                                        attributes: Some(vec![
+                                            VariableAttribute::HasDataBreakpoint,
+                                        ]),
+                                        visibility: None,
+                                        lazy: None,
+                                    }),
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                })),
+                            }
+                        } else {
+                            Response {
+                                request_seq: seq,
+                                success: false,
+                                message: Some("undefined".to_string()),
+                                body: None,
+                            }
+                        }
+                    }
+                    Err(e) => Response {
+                        request_seq: seq,
+                        success: false,
+                        message: Some(e),
+                        body: None,
+                    },
+                }
+            }
+            _ => match self
+                .get_state()
+                .evaluate(env, context, &arguments.expression)
+            {
+                Ok(value) => Response {
+                    request_seq: seq,
+                    success: true,
+                    message: None,
+                    body: Some(ResponseBody::Evaluate(EvaluateResponse {
+                        result: value.to_string(),
+                        result_type: Some(type_for_value(&value)),
+                        presentation_hint: None,
+                        variables_reference: 0,
+                        named_variables: None,
+                        indexed_variables: None,
+                        memory_reference: None,
+                    })),
+                },
+                Err(errors) => Response {
+                    request_seq: seq,
+                    success: false,
+                    message: Some(errors.join("\n")),
+                    body: None,
+                },
+            },
+        };
+
+        self.send_response(response);
         false
     }
 
@@ -985,6 +1094,13 @@ impl EvalHook for DAPDebugger {
                 // (e.g. setting breakpoints), after which the ConfigurationDone
                 // request should be sent, but it's not, so there is an ugly
                 // hack in threads to handle that.
+                self.default_sender = Some(match &env.sender {
+                    Some(sender) => match sender {
+                        PrincipalData::Standard(standard) => standard.clone(),
+                        PrincipalData::Contract(contract) => contract.issuer.clone(),
+                    },
+                    None => StandardPrincipalData::transient(),
+                });
                 self.send_event(EventBody::Initialized);
             } else {
                 let mut stopped = StoppedEvent {
