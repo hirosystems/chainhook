@@ -751,16 +751,15 @@ impl DAPDebugger {
                         } else if let Some(data_types) =
                             contract.contract_context.meta_data_map.get(name)
                         {
+                            let map_type =
+                                format!("{{{}: {}}}", data_types.key_type, data_types.value_type);
                             Response {
                                 request_seq: seq,
                                 success: true,
                                 message: None,
                                 body: Some(ResponseBody::Evaluate(EvaluateResponse {
-                                    result: "map".to_string(),
-                                    result_type: Some(format!(
-                                        "{{{}: {}}}",
-                                        data_types.key_type, data_types.value_type
-                                    )),
+                                    result: map_type.clone(),
+                                    result_type: Some(map_type),
                                     presentation_hint: Some(VariablePresentationHint {
                                         kind: Some(VariableKind::Data),
                                         attributes: Some(vec![
@@ -986,14 +985,12 @@ impl DAPDebugger {
 
         // Maps
         for (name, metadata) in &contract_context.meta_data_map {
-            // We do not grab any values for maps. Users can query map values.
+            // We do not grab any values for maps. Users can query map values in the console.
+            let map_type = format!("{{{}: {}}}", metadata.key_type, metadata.value_type);
             variables.push(Variable {
                 name: name.to_string(),
-                value: "".to_string(),
-                var_type: Some(format!(
-                    "{{{}: {}}}",
-                    metadata.key_type, metadata.value_type
-                )),
+                value: map_type.clone(),
+                var_type: Some(map_type),
                 presentation_hint: None,
                 evaluate_name: None,
                 variables_reference: 0,
