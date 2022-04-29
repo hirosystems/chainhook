@@ -579,6 +579,8 @@ impl Session {
             cmd if cmd.starts_with("::decode") => self.decode(&mut output, cmd),
             #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::debug") => self.debug(&mut output, cmd),
+            #[cfg(feature = "cli")]
+            cmd if cmd.starts_with("::reload") => self.reload(&mut output),
 
             snippet => {
                 if self.show_costs {
@@ -677,6 +679,46 @@ impl Session {
             Err(result) => result,
         };
         output.append(&mut result);
+    }
+
+    #[cfg(feature = "cli")]
+    fn reload(&mut self, output: &mut Vec<String>) {
+        self.asts.clear();
+        self.contracts.clear();
+        self.costs_reports.clear();
+        self.coverage_reports.clear();
+        self.executed.clear();
+        self.initial_contracts_analysis.clear();
+        self.interpreter = ClarityInterpreter::new(
+            self.interpreter.get_tx_sender(),
+            self.settings.repl_settings.clone(),
+        );
+        let contracts = self.settings.initial_contracts.clone();
+        self.settings.initial_contracts.clear();
+
+        for existing in contracts {
+            let reloaded = match fs::read_to_string(&existing.path) {
+                Ok(xs) => xs,
+                Err(_) => existing.code,
+            };
+
+            self.settings.initial_contracts.push(InitialContract {
+                code: reloaded,
+                path: existing.path,
+                name: existing.name,
+                deployer: existing.deployer,
+            });
+        }
+
+        match self.start() {
+            Ok(_) => {
+                self.get_contracts(output);
+                output.push("Ok, contracts reloaded.".to_string());
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
+        }
     }
 
     pub fn formatted_interpretation_ast(
@@ -973,7 +1015,11 @@ impl Session {
             "{}",
             help_colour
                 .paint("::debug <expr>\t\t\t\tStart an interactive debug session executing <expr>")
-        ))
+        ));
+        output.push(format!(
+            "{}",
+            help_colour.paint("::reload \t\t\t\tReload the existing contract(s) in the session")
+        ));
     }
 
     fn parse_and_advance_chain_tip(&mut self, output: &mut Vec<String>, command: &str) {
