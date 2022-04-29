@@ -534,7 +534,7 @@ fn print_help(args: &str) {
 fn print_help_main() {
     println!(
         r#"Debugger commands:
-  aw | awatch      -- Read/write watchpoint, see `help watch' for details)
+  aw | awatch       -- Read/write watchpoint, see `help watch' for details)
   b  | breakpoint   -- Commands for operating on breakpoints (see 'help b' for details)
   c  | continue     -- Continue execution until next breakpoint or completion
   f  | finish       -- Continue execution until returning from the current expression
@@ -542,7 +542,7 @@ fn print_help_main() {
   p  | print <expr> -- Evaluate an expression and print the result
   q  | quit         -- Quit the debugger
   r  | run          -- Begin execution
-  rw | rwatch      -- Read watchpoint, see `help watch' for details)
+  rw | rwatch       -- Read watchpoint, see `help watch' for details)
   s  | step         -- Single step, stepping into sub-expressions
   w  | watch        -- Commands for operating on watchpoints (see 'help w' for details)
 "#
