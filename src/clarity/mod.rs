@@ -84,6 +84,7 @@ impl_array_hexstring_fmt!(BurnchainHeaderHash);
 
 /** EvalHook defines an interface for hooks to execute during evaluation. */
 pub trait EvalHook {
+    // Called before the expression is evaluated
     fn begin_eval(
         &mut self,
         env: &mut Environment,
@@ -92,6 +93,7 @@ pub trait EvalHook {
     ) {
     }
 
+    // Called after the expression is evaluated
     fn finish_eval(
         &mut self,
         env: &mut Environment,
@@ -101,6 +103,7 @@ pub trait EvalHook {
     ) {
     }
 
+    // Called upon completion of the execution
     fn complete(&mut self, result: core::result::Result<(Value, Vec<serde_json::Value>), String>) {}
 }
 
