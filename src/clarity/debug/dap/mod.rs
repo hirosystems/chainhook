@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
 use std::hash::Hash;
 use std::io::Write;
 use std::path::PathBuf;
@@ -65,7 +64,6 @@ pub struct DAPDebugger {
     default_sender: Option<StandardPrincipalData>,
     pub path_to_contract_id: HashMap<String, QualifiedContractIdentifier>,
     pub contract_id_to_path: HashMap<QualifiedContractIdentifier, String>,
-    log_file: File, // DELETE ME: For testing only
     reader: FramedRead<Stdin, DebugAdapterCodec<ProtocolMessage>>,
     writer: FramedWrite<Stdout, DebugAdapterCodec<ProtocolMessage>>,
     state: Option<DebugState>,
@@ -91,26 +89,11 @@ impl DAPDebugger {
             .enable_all()
             .build()
             .unwrap();
-        let mut log_file = match File::create("/Users/brice/work/debugger-demo/dap-log.txt") {
-            // DELETE ME
-            Ok(file) => file,
-            Err(e) => {
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .open("/Users/brice/work/debugger-demo/debugger.txt")
-                    .unwrap();
-                writeln!(file, "DAP_LOG FAILED: {}", e);
-                file
-            }
-        };
-        writeln!(log_file, "LOG FILE CREATED");
         Self {
             rt,
             default_sender: None,
             path_to_contract_id: HashMap::new(),
             contract_id_to_path: HashMap::new(),
-            log_file,
             reader,
             writer,
             state: None,
@@ -131,20 +114,12 @@ impl DAPDebugger {
 
     // Process all messages before launching the REPL
     pub fn init(&mut self) -> Result<(String, String), ParseError> {
-        writeln!(self.log_file, "STARTING");
-
         while self.launched.is_none() {
             match self.wait_for_command(None, None) {
                 Ok(_) => (),
                 Err(e) => return Err(e),
             }
         }
-        writeln!(
-            self.log_file,
-            "inited: {}, {}",
-            self.launched.as_ref().unwrap().0,
-            self.launched.as_ref().unwrap().1
-        );
         Ok(self.launched.take().unwrap())
     }
 
@@ -154,12 +129,9 @@ impl DAPDebugger {
         env: Option<&mut Environment>,
         context: Option<&LocalContext>,
     ) -> Result<bool, ParseError> {
-        writeln!(self.log_file, "WAITING FOR MESSAGE...");
         if let Some(msg) = self.rt.block_on(self.reader.next()) {
             match msg {
                 Ok(msg) => {
-                    writeln!(self.log_file, "message: {:?}", msg);
-
                     use dap_types::MessageKind::*;
                     Ok(match msg.message {
                         Request(command) => self.handle_request(env, context, msg.seq, command),
@@ -174,20 +146,16 @@ impl DAPDebugger {
                     })
                 }
                 Err(e) => {
-                    writeln!(self.log_file, "error: {}", e);
                     Err(e)
                 }
             }
         } else {
-            writeln!(self.log_file, "NONE");
             Ok(true)
         }
     }
 
     fn send_response(&mut self, response: Response) {
         let response_json = serde_json::to_string(&response).unwrap();
-        writeln!(self.log_file, "::::response: {}", response_json);
-
         let message = ProtocolMessage {
             seq: self.send_seq,
             message: MessageKind::Response(response),
@@ -196,7 +164,8 @@ impl DAPDebugger {
         match self.rt.block_on(self.writer.send(message)) {
             Ok(_) => (),
             Err(e) => {
-                writeln!(self.log_file, "ERROR: sending response: {}", e);
+                // If we can't send, there's not really anything else we can do.
+                println!("{}: send_response: {}", red!("error"), e);
             }
         };
 
@@ -205,8 +174,6 @@ impl DAPDebugger {
 
     fn send_event(&mut self, body: EventBody) {
         let event_json = serde_json::to_string(&body).unwrap();
-        writeln!(self.log_file, "::::event: {}", event_json);
-
         let message = ProtocolMessage {
             seq: self.send_seq,
             message: MessageKind::Event(Event { body: Some(body) }),
@@ -215,7 +182,8 @@ impl DAPDebugger {
         match self.rt.block_on(self.writer.send(message)) {
             Ok(_) => (),
             Err(e) => {
-                writeln!(self.log_file, "ERROR: sending response: {}", e);
+                // If we can't send, there's not really anything else we can do.
+                println!("{}: send_event: {}", red!("error"), e);
             }
         };
 
@@ -284,7 +252,6 @@ impl DAPDebugger {
     // Request handlers
 
     fn initialize(&mut self, seq: i64, arguments: InitializeRequestArguments) -> bool {
-        writeln!(self.log_file, "INITIALIZE");
         let capabilities = Capabilities {
             supports_configuration_done_request: Some(true),
             supports_function_breakpoints: Some(true),
@@ -379,7 +346,6 @@ impl DAPDebugger {
     }
 
     fn launch(&mut self, seq: i64, arguments: LaunchRequestArguments) -> bool {
-        writeln!(self.log_file, "LAUNCH");
         // Verify that the manifest and expression were specified
         let manifest = match arguments.manifest {
             Some(manifest) => manifest,
@@ -847,20 +813,6 @@ impl DAPDebugger {
     ) {
         let mut scopes = Vec::new();
         let mut current_context = Some(local_context);
-        writeln!(
-            self.log_file,
-            "initial context: variables: {:?}, callable_contracts: {:?}, depth: {}, parent: {}, function vars: {}",
-            local_context.variables,
-            local_context.callable_contracts,
-            local_context.depth(),
-            local_context.parent.is_some(),
-            local_context.function_context().variables.len(),
-        );
-        writeln!(
-            self.log_file,
-            "contract variables: {:?}",
-            contract_context.variables
-        );
 
         // Local variable scopes
         while let Some(ctx) = current_context {
@@ -887,12 +839,6 @@ impl DAPDebugger {
                 end_line: None,
                 end_column: None,
             });
-            writeln!(
-                self.log_file,
-                "created scope {} with {} variables",
-                scope_id,
-                ctx.variables.len()
-            );
 
             let mut variables = Vec::new();
             for (name, value) in &ctx.variables {
@@ -911,7 +857,6 @@ impl DAPDebugger {
             for (name, (contract_id, trait_id)) in &ctx.callable_contracts {
                 variables.push(Variable {
                     name: name.to_string(),
-                    // value: format!("{}.{}", contract_id, trait_id),
                     value: format!("{}", contract_id),
                     var_type: Some(format!("{}", trait_id)),
                     presentation_hint: None,
@@ -1012,8 +957,6 @@ impl EvalHook for DAPDebugger {
         context: &LocalContext,
         expr: &SymbolicExpression,
     ) {
-        writeln!(self.log_file, "in begin_eval: {:?}", expr);
-
         let source = Source {
             name: Some(env.contract_context.contract_identifier.to_string()),
             path: Some(
@@ -1048,14 +991,12 @@ impl EvalHook for DAPDebugger {
                 stack_top.end_line = Some(expr.span.end_line);
                 stack_top.end_column = Some(expr.span.end_column);
 
-                writeln!(self.log_file, "updated stack frame {}", stack_top.id);
                 self.save_scopes_for_frame(
                     &stack_top,
                     context,
                     &env.contract_context,
                     &mut env.global_context,
                 );
-                writeln!(self.log_file, "{:?}", env.contract_context.variables);
                 self.stack_frames
                     .insert(current_function.clone(), stack_top);
             } else {
@@ -1072,7 +1013,6 @@ impl EvalHook for DAPDebugger {
                     module_id: None,
                     presentation_hint: Some(PresentationHint::Normal),
                 };
-                writeln!(self.log_file, "created stack frame {}", stack_frame.id);
                 self.save_scopes_for_frame(
                     &stack_frame,
                     context,
@@ -1111,8 +1051,6 @@ impl EvalHook for DAPDebugger {
                 };
 
                 let state = self.get_state().state.clone();
-                writeln!(self.log_file, "STATE: {:?}", state);
-
                 match self.get_state().state {
                     State::Start => {
                         stopped.reason = StoppedReason::Entry;
@@ -1136,9 +1074,6 @@ impl EvalHook for DAPDebugger {
                 self.send_event(EventBody::Stopped(stopped));
             }
 
-            writeln!(self.log_file, "  wait for command");
-            writeln!(self.log_file, "stack: {:?}", env.call_stack.stack);
-
             // Save the current state, which may be needed to respond to incoming requests
             self.current = Some(Current {
                 source,
@@ -1152,17 +1087,16 @@ impl EvalHook for DAPDebugger {
                 proceed = match self.wait_for_command(Some(env), Some(context)) {
                     Ok(proceed) => proceed,
                     Err(e) => {
-                        writeln!(self.log_file, "  ERROR: {}", e);
+                        self.log(format!("error: {}", e));
                         false
                     }
                 };
             }
             self.current = None;
         } else {
-            // TODO: If there is already a message waiting, process it before continuing.
-            // Something with self.reader.poll_read() maybe?
-
-            writeln!(self.log_file, "  continue");
+            // TODO: If there is already a message waiting, process it before
+            //       continuing. This would be needed for a pause request. 
+            //       Something with self.reader.poll_read() maybe?
         }
     }
 
@@ -1173,8 +1107,7 @@ impl EvalHook for DAPDebugger {
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
     ) {
-        writeln!(self.log_file, "in finish_eval: {}", expr.id);
-        if self.get_state().finish_eval(env, context, expr, res) {}
+        self.get_state().finish_eval(env, context, expr, res);
     }
 
     fn complete(&mut self, result: Result<(Value, Vec<serde_json::Value>), String>) {
