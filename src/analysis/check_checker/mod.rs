@@ -913,7 +913,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -959,7 +959,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1007,7 +1007,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1056,7 +1056,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1084,7 +1084,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1112,7 +1112,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1140,7 +1140,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1167,7 +1167,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1234,7 +1234,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1287,7 +1287,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1315,7 +1315,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1340,7 +1340,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1365,7 +1365,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1413,7 +1413,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1459,7 +1459,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1487,7 +1487,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1532,7 +1532,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1578,7 +1578,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1606,7 +1606,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1649,7 +1649,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1677,7 +1677,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1730,7 +1730,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1759,7 +1759,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1813,7 +1813,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1842,7 +1842,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1899,7 +1899,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -1928,7 +1928,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -1985,7 +1985,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2042,7 +2042,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2071,7 +2071,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2134,7 +2134,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2163,7 +2163,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2220,7 +2220,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2264,7 +2264,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2344,7 +2344,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2415,7 +2415,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2495,7 +2495,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2566,7 +2566,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2612,7 +2612,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2659,7 +2659,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2687,7 +2687,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2733,7 +2733,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2783,7 +2783,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2830,7 +2830,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -2877,7 +2877,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2906,7 +2906,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2935,7 +2935,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2964,7 +2964,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -2990,7 +2990,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3018,7 +3018,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3044,7 +3044,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3073,7 +3073,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -3123,7 +3123,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -3180,7 +3180,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3220,7 +3220,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3250,7 +3250,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3280,7 +3280,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3310,7 +3310,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3340,7 +3340,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3371,7 +3371,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -3432,7 +3432,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3461,7 +3461,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3497,7 +3497,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3527,7 +3527,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3558,7 +3558,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3588,7 +3588,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -3636,7 +3636,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3667,7 +3667,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3697,7 +3697,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
@@ -3754,7 +3754,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -3794,7 +3794,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((output, _)) => {
