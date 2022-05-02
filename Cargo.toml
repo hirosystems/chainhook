@@ -37,7 +37,7 @@ atty = "0.2.14"
 tokio = { version = "=1.15.0", features = ["full"], optional = true }
 tokio-util = { version = "0.7.1", features = ["codec"] }
 futures = "0.3.12"
-dap_types = { package = "dap-types", path = "../dap-types" }
+debug_types = "1.0.0"
 httparse = "1.6.0"
 bytes = "1.1.0"
 log = "0.4.16"
