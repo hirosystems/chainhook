@@ -57,6 +57,7 @@ pub use crate::clarity::representations::{
 pub use crate::clarity::contexts::MAX_CONTEXT_DEPTH;
 use crate::clarity::costs::cost_functions::ClarityCostFunction;
 pub use crate::clarity::functions::stx_transfer_consolidated;
+use crate::repl::ExecutionResult;
 use std::convert::{TryFrom, TryInto};
 
 const MAX_CALL_STACK_DEPTH: usize = 64;
@@ -104,7 +105,7 @@ pub trait EvalHook {
     }
 
     // Called upon completion of the execution
-    fn complete(&mut self, result: core::result::Result<(Value, Vec<serde_json::Value>), String>) {}
+    fn complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {}
 }
 
 fn lookup_variable(name: &str, context: &LocalContext, env: &mut Environment) -> Result<Value> {
@@ -253,10 +254,6 @@ pub fn eval<'a>(
         env.global_context.eval_hooks = Some(eval_hooks);
     }
 
-    // if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
-    //     coverage_tracker.report_eval(&env.contract_context.contract_identifier, exp);
-    // }
-
     let mut res = match exp.expr {
         AtomValue(ref value) | LiteralValue(ref value) => Ok(value.clone()),
         Atom(ref value) => lookup_variable(&value, context, env),
@@ -264,13 +261,6 @@ pub fn eval<'a>(
             let (function_variable, rest) = children
                 .split_first()
                 .ok_or(CheckErrors::NonFunctionApplication)?;
-
-            if let Some(ref mut coverage_tracker) = env.global_context.coverage_reporting {
-                coverage_tracker.report_eval(
-                    &env.contract_context.contract_identifier,
-                    &function_variable,
-                );
-            }
 
             let function_name = function_variable
                 .match_atom()

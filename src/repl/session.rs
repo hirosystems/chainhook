@@ -810,23 +810,24 @@ impl Session {
         contract_identifier: &QualifiedContractIdentifier,
         ast: ContractAST,
         snippet: String,
-        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
+        mut eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         cost_track: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
-        let report = if let Some(test_name) = test_name {
+        if let Some(test_name) = test_name {
             let coverage = TestCoverageReport::new(test_name.into());
-            Some(coverage)
-        } else {
-            None
-        };
+            if let Some(hooks) = &mut eval_hooks {
+                hooks.push(Box::new(coverage));
+            } else {
+                eval_hooks = Some(vec![Box::new(coverage)]);
+            };
+        }
         match self.interpreter.run_ast(
             ast,
             snippet,
             contract_identifier.clone(),
             cost_track,
             eval_hooks,
-            report,
         ) {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
@@ -854,7 +855,7 @@ impl Session {
         &mut self,
         snippet: String,
         name: Option<String>,
-        eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
+        mut eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         cost_track: bool,
         test_name: Option<String>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
@@ -864,12 +865,14 @@ impl Session {
         };
         let first_char = contract_name.chars().next().unwrap();
 
-        let report = if let Some(test_name) = test_name {
+        if let Some(test_name) = test_name {
             let coverage = TestCoverageReport::new(test_name.into());
-            Some(coverage)
-        } else {
-            None
-        };
+            if let Some(hooks) = &mut eval_hooks {
+                hooks.push(Box::new(coverage));
+            } else {
+                eval_hooks = Some(vec![Box::new(coverage)]);
+            };
+        }
 
         // Kludge for handling fully qualified contract_id vs sugared syntax
         let contract_identifier = if first_char.to_string() == "S" {
@@ -880,13 +883,10 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self.interpreter.run(
-            snippet,
-            contract_identifier.clone(),
-            cost_track,
-            eval_hooks,
-            report,
-        ) {
+        match self
+            .interpreter
+            .run(snippet, contract_identifier.clone(), cost_track, eval_hooks)
+        {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
