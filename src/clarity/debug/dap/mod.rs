@@ -15,6 +15,7 @@ use crate::clarity::{
     types::QualifiedContractIdentifier,
     EvalHook, SymbolicExpression,
 };
+use crate::repl::ExecutionResult;
 use dap_types::events::*;
 use dap_types::requests::*;
 use dap_types::responses::*;
@@ -145,9 +146,7 @@ impl DAPDebugger {
                         }
                     })
                 }
-                Err(e) => {
-                    Err(e)
-                }
+                Err(e) => Err(e),
             }
         } else {
             Ok(true)
@@ -1095,7 +1094,7 @@ impl EvalHook for DAPDebugger {
             self.current = None;
         } else {
             // TODO: If there is already a message waiting, process it before
-            //       continuing. This would be needed for a pause request. 
+            //       continuing. This would be needed for a pause request.
             //       Something with self.reader.poll_read() maybe?
         }
     }
@@ -1110,19 +1109,21 @@ impl EvalHook for DAPDebugger {
         self.get_state().finish_eval(env, context, expr, res);
     }
 
-    fn complete(&mut self, result: Result<(Value, Vec<serde_json::Value>), String>) {
+    fn complete(&mut self, result: Result<&mut ExecutionResult, String>) {
         match result {
-            Ok((result, events)) => {
+            Ok(result) => {
                 self.log("Execution completed.\n");
-                if !events.is_empty() {
+                if !result.events.is_empty() {
                     self.log("\nEvents emitted:\n");
-                    for event in events {
+                    for event in &result.events {
                         self.stdout(format!("{}\n", event));
                     }
                 }
 
-                self.log("\nReturn value:");
-                self.stdout(format!("{}\n", result))
+                if let Some(value) = &result.result {
+                    self.log("\nReturn value:");
+                    self.stdout(format!("{}\n", value))
+                }
             }
             Err(e) => self.stderr(e),
         }
