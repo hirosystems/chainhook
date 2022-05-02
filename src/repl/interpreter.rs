@@ -117,7 +117,6 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
-        coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (mut ast, mut diagnostics, success) = self.build_ast(
             contract_identifier.clone(),
@@ -150,7 +149,6 @@ impl ClarityInterpreter {
             analysis,
             cost_track,
             eval_hooks,
-            coverage_reporter,
         ) {
             Ok(result) => result,
             Err((_, Some(diagnostic), _)) => {
@@ -184,7 +182,6 @@ impl ClarityInterpreter {
         contract_identifier: QualifiedContractIdentifier,
         cost_track: bool,
         eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
-        coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (annotations, mut diagnostics) = self.collect_annotations(&ast, &snippet);
 
@@ -206,7 +203,6 @@ impl ClarityInterpreter {
             analysis,
             cost_track,
             eval_hooks,
-            coverage_reporter,
         ) {
             Ok(result) => result,
             Err((_, Some(diagnostic), _)) => {
@@ -404,7 +400,6 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             let conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
             let cost_tracker = LimitedCostTracker::new_free();
             let mut global_context = GlobalContext::new(mainnet, conn, cost_tracker);
-            global_context.coverage_reporting = None;
             global_context.begin();
 
             let _ = global_context
@@ -442,7 +437,6 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
         contract_analysis: ContractAnalysis,
         cost_track: bool,
         eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
-        coverage_reporter: Option<TestCoverageReport>,
     ) -> Result<ExecutionResult, (String, Option<Diagnostic>, Option<Error>)> {
         let mut execution_result = ExecutionResult::default();
         let mut contract_saved = false;
@@ -450,7 +444,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
         let mut accounts_to_debit = vec![];
         let mut accounts_to_credit = vec![];
         let mut contract_context = ContractContext::new(contract_identifier.clone());
-        let value = {
+        let (value, eval_hooks) = {
             let tx_sender: PrincipalData = self.tx_sender.clone().into();
 
             let mut conn = self.datastore.as_clarity_db(&NULL_HEADER_DB);
@@ -466,7 +460,6 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 LimitedCostTracker::new_free()
             };
             let mut global_context = GlobalContext::new(false, conn, cost_tracker);
-            global_context.coverage_reporting = coverage_reporter;
             global_context.eval_hooks = eval_hooks;
             global_context.begin();
 
@@ -521,7 +514,6 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                 }
             });
 
-            execution_result.coverage = global_context.coverage_reporting.take();
             let value = match result {
                 Ok(Some(value)) => value,
                 Ok(None) => Value::none(),
@@ -697,14 +689,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             }
             global_context.commit().unwrap();
 
-            if let Some(mut eval_hooks) = global_context.eval_hooks.take() {
-                for hook in eval_hooks.iter_mut() {
-                    hook.complete(Ok((value.clone(), serialized_events.clone())));
-                }
-                global_context.eval_hooks = Some(eval_hooks);
-            }
-
-            value
+            (value, global_context.eval_hooks)
         };
 
         execution_result.events = serialized_events;
@@ -719,6 +704,13 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
 
         if !contract_saved {
             execution_result.result = Some(value);
+
+            if let Some(mut eval_hooks) = eval_hooks {
+                for hook in eval_hooks.iter_mut() {
+                    hook.complete(Ok(&mut execution_result));
+                }
+            }
+
             return Ok(execution_result);
         }
 
@@ -727,6 +719,12 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
             let _ = analysis_db
                 .execute(|db| db.insert_contract(&contract_identifier, &contract_analysis))
                 .expect("Unable to save data");
+        }
+
+        if let Some(mut eval_hooks) = eval_hooks {
+            for hook in eval_hooks.iter_mut() {
+                hook.complete(Ok(&mut execution_result));
+            }
         }
 
         Ok(execution_result)

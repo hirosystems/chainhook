@@ -2,12 +2,15 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::File,
     io::Write,
+    mem,
 };
 
 use crate::clarity::ast::ContractAST;
 use crate::clarity::functions::define::DefineFunctionsParsed;
 use crate::clarity::representations::SymbolicExpression;
 use crate::clarity::types::QualifiedContractIdentifier;
+use crate::clarity::EvalHook;
+use crate::repl::ExecutionResult;
 use serde_json::Value as JsonValue;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -243,12 +246,16 @@ impl TestCoverageReport {
             contracts_coverage: HashMap::new(),
         }
     }
+}
 
-    pub fn report_eval(
+impl EvalHook for TestCoverageReport {
+    fn begin_eval(
         &mut self,
-        contract: &QualifiedContractIdentifier,
+        env: &mut super::contexts::Environment,
+        context: &super::contexts::LocalContext,
         expr: &SymbolicExpression,
     ) {
+        let contract = &env.contract_context.contract_identifier;
         let mut contract_report = match self.contracts_coverage.remove(contract) {
             Some(e) => e,
             _ => ContractCoverageReport::new(),
@@ -256,6 +263,13 @@ impl TestCoverageReport {
         contract_report.report_eval(expr);
         self.contracts_coverage
             .insert(contract.clone(), contract_report);
+    }
+
+    fn complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {
+        match result {
+            Ok(result) => result.coverage = Some(mem::take(self)),
+            Err(_) => (),
+        };
     }
 }
 
@@ -269,9 +283,12 @@ impl ContractCoverageReport {
     }
 
     pub fn report_eval(&mut self, expr: &SymbolicExpression) {
-        if expr.match_list().is_some() {
-            // don't count the whole list expression: wait until we've eval'ed the
-            //   list components
+        if let Some(children) = expr.match_list() {
+            // Handle the function variable, then the rest of the list will be
+            // eval'ed later.
+            if let Some((function_variable, rest)) = children.split_first() {
+                self.report_eval(function_variable);
+            }
             return;
         }
 
