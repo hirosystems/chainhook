@@ -225,7 +225,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Err(output) => {
@@ -261,7 +261,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Err(output) => {
@@ -297,7 +297,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Err(output) => {
@@ -333,7 +333,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             Ok((_, result)) => {
@@ -356,7 +356,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-set' (expected 3 got 4)", red!("error")));
@@ -374,7 +374,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-insert' (expected 3 got 4)", red!("error")));
@@ -392,7 +392,7 @@ mod tests {
             snippet,
             Some("checker".to_string()),
             false,
-            false,
+            None,
             None,
         ) {
             assert_eq!(err_output[0], format!("checker:5:5: {}: incorrect number of arguments in call to 'map-delete' (expected 2 got 3)", red!("error")));
