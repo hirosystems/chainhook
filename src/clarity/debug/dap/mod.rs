@@ -16,11 +16,11 @@ use crate::clarity::{
     EvalHook, SymbolicExpression,
 };
 use crate::repl::ExecutionResult;
-use dap_types::events::*;
-use dap_types::requests::*;
-use dap_types::responses::*;
-use dap_types::types::*;
-use dap_types::*;
+use debug_types::events::*;
+use debug_types::requests::*;
+use debug_types::responses::*;
+use debug_types::types::*;
+use debug_types::*;
 use futures::{SinkExt, StreamExt};
 use tokio;
 use tokio::io::{Stdin, Stdout};
@@ -133,7 +133,7 @@ impl DAPDebugger {
         if let Some(msg) = self.rt.block_on(self.reader.next()) {
             match msg {
                 Ok(msg) => {
-                    use dap_types::MessageKind::*;
+                    use debug_types::MessageKind::*;
                     Ok(match msg.message {
                         Request(command) => self.handle_request(env, context, msg.seq, command),
                         Response(response) => {
@@ -196,7 +196,7 @@ impl DAPDebugger {
         seq: i64,
         command: RequestCommand,
     ) -> bool {
-        use dap_types::requests::RequestCommand::*;
+        use debug_types::requests::RequestCommand::*;
         let proceed = match command {
             Initialize(arguments) => self.initialize(seq, arguments),
             Launch(arguments) => self.launch(seq, arguments),
