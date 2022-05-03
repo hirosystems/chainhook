@@ -687,7 +687,6 @@ impl Session {
         self.contracts.clear();
         self.costs_reports.clear();
         self.coverage_reports.clear();
-        self.executed.clear();
         self.initial_contracts_analysis.clear();
         self.interpreter = ClarityInterpreter::new(
             self.interpreter.get_tx_sender(),
