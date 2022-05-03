@@ -696,8 +696,14 @@ impl Session {
 
         for existing in contracts {
             let reloaded = match fs::read_to_string(&existing.path) {
-                Ok(xs) => xs,
-                Err(_) => existing.code,
+                Ok(code) => code,
+                Err(err) => {
+                    output.push(red!(format!(
+                        "Error: unable to read {}: {}",
+                        existing.path, err
+                    )));
+                    existing.code
+                }
             };
 
             self.settings.initial_contracts.push(InitialContract {
