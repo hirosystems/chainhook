@@ -692,8 +692,7 @@ impl Session {
             self.interpreter.get_tx_sender(),
             self.settings.repl_settings.clone(),
         );
-        let contracts = self.settings.initial_contracts.clone();
-        self.settings.initial_contracts.clear();
+        let contracts = std::mem::take(&mut self.settings.initial_contracts);
 
         for existing in contracts {
             let reloaded = match fs::read_to_string(&existing.path) {
