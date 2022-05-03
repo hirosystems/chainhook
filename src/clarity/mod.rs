@@ -30,7 +30,7 @@ pub mod analysis;
 pub mod docs;
 
 pub mod coverage;
-#[cfg(feature = "cli")]
+#[cfg(any(feature = "cli", feature = "dap"))]
 pub mod debug;
 
 use crate::clarity::callables::CallableType;

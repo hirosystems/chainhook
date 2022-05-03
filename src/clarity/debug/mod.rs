@@ -17,7 +17,9 @@ use crate::repl::ast::build_ast;
 use super::contracts::Contract;
 use super::EvalHook;
 
+#[cfg(feature = "cli")]
 pub mod cli;
+#[cfg(feature = "dap")]
 pub mod dap;
 
 #[derive(Clone)]

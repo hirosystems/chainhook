@@ -13,9 +13,6 @@ use crate::clarity::contracts::Contract;
 use crate::clarity::costs::{ExecutionCost, LimitedCostTracker};
 use crate::clarity::coverage::TestCoverageReport;
 use crate::clarity::database::{Datastore, NULL_HEADER_DB};
-use crate::clarity::debug::cli::CLIDebugger;
-#[cfg(feature = "cli")]
-use crate::clarity::debug::DebugState;
 use crate::clarity::diagnostic::{Diagnostic, Level};
 use crate::clarity::errors::Error;
 use crate::clarity::events::*;
