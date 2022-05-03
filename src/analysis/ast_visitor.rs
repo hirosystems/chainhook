@@ -13,6 +13,13 @@ pub struct TypedVar<'a> {
     pub decl_span: Span,
 }
 
+lazy_static! {
+    // Since the AST Visitor may be used before other checks have been performed,
+    // we may need a default value for some expressions. This can be used for a
+    // missing `ClarityName`.
+    static ref DEFAULT_NAME: ClarityName = ClarityName::from("placeholder__");
+}
+
 pub trait ASTVisitor<'a> {
     fn traverse_expr(&mut self, expr: &'a SymbolicExpression) -> bool {
         match &expr.expr {
@@ -39,13 +46,13 @@ pub trait ASTVisitor<'a> {
                     rv = match define_function {
                         DefineFunctions::Constant => self.traverse_define_constant(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                         ),
                         DefineFunctions::PrivateFunction => {
                             match args[0].match_list() {
                                 Some(signature) => {
-                                    let name = signature[0].match_atom().unwrap();
+                                    let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
                                     let params = match signature.len() {
                                         1 => None,
                                         _ => match_pairs(&signature[1..]),
@@ -60,7 +67,7 @@ pub trait ASTVisitor<'a> {
                         }
                         DefineFunctions::ReadOnlyFunction => match args[0].match_list() {
                             Some(signature) => {
-                                let name = signature[0].match_atom().unwrap();
+                                let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
                                 let params = match signature.len() {
                                     1 => None,
                                     _ => match_pairs(&signature[1..]),
@@ -71,7 +78,7 @@ pub trait ASTVisitor<'a> {
                         },
                         DefineFunctions::PublicFunction => match args[0].match_list() {
                             Some(signature) => {
-                                let name = signature[0].match_atom().unwrap();
+                                let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
                                 let params = match signature.len() {
                                     1 => None,
                                     _ => match_pairs(&signature[1..]),
@@ -80,39 +87,48 @@ pub trait ASTVisitor<'a> {
                             }
                             _ => false,
                         },
-                        DefineFunctions::NonFungibleToken => {
-                            self.traverse_define_nft(expr, args[0].match_atom().unwrap(), &args[1])
-                        }
+                        DefineFunctions::NonFungibleToken => self.traverse_define_nft(
+                            expr,
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            &args[1],
+                        ),
                         DefineFunctions::FungibleToken => self.traverse_define_ft(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             args.get(1),
                         ),
                         DefineFunctions::Map => self.traverse_define_map(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         DefineFunctions::PersistedVariable => self.traverse_define_data_var(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         DefineFunctions::Trait => self.traverse_define_trait(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1..],
                         ),
                         DefineFunctions::UseTrait => self.traverse_use_trait(
                             expr,
-                            args[0].match_atom().unwrap(),
-                            args[1].match_field().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            args[1].match_field().unwrap_or(&TraitIdentifier {
+                                contract_identifier: QualifiedContractIdentifier::transient(),
+                                name: DEFAULT_NAME.clone(),
+                            }),
                         ),
-                        DefineFunctions::ImplTrait => {
-                            self.traverse_impl_trait(expr, args[0].match_field().unwrap())
-                        }
+                        DefineFunctions::ImplTrait => self.traverse_impl_trait(
+                            expr,
+                            args[0].match_field().unwrap_or(&TraitIdentifier {
+                                contract_identifier: QualifiedContractIdentifier::transient(),
+                                name: DEFAULT_NAME.clone(),
+                            }),
+                        ),
                     };
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name(function_name)
                 {
@@ -132,17 +148,17 @@ pub trait ASTVisitor<'a> {
                         ToInt | ToUInt => self.traverse_int_cast(expr, &args[0]),
                         If => self.traverse_if(expr, &args[0], &args[1], &args[2]),
                         Let => {
-                            let bindings = args[0].match_pairs().unwrap();
+                            let bindings = args[0].match_pairs().unwrap_or_default();
                             self.traverse_let(expr, &bindings, &args[1..])
                         }
                         ElementAt => self.traverse_element_at(expr, &args[0], &args[1]),
                         IndexOf => self.traverse_index_of(expr, &args[0], &args[1]),
                         Map => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             self.traverse_map(expr, name, &args[1..])
                         }
                         Fold => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             self.traverse_fold(expr, name, &args[1], &args[2])
                         }
                         Append => self.traverse_append(expr, &args[0], &args[1]),
@@ -155,12 +171,15 @@ pub trait ASTVisitor<'a> {
                         },
                         Len => self.traverse_len(expr, &args[0]),
                         ListCons => self.traverse_list_cons(expr, &args),
-                        FetchVar => self.traverse_var_get(expr, args[0].match_atom().unwrap()),
-                        SetVar => {
-                            self.traverse_var_set(expr, args[0].match_atom().unwrap(), &args[1])
-                        }
+                        FetchVar => self
+                            .traverse_var_get(expr, args[0].match_atom().unwrap_or(&DEFAULT_NAME)),
+                        SetVar => self.traverse_var_set(
+                            expr,
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            &args[1],
+                        ),
                         FetchEntry => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             let key = args[1].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
                                 tuple_map.insert(None, &args[1]);
@@ -169,7 +188,7 @@ pub trait ASTVisitor<'a> {
                             self.traverse_map_get(expr, name, &key)
                         }
                         SetEntry => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             let key = args[1].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
                                 tuple_map.insert(None, &args[1]);
@@ -183,7 +202,7 @@ pub trait ASTVisitor<'a> {
                             self.traverse_map_set(expr, name, &key, &value)
                         }
                         InsertEntry => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             let key = args[1].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
                                 tuple_map.insert(None, &args[1]);
@@ -197,7 +216,7 @@ pub trait ASTVisitor<'a> {
                             self.traverse_map_insert(expr, name, &key, &value)
                         }
                         DeleteEntry => {
-                            let name = args[0].match_atom().unwrap();
+                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
                             let key = args[1].match_tuple().unwrap_or_else(|| {
                                 let mut tuple_map = HashMap::new();
                                 tuple_map.insert(None, &args[1]);
@@ -205,10 +224,14 @@ pub trait ASTVisitor<'a> {
                             });
                             self.traverse_map_delete(expr, name, &key)
                         }
-                        TupleCons => self.traverse_tuple(expr, &expr.match_tuple().unwrap()),
-                        TupleGet => {
-                            self.traverse_get(expr, args[0].match_atom().unwrap(), &args[1])
+                        TupleCons => {
+                            self.traverse_tuple(expr, &expr.match_tuple().unwrap_or_default())
                         }
+                        TupleGet => self.traverse_get(
+                            expr,
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            &args[1],
+                        ),
                         TupleMerge => self.traverse_merge(expr, &args[0], &args[1]),
                         Begin => self.traverse_begin(expr, &args),
                         Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => {
@@ -222,7 +245,7 @@ pub trait ASTVisitor<'a> {
                         }
                         Print => self.traverse_print(expr, &args[0]),
                         ContractCall => {
-                            let function_name = args[1].match_atom().unwrap();
+                            let function_name = args[1].match_atom().unwrap_or(&DEFAULT_NAME);
                             if let SymbolicExpressionType::LiteralValue(Value::Principal(
                                 PrincipalData::Contract(ref contract_identifier),
                             )) = &args[0].expr
@@ -248,7 +271,7 @@ pub trait ASTVisitor<'a> {
                         AtBlock => self.traverse_at_block(expr, &args[0], &args[1]),
                         GetBlockInfo => self.traverse_get_block_info(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                         ),
                         ConsError => self.traverse_err(expr, &args[0]),
@@ -262,9 +285,11 @@ pub trait ASTVisitor<'a> {
                         IsNone => self.traverse_is_none(expr, &args[0]),
                         IsErr => self.traverse_is_err(expr, &args[0]),
                         IsSome => self.traverse_is_some(expr, &args[0]),
-                        Filter => {
-                            self.traverse_filter(expr, args[0].match_atom().unwrap(), &args[1])
-                        }
+                        Filter => self.traverse_filter(
+                            expr,
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            &args[1],
+                        ),
                         UnwrapErrRet => self.traverse_unwrap_err(expr, &args[0], &args[1]),
                         UnwrapErr => self.traverse_unwrap_err(expr, &args[0], &args[1]),
                         Match => {
@@ -272,7 +297,7 @@ pub trait ASTVisitor<'a> {
                                 self.traverse_match_option(
                                     expr,
                                     &args[0],
-                                    args[1].match_atom().unwrap(),
+                                    args[1].match_atom().unwrap_or(&DEFAULT_NAME),
                                     &args[2],
                                     &args[3],
                                 )
@@ -280,9 +305,9 @@ pub trait ASTVisitor<'a> {
                                 self.traverse_match_response(
                                     expr,
                                     &args[0],
-                                    args[1].match_atom().unwrap(),
+                                    args[1].match_atom().unwrap_or(&DEFAULT_NAME),
                                     &args[2],
-                                    args[3].match_atom().unwrap(),
+                                    args[3].match_atom().unwrap_or(&DEFAULT_NAME),
                                     &args[4],
                                 )
                             }
@@ -295,53 +320,54 @@ pub trait ASTVisitor<'a> {
                         GetStxBalance => self.traverse_stx_get_balance(expr, &args[0]),
                         BurnToken => self.traverse_ft_burn(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         TransferToken => self.traverse_ft_transfer(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                             &args[3],
                         ),
                         GetTokenBalance => self.traverse_ft_get_balance(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                         ),
-                        GetTokenSupply => {
-                            self.traverse_ft_get_supply(expr, args[0].match_atom().unwrap())
-                        }
+                        GetTokenSupply => self.traverse_ft_get_supply(
+                            expr,
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                        ),
                         MintToken => self.traverse_ft_mint(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         BurnAsset => self.traverse_nft_burn(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         TransferAsset => self.traverse_nft_transfer(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                             &args[3],
                         ),
                         MintAsset => self.traverse_nft_mint(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                             &args[2],
                         ),
                         GetAssetOwner => self.traverse_nft_get_owner(
                             expr,
-                            args[0].match_atom().unwrap(),
+                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
                             &args[1],
                         ),
                     };
@@ -1955,7 +1981,7 @@ impl<'a> SymbolicExpression {
                     {
                         let mut tuple_map = HashMap::new();
                         for element in args {
-                            let pair = element.match_list().unwrap();
+                            let pair = element.match_list().unwrap_or_default();
                             tuple_map.insert(pair[0].match_atom(), &pair[1]);
                         }
                         return Some(tuple_map);
