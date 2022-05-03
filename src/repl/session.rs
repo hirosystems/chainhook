@@ -1281,7 +1281,7 @@ impl Session {
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
         let (mut result, cost) =
-            match self.formatted_interpretation(snippet, None, true, false, None) {
+            match self.formatted_interpretation(snippet, None, true, None, None) {
                 Ok((output, result)) => (output, result.cost.clone()),
                 Err(output) => (output, None),
             };
