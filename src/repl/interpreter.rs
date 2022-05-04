@@ -32,9 +32,9 @@ use crate::repl::{self, CostSynthesis, ExecutionResult};
 
 pub const BLOCK_LIMIT_MAINNET: ExecutionCost = ExecutionCost {
     write_length: 15_000_000,
-    write_count: 7_750,
+    write_count: 15_000,
     read_length: 100_000_000,
-    read_count: 7_750,
+    read_count: 15_000,
     runtime: 5_000_000_000,
 };
 
