@@ -25,6 +25,9 @@ pub struct Parser<'a> {
     success: bool,
 }
 
+pub const MAX_STRING_LEN: usize = 128;
+pub const MAX_CONTRACT_NAME_LEN: usize = 40;
+
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
         let mut p = Self {
@@ -329,7 +332,15 @@ impl<'a> Parser<'a> {
                 e.span = token.span;
                 Some(e)
             }
-            Token::Ident(name) => {
+            Token::Ident(mut name) => {
+                if name.len() > MAX_STRING_LEN {
+                    self.add_diagnostic(PlacedError {
+                        e: ParserError::NameTooLong(name.clone()),
+                        span: token.span.clone(),
+                    });
+                    // Continue with a placeholder name
+                    name = "placeholder".to_string();
+                }
                 let cname = match ClarityName::try_from(name.clone()) {
                     Ok(name) => name,
                     Err(e) => {
@@ -337,14 +348,22 @@ impl<'a> Parser<'a> {
                             e: ParserError::IllegalClarityName(name.clone()),
                             span: token.span.clone(),
                         });
-                        ClarityName::try_from("_bad_name_").unwrap()
+                        ClarityName::try_from("placeholder").unwrap()
                     }
                 };
                 let mut e = PreSymbolicExpression::atom(cname);
                 e.span = token.span;
                 Some(e)
             }
-            Token::TraitIdent(name) => {
+            Token::TraitIdent(mut name) => {
+                if name.len() > MAX_STRING_LEN {
+                    self.add_diagnostic(PlacedError {
+                        e: ParserError::NameTooLong(name.clone()),
+                        span: token.span.clone(),
+                    });
+                    // Continue with a placeholder name
+                    name = "placeholder".to_string();
+                }
                 let cname = match ClarityName::try_from(name.clone()) {
                     Ok(name) => name,
                     Err(e) => {
@@ -352,7 +371,7 @@ impl<'a> Parser<'a> {
                             e: ParserError::IllegalClarityName(name.clone()),
                             span: token.span.clone(),
                         });
-                        ClarityName::try_from("_bad_name_").unwrap()
+                        ClarityName::try_from("placeholder").unwrap()
                     }
                 };
                 let mut e = PreSymbolicExpression::trait_reference(cname);
@@ -390,7 +409,7 @@ impl<'a> Parser<'a> {
                 if self.tokens[self.next_token].token == Token::Dot {
                     let mut span = token.span.clone();
                     self.next_token(); // skip over the dot
-                    let name = match self.next_token() {
+                    let mut name = match self.next_token() {
                         Some(PlacedToken {
                             span: contract_span,
                             token: Token::Ident(ident),
@@ -407,7 +426,16 @@ impl<'a> Parser<'a> {
                             "placeholder".to_string()
                         }
                     };
-                    let contract_name = match ContractName::try_from(name) {
+
+                    if name.len() > MAX_CONTRACT_NAME_LEN {
+                        self.add_diagnostic(PlacedError {
+                            e: ParserError::ContractNameTooLong(name),
+                            span: self.tokens[self.next_token - 1].span.clone(),
+                        });
+                        // Continue with a placeholder name
+                        name = "placeholder".to_string();
+                    }
+                    let contract_name = match ContractName::try_from(name.clone()) {
                         Ok(id) => id,
                         Err(_) => {
                             self.add_diagnostic(PlacedError {
@@ -423,7 +451,7 @@ impl<'a> Parser<'a> {
                     if self.tokens[self.next_token].token == Token::Dot {
                         let mut span = token.span.clone();
                         self.next_token(); // skip over the dot
-                        let name = match self.next_token() {
+                        let mut name = match self.next_token() {
                             Some(PlacedToken {
                                 span: contract_span,
                                 token: Token::Ident(ident),
@@ -440,6 +468,14 @@ impl<'a> Parser<'a> {
                                 "placeholder".to_string()
                             }
                         };
+                        if name.len() > MAX_STRING_LEN {
+                            self.add_diagnostic(PlacedError {
+                                e: ParserError::NameTooLong(name.clone()),
+                                span: self.tokens[self.next_token - 1].span.clone(),
+                            });
+                            // Continue with a placeholder name
+                            name = "placeholder".to_string();
+                        }
                         let trait_name = match ClarityName::try_from(name) {
                             Ok(id) => id,
                             Err(_) => {
@@ -506,7 +542,7 @@ impl<'a> Parser<'a> {
                 if self.tokens[self.next_token].token == Token::Dot {
                     let mut span = token.span.clone();
                     self.next_token(); // skip over the dot
-                    let name = match self.next_token() {
+                    let mut name = match self.next_token() {
                         Some(PlacedToken {
                             span: contract_span,
                             token: Token::Ident(ident),
@@ -523,6 +559,14 @@ impl<'a> Parser<'a> {
                             "placeholder".to_string()
                         }
                     };
+                    if name.len() > MAX_STRING_LEN {
+                        self.add_diagnostic(PlacedError {
+                            e: ParserError::NameTooLong(name.clone()),
+                            span: self.tokens[self.next_token - 1].span.clone(),
+                        });
+                        // Continue with a placeholder name
+                        name = "placeholder".to_string();
+                    }
                     let trait_name = match ClarityName::try_from(name) {
                         Ok(id) => id,
                         Err(_) => {
@@ -926,6 +970,24 @@ mod tests {
                 start_column: 6,
                 end_line: 1,
                 end_column: 6
+            }
+        );
+
+        let (stmts, diagnostics, success) = parse("veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong");
+        assert_eq!(success, false);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].level, Level::Error);
+        assert_eq!(
+            diagnostics[0].message,
+            "illegal name (too long), 'veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong'".to_string()
+        );
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 132
             }
         );
     }
@@ -1893,6 +1955,28 @@ mod tests {
                 end_column: 8
             }
         );
+
+        let (stmts, diagnostics, success) = parse(".foo.veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        match &stmts[0].pre_expr {
+            PreSymbolicExpressionType::SugaredFieldIdentifier(contract_name, trait_name) => {
+                assert_eq!(contract_name.as_str(), "foo");
+                assert_eq!(trait_name.as_str(), "placeholder");
+            }
+            _ => panic!("failed to parse sugared trait identifier"),
+        }
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "illegal name (too long), 'veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong'");
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 6,
+                end_line: 1,
+                end_column: 137
+            }
+        );
     }
 
     #[test]
@@ -2003,8 +2087,6 @@ mod tests {
         );
 
         let (stmts, diagnostics, success) = parse("<123 ");
-        println!("STMTS: {:?}", stmts);
-        println!("DIAGS: {:?}", diagnostics);
         assert_eq!(success, false);
         assert_eq!(stmts.len(), 2);
         assert_eq!(diagnostics.len(), 1);
@@ -2043,6 +2125,21 @@ mod tests {
                 start_column: 2,
                 end_line: 1,
                 end_column: 4
+            }
+        );
+
+        let (stmts, diagnostics, success) = parse("<veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong>");
+        assert_eq!(success, false);
+        assert_eq!(stmts.len(), 1);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "illegal name (too long), 'veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong'");
+        assert_eq!(
+            diagnostics[0].spans[0],
+            Span {
+                start_line: 1,
+                start_column: 1,
+                end_line: 1,
+                end_column: 134
             }
         );
     }
