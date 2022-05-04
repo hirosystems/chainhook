@@ -698,11 +698,13 @@ impl Session {
             let reloaded = match fs::read_to_string(&existing.path) {
                 Ok(code) => code,
                 Err(err) => {
-                    output.push(red!(format!(
-                        "Error: unable to read {}: {}",
-                        existing.path, err
-                    )));
-                    existing.code
+                    println!(
+                        "{}: Unable to read {}: {}",
+                        red!("error"),
+                        existing.path,
+                        err
+                    );
+                    std::process::exit(1);
                 }
             };
 
