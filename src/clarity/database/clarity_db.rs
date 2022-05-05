@@ -407,10 +407,7 @@ impl<'a> ClarityDatabase<'a> {
     }
 
     pub fn get_block_time(&mut self, block_height: u32) -> u64 {
-        let id_bhh = self.get_index_block_header_hash(block_height);
-        self.headers_db
-            .get_burn_block_time_for_block(&id_bhh)
-            .expect("Failed to get block data.")
+        block_height as u64 * 600
     }
 
     pub fn get_burnchain_block_header_hash(&mut self, block_height: u32) -> BurnchainHeaderHash {
