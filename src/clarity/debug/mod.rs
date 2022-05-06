@@ -457,7 +457,7 @@ impl DebugState {
 
     // Returns a bool which indicates if execution should resume (true) or if
     // it should wait for input (false).
-    fn begin_eval(
+    fn will_begin_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
@@ -519,7 +519,7 @@ impl DebugState {
     }
 
     // Returns a bool which indicates if the result should be printed (finish)
-    fn finish_eval(
+    fn did_finish_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,

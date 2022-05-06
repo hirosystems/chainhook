@@ -249,7 +249,7 @@ impl TestCoverageReport {
 }
 
 impl EvalHook for TestCoverageReport {
-    fn begin_eval(
+    fn will_begin_eval(
         &mut self,
         env: &mut super::contexts::Environment,
         context: &super::contexts::LocalContext,
@@ -265,7 +265,7 @@ impl EvalHook for TestCoverageReport {
             .insert(contract.clone(), contract_report);
     }
 
-    fn complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {
+    fn did_complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {
         match result {
             Ok(result) => result.coverage = Some(mem::take(self)),
             Err(_) => (),
