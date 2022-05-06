@@ -521,7 +521,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
                     );
                     if let Some(mut eval_hooks) = global_context.eval_hooks.take() {
                         for hook in eval_hooks.iter_mut() {
-                            hook.complete(Err(err.clone()));
+                            hook.did_complete(Err(err.clone()));
                         }
                         global_context.eval_hooks = Some(eval_hooks);
                     }
@@ -704,7 +704,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
 
             if let Some(mut eval_hooks) = eval_hooks {
                 for hook in eval_hooks.iter_mut() {
-                    hook.complete(Ok(&mut execution_result));
+                    hook.did_complete(Ok(&mut execution_result));
                 }
             }
 
@@ -720,7 +720,7 @@ https://github.com/hirosystems/clarinet/issues/new/choose"#
 
         if let Some(mut eval_hooks) = eval_hooks {
             for hook in eval_hooks.iter_mut() {
-                hook.complete(Ok(&mut execution_result));
+                hook.did_complete(Ok(&mut execution_result));
             }
         }
 

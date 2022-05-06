@@ -201,8 +201,8 @@ impl DAPDebugger {
             Initialize(arguments) => self.initialize(seq, arguments),
             Launch(arguments) => self.launch(seq, arguments),
             ConfigurationDone => self.configuration_done(seq),
-            SetBreakpoints(arguments) => self.setBreakpoints(seq, arguments),
-            SetExceptionBreakpoints(arguments) => self.setExceptionBreakpoints(seq, arguments),
+            SetBreakpoints(arguments) => self.set_breakpoints(seq, arguments),
+            SetExceptionBreakpoints(arguments) => self.set_exception_breakpoints(seq, arguments),
             Disconnect(arguments) => self.quit(seq, arguments),
             Threads => self.threads(seq),
             StackTrace(arguments) => self.stack_trace(seq, arguments),
@@ -399,7 +399,7 @@ impl DAPDebugger {
         false
     }
 
-    fn setBreakpoints(&mut self, seq: i64, arguments: SetBreakpointsArguments) -> bool {
+    fn set_breakpoints(&mut self, seq: i64, arguments: SetBreakpointsArguments) -> bool {
         let mut results = vec![];
         match arguments.breakpoints {
             Some(breakpoints) => {
@@ -460,7 +460,7 @@ impl DAPDebugger {
         false
     }
 
-    fn setExceptionBreakpoints(
+    fn set_exception_breakpoints(
         &mut self,
         seq: i64,
         arguments: SetExceptionBreakpointsArguments,
@@ -788,10 +788,6 @@ impl DAPDebugger {
     }
 
     fn quit(&mut self, seq: i64, arguments: DisconnectArguments) -> bool {
-        // match arguments.restart {
-        //     Some(restart) => restart,
-        //     None => false,
-        // }
         self.get_state().quit();
 
         self.send_response(Response {
@@ -950,7 +946,7 @@ impl DAPDebugger {
 }
 
 impl EvalHook for DAPDebugger {
-    fn begin_eval(
+    fn will_begin_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
@@ -1024,7 +1020,7 @@ impl EvalHook for DAPDebugger {
             }
         }
 
-        if !self.get_state().begin_eval(env, context, expr) {
+        if !self.get_state().will_begin_eval(env, context, expr) {
             if self.get_state().state == State::Start {
                 // Sending this initialized event triggers the configuration
                 // (e.g. setting breakpoints), after which the ConfigurationDone
@@ -1099,17 +1095,17 @@ impl EvalHook for DAPDebugger {
         }
     }
 
-    fn finish_eval(
+    fn did_finish_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
     ) {
-        self.get_state().finish_eval(env, context, expr, res);
+        self.get_state().did_finish_eval(env, context, expr, res);
     }
 
-    fn complete(&mut self, result: Result<&mut ExecutionResult, String>) {
+    fn did_complete(&mut self, result: Result<&mut ExecutionResult, String>) {
         match result {
             Ok(result) => {
                 self.log("Execution completed.\n");
