@@ -86,7 +86,7 @@ impl_array_hexstring_fmt!(BurnchainHeaderHash);
 /** EvalHook defines an interface for hooks to execute during evaluation. */
 pub trait EvalHook {
     // Called before the expression is evaluated
-    fn begin_eval(
+    fn will_begin_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
@@ -95,7 +95,7 @@ pub trait EvalHook {
     }
 
     // Called after the expression is evaluated
-    fn finish_eval(
+    fn did_finish_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
@@ -105,7 +105,7 @@ pub trait EvalHook {
     }
 
     // Called upon completion of the execution
-    fn complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {}
+    fn did_complete(&mut self, result: core::result::Result<&mut ExecutionResult, String>) {}
 }
 
 fn lookup_variable(name: &str, context: &LocalContext, env: &mut Environment) -> Result<Value> {
@@ -249,7 +249,7 @@ pub fn eval<'a>(
 
     if let Some(mut eval_hooks) = env.global_context.eval_hooks.take() {
         for hook in eval_hooks.iter_mut() {
-            hook.begin_eval(env, context, exp);
+            hook.will_begin_eval(env, context, exp);
         }
         env.global_context.eval_hooks = Some(eval_hooks);
     }
@@ -287,7 +287,7 @@ pub fn eval<'a>(
 
     if let Some(mut eval_hooks) = env.global_context.eval_hooks.take() {
         for hook in eval_hooks.iter_mut() {
-            hook.finish_eval(env, context, exp, &res);
+            hook.did_finish_eval(env, context, exp, &res);
         }
         env.global_context.eval_hooks = Some(eval_hooks);
     }

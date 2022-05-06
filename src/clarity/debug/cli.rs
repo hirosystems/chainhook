@@ -477,13 +477,13 @@ impl CLIDebugger {
 }
 
 impl EvalHook for CLIDebugger {
-    fn begin_eval(
+    fn will_begin_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
     ) {
-        if !self.state.begin_eval(env, context, expr) {
+        if !self.state.will_begin_eval(env, context, expr) {
             match self.state.state {
                 State::Break(id) => println!("{} hit breakpoint {}", black!("*"), id),
                 State::DataBreak(id, access_type) => println!(
@@ -503,14 +503,14 @@ impl EvalHook for CLIDebugger {
         }
     }
 
-    fn finish_eval(
+    fn did_finish_eval(
         &mut self,
         env: &mut Environment,
         context: &LocalContext,
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
     ) {
-        if self.state.finish_eval(env, context, expr, res) {
+        if self.state.did_finish_eval(env, context, expr, res) {
             match res {
                 Ok(value) => println!(
                     "{}: {}",
