@@ -53,7 +53,15 @@ impl<'a> ASTDependencyDetector<'a> {
     pub fn detect_dependencies(
         contract_asts: &'a HashMap<QualifiedContractIdentifier, ContractAST>,
         preloaded: &'a BTreeMap<QualifiedContractIdentifier, ContractAST>,
-    ) -> HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>> {
+    ) -> Result<
+        HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+        (
+            // Dependencies detected
+            HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+            // Unresolved dependencies detected
+            Vec<QualifiedContractIdentifier>,
+        ),
+    > {
         let mut detector = Self {
             dependencies: HashMap::new(),
             current_contract: None,
@@ -83,7 +91,24 @@ impl<'a> ASTDependencyDetector<'a> {
             traverse(&mut detector, &ast.expressions);
         }
 
-        detector.dependencies
+        // Anything remaining in the pending_ maps indicates an unresolved dependency
+        let mut unresolved: Vec<QualifiedContractIdentifier> = detector
+            .pending_function_checks
+            .into_keys()
+            .map(|(contract_id, name)| contract_id.clone())
+            .collect();
+        unresolved.append(
+            &mut detector
+                .pending_trait_checks
+                .into_keys()
+                .map(|trait_id| trait_id.contract_identifier.clone())
+                .collect(),
+        );
+        if !unresolved.is_empty() {
+            Err((detector.dependencies, unresolved))
+        } else {
+            Ok(detector.dependencies)
+        }
     }
 
     pub fn order_contracts(
@@ -702,7 +727,8 @@ mod tests {
                 let mut contracts = HashMap::new();
                 contracts.insert(contract_identifier.clone(), ast);
                 let dependencies =
-                    ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+                    ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new())
+                        .unwrap();
                 assert_eq!(dependencies[&contract_identifier].len(), 0);
             }
             Err(_) => panic!("expected success"),
@@ -740,7 +766,8 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&foo));
     }
@@ -785,7 +812,8 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&bar));
     }
@@ -828,7 +856,8 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&bar));
     }
@@ -881,7 +910,8 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 2);
         assert!(dependencies[&test_identifier].contains(&bar));
         assert!(dependencies[&test_identifier].contains(&my_trait));
@@ -919,7 +949,8 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&other));
     }
@@ -956,8 +987,59 @@ mod tests {
             Err(_) => panic!("expected success"),
         };
 
-        let dependencies = ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new());
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
         assert!(dependencies[&test_identifier].contains(&other));
+    }
+
+    #[test]
+    fn unresolved_contract_call() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut contracts = HashMap::new();
+        let snippet = "
+(define-public (call-foo)
+    (contract-call? .foo hello 4)
+)
+"
+        .to_string();
+        let test_identifier = match session.build_ast(&snippet, Some("test")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        match ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()) {
+            Ok(_) => panic!("expected unresolved error"),
+            Err((_, unresolved)) => assert_eq!(unresolved[0].name.as_str(), "foo"),
+        }
+    }
+
+    #[test]
+    fn dynamic_contract_call_unresolved_trait() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut contracts = HashMap::new();
+        let snippet = "
+(use-trait my-trait .bar.my-trait)
+
+(define-public (call-dyn (dt <my-trait>))
+    (contract-call? dt call-hello .bar)
+)
+"
+        .to_string();
+        let test_identifier = match session.build_ast(&snippet, Some("test")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        match ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()) {
+            Ok(_) => panic!("expected unresolved error"),
+            Err((_, unresolved)) => assert_eq!(unresolved[0].name.as_str(), "bar"),
+        }
     }
 }
