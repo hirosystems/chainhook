@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::analysis::annotation::{Annotation, AnnotationKind};
-use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
+use crate::analysis::ast_dependency_detector::{ASTDependencyDetector, Dependency};
 use crate::analysis::{self, AnalysisPass as REPLAnalysisPass};
 use crate::clarity;
 use crate::clarity::analysis::{types::AnalysisPass, ContractAnalysis};
@@ -237,7 +237,7 @@ impl ClarityInterpreter {
         contract_id: String,
         snippet: String,
         parser_version: u32,
-    ) -> Result<Vec<QualifiedContractIdentifier>, String> {
+    ) -> Result<Vec<Dependency>, String> {
         let contract_id = QualifiedContractIdentifier::parse(&contract_id).unwrap();
         let (ast, _, success) =
             self.build_ast(contract_id.clone(), snippet.clone(), parser_version);

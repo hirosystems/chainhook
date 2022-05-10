@@ -13,13 +13,15 @@ use crate::clarity::types::{
 use crate::clarity::{ClarityName, SymbolicExpressionType};
 use crate::repl::settings::InitialLink;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
+use std::ops::{Deref, DerefMut};
 use std::process;
 
 use super::ast_visitor::TypedVar;
 
 pub struct ASTDependencyDetector<'a> {
-    dependencies: HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+    dependencies: HashMap<QualifiedContractIdentifier, DependencySet>,
     current_contract: Option<&'a QualifiedContractIdentifier>,
     defined_functions:
         HashMap<(&'a QualifiedContractIdentifier, &'a ClarityName), Vec<TypeSignature>>,
@@ -46,7 +48,90 @@ pub struct ASTDependencyDetector<'a> {
         )>,
     >,
     params: Option<Vec<TypedVar<'a>>>,
+    top_level: bool,
     preloaded: &'a BTreeMap<QualifiedContractIdentifier, ContractAST>,
+}
+
+#[derive(Clone, Debug, Eq)]
+pub struct Dependency {
+    pub contract_id: QualifiedContractIdentifier,
+    pub required_before_publish: bool,
+}
+
+impl PartialEq for Dependency {
+    fn eq(&self, other: &Self) -> bool {
+        self.contract_id == other.contract_id
+    }
+}
+
+impl Hash for Dependency {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.contract_id.hash(state)
+    }
+}
+
+impl PartialOrd for Dependency {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.contract_id.partial_cmp(&other.contract_id)
+    }
+}
+
+#[derive(Debug)]
+pub struct DependencySet {
+    set: HashSet<Dependency>,
+}
+
+impl DependencySet {
+    pub fn new() -> DependencySet {
+        DependencySet {
+            set: HashSet::new(),
+        }
+    }
+
+    pub fn add_dependency(
+        &mut self,
+        contract_id: QualifiedContractIdentifier,
+        required_before_publish: bool,
+    ) {
+        let dep = Dependency {
+            contract_id,
+            required_before_publish,
+        };
+
+        // If this dependency is required before publish, then make sure to
+        // delete any existing dependency so that this overrides it.
+        if required_before_publish {
+            self.set.remove(&dep);
+        }
+
+        self.set.insert(dep);
+    }
+
+    pub fn has_dependency(&self, contract_id: &QualifiedContractIdentifier) -> Option<bool> {
+        if let Some(dep) = self.set.get(&Dependency {
+            contract_id: contract_id.clone(),
+            required_before_publish: false,
+        }) {
+            println!("FOUND DEP: {}", dep.required_before_publish);
+            Some(dep.required_before_publish)
+        } else {
+            None
+        }
+    }
+}
+
+impl Deref for DependencySet {
+    type Target = HashSet<Dependency>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.set
+    }
+}
+
+impl DerefMut for DependencySet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.set
+    }
 }
 
 impl<'a> ASTDependencyDetector<'a> {
@@ -54,10 +139,10 @@ impl<'a> ASTDependencyDetector<'a> {
         contract_asts: &'a HashMap<QualifiedContractIdentifier, ContractAST>,
         preloaded: &'a BTreeMap<QualifiedContractIdentifier, ContractAST>,
     ) -> Result<
-        HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+        HashMap<QualifiedContractIdentifier, DependencySet>,
         (
             // Dependencies detected
-            HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+            HashMap<QualifiedContractIdentifier, DependencySet>,
             // Unresolved dependencies detected
             Vec<QualifiedContractIdentifier>,
         ),
@@ -70,6 +155,7 @@ impl<'a> ASTDependencyDetector<'a> {
             pending_function_checks: HashMap::new(),
             pending_trait_checks: HashMap::new(),
             params: None,
+            top_level: true,
             preloaded,
         };
 
@@ -86,7 +172,7 @@ impl<'a> ASTDependencyDetector<'a> {
         for (contract_identifier, ast) in contract_asts {
             detector
                 .dependencies
-                .insert(contract_identifier.clone(), HashSet::new());
+                .insert(contract_identifier.clone(), DependencySet::new());
             detector.current_contract = Some(contract_identifier);
             traverse(&mut detector, &ast.expressions);
         }
@@ -112,7 +198,7 @@ impl<'a> ASTDependencyDetector<'a> {
     }
 
     pub fn order_contracts(
-        dependencies: &HashMap<QualifiedContractIdentifier, HashSet<QualifiedContractIdentifier>>,
+        dependencies: &HashMap<QualifiedContractIdentifier, DependencySet>,
     ) -> CheckResult<Vec<&QualifiedContractIdentifier>> {
         let mut lookup = BTreeMap::new();
         let mut reverse_lookup = Vec::new();
@@ -134,10 +220,10 @@ impl<'a> ASTDependencyDetector<'a> {
             let contract_id = lookup.get(contract).unwrap();
             graph.add_node(*contract_id);
             for dep in contract_dependencies.iter() {
-                let dep_id = match lookup.get(dep) {
+                let dep_id = match lookup.get(&dep.contract_id) {
                     Some(id) => id,
                     None => {
-                        return Err(CheckErrors::NoSuchContract(dep.to_string()).into());
+                        return Err(CheckErrors::NoSuchContract(dep.contract_id.to_string()).into());
                     }
                 };
                 graph.add_directed_edge(*contract_id, *dep_id);
@@ -172,10 +258,10 @@ impl<'a> ASTDependencyDetector<'a> {
             return;
         }
         if let Some(set) = self.dependencies.get_mut(from) {
-            set.insert(to.clone());
+            set.add_dependency(to.clone(), self.top_level);
         } else {
-            let mut set = HashSet::new();
-            set.insert(to.clone());
+            let mut set = DependencySet::new();
+            set.add_dependency(to.clone(), self.top_level);
             self.dependencies.insert(from.clone(), set);
         }
     }
@@ -315,9 +401,11 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         body: &'a SymbolicExpression,
     ) -> bool {
         self.params = parameters.clone();
+        self.top_level = false;
         let res =
             self.traverse_expr(body) && self.visit_define_private(expr, name, parameters, body);
         self.params = None;
+        self.top_level = true;
         res
     }
 
@@ -350,9 +438,11 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         body: &'a SymbolicExpression,
     ) -> bool {
         self.params = parameters.clone();
+        self.top_level = false;
         let res =
             self.traverse_expr(body) && self.visit_define_read_only(expr, name, parameters, body);
         self.params = None;
+        self.top_level = true;
         res
     }
 
@@ -385,9 +475,11 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         body: &'a SymbolicExpression,
     ) -> bool {
         self.params = parameters.clone();
+        self.top_level = false;
         let res =
             self.traverse_expr(body) && self.visit_define_public(expr, name, parameters, body);
         self.params = None;
+        self.top_level = true;
         res
     }
 
@@ -769,7 +861,7 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
-        assert!(dependencies[&test_identifier].contains(&foo));
+        assert!(!dependencies[&test_identifier].has_dependency(&foo).unwrap());
     }
 
     // This test is disabled because it is currently not possible to refer to a
@@ -815,7 +907,7 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
-        assert!(dependencies[&test_identifier].contains(&bar));
+        assert!(!dependencies[&test_identifier].has_dependency(&bar).unwrap());
     }
 
     #[test]
@@ -859,7 +951,8 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
-        assert!(dependencies[&test_identifier].contains(&bar));
+        println!("{:?}", dependencies[&test_identifier]);
+        assert!(dependencies[&test_identifier].has_dependency(&bar).unwrap());
     }
 
     #[test]
@@ -913,8 +1006,10 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 2);
-        assert!(dependencies[&test_identifier].contains(&bar));
-        assert!(dependencies[&test_identifier].contains(&my_trait));
+        assert!(!dependencies[&test_identifier].has_dependency(&bar).unwrap());
+        assert!(dependencies[&test_identifier]
+            .has_dependency(&my_trait)
+            .unwrap());
     }
 
     #[test]
@@ -952,7 +1047,9 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
-        assert!(dependencies[&test_identifier].contains(&other));
+        assert!(dependencies[&test_identifier]
+            .has_dependency(&other)
+            .unwrap());
     }
 
     #[test]
@@ -990,7 +1087,9 @@ mod tests {
         let dependencies =
             ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
         assert_eq!(dependencies[&test_identifier].len(), 1);
-        assert!(dependencies[&test_identifier].contains(&other));
+        assert!(dependencies[&test_identifier]
+            .has_dependency(&other)
+            .unwrap());
     }
 
     #[test]
@@ -1041,5 +1140,37 @@ mod tests {
             Ok(_) => panic!("expected unresolved error"),
             Err((_, unresolved)) => assert_eq!(unresolved[0].name.as_str(), "bar"),
         }
+    }
+
+    #[test]
+    fn contract_call_top_level() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut contracts = HashMap::new();
+        let snippet1 = "
+(define-public (hello (a int))
+    (ok u0)
+)"
+        .to_string();
+        let foo = match session.build_ast(&snippet1, Some("foo")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        let snippet = "(contract-call? .foo hello 4)".to_string();
+        let test_identifier = match session.build_ast(&snippet, Some("test")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
+        assert_eq!(dependencies[&test_identifier].len(), 1);
+        assert!(dependencies[&test_identifier].has_dependency(&foo).unwrap());
     }
 }
