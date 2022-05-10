@@ -1,5 +1,5 @@
 use super::{ClarityInterpreter, ExecutionResult};
-use crate::analysis::ast_dependency_detector::ASTDependencyDetector;
+use crate::analysis::ast_dependency_detector::{ASTDependencyDetector, Dependency};
 use crate::clarity::analysis::ContractAnalysis;
 use crate::clarity::ast::ContractAST;
 use crate::clarity::codec::StacksMessageCodec;
@@ -101,7 +101,7 @@ impl Session {
     fn retrieve_contract(
         &mut self,
         link: &InitialLink,
-    ) -> Result<(String, Vec<QualifiedContractIdentifier>), String> {
+    ) -> Result<(String, Vec<Dependency>), String> {
         let contract_id = &link.contract_id;
         let components: Vec<&str> = contract_id.split('.').collect();
         let contract_deployer = components.first().expect("");
@@ -200,11 +200,14 @@ impl Session {
             if deps.len() > 0 {
                 dependencies.insert(
                     contract_id.to_string(),
-                    deps.clone().into_iter().map(|c| format!("{}", c)).collect(),
+                    deps.clone()
+                        .into_iter()
+                        .map(|c| format!("{}", c.contract_id))
+                        .collect(),
                 );
-                for contract_id in deps.into_iter() {
+                for dep in deps.into_iter() {
                     queue.push_back(InitialLink {
-                        contract_id: contract_id.to_string(),
+                        contract_id: dep.contract_id.to_string(),
                         cache: initial_link.cache.clone(),
                         stacks_node_addr: initial_link.stacks_node_addr.clone(),
                     });
