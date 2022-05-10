@@ -242,7 +242,19 @@ impl ClarityInterpreter {
         let mut contract_map = HashMap::new();
         contract_map.insert(contract_id.clone(), ast);
         let mut all_dependencies =
-            ASTDependencyDetector::detect_dependencies(&contract_map, &BTreeMap::new());
+            match ASTDependencyDetector::detect_dependencies(&contract_map, &BTreeMap::new()) {
+                Ok(dependencies) => dependencies,
+                Err((_, unresolved)) => {
+                    return Err(format!(
+                        "unresolved dependency(ies): {}",
+                        unresolved
+                            .iter()
+                            .map(|contract_id| contract_id.to_string())
+                            .collect::<Vec<String>>()
+                            .join(",")
+                    ));
+                }
+            };
         let dependencies = match all_dependencies.remove(&contract_id) {
             Some(mut dependencies_set) => dependencies_set.drain().collect(),
             None => vec![],

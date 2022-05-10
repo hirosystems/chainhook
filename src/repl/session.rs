@@ -402,7 +402,19 @@ impl Session {
             }
 
             let dependencies =
-                ASTDependencyDetector::detect_dependencies(&contract_asts, &self.asts);
+                match ASTDependencyDetector::detect_dependencies(&contract_asts, &self.asts) {
+                    Ok(dependencies) => dependencies,
+                    Err((dependencies, unresolved)) => {
+                        for contract_id in unresolved {
+                            output_err.push(format!(
+                                "{}: unresolved dependency: {}",
+                                red!("error"),
+                                contract_id
+                            ));
+                        }
+                        dependencies
+                    }
+                };
             match ASTDependencyDetector::order_contracts(&dependencies) {
                 Ok(ordered_contracts) => {
                     // interpret the contract ASTs in order
