@@ -11,7 +11,6 @@ use crate::clarity::types::{
     TraitIdentifier, TypeSignature, Value,
 };
 use crate::clarity::{ClarityName, SymbolicExpressionType};
-use crate::repl::settings::InitialLink;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
@@ -254,7 +253,7 @@ impl<'a> ASTDependencyDetector<'a> {
         from: &QualifiedContractIdentifier,
         to: &QualifiedContractIdentifier,
     ) {
-        if self.preloaded.contains_key(to) {
+        if self.preloaded.contains_key(from) {
             return;
         }
         if let Some(set) = self.dependencies.get_mut(from) {

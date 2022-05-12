@@ -18,7 +18,7 @@ pub use session::Session;
 pub use settings::SessionSettings;
 pub use settings::{Settings, SettingsFile};
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct ExecutionResult {
     pub contract: Option<(
         String,

@@ -42,29 +42,18 @@ pub mod frontend;
 #[cfg(feature = "cli")]
 pub use frontend::Terminal;
 
-use repl::settings::InitialLink;
 use repl::{Session, SessionSettings};
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub async fn init_session(fetch_contract: String) -> String {
+pub async fn init_session() -> String {
     let (session, output) = unsafe {
         match WASM_GLOBAL_CONTEXT.session.take() {
             Some(session) => (session, "".to_string()),
             None => {
-                let initial_links = if fetch_contract == "null" {
-                    vec![]
-                } else {
-                    vec![InitialLink {
-                        contract_id: fetch_contract.to_string(),
-                        stacks_node_addr: None,
-                        cache: None,
-                    }]
-                };
                 let mut settings = SessionSettings::default();
                 settings.include_boot_contracts =
                     vec![format!("costs-v{}", settings.repl_settings.costs_version)];
-                settings.initial_links = initial_links;
                 let mut session = Session::new(settings);
                 let output = session.start_wasm().await;
                 (session, output)
