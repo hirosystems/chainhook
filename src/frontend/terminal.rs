@@ -38,13 +38,18 @@ impl Terminal {
         Terminal { session }
     }
 
+    pub fn load(mut session: Session) -> Terminal {
+        session.is_interactive = true;
+        Terminal { session }
+    }
+
     pub fn start(&mut self) {
         println!("{}", green!(format!("clarity-repl v{}", VERSION.unwrap())));
         println!("{}", black!("Enter \"::help\" for usage hints."));
         println!("{}", black!("Connected to a transient in-memory database."));
 
-        let output = match self.session.start() {
-            Ok((output, _)) => output,
+        let output = match self.session.display_digest() {
+            Ok(output) => output,
             Err(e) => {
                 println!("{}", e);
                 std::process::exit(1);

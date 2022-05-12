@@ -3,7 +3,7 @@ use std::fmt;
 
 /// In a near future, we can go further in our static analysis and provide different levels
 /// of diagnostics, such as warnings, hints, best practices, etc.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Level {
     Note,
     Warning,
@@ -28,7 +28,7 @@ pub trait DiagnosableError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Diagnostic {
     pub level: Level,
     pub message: String,
@@ -71,17 +71,49 @@ impl Diagnostic {
         } else {
             output.push(format!("{}: {}", self.level, self.message,));
         }
-        if self.spans.len() > 0 {
-            let span = &self.spans[0];
+        output.append(&mut self.output_code(lines));
+        output
+    }
+
+    pub fn output_code(&self, lines: &Vec<String>) -> Vec<String> {
+        let mut output = Vec::new();
+        if self.spans.is_empty() {
+            return output;
+        }
+        let span = &self.spans[0];
+        let first_line = span.start_line.saturating_sub(1) as usize;
+        let last_line = span.end_line.saturating_sub(1) as usize;
+
+        output.push(lines[first_line].clone());
+        let mut pointer = format!(
+            "{: <1$}^",
+            "",
+            (span.start_column.saturating_sub(1)) as usize
+        );
+        if span.start_line == span.end_line {
+            pointer = format!(
+                "{}{:~<2$}",
+                pointer,
+                "",
+                (span.end_column - span.start_column) as usize
+            );
+        }
+        pointer = format!("{}", pointer);
+        output.push(pointer);
+
+        for span in self.spans.iter().skip(1) {
+            // output.push(format!(
+            //     "  {}:{}:{}:",
+            //     name, // span.filename,
+            //     span.start_line,
+            //     span.start_column,
+            // ));
+
             let first_line = span.start_line.saturating_sub(1) as usize;
             let last_line = span.end_line.saturating_sub(1) as usize;
 
             output.push(lines[first_line].clone());
-            let mut pointer = format!(
-                "{: <1$}^",
-                "",
-                (span.start_column.saturating_sub(1)) as usize
-            );
+            let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
             if span.start_line == span.end_line {
                 pointer = format!(
                     "{}{:~<2$}",
@@ -89,37 +121,12 @@ impl Diagnostic {
                     "",
                     (span.end_column - span.start_column) as usize
                 );
-            }
-            pointer = format!("{}", pointer);
-            output.push(pointer);
-
-            for span in self.spans.iter().skip(1) {
-                output.push(format!(
-                    "  {}:{}:{}:",
-                    name, // span.filename,
-                    span.start_line,
-                    span.start_column,
-                ));
-
-                let first_line = span.start_line.saturating_sub(1) as usize;
-                let last_line = span.end_line.saturating_sub(1) as usize;
-
-                output.push(lines[first_line].clone());
-                let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
-                if span.start_line == span.end_line {
-                    pointer = format!(
-                        "{}{:~<2$}",
-                        pointer,
-                        "",
-                        (span.end_column - span.start_column) as usize
-                    );
-                } else {
-                    for line_num in (first_line + 1)..last_line {
-                        output.push(lines[line_num].clone());
-                    }
+            } else {
+                for line_num in (first_line + 1)..last_line {
+                    output.push(lines[line_num].clone());
                 }
-                output.push(pointer);
             }
+            output.push(pointer);
         }
         output
     }
