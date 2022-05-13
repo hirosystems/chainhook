@@ -63,8 +63,8 @@ struct Current {
 pub struct DAPDebugger {
     rt: Runtime,
     default_sender: Option<StandardPrincipalData>,
-    pub path_to_contract_id: HashMap<String, QualifiedContractIdentifier>,
-    pub contract_id_to_path: HashMap<QualifiedContractIdentifier, String>,
+    pub path_to_contract_id: HashMap<PathBuf, QualifiedContractIdentifier>,
+    pub contract_id_to_path: HashMap<QualifiedContractIdentifier, PathBuf>,
     reader: FramedRead<Stdin, DebugAdapterCodec<ProtocolMessage>>,
     writer: FramedWrite<Stdout, DebugAdapterCodec<ProtocolMessage>>,
     state: Option<DebugState>,
@@ -403,12 +403,27 @@ impl DAPDebugger {
         let mut results = vec![];
         match arguments.breakpoints {
             Some(breakpoints) => {
+                let contract_id = match self
+                    .path_to_contract_id
+                    .get(&PathBuf::from(arguments.source.path.as_ref().unwrap()))
+                {
+                    Some(contract_id) => contract_id,
+                    None => {
+                        self.send_response(Response {
+                            request_seq: seq,
+                            success: false,
+                            message: Some(format!(
+                                "contract not found for path {}\nmap: {:?}",
+                                arguments.source.path.clone().unwrap(),
+                                self.path_to_contract_id
+                            )),
+                            body: None,
+                        });
+                        return false;
+                    }
+                };
                 let source = super::Source {
-                    name: self
-                        .path_to_contract_id
-                        .get(&arguments.source.path.clone().unwrap())
-                        .unwrap()
-                        .clone(),
+                    name: contract_id.clone(),
                 };
                 for breakpoint in breakpoints {
                     let column = match breakpoint.column {
@@ -959,7 +974,7 @@ impl EvalHook for DAPDebugger {
                     .contract_id_to_path
                     .get(&env.contract_context.contract_identifier)
                 {
-                    Some(path) => path.clone(),
+                    Some(path) => path.to_str().unwrap().to_string(),
                     _ => "debugger".to_string(),
                 },
             ),
