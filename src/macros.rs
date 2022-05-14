@@ -87,6 +87,28 @@ macro_rules! blue {
 }
 
 #[allow(unused_macros)]
+macro_rules! purple {
+    ($($arg:tt)*) => (
+        {
+            use atty::Stream;
+            use ansi_term::{Colour, Style};
+            if atty::is(Stream::Stdout) {
+                let colour = Colour::Purple.bold();
+                format!(
+                    "{}",
+                    colour.paint($($arg)*)
+                )
+            } else {
+                format!(
+                    "{}",
+                    $($arg)*
+                )
+            }
+        }
+    )
+}
+
+#[allow(unused_macros)]
 macro_rules! black {
     ($($arg:tt)*) => (
         {
