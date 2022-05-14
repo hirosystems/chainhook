@@ -440,6 +440,8 @@ impl Session {
             #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::debug") => self.debug(&mut output, cmd),
             #[cfg(feature = "cli")]
+            cmd if cmd.starts_with("::trace") => self.trace(&mut output, cmd),
+            #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::reload") => self.reload(&mut output),
 
             snippet => {
@@ -544,6 +546,31 @@ impl Session {
             Err(result) => result,
         };
         output.append(&mut result);
+    }
+
+    #[cfg(feature = "cli")]
+    pub fn trace(&mut self, output: &mut Vec<String>, cmd: &str) {
+        use super::tracer::Tracer;
+
+        let snippet = match cmd.split_once(" ") {
+            Some((_, snippet)) => snippet,
+            _ => return output.push(red!("Usage: ::trace <expr>")),
+        };
+
+        let tracer = Tracer::new(snippet.to_string());
+
+        match self.formatted_interpretation(
+            snippet.to_string(),
+            None,
+            true,
+            Some(vec![Box::new(tracer)]),
+            None,
+        ) {
+            Ok((mut out, result)) => {
+                output.append(&mut out);
+            }
+            Err(mut result) => output.append(&mut result),
+        };
     }
 
     #[cfg(feature = "cli")]
