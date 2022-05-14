@@ -13,10 +13,8 @@ use crate::repl::tracer::SymbolicExpressionType::List;
 pub struct Tracer {
     snippet: String,
     stack: Vec<u64>,
-    arg_count: Vec<usize>,
-    arg_stack: Vec<Vec<u64>>,
-    pending_call: Vec<String>,
-    pending_args: Vec<String>,
+    pending_call_string: Vec<String>,
+    pending_args: Vec<Vec<u64>>,
 }
 
 impl Tracer {
@@ -25,16 +23,9 @@ impl Tracer {
         Tracer {
             snippet,
             stack: vec![0],
-            arg_count: Vec::new(),
-            arg_stack: Vec::new(),
-            pending_call: Vec::new(),
+            pending_call_string: Vec::new(),
             pending_args: Vec::new(),
         }
-    }
-
-    fn collect_args(&mut self, num: usize) {
-        self.arg_count.push(num);
-        self.arg_stack.push(Vec::new());
     }
 }
 
@@ -45,14 +36,6 @@ impl EvalHook for Tracer {
         context: &LocalContext,
         expr: &SymbolicExpression,
     ) {
-        if let Some(arg_count) = self.arg_count.last() {
-            if let Some(arg_stack) = self.arg_stack.last_mut() {
-                if arg_stack.is_empty() {
-                    arg_stack.push(expr.id);
-                }
-            }
-        }
-
         let list = match &expr.expr {
             List(list) => list,
             _ => return,
@@ -65,9 +48,10 @@ impl EvalHook for Tracer {
                 {
                     match native_function {
                         NativeFunctions::ContractCall => {
-                            let call = format!(
-                                "{}├── {}  {}",
-                                "│   ".repeat(self.stack.len() - self.pending_call.len() - 1),
+                            let mut call = format!(
+                                "{}├── {}  {}\n",
+                                "│   "
+                                    .repeat(self.stack.len() - self.pending_call_string.len() - 1),
                                 expr,
                                 black!(format!(
                                     "{}:{}:{}",
@@ -86,7 +70,8 @@ impl EvalHook for Tracer {
                                 };
                                 lines.push(format!(
                                     "{}│ {}",
-                                    "│   ".repeat(self.stack.len() - self.pending_call.len()),
+                                    "│   "
+                                        .repeat(self.stack.len() - self.pending_call_string.len()),
                                     purple!(format!("↳ callee: {}", callee)),
                                 ));
                             }
@@ -94,16 +79,19 @@ impl EvalHook for Tracer {
                             if args.len() > 0 {
                                 lines.push(format!(
                                     "{}│ {}",
-                                    "│   ".repeat(self.stack.len() - self.pending_call.len()),
+                                    "│   "
+                                        .repeat(self.stack.len() - self.pending_call_string.len()),
                                     purple!("↳ args:"),
                                 ));
-                                self.pending_call.push(call);
-                                self.pending_args.push(lines.join("\n"));
-                                self.collect_args(args.len() - 2);
+                                call.push_str(lines.join("\n").as_str());
+                                self.pending_call_string.push(call);
+                                self.pending_args
+                                    .push(args[2..].iter().map(|arg| arg.id).collect());
                             } else {
                                 println!(
                                     "{}{}",
-                                    "│   ".repeat(self.stack.len() - self.pending_call.len()),
+                                    "│   "
+                                        .repeat(self.stack.len() - self.pending_call_string.len()),
                                     call
                                 );
                             }
@@ -112,9 +100,9 @@ impl EvalHook for Tracer {
                     }
                 } else {
                     // Call user-defined function
-                    let call = format!(
-                        "{}├── {}  {}",
-                        "│   ".repeat(self.stack.len() - self.pending_call.len() - 1),
+                    let mut call = format!(
+                        "{}├── {}  {}\n",
+                        "│   ".repeat(self.stack.len() - self.pending_call_string.len() - 1),
                         expr,
                         black!(format!(
                             "{}:{}:{}",
@@ -123,18 +111,22 @@ impl EvalHook for Tracer {
                             expr.span.start_column,
                         )),
                     );
-                    self.pending_args.push(format!(
-                        "{}│ {}",
-                        "│   ".repeat(self.stack.len() - self.pending_call.len()),
-                        purple!("↳ args:"),
-                    ));
+                    call.push_str(
+                        format!(
+                            "{}│ {}",
+                            "│   ".repeat(self.stack.len() - self.pending_call_string.len()),
+                            purple!("↳ args:"),
+                        )
+                        .as_str(),
+                    );
                     if args.len() > 0 {
-                        self.pending_call.push(call);
-                        self.collect_args(args.len());
+                        self.pending_call_string.push(call);
+                        self.pending_args
+                            .push(args.iter().map(|arg| arg.id).collect());
                     } else {
                         println!(
                             "{}{}",
-                            "│   ".repeat(self.stack.len() - self.pending_call.len()),
+                            "│   ".repeat(self.stack.len() - self.pending_call_string.len()),
                             call
                         );
                     }
@@ -156,7 +148,7 @@ impl EvalHook for Tracer {
                 if let Ok(value) = res {
                     println!(
                         "{}└── {}",
-                        "│   ".repeat(self.stack.len() - self.pending_call.len() - 1),
+                        "│   ".repeat(self.stack.len() - self.pending_call_string.len() - 1),
                         blue!(value.to_string())
                     );
                 }
@@ -165,28 +157,22 @@ impl EvalHook for Tracer {
         }
 
         // Collect argument values
-        if let (Some(arg_count), Some(arg_stack)) =
-            (self.arg_count.last(), self.arg_stack.last_mut())
-        {
-            if let Some(arg) = arg_stack.last() {
+        if let Some(arg_stack) = self.pending_args.last_mut() {
+            if let Some((arg, rest)) = arg_stack.split_first() {
                 if *arg == expr.id {
-                    let arg_count = self.arg_count.pop().unwrap() - 1;
                     if let Ok(value) = res {
-                        self.pending_args
+                        self.pending_call_string
                             .last_mut()
                             .unwrap()
                             .push_str(format!(" {}", value).as_str());
                     }
-                    // If this was the last argument, print it out and pop the stack
-                    if arg_count == 0 {
-                        let call = self.pending_call.pop().unwrap();
-                        println!("{}", call);
-                        println!("{}", self.pending_args.pop().unwrap().to_string());
-                        self.arg_stack.pop();
+
+                    // If this was the last argument, print the pending call and pop the stack
+                    if rest.is_empty() {
+                        println!("{}", self.pending_call_string.pop().unwrap());
+                        self.pending_args.pop();
                     } else {
-                        // Pop this arg and push the decremented arg count back on the stack
-                        self.arg_count.push(arg_count);
-                        arg_stack.pop();
+                        arg_stack.remove(0);
                     }
                 }
             }
