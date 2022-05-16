@@ -15,6 +15,7 @@ pub struct Tracer {
     stack: Vec<u64>,
     pending_call_string: Vec<String>,
     pending_args: Vec<Vec<u64>>,
+    emitted_events: usize,
 }
 
 impl Tracer {
@@ -25,6 +26,7 @@ impl Tracer {
             stack: vec![0],
             pending_call_string: Vec::new(),
             pending_args: Vec::new(),
+            emitted_events: 0,
         }
     }
 }
@@ -143,6 +145,25 @@ impl EvalHook for Tracer {
         expr: &SymbolicExpression,
         res: &Result<Value, Error>,
     ) {
+        // Print events as they are emitted
+        let emitted_events = env
+            .global_context
+            .event_batches
+            .iter()
+            .flat_map(|b| &b.events)
+            .collect::<Vec<_>>();
+        if emitted_events.len() > self.emitted_events {
+            for i in self.emitted_events..emitted_events.len() {
+                let event = emitted_events[i];
+                println!(
+                    "{}│ {}",
+                    "│   ".repeat(self.stack.len() - self.pending_call_string.len() - 1),
+                    black!(format!("✸ {}", event.json_serialize())),
+                )
+            }
+            self.emitted_events = emitted_events.len();
+        }
+
         if let Some(last) = self.stack.last() {
             if *last == expr.id {
                 if let Ok(value) = res {

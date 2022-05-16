@@ -559,17 +559,21 @@ impl Session {
 
         let tracer = Tracer::new(snippet.to_string());
 
-        match self.formatted_interpretation(
+        match self.interpret(
             snippet.to_string(),
             None,
-            true,
             Some(vec![Box::new(tracer)]),
+            false,
             None,
         ) {
-            Ok((mut out, result)) => {
-                output.append(&mut out);
+            Ok(_) => (),
+            Err(mut diagnostics) => {
+                let lines = snippet.lines();
+                let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
+                for d in diagnostics {
+                    output.append(&mut d.output("<snippet>", &formatted_lines));
+                }
             }
-            Err(mut result) => output.append(&mut result),
         };
     }
 
