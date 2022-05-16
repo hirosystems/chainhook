@@ -125,8 +125,8 @@ impl Terminal {
                                 prompt = String::from(">> ");
                                 self.session.executed.push(expr.to_string());
                                 editor.add_history_entry(expr);
-                                input_buffer.clear();
                             }
+                            input_buffer.clear();
                         }
                         Ok(Input::Incomplete(str)) => {
                             prompt = format!("{}.. ", str);
