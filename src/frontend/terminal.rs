@@ -35,6 +35,9 @@ fn complete_input(str: &str) -> Result<Input, (char, char)> {
             '(' | '{' => {
                 if !in_string {
                     brackets.push(character);
+                    // skip whitespace between the previous form's
+                    // closing paren (if there is one) and the current
+                    // form's opening paren
                     match (character, paren_count) {
                         ('(', 0) => {
                             paren_count += 1;
@@ -116,8 +119,11 @@ impl Terminal {
                     let input = input_buffer.join(" ");
                     match complete_input(&input) {
                         Ok(Input::Complete(forms)) => {
+                            let one_expr = forms.len() == 1;
                             for expr in forms {
-                                println!(";; {}", expr);
+                                if !one_expr {
+                                    println!(";; {}", expr);
+                                }
                                 let output = self.session.handle_command(expr);
                                 for line in output {
                                     println!("{}", line);
