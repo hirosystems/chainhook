@@ -1077,7 +1077,7 @@ impl Session {
     }
 
     #[cfg(feature = "cli")]
-    fn get_accounts(&mut self, output: &mut Vec<String>) {
+    fn get_accounts(&self, output: &mut Vec<String>) {
         let accounts = self.interpreter.get_accounts();
         if accounts.len() > 0 {
             let tokens = self.interpreter.get_tokens();
@@ -1109,7 +1109,7 @@ impl Session {
     }
 
     #[cfg(feature = "cli")]
-    fn get_contracts(&mut self, output: &mut Vec<String>) {
+    fn get_contracts(&self, output: &mut Vec<String>) {
         if self.contracts.len() > 0 {
             let mut table = Table::new();
             table.add_row(row!["Contract identifier", "Public functions"]);
@@ -1239,7 +1239,10 @@ impl Session {
     }
 
     pub fn display_digest(&self) -> Result<String, String> {
-        Ok("".to_string())
+        let mut output = vec![];
+        self.get_contracts(&mut output);
+        self.get_accounts(&mut output);
+        Ok(output.join("\n"))
     }
 }
 

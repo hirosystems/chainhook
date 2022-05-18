@@ -102,13 +102,6 @@ impl Diagnostic {
         output.push(pointer);
 
         for span in self.spans.iter().skip(1) {
-            // output.push(format!(
-            //     "  {}:{}:{}:",
-            //     name, // span.filename,
-            //     span.start_line,
-            //     span.start_column,
-            // ));
-
             let first_line = span.start_line.saturating_sub(1) as usize;
             let last_line = span.end_line.saturating_sub(1) as usize;
 
