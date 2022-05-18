@@ -13,12 +13,17 @@ use crate::clarity::types::{
 use crate::clarity::{ClarityName, SymbolicExpressionType};
 use crate::repl::settings::InitialLink;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
 use std::process;
 
 use super::ast_visitor::TypedVar;
+
+lazy_static! {
+    pub static ref DEFAULT_NAME: ClarityName = ClarityName::try_from("placeholder").unwrap();
+}
 
 pub struct ASTDependencyDetector<'a> {
     dependencies: HashMap<QualifiedContractIdentifier, DependencySet>,
@@ -420,7 +425,8 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
             Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
-                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ())
+                        .unwrap_or(TypeSignature::BoolType)
                 })
                 .collect(),
             None => Vec::new(),
@@ -457,7 +463,8 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
             Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
-                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ())
+                        .unwrap_or(TypeSignature::BoolType)
                 })
                 .collect(),
             None => Vec::new(),
@@ -494,7 +501,8 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
             Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
-                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ())
+                        .unwrap_or(TypeSignature::BoolType)
                 })
                 .collect(),
             None => Vec::new(),
@@ -552,7 +560,7 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         function_name: &'a ClarityName,
         args: &'a [SymbolicExpression],
     ) -> bool {
-        let trait_instance = trait_ref.match_atom().unwrap();
+        let trait_instance = trait_ref.match_atom().unwrap_or(&DEFAULT_NAME);
         if let Some(trait_identifier) = self.get_param_trait(trait_instance) {
             let dependencies = if let Some(trait_definition) = self.defined_traits.get(&(
                 &trait_identifier.contract_identifier,
@@ -648,7 +656,8 @@ impl<'a, 'b> ASTVisitor<'a> for PreloadedVisitor<'a, 'b> {
             Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
-                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ())
+                        .unwrap_or(TypeSignature::BoolType)
                 })
                 .collect(),
             None => Vec::new(),
@@ -670,7 +679,8 @@ impl<'a, 'b> ASTVisitor<'a> for PreloadedVisitor<'a, 'b> {
             Some(parameters) => parameters
                 .iter()
                 .map(|typed_var| {
-                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ()).unwrap()
+                    TypeSignature::parse_type_repr(typed_var.type_expr, &mut ())
+                        .unwrap_or(TypeSignature::BoolType)
                 })
                 .collect(),
             None => Vec::new(),
@@ -1148,6 +1158,38 @@ mod tests {
         let mut contracts = HashMap::new();
         let snippet1 = "
 (define-public (hello (a int))
+    (ok u0)
+)"
+        .to_string();
+        let foo = match session.build_ast(&snippet1, Some("foo")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        let snippet = "(contract-call? .foo hello 4)".to_string();
+        let test_identifier = match session.build_ast(&snippet, Some("test")) {
+            Ok((contract_identifier, ast, _)) => {
+                contracts.insert(contract_identifier.clone(), ast);
+                contract_identifier
+            }
+            Err(_) => panic!("expected success"),
+        };
+
+        let dependencies =
+            ASTDependencyDetector::detect_dependencies(&contracts, &BTreeMap::new()).unwrap();
+        assert_eq!(dependencies[&test_identifier].len(), 1);
+        assert!(dependencies[&test_identifier].has_dependency(&foo).unwrap());
+    }
+
+    #[test]
+    fn avoid_bad_type() {
+        let mut session = Session::new(SessionSettings::default());
+        let mut contracts = HashMap::new();
+        let snippet1 = "
+(define-public (hello (a (list principal)))
     (ok u0)
 )"
         .to_string();
