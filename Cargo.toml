@@ -1,6 +1,6 @@
 [package]
 name = "clarity-repl"
-version = "0.27.0"
+version = "0.26.0"
 description = "Clarity REPL"
 authors = ["Ludo Galabru <ludo@hiro.so>", "Brice Dobry <brice@hiro.so>", "Reed Rosenbluth <reed@hiro.so>"]
 readme = "README.md"
@@ -19,7 +19,7 @@ categories = ["command-line-utilities", "development-tools", "development-tools:
 [dependencies]
 ansi_term = "0.12.1"
 lazy_static = "1.4.0"
-regex = "1.3.4"
+regex = "1.5.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0.47", features = ["unbounded_depth"] }
 sha2 = "0.9.3"
@@ -34,9 +34,9 @@ getrandom = { version = "0.2.3", features = ["js"] }
 rand_pcg = "0.3.1"
 rand_seeder = "0.2.2"
 atty = "0.2.14"
-tokio = { version = "=1.15.0", features = ["full"], optional = true }
 
 # DAP Debugger
+tokio = { version = "=1.17.0", features = ["full"], optional = true }
 tokio-util = { version = "0.7.1", features = ["codec"], optional = true }
 futures = { version = "0.3.12", optional = true }
 debug_types = { version = "1.0.0", optional = true }
@@ -49,12 +49,10 @@ memchr = { version = "2.4.1", optional = true }
 pico-args = { version = "0.4.0", optional = true }
 rustyline = { version = "9.1.1", optional = true }
 prettytable-rs = { version = "0.8.0", optional = true }
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
 
 # WASM
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4.24", optional = true }
-reqwest-wasm = { version = "0.11", features = ["json"], optional = true }
 
 [lib]
 name = "clarity_repl"
@@ -71,17 +69,18 @@ path = "src/bin.rs"
 
 [features]
 default = ["cli", "dap"]
-cli = ["pico-args", "rustyline", "prettytable-rs", "reqwest", "tokio"]
+cli = ["pico-args", "rustyline", "prettytable-rs"]
 dap = [
+    "tokio",
     "tokio-util",
     "futures",
     "debug_types",
     "httparse",
     "bytes",
-    "log",
     "memchr",
+    "log",
 ]
-wasm = ["wasm-bindgen", "reqwest-wasm", "wasm-bindgen-futures"]
+wasm = ["wasm-bindgen", "wasm-bindgen-futures"]
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

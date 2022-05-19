@@ -22,8 +22,8 @@ pub struct CoverageReporter {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct TestCoverageReport {
-    test_name: String,
-    contracts_coverage: HashMap<QualifiedContractIdentifier, ContractCoverageReport>,
+    pub test_name: String,
+    pub contracts_coverage: HashMap<QualifiedContractIdentifier, ContractCoverageReport>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
