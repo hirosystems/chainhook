@@ -1,3 +1,43 @@
+# [0.28.0](https://github.com/hirosystems/clarity-repl/compare/v0.27.0...v0.28.0) (2022-05-19)
+
+
+### Bug Fixes
+
+* address feedbacks ([da81a11](https://github.com/hirosystems/clarity-repl/commit/da81a1118016b0453d214fe71cd3f4f65ce7ae3b))
+* check the maximum length of a contract name ([24cb554](https://github.com/hirosystems/clarity-repl/commit/24cb55437290883cae55089790473c541e4bb883)), closes [#145](https://github.com/hirosystems/clarity-repl/issues/145)
+* **dap:** return a map's type for its value ([cc6a3a9](https://github.com/hirosystems/clarity-repl/commit/cc6a3a9494af5bbf19de8be87f443e671e8d0585))
+* **dap:** track the stack frames on every expression ([a19fc65](https://github.com/hirosystems/clarity-repl/commit/a19fc6565e2479e8b51eb26c32aa003d730ba1cb))
+* disable dap for wasm builds ([a60cdd4](https://github.com/hirosystems/clarity-repl/commit/a60cdd4fc428129b5201f8ed0378bacfe4e28063))
+* harden `ASTVisitor` to handle invalid ASTs ([4da54ff](https://github.com/hirosystems/clarity-repl/commit/4da54ff19eba895bcbef05e54b1350d176d506aa)), closes [hirosystems/clarinet#334](https://github.com/hirosystems/clarinet/issues/334)
+* make dep detector robust to invalid ASTs ([e179647](https://github.com/hirosystems/clarity-repl/commit/e179647d36f6102e31853eacc409ccc9818d8518))
+* make TestCoverageReport attributes public ([41f98d7](https://github.com/hirosystems/clarity-repl/commit/41f98d7f9037fdd19f94ee9e223e9a3e61a4305b))
+* resolve problem comparing paths in Windows ([e010141](https://github.com/hirosystems/clarity-repl/commit/e010141218f92c78ad820a6418c31ea30ef75965))
+* update block limits to 2.05 numbers ([f66a0d7](https://github.com/hirosystems/clarity-repl/commit/f66a0d769fbf6429a51ec585751953ce06676237)), closes [#114](https://github.com/hirosystems/clarity-repl/issues/114)
+* update tests for eval_hooks changes ([7b5c059](https://github.com/hirosystems/clarity-repl/commit/7b5c059ee0a676994f0ed7ff3695f862aea423aa))
+* wasm build ([dea995d](https://github.com/hirosystems/clarity-repl/commit/dea995d734446f41ead737638fcc32c22d4d6503))
+
+
+### Features
+
+* add `::trace` command ([389eaef](https://github.com/hirosystems/clarity-repl/commit/389eaef67460d93c3c71beae0de5e1c09741c6e4))
+* add emitted events to execution trace ([9f2a913](https://github.com/hirosystems/clarity-repl/commit/9f2a913100c41393710df383717fa9ad518ca9ea))
+* add reload command ([e2f2e53](https://github.com/hirosystems/clarity-repl/commit/e2f2e53b52886b021ec295cc0499129dd219be47))
+* better simulated block time ([9f5f0f8](https://github.com/hirosystems/clarity-repl/commit/9f5f0f808e695a3927174ca59ae5b235486cab0e)), closes [hirosystems/clarinet#310](https://github.com/hirosystems/clarinet/issues/310)
+* **dap:** add support for watching variables ([7e750ea](https://github.com/hirosystems/clarity-repl/commit/7e750ea5006edbf2b84f925b0fa62f973ec5b7d4))
+* **dap:** added `complete` method to `EvalHook` ([51ee196](https://github.com/hirosystems/clarity-repl/commit/51ee19699aeebf1b495e0c8f679b7f7f650febd0))
+* **dap:** begin support for DAP debugger ([f133bee](https://github.com/hirosystems/clarity-repl/commit/f133bee333fef7e02c38c2f6f39d2de5ffebb0b4))
+* **dap:** implement evaluate request ([9ccd742](https://github.com/hirosystems/clarity-repl/commit/9ccd742898ee7f727c23cdbeb3c423f70d89344c))
+* **dap:** implement scopes and variables ([40bfde5](https://github.com/hirosystems/clarity-repl/commit/40bfde585f658c58c94684e245c762c1b929af0d))
+* **dap:** stack traces and pause ([03611da](https://github.com/hirosystems/clarity-repl/commit/03611da2320add5120e7b534b8296d66d66e64a6))
+* display digest ([69a48af](https://github.com/hirosystems/clarity-repl/commit/69a48af33dc69091b1f508a3d5514df89a6691d1))
+* **reload:** do not clear `executed` ([86dac32](https://github.com/hirosystems/clarity-repl/commit/86dac32b62088c01e08b084fcb85c4467f6f14de))
+* **reload:** have error reading a file being a catastrophic error ([60afeb8](https://github.com/hirosystems/clarity-repl/commit/60afeb87f1f3d0a515ba653fe2c58ee80dfe1012))
+* **reload:** report error when file in path can not be reloaded ([9827021](https://github.com/hirosystems/clarity-repl/commit/9827021b62da84af09aed21f2699baa6ceb6e9b4))
+* **reload:** use `std::mem::take` instead of `clone` and `clear` ([456239a](https://github.com/hirosystems/clarity-repl/commit/456239a27e8261c865650420c222c69facb07acf))
+* return unresolved dependencies from detector ([5a9d122](https://github.com/hirosystems/clarity-repl/commit/5a9d122cb25281b45e8ebc42561dbb4c33abb9fc))
+* track a dependency must be pre-deployed ([fe076d8](https://github.com/hirosystems/clarity-repl/commit/fe076d8622f9d130cea23a3e3281d2fd07b7a33a)), closes [#119](https://github.com/hirosystems/clarity-repl/issues/119)
+* various adjustments ([0fc2cb3](https://github.com/hirosystems/clarity-repl/commit/0fc2cb3f2ec5b9b35ca28030992a102d7afe9986))
+
 # [0.27.0](https://github.com/hirosystems/clarity-repl/compare/v0.26.0...v0.27.0) (2022-05-11)
 
 
