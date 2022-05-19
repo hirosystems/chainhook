@@ -106,7 +106,11 @@ impl Diagnostic {
             let last_line = span.end_line.saturating_sub(1) as usize;
 
             output.push(lines[first_line].clone());
-            let mut pointer = format!("{: <1$}^", "", (span.start_column - 1) as usize);
+            let mut pointer = format!(
+                "{: <1$}^",
+                "",
+                (span.start_column.saturating_sub(1)) as usize
+            );
             if span.start_line == span.end_line {
                 pointer = format!(
                     "{}{:~<2$}",

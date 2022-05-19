@@ -32,8 +32,16 @@ use prettytable::{Cell, Row, Table};
 
 use super::SessionSettings;
 
-#[cfg(feature = "wasm")]
-use reqwest_wasm as reqwest;
+static BOOT_TESTNET_ADDRESS: &str = "ST000000000000000000002AMW42H";
+static BOOT_MAINNET_ADDRESS: &str = "SP000000000000000000002Q6VF78";
+
+lazy_static! {
+    static ref BOOT_TESTNET_PRINCIPAL: StandardPrincipalData =
+        PrincipalData::parse_standard_principal(&BOOT_TESTNET_ADDRESS).unwrap();
+    static ref BOOT_MAINNET_PRINCIPAL: StandardPrincipalData =
+        PrincipalData::parse_standard_principal(&BOOT_MAINNET_ADDRESS).unwrap();
+}
+
 enum Command {
     LoadLocalContract(String),
     LoadDeployContract(String),
@@ -100,15 +108,11 @@ impl Session {
     pub fn load_boot_contracts(&mut self) {
         let default_tx_sender = self.interpreter.get_tx_sender();
 
-        let boot_testnet_address = "ST000000000000000000002AMW42H";
-        let boot_testnet_deployer = PrincipalData::parse_standard_principal(&boot_testnet_address)
-            .expect("Unable to parse deployer's address");
+        let boot_testnet_deployer = BOOT_TESTNET_PRINCIPAL.clone();
         self.interpreter.set_tx_sender(boot_testnet_deployer);
         self.include_boot_contracts();
 
-        let boot_mainnet_address = "SP000000000000000000002Q6VF78";
-        let boot_mainnet_deployer = PrincipalData::parse_standard_principal(&boot_mainnet_address)
-            .expect("Unable to parse deployer's address");
+        let boot_mainnet_deployer = BOOT_MAINNET_PRINCIPAL.clone();
         self.interpreter.set_tx_sender(boot_mainnet_deployer);
         self.include_boot_contracts();
         self.interpreter.set_tx_sender(default_tx_sender);
@@ -359,26 +363,20 @@ impl Session {
         let bns_contract = ContractName::try_from("bns").unwrap();
         let pox_contract = ContractName::try_from("pox").unwrap();
 
-        let boot_testnet =
-            PrincipalData::parse_standard_principal("ST000000000000000000002AMW42H").unwrap();
-
-        let boot_mainnet =
-            PrincipalData::parse_standard_principal("SP000000000000000000002Q6VF78").unwrap();
-
         asts.insert(
-            QualifiedContractIdentifier::new(boot_testnet.clone(), bns_contract.clone()),
+            QualifiedContractIdentifier::new(BOOT_TESTNET_PRINCIPAL.clone(), bns_contract.clone()),
             bns_ast.clone(),
         );
         asts.insert(
-            QualifiedContractIdentifier::new(boot_mainnet.clone(), bns_contract),
+            QualifiedContractIdentifier::new(BOOT_MAINNET_PRINCIPAL.clone(), bns_contract),
             bns_ast,
         );
         asts.insert(
-            QualifiedContractIdentifier::new(boot_testnet, pox_contract.clone()),
+            QualifiedContractIdentifier::new(BOOT_TESTNET_PRINCIPAL.clone(), pox_contract.clone()),
             pox_ast.clone(),
         );
         asts.insert(
-            QualifiedContractIdentifier::new(boot_mainnet, pox_contract),
+            QualifiedContractIdentifier::new(BOOT_MAINNET_PRINCIPAL.clone(), pox_contract),
             pox_ast,
         );
         asts
@@ -391,16 +389,14 @@ impl Session {
         if !self.settings.include_boot_contracts.is_empty() {
             let default_tx_sender = self.interpreter.get_tx_sender();
 
-            let boot_testnet_address = "ST000000000000000000002AMW42H";
             let boot_testnet_deployer =
-                PrincipalData::parse_standard_principal(&boot_testnet_address)
+                PrincipalData::parse_standard_principal(&BOOT_TESTNET_ADDRESS)
                     .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_testnet_deployer);
             self.include_boot_contracts();
 
-            let boot_mainnet_address = "SP000000000000000000002Q6VF78";
             let boot_mainnet_deployer =
-                PrincipalData::parse_standard_principal(&boot_mainnet_address)
+                PrincipalData::parse_standard_principal(&BOOT_MAINNET_ADDRESS)
                     .expect("Unable to parse deployer's address");
             self.interpreter.set_tx_sender(boot_mainnet_deployer);
             self.include_boot_contracts();
@@ -1115,8 +1111,8 @@ impl Session {
             table.add_row(row!["Contract identifier", "Public functions"]);
             let contracts = self.contracts.clone();
             for (contract_id, methods) in contracts.iter() {
-                if !contract_id.starts_with("ST000000000000000000002AMW42H")
-                    && !contract_id.starts_with("SP000000000000000000002Q6VF78")
+                if !contract_id.starts_with(&BOOT_TESTNET_ADDRESS)
+                    && !contract_id.starts_with(&BOOT_MAINNET_ADDRESS)
                 {
                     let mut formatted_methods = vec![];
                     for (method_name, method_args) in methods.iter() {
