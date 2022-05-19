@@ -1155,7 +1155,7 @@ impl Session {
     }
 
     #[cfg(not(feature = "cli"))]
-    fn get_accounts(&mut self, output: &mut Vec<String>) {
+    fn get_accounts(&self, output: &mut Vec<String>) {
         if self.settings.initial_accounts.len() > 0 {
             let mut initial_accounts = self.settings.initial_accounts.clone();
             for account in initial_accounts.drain(..) {
@@ -1168,7 +1168,7 @@ impl Session {
     }
 
     #[cfg(not(feature = "cli"))]
-    fn get_contracts(&mut self, output: &mut Vec<String>) {
+    fn get_contracts(&self, output: &mut Vec<String>) {
         for (contract_id, methods) in self.contracts.iter() {
             if !contract_id.ends_with(".pox")
                 && !contract_id.ends_with(".bns")
