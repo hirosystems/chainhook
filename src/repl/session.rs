@@ -920,6 +920,10 @@ impl Session {
         ));
         output.push(format!(
             "{}",
+            help_colour.paint("::trace <expr>\t\t\t\tGenerate an execution trace for <expr>")
+        ));
+        output.push(format!(
+            "{}",
             help_colour.paint("::reload \t\t\t\tReload the existing contract(s) in the session")
         ));
     }
