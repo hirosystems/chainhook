@@ -365,7 +365,13 @@ impl<'a> ASTDependencyDetector<'a> {
         function_name: &ClarityName,
         args: &'a [SymbolicExpression],
     ) -> Vec<QualifiedContractIdentifier> {
-        let function_signature = trait_definition.get(function_name).unwrap();
+        // Since this may run before checkers, the function may not be valid.
+        // If the key does not exist, just return an empty set and the error
+        // will be reported elsewhere.
+        let function_signature = match trait_definition.get(function_name) {
+            Some(signature) => signature,
+            None => return Vec::new(),
+        };
         self.check_callee_type(&function_signature.args, args)
     }
 
