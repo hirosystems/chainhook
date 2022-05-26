@@ -18,6 +18,7 @@ lazy_static! {
     // we may need a default value for some expressions. This can be used for a
     // missing `ClarityName`.
     static ref DEFAULT_NAME: ClarityName = ClarityName::from("placeholder__");
+    static ref DEFAULT_EXPR: SymbolicExpression = SymbolicExpression::atom(DEFAULT_NAME.clone());
 }
 
 pub trait ASTVisitor<'a> {
@@ -46,18 +47,26 @@ pub trait ASTVisitor<'a> {
                     rv = match define_function {
                         DefineFunctions::Constant => self.traverse_define_constant(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         DefineFunctions::PrivateFunction => {
-                            match args[0].match_list() {
+                            match args.get(0).unwrap_or(&DEFAULT_EXPR).match_list() {
                                 Some(signature) => {
                                     let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
                                     let params = match signature.len() {
                                         1 => None,
                                         _ => match_pairs(&signature[1..]),
                                     };
-                                    self.traverse_define_private(expr, name, params, &args[1]);
+                                    self.traverse_define_private(
+                                        expr,
+                                        name,
+                                        params,
+                                        args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                    );
                                 }
                                 _ => {
                                     false;
@@ -65,69 +74,107 @@ pub trait ASTVisitor<'a> {
                             }
                             true
                         }
-                        DefineFunctions::ReadOnlyFunction => match args[0].match_list() {
-                            Some(signature) => {
-                                let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                                let params = match signature.len() {
-                                    1 => None,
-                                    _ => match_pairs(&signature[1..]),
-                                };
-                                self.traverse_define_read_only(expr, name, params, &args[1])
+                        DefineFunctions::ReadOnlyFunction => {
+                            match args.get(0).unwrap_or(&DEFAULT_EXPR).match_list() {
+                                Some(signature) => {
+                                    let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
+                                    let params = match signature.len() {
+                                        1 => None,
+                                        _ => match_pairs(&signature[1..]),
+                                    };
+                                    self.traverse_define_read_only(
+                                        expr,
+                                        name,
+                                        params,
+                                        args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                    )
+                                }
+                                _ => false,
                             }
-                            _ => false,
-                        },
-                        DefineFunctions::PublicFunction => match args[0].match_list() {
-                            Some(signature) => {
-                                let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                                let params = match signature.len() {
-                                    1 => None,
-                                    _ => match_pairs(&signature[1..]),
-                                };
-                                self.traverse_define_public(expr, name, params, &args[1])
+                        }
+                        DefineFunctions::PublicFunction => {
+                            match args.get(0).unwrap_or(&DEFAULT_EXPR).match_list() {
+                                Some(signature) => {
+                                    let name = signature[0].match_atom().unwrap_or(&DEFAULT_NAME);
+                                    let params = match signature.len() {
+                                        1 => None,
+                                        _ => match_pairs(&signature[1..]),
+                                    };
+                                    self.traverse_define_public(
+                                        expr,
+                                        name,
+                                        params,
+                                        args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                    )
+                                }
+                                _ => false,
                             }
-                            _ => false,
-                        },
+                        }
                         DefineFunctions::NonFungibleToken => self.traverse_define_nft(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         DefineFunctions::FungibleToken => self.traverse_define_ft(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
                             args.get(1),
                         ),
                         DefineFunctions::Map => self.traverse_define_map(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         DefineFunctions::PersistedVariable => self.traverse_define_data_var(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         DefineFunctions::Trait => self.traverse_define_trait(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
                             &args[1..],
                         ),
                         DefineFunctions::UseTrait => self.traverse_use_trait(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            args[1].match_field().unwrap_or(&TraitIdentifier {
-                                contract_identifier: QualifiedContractIdentifier::transient(),
-                                name: DEFAULT_NAME.clone(),
-                            }),
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_field()
+                                .unwrap_or(&TraitIdentifier {
+                                    contract_identifier: QualifiedContractIdentifier::transient(),
+                                    name: DEFAULT_NAME.clone(),
+                                }),
                         ),
                         DefineFunctions::ImplTrait => self.traverse_impl_trait(
                             expr,
-                            args[0].match_field().unwrap_or(&TraitIdentifier {
-                                contract_identifier: QualifiedContractIdentifier::transient(),
-                                name: DEFAULT_NAME.clone(),
-                            }),
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_field()
+                                .unwrap_or(&TraitIdentifier {
+                                    contract_identifier: QualifiedContractIdentifier::transient(),
+                                    name: DEFAULT_NAME.clone(),
+                                }),
                         ),
                     };
                 } else if let Some(native_function) = NativeFunctions::lookup_by_name(function_name)
@@ -137,91 +184,186 @@ pub trait ASTVisitor<'a> {
                         Add | Subtract | Multiply | Divide | Modulo | Power | Sqrti | Log2 => {
                             self.traverse_arithmetic(expr, native_function, &args)
                         }
-                        BitwiseXOR => {
-                            self.traverse_binary_bitwise(expr, native_function, &args[0], &args[1])
-                        }
+                        BitwiseXOR => self.traverse_binary_bitwise(
+                            expr,
+                            native_function,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         CmpLess | CmpLeq | CmpGreater | CmpGeq | Equals => {
                             self.traverse_comparison(expr, native_function, &args)
                         }
                         And | Or => self.traverse_lazy_logical(expr, native_function, &args),
                         Not => self.traverse_logical(expr, native_function, &args),
-                        ToInt | ToUInt => self.traverse_int_cast(expr, &args[0]),
-                        If => self.traverse_if(expr, &args[0], &args[1], &args[2]),
+                        ToInt | ToUInt => {
+                            self.traverse_int_cast(expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        If => self.traverse_if(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         Let => {
-                            let bindings = args[0].match_pairs().unwrap_or_default();
+                            let bindings = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_pairs()
+                                .unwrap_or_default();
                             self.traverse_let(expr, &bindings, &args[1..])
                         }
-                        ElementAt => self.traverse_element_at(expr, &args[0], &args[1]),
-                        IndexOf => self.traverse_index_of(expr, &args[0], &args[1]),
+                        ElementAt => self.traverse_element_at(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        IndexOf => self.traverse_index_of(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         Map => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
                             self.traverse_map(expr, name, &args[1..])
                         }
                         Fold => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                            self.traverse_fold(expr, name, &args[1], &args[2])
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            self.traverse_fold(
+                                expr,
+                                name,
+                                args.get(1).unwrap_or(&DEFAULT_EXPR),
+                                args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            )
                         }
-                        Append => self.traverse_append(expr, &args[0], &args[1]),
-                        Concat => self.traverse_concat(expr, &args[0], &args[1]),
-                        AsMaxLen => match args[1].match_literal_value() {
-                            Some(Value::UInt(length)) => {
-                                self.traverse_as_max_len(expr, &args[0], *length)
+                        Append => self.traverse_append(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Concat => self.traverse_concat(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        AsMaxLen => {
+                            match args.get(1).unwrap_or(&DEFAULT_EXPR).match_literal_value() {
+                                Some(Value::UInt(length)) => self.traverse_as_max_len(
+                                    expr,
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    *length,
+                                ),
+                                _ => false,
                             }
-                            _ => panic!("check_checker: invalid length expression in as-max-len?"),
-                        },
-                        Len => self.traverse_len(expr, &args[0]),
+                        }
+                        Len => self.traverse_len(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
                         ListCons => self.traverse_list_cons(expr, &args),
-                        FetchVar => self
-                            .traverse_var_get(expr, args[0].match_atom().unwrap_or(&DEFAULT_NAME)),
+                        FetchVar => self.traverse_var_get(
+                            expr,
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                        ),
                         SetVar => self.traverse_var_set(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         FetchEntry => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                            let key = args[1].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
-                                tuple_map
-                            });
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let key = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
                             self.traverse_map_get(expr, name, &key)
                         }
                         SetEntry => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                            let key = args[1].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
-                                tuple_map
-                            });
-                            let value = args[2].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[2]);
-                                tuple_map
-                            });
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let key = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
+                            let value = args
+                                .get(2)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(2).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
                             self.traverse_map_set(expr, name, &key, &value)
                         }
                         InsertEntry => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                            let key = args[1].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
-                                tuple_map
-                            });
-                            let value = args[2].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[2]);
-                                tuple_map
-                            });
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let key = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
+                            let value = args
+                                .get(2)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(2).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
                             self.traverse_map_insert(expr, name, &key, &value)
                         }
                         DeleteEntry => {
-                            let name = args[0].match_atom().unwrap_or(&DEFAULT_NAME);
-                            let key = args[1].match_tuple().unwrap_or_else(|| {
-                                let mut tuple_map = HashMap::new();
-                                tuple_map.insert(None, &args[1]);
-                                tuple_map
-                            });
+                            let name = args
+                                .get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
+                            let key = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_tuple()
+                                .unwrap_or_else(|| {
+                                    let mut tuple_map = HashMap::new();
+                                    tuple_map.insert(None, args.get(1).unwrap_or(&DEFAULT_EXPR));
+                                    tuple_map
+                                });
                             self.traverse_map_delete(expr, name, &key)
                         }
                         TupleCons => {
@@ -229,26 +371,45 @@ pub trait ASTVisitor<'a> {
                         }
                         TupleGet => self.traverse_get(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        TupleMerge => self.traverse_merge(expr, &args[0], &args[1]),
+                        TupleMerge => self.traverse_merge(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         Begin => self.traverse_begin(expr, &args),
-                        Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => {
-                            self.traverse_hash(expr, native_function, &args[0])
-                        }
-                        Secp256k1Recover => {
-                            self.traverse_secp256k1_recover(expr, &args[0], &args[1])
-                        }
-                        Secp256k1Verify => {
-                            self.traverse_secp256k1_verify(expr, &args[0], &args[1], &args[2])
-                        }
-                        Print => self.traverse_print(expr, &args[0]),
+                        Hash160 | Sha256 | Sha512 | Sha512Trunc256 | Keccak256 => self
+                            .traverse_hash(
+                                expr,
+                                native_function,
+                                args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            ),
+                        Secp256k1Recover => self.traverse_secp256k1_recover(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Secp256k1Verify => self.traverse_secp256k1_verify(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Print => self.traverse_print(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
                         ContractCall => {
-                            let function_name = args[1].match_atom().unwrap_or(&DEFAULT_NAME);
+                            let function_name = args
+                                .get(1)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME);
                             if let SymbolicExpressionType::LiteralValue(Value::Principal(
                                 PrincipalData::Contract(ref contract_identifier),
-                            )) = &args[0].expr
+                            )) = args.get(0).unwrap_or(&DEFAULT_EXPR).expr
                             {
                                 self.traverse_static_contract_call(
                                     expr,
@@ -259,116 +420,198 @@ pub trait ASTVisitor<'a> {
                             } else {
                                 self.traverse_dynamic_contract_call(
                                     expr,
-                                    &args[0],
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
                                     function_name,
                                     &args[2..],
                                 )
                             }
                         }
-                        AsContract => self.traverse_as_contract(expr, &args[0]),
-                        ContractOf => self.traverse_contract_of(expr, &args[0]),
-                        PrincipalOf => self.traverse_principal_of(expr, &args[0]),
-                        AtBlock => self.traverse_at_block(expr, &args[0], &args[1]),
+                        AsContract => {
+                            self.traverse_as_contract(expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        ContractOf => {
+                            self.traverse_contract_of(expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        PrincipalOf => {
+                            self.traverse_principal_of(expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        AtBlock => self.traverse_at_block(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         GetBlockInfo => self.traverse_get_block_info(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        ConsError => self.traverse_err(expr, &args[0]),
-                        ConsOkay => self.traverse_ok(expr, &args[0]),
-                        ConsSome => self.traverse_some(expr, &args[0]),
-                        DefaultTo => self.traverse_default_to(expr, &args[0], &args[1]),
-                        Asserts => self.traverse_asserts(expr, &args[0], &args[1]),
-                        UnwrapRet => self.traverse_unwrap(expr, &args[0], &args[1]),
-                        Unwrap => self.traverse_unwrap_panic(expr, &args[0]),
-                        IsOkay => self.traverse_is_ok(expr, &args[0]),
-                        IsNone => self.traverse_is_none(expr, &args[0]),
-                        IsErr => self.traverse_is_err(expr, &args[0]),
-                        IsSome => self.traverse_is_some(expr, &args[0]),
+                        ConsError => self.traverse_err(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        ConsOkay => self.traverse_ok(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        ConsSome => self.traverse_some(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        DefaultTo => self.traverse_default_to(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Asserts => self.traverse_asserts(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        UnwrapRet => self.traverse_unwrap(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        Unwrap => {
+                            self.traverse_unwrap_panic(expr, args.get(0).unwrap_or(&DEFAULT_EXPR))
+                        }
+                        IsOkay => self.traverse_is_ok(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        IsNone => self.traverse_is_none(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        IsErr => self.traverse_is_err(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        IsSome => self.traverse_is_some(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
                         Filter => self.traverse_filter(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
-                        UnwrapErrRet => self.traverse_unwrap_err(expr, &args[0], &args[1]),
-                        UnwrapErr => self.traverse_unwrap_err(expr, &args[0], &args[1]),
+                        UnwrapErrRet => self.traverse_unwrap_err(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        UnwrapErr => self.traverse_unwrap_err(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
                         Match => {
                             if args.len() == 4 {
                                 self.traverse_match_option(
                                     expr,
-                                    &args[0],
-                                    args[1].match_atom().unwrap_or(&DEFAULT_NAME),
-                                    &args[2],
-                                    &args[3],
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(1)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(3).unwrap_or(&DEFAULT_EXPR),
                                 )
                             } else {
                                 self.traverse_match_response(
                                     expr,
-                                    &args[0],
-                                    args[1].match_atom().unwrap_or(&DEFAULT_NAME),
-                                    &args[2],
-                                    args[3].match_atom().unwrap_or(&DEFAULT_NAME),
-                                    &args[4],
+                                    args.get(0).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(1)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(2).unwrap_or(&DEFAULT_EXPR),
+                                    args.get(3)
+                                        .unwrap_or(&DEFAULT_EXPR)
+                                        .match_atom()
+                                        .unwrap_or(&DEFAULT_NAME),
+                                    args.get(4).unwrap_or(&DEFAULT_EXPR),
                                 )
                             }
                         }
-                        TryRet => self.traverse_try(expr, &args[0]),
-                        StxBurn => self.traverse_stx_burn(expr, &args[0], &args[1]),
-                        StxTransfer => {
-                            self.traverse_stx_transfer(expr, &args[0], &args[1], &args[2])
-                        }
-                        GetStxBalance => self.traverse_stx_get_balance(expr, &args[0]),
+                        TryRet => self.traverse_try(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
+                        StxBurn => self.traverse_stx_burn(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        StxTransfer => self.traverse_stx_transfer(
+                            expr,
+                            args.get(0).unwrap_or(&DEFAULT_EXPR),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                        ),
+                        GetStxBalance => self
+                            .traverse_stx_get_balance(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
                         BurnToken => self.traverse_ft_burn(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         TransferToken => self.traverse_ft_transfer(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
-                            &args[3],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            args.get(3).unwrap_or(&DEFAULT_EXPR),
                         ),
                         GetTokenBalance => self.traverse_ft_get_balance(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                         GetTokenSupply => self.traverse_ft_get_supply(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
                         ),
                         MintToken => self.traverse_ft_mint(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         BurnAsset => self.traverse_nft_burn(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         TransferAsset => self.traverse_nft_transfer(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
-                            &args[3],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
+                            args.get(3).unwrap_or(&DEFAULT_EXPR),
                         ),
                         MintAsset => self.traverse_nft_mint(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
-                            &args[2],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
+                            args.get(2).unwrap_or(&DEFAULT_EXPR),
                         ),
                         GetAssetOwner => self.traverse_nft_get_owner(
                             expr,
-                            args[0].match_atom().unwrap_or(&DEFAULT_NAME),
-                            &args[1],
+                            args.get(0)
+                                .unwrap_or(&DEFAULT_EXPR)
+                                .match_atom()
+                                .unwrap_or(&DEFAULT_NAME),
+                            args.get(1).unwrap_or(&DEFAULT_EXPR),
                         ),
                     };
                 } else {
