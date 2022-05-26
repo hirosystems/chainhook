@@ -567,7 +567,7 @@ impl Session {
             None,
         ) {
             Ok(_) => (),
-            Err(mut diagnostics) => {
+            Err(diagnostics) => {
                 let lines = snippet.lines();
                 let formatted_lines: Vec<String> = lines.map(|l| l.to_string()).collect();
                 for d in diagnostics {
