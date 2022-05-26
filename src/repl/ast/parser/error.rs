@@ -40,7 +40,7 @@ impl DiagnosableError for ParserError {
         use self::ParserError::*;
         match self {
             Lexer(le) => le.message(),
-            ContractNameTooLong(name) => format!("contract name, '{}' is too long", name),
+            ContractNameTooLong(name) => format!("contract name '{}' is too long", name),
             ExpectedContractIdentifier => "expected contract identifier".to_string(),
             ExpectedTraitIdentifier => "expected trait identifier".to_string(),
             ExpectedIdentifier => "expected identifier".to_string(),
