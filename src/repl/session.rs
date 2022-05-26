@@ -487,6 +487,7 @@ impl Session {
             eval_hooks,
             cost_track,
             test_name,
+            None,
         );
         let mut output = Vec::<String>::new();
         let lines = snippet.lines();
@@ -564,6 +565,7 @@ impl Session {
             None,
             Some(vec![Box::new(tracer)]),
             false,
+            None,
             None,
         ) {
             Ok(_) => (),
@@ -697,7 +699,7 @@ impl Session {
         );
 
         self.set_tx_sender(sender.into());
-        let result = self.interpret(snippet, None, None, true, Some(test_name.clone()))?;
+        let result = self.interpret(snippet, None, None, true, Some(test_name.clone()), None)?;
         if let Some(ref cost) = result.cost {
             self.costs_reports.push(CostsReport {
                 test_name,
@@ -796,6 +798,7 @@ impl Session {
         mut eval_hooks: Option<Vec<Box<dyn EvalHook>>>,
         cost_track: bool,
         test_name: Option<String>,
+        ast: Option<&ContractAST>,
     ) -> Result<ExecutionResult, Vec<Diagnostic>> {
         let (contract_name, is_tx) = match name {
             Some(name) => (name, false),
@@ -821,10 +824,20 @@ impl Session {
             QualifiedContractIdentifier::parse(&id).unwrap()
         };
 
-        match self
-            .interpreter
-            .run(snippet, contract_identifier.clone(), cost_track, eval_hooks)
-        {
+        let result = if let Some(ast) = ast {
+            self.interpreter.run_ast(
+                ast.clone(),
+                snippet,
+                contract_identifier.clone(),
+                cost_track,
+                eval_hooks,
+            )
+        } else {
+            self.interpreter
+                .run(snippet, contract_identifier.clone(), cost_track, eval_hooks)
+        };
+
+        match result {
             Ok(result) => {
                 if let Some(ref coverage) = result.coverage {
                     self.coverage_reports.push(coverage.clone());
@@ -1014,7 +1027,7 @@ impl Session {
             _ => return output.push(red!("Usage: ::encode <expr>")),
         };
 
-        let result = self.interpret(snippet.to_string(), None, None, false, None);
+        let result = self.interpret(snippet.to_string(), None, None, false, None, None);
         let value = match result {
             Ok(result) => {
                 let mut tx_bytes = vec![];
