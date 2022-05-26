@@ -183,33 +183,18 @@ impl CoverageReporter {
         for expression in exprs.iter() {
             let mut frontier = vec![expression];
             while let Some(cur_expr) = frontier.pop() {
-                // handle defines: the `define-` atom is non executable, and neither are any of the type arguments,
-                //  but the bodies of functions, the value of a constant, initial values for variables, and the
-                //  max supply of FTs
+                // Only consider body functions
                 if let Some(define_expr) = DefineFunctionsParsed::try_parse(cur_expr).ok().flatten()
                 {
                     match define_expr {
-                        DefineFunctionsParsed::Constant { name: _, value } => {
-                            frontier.push(value);
-                        }
                         DefineFunctionsParsed::PrivateFunction { signature: _, body }
                         | DefineFunctionsParsed::PublicFunction { signature: _, body }
                         | DefineFunctionsParsed::ReadOnlyFunction { signature: _, body } => {
                             frontier.push(body);
                         }
-                        DefineFunctionsParsed::BoundedFungibleToken {
-                            name: _,
-                            max_supply,
-                        } => {
-                            frontier.push(max_supply);
-                        }
-                        DefineFunctionsParsed::PersistedVariable {
-                            name: _,
-                            data_type: _,
-                            initial,
-                        } => {
-                            frontier.push(initial);
-                        }
+                        DefineFunctionsParsed::BoundedFungibleToken { .. } => {}
+                        DefineFunctionsParsed::Constant { .. } => {}
+                        DefineFunctionsParsed::PersistedVariable { .. } => {}
                         DefineFunctionsParsed::NonFungibleToken { .. } => {}
                         DefineFunctionsParsed::UnboundedFungibleToken { .. } => {}
                         DefineFunctionsParsed::Map { .. } => {}
