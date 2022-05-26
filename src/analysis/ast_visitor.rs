@@ -260,9 +260,7 @@ pub trait ASTVisitor<'a> {
                                     args.get(0).unwrap_or(&DEFAULT_EXPR),
                                     *length,
                                 ),
-                                _ => panic!(
-                                    "check_checker: invalid length expression in as-max-len?"
-                                ),
+                                _ => false,
                             }
                         }
                         Len => self.traverse_len(expr, args.get(0).unwrap_or(&DEFAULT_EXPR)),
