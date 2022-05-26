@@ -1,3 +1,13 @@
+## [0.28.1](https://github.com/hirosystems/clarity-repl/compare/v0.28.0...v0.28.1) (2022-05-26)
+
+
+### Bug Fixes
+
+* any line of code that can not be tested ([7acff7b](https://github.com/hirosystems/clarity-repl/commit/7acff7b730ca6d399f8a436d4a13852882938d3f))
+* fix crash on contract-call to invalid func ([de981a2](https://github.com/hirosystems/clarity-repl/commit/de981a27f8ab12823b3312d775dcd2584b4fc11b)), closes [#170](https://github.com/hirosystems/clarity-repl/issues/170)
+* harden `ASTVisitor` with default args ([c0fcf7a](https://github.com/hirosystems/clarity-repl/commit/c0fcf7a0db2d0b9ae14707316895732d03fe2870)), closes [#173](https://github.com/hirosystems/clarity-repl/issues/173)
+* remove panic from ASTVisitor ([315d169](https://github.com/hirosystems/clarity-repl/commit/315d169b29117486d52fc9f76d91b18ddef88532))
+
 # [0.28.0](https://github.com/hirosystems/clarity-repl/compare/v0.27.0...v0.28.0) (2022-05-19)
 
 
