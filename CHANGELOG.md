@@ -1,3 +1,10 @@
+## [0.28.2](https://github.com/hirosystems/clarity-repl/compare/v0.28.1...v0.28.2) (2022-05-26)
+
+
+### Bug Fixes
+
+* ability to interpret by passing an AST ([77164c8](https://github.com/hirosystems/clarity-repl/commit/77164c833478ae056f352925752bce7353cbdce1))
+
 ## [0.28.1](https://github.com/hirosystems/clarity-repl/compare/v0.28.0...v0.28.1) (2022-05-26)
 
 
