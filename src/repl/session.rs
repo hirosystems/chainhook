@@ -443,6 +443,8 @@ impl Session {
             cmd if cmd.starts_with("::trace") => self.trace(&mut output, cmd),
             #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::reload") => self.reload(&mut output),
+            #[cfg(feature = "cli")]
+            cmd if cmd.starts_with("::read") => self.read(&mut output, cmd),
 
             snippet => {
                 if self.show_costs {
@@ -623,6 +625,26 @@ impl Session {
                 println!("{}", e);
             }
         }
+    }
+
+    #[cfg(feature = "cli")]
+    pub fn read(&mut self, output: &mut Vec<String>, cmd: &str) {
+        let filename = match cmd.split_once(" ") {
+            Some((_, filename)) => filename,
+            _ => return output.push(red!("Usage: ::read <filename>")),
+        };
+
+        let snippet = match fs::read_to_string(filename) {
+            Ok(snippet) => snippet,
+            Err(err) => return output.push(red!(format!("unable to read {}: {}", filename, err))),
+        };
+
+        let mut result = match self.formatted_interpretation(snippet, None, false, None, None) {
+            Ok((output, _)) => output,
+            Err(result) => result,
+        };
+
+        output.append(&mut result);
     }
 
     pub fn formatted_interpretation_ast(
@@ -938,6 +960,10 @@ impl Session {
         output.push(format!(
             "{}",
             help_colour.paint("::reload \t\t\t\tReload the existing contract(s) in the session")
+        ));
+        output.push(format!(
+            "{}",
+            help_colour.paint("::read <filename>\t\t\t\tRead expressions from a file")
         ));
     }
 
