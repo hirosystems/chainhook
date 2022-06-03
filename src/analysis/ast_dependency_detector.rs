@@ -227,7 +227,10 @@ impl<'a> ASTDependencyDetector<'a> {
                 let dep_id = match lookup.get(&dep.contract_id) {
                     Some(id) => id,
                     None => {
-                        return Err(CheckErrors::NoSuchContract(dep.contract_id.to_string()).into());
+                        // No need to report an error here, it will be caught
+                        // and reported with proper location information by the
+                        // later analyses. Just skip it.
+                        continue;
                     }
                 };
                 graph.add_directed_edge(*contract_id, *dep_id);
