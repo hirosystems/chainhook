@@ -119,19 +119,13 @@ impl Terminal {
                     let input = input_buffer.join(" ");
                     match complete_input(&input) {
                         Ok(Input::Complete(forms)) => {
-                            let one_expr = forms.len() == 1;
-                            for expr in forms {
-                                if !one_expr {
-                                    println!(";; {}", expr);
-                                }
-                                let output = self.session.handle_command(expr);
-                                for line in output {
-                                    println!("{}", line);
-                                }
-                                prompt = String::from(">> ");
-                                self.session.executed.push(expr.to_string());
-                                editor.add_history_entry(expr);
+                            let output = self.session.handle_command(&input);
+                            for line in output {
+                                println!("{}", line);
                             }
+                            prompt = String::from(">> ");
+                            self.session.executed.push(input.to_string());
+                            editor.add_history_entry(input);
                             input_buffer.clear();
                         }
                         Ok(Input::Incomplete(str)) => {
@@ -139,6 +133,7 @@ impl Terminal {
                         }
                         Err((expected, got)) => {
                             println!("Error: expected closing {}, got {}", expected, got);
+                            prompt = String::from(">> ");
                             input_buffer.pop();
                         }
                     }
