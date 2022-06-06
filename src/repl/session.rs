@@ -446,31 +446,66 @@ impl Session {
             #[cfg(feature = "cli")]
             cmd if cmd.starts_with("::read") => self.read(&mut output, cmd),
 
-            snippet => {
-                if self.show_costs {
-                    self.get_costs(&mut output, &format!("::get_costs {}", snippet))
-                } else {
-                    let mut result = match self.formatted_interpretation(
-                        snippet.to_string(),
-                        None,
-                        true,
-                        None,
-                        None,
-                    ) {
-                        Ok((mut output, result)) => {
-                            if let Some((ref contract_name, _, _, _, _)) = result.contract {
-                                let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
-                                output.push(green!(snippet));
-                            }
-                            output
-                        }
-                        Err(result) => result,
-                    };
-                    output.append(&mut result);
-                }
-            }
+            snippet => self.run_snippet(&mut output, self.show_costs, snippet),
         }
+
         output
+    }
+
+    fn run_snippet(&mut self, output: &mut Vec<String>, cost_track: bool, cmd: &str) {
+        let (mut result, cost) = match self.formatted_interpretation(
+            cmd.to_string(),
+            None,
+            cost_track,
+            None,
+            None,
+        ) {
+            Ok((mut output, result)) => {
+                if let Some((ref contract_name, _, _, _, _)) = result.contract {
+                    let snippet = format!("→ .{} contract successfully stored. Use (contract-call? ...) for invoking the public functions:", contract_name.clone());
+                    output.push(green!(snippet));
+                }
+                (output, result.cost.clone())
+            }
+            Err(output) => (output, None),
+        };
+
+        if let Some(cost) = cost {
+            let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];
+            let mut headers_cells = vec![];
+            for header in headers.iter() {
+                headers_cells.push(Cell::new(&header));
+            }
+            let mut table = Table::new();
+            table.add_row(Row::new(headers_cells));
+            table.add_row(Row::new(vec![
+                Cell::new("Runtime"),
+                Cell::new(&cost.total.runtime.to_string()),
+                Cell::new(&cost.limit.runtime.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Read count"),
+                Cell::new(&cost.total.read_count.to_string()),
+                Cell::new(&cost.limit.read_count.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Read length (bytes)"),
+                Cell::new(&cost.total.read_length.to_string()),
+                Cell::new(&cost.limit.read_length.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Write count"),
+                Cell::new(&cost.total.write_count.to_string()),
+                Cell::new(&cost.limit.write_count.to_string()),
+            ]));
+            table.add_row(Row::new(vec![
+                Cell::new("Write length (bytes)"),
+                Cell::new(&cost.total.write_length.to_string()),
+                Cell::new(&cost.limit.write_length.to_string()),
+            ]));
+            output.push(format!("{}", table));
+        }
+        output.append(&mut result);
     }
 
     pub fn formatted_interpretation(
@@ -639,12 +674,7 @@ impl Session {
             Err(err) => return output.push(red!(format!("unable to read {}: {}", filename, err))),
         };
 
-        let mut result = match self.formatted_interpretation(snippet, None, false, None, None) {
-            Ok((output, _)) => output,
-            Err(result) => result,
-        };
-
-        output.append(&mut result);
+        self.run_snippet(output, self.show_costs, &snippet.to_string());
     }
 
     pub fn formatted_interpretation_ast(
@@ -1102,48 +1132,7 @@ impl Session {
     #[cfg(feature = "cli")]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        let (mut result, cost) =
-            match self.formatted_interpretation(snippet, None, true, None, None) {
-                Ok((output, result)) => (output, result.cost.clone()),
-                Err(output) => (output, None),
-            };
-
-        if let Some(cost) = cost {
-            let headers = vec!["".to_string(), "Consumed".to_string(), "Limit".to_string()];
-            let mut headers_cells = vec![];
-            for header in headers.iter() {
-                headers_cells.push(Cell::new(&header));
-            }
-            let mut table = Table::new();
-            table.add_row(Row::new(headers_cells));
-            table.add_row(Row::new(vec![
-                Cell::new("Runtime"),
-                Cell::new(&cost.total.runtime.to_string()),
-                Cell::new(&cost.limit.runtime.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Read count"),
-                Cell::new(&cost.total.read_count.to_string()),
-                Cell::new(&cost.limit.read_count.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Read length (bytes)"),
-                Cell::new(&cost.total.read_length.to_string()),
-                Cell::new(&cost.limit.read_length.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Write count"),
-                Cell::new(&cost.total.write_count.to_string()),
-                Cell::new(&cost.limit.write_count.to_string()),
-            ]));
-            table.add_row(Row::new(vec![
-                Cell::new("Write length (bytes)"),
-                Cell::new(&cost.total.write_length.to_string()),
-                Cell::new(&cost.limit.write_length.to_string()),
-            ]));
-            output.push(format!("{}", table));
-        }
-        output.append(&mut result);
+        self.run_snippet(output, self.show_costs, &snippet.to_string());
     }
 
     #[cfg(feature = "cli")]
