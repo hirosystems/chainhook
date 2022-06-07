@@ -452,6 +452,7 @@ impl Session {
         output
     }
 
+    #[cfg(feature = "cli")]
     fn run_snippet(&mut self, output: &mut Vec<String>, cost_track: bool, cmd: &str) {
         let (mut result, cost) = match self.formatted_interpretation(
             cmd.to_string(),
@@ -1129,10 +1130,9 @@ impl Session {
         output.push(green!(format!("{}", value)));
     }
 
-    #[cfg(feature = "cli")]
     pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
         let snippet = cmd.to_string().split_off("::get_costs ".len());
-        self.run_snippet(output, self.show_costs, &snippet.to_string());
+        self.run_snippet(output, true, &snippet.to_string());
     }
 
     #[cfg(feature = "cli")]
@@ -1200,10 +1200,9 @@ impl Session {
     }
 
     #[cfg(not(feature = "cli"))]
-    pub fn get_costs(&mut self, output: &mut Vec<String>, cmd: &str) {
-        let snippet = cmd.to_string().split_off("::get_costs ".len());
+    fn run_snippet(&mut self, output: &mut Vec<String>, cost_track: bool, cmd: &str) {
         let (mut result, cost) =
-            match self.formatted_interpretation(snippet, None, true, None, None) {
+            match self.formatted_interpretation(cmd.to_string(), None, cost_track, None, None) {
                 Ok((output, result)) => (output, result.cost.clone()),
                 Err(output) => (output, None),
             };
