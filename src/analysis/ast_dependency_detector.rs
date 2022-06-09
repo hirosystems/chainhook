@@ -264,6 +264,12 @@ impl<'a> ASTDependencyDetector<'a> {
         if self.preloaded.contains_key(from) {
             return;
         }
+
+        // Ignore the placeholder contract.
+        if to.name.starts_with("__") {
+            return;
+        }
+
         if let Some(set) = self.dependencies.get_mut(from) {
             set.add_dependency(to.clone(), self.top_level);
         } else {
