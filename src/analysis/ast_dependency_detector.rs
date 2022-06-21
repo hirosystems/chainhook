@@ -227,7 +227,10 @@ impl<'a> ASTDependencyDetector<'a> {
                 let dep_id = match lookup.get(&dep.contract_id) {
                     Some(id) => id,
                     None => {
-                        return Err(CheckErrors::NoSuchContract(dep.contract_id.to_string()).into());
+                        // No need to report an error here, it will be caught
+                        // and reported with proper location information by the
+                        // later analyses. Just skip it.
+                        continue;
                     }
                 };
                 graph.add_directed_edge(*contract_id, *dep_id);
@@ -261,6 +264,12 @@ impl<'a> ASTDependencyDetector<'a> {
         if self.preloaded.contains_key(from) {
             return;
         }
+
+        // Ignore the placeholder contract.
+        if to.name.starts_with("__") {
+            return;
+        }
+
         if let Some(set) = self.dependencies.get_mut(from) {
             set.add_dependency(to.clone(), self.top_level);
         } else {
@@ -349,10 +358,12 @@ impl<'a> ASTDependencyDetector<'a> {
         let mut dependencies = Vec::new();
         for (i, arg) in arg_types.iter().enumerate() {
             if matches!(arg, TypeSignature::TraitReferenceType(_)) {
-                if let Some(Value::Principal(PrincipalData::Contract(contract))) =
-                    args[i].match_literal_value()
-                {
-                    dependencies.push(contract.clone());
+                if args.len() > i {
+                    if let Some(Value::Principal(PrincipalData::Contract(contract))) =
+                        args[i].match_literal_value()
+                    {
+                        dependencies.push(contract.clone());
+                    }
                 }
             }
         }
@@ -602,10 +613,12 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         {
             for (i, arg) in arg_types.iter().enumerate() {
                 if matches!(arg, TypeSignature::TraitReferenceType(_)) {
-                    if let Some(Value::Principal(PrincipalData::Contract(contract))) =
-                        args[i].match_literal_value()
-                    {
-                        dependencies.push(contract);
+                    if args.len() > i {
+                        if let Some(Value::Principal(PrincipalData::Contract(contract))) =
+                            args[i].match_literal_value()
+                        {
+                            dependencies.push(contract);
+                        }
                     }
                 }
             }

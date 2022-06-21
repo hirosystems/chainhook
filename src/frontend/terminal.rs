@@ -8,22 +8,68 @@ use std::io::{stdin, stdout, Write};
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const HISTORY_FILE: Option<&'static str> = option_env!("CLARITY_REPL_HISTORY_FILE");
 
-fn complete_input(str: &str) -> Result<Option<char>, (char, char)> {
+enum Input<'a> {
+    Incomplete(char),
+    Complete(Vec<&'a str>),
+}
+
+fn complete_input(str: &str) -> Result<Input, (char, char)> {
+    let mut forms: Vec<&str> = vec![];
+    let mut paren_count = 0;
+    let mut last_pos = 0;
+
     let mut brackets = vec![];
-    for character in str.chars() {
+    let mut skip_next = false;
+    let mut in_string = false;
+
+    for (pos, character) in str.char_indices() {
         match character {
-            '(' | '{' => brackets.push(character),
-            ')' | '}' => match (brackets.pop(), character) {
-                (Some('('), '}') => return Err((')', '}')),
-                (Some('{'), ')') => return Err(('}', ')')),
-                _ => {}
-            },
+            '\\' => skip_next = true,
+            '"' => {
+                if skip_next {
+                    skip_next = false
+                } else {
+                    in_string = !in_string
+                }
+            }
+            '(' | '{' => {
+                if !in_string {
+                    brackets.push(character);
+                    // skip whitespace between the previous form's
+                    // closing paren (if there is one) and the current
+                    // form's opening paren
+                    match (character, paren_count) {
+                        ('(', 0) => {
+                            paren_count += 1;
+                            last_pos = pos
+                        }
+                        ('(', _) => paren_count += 1,
+                        _ => {}
+                    }
+                }
+            }
+            ')' | '}' => {
+                if !in_string {
+                    match (brackets.pop(), character) {
+                        (Some('('), '}') => return Err((')', '}')),
+                        (Some('{'), ')') => return Err(('}', ')')),
+                        _ => {}
+                    };
+                    if character == ')' {
+                        paren_count -= 1;
+                        if paren_count == 0 {
+                            forms.push(&str[last_pos..pos + 1]);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
+
     match brackets.last() {
-        Some(char) => Ok(Some(*char)),
-        _ => Ok(None),
+        Some(char) => Ok(Input::Incomplete(*char)),
+        _ => Ok(Input::Complete(forms)),
     }
 }
 
@@ -70,23 +116,24 @@ impl Terminal {
                 Ok(command) => {
                     ctrl_c_acc = 0;
                     input_buffer.push(command);
-                    let input = input_buffer.join("\n");
+                    let input = input_buffer.join(" ");
                     match complete_input(&input) {
-                        Ok(None) => {
+                        Ok(Input::Complete(forms)) => {
                             let output = self.session.handle_command(&input);
                             for line in output {
                                 println!("{}", line);
                             }
                             prompt = String::from(">> ");
-                            self.session.executed.push(input.clone());
-                            editor.add_history_entry(&input);
+                            self.session.executed.push(input.to_string());
+                            editor.add_history_entry(input);
                             input_buffer.clear();
                         }
-                        Ok(Some(str)) => {
+                        Ok(Input::Incomplete(str)) => {
                             prompt = format!("{}.. ", str);
                         }
                         Err((expected, got)) => {
                             println!("Error: expected closing {}, got {}", expected, got);
+                            prompt = String::from(">> ");
                             input_buffer.pop();
                         }
                     }
