@@ -358,10 +358,12 @@ impl<'a> ASTDependencyDetector<'a> {
         let mut dependencies = Vec::new();
         for (i, arg) in arg_types.iter().enumerate() {
             if matches!(arg, TypeSignature::TraitReferenceType(_)) {
-                if let Some(Value::Principal(PrincipalData::Contract(contract))) =
-                    args[i].match_literal_value()
-                {
-                    dependencies.push(contract.clone());
+                if args.len() > i {
+                    if let Some(Value::Principal(PrincipalData::Contract(contract))) =
+                        args[i].match_literal_value()
+                    {
+                        dependencies.push(contract.clone());
+                    }
                 }
             }
         }
@@ -611,10 +613,12 @@ impl<'a> ASTVisitor<'a> for ASTDependencyDetector<'a> {
         {
             for (i, arg) in arg_types.iter().enumerate() {
                 if matches!(arg, TypeSignature::TraitReferenceType(_)) {
-                    if let Some(Value::Principal(PrincipalData::Contract(contract))) =
-                        args[i].match_literal_value()
-                    {
-                        dependencies.push(contract);
+                    if args.len() > i {
+                        if let Some(Value::Principal(PrincipalData::Contract(contract))) =
+                            args[i].match_literal_value()
+                        {
+                            dependencies.push(contract);
+                        }
                     }
                 }
             }
