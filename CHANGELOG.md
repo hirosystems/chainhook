@@ -1,3 +1,19 @@
+# [0.29.0](https://github.com/hirosystems/clarity-repl/compare/v0.28.2...v0.29.0) (2022-06-21)
+
+
+### Bug Fixes
+
+* add a non-cli run_snippet ([bbc655e](https://github.com/hirosystems/clarity-repl/commit/bbc655e9b1064486158769b522c71b6cc1cf3c38))
+* avoid crash from too few args passed ([f612c66](https://github.com/hirosystems/clarity-repl/commit/f612c66912d93f8df7908d3262b459168945d26e))
+* don't create a dependency for `__transient` ([f6cf271](https://github.com/hirosystems/clarity-repl/commit/f6cf2718e39b9228c1ada40cfd4ec2ac809db987))
+* remove unhelpful dependency error ([cad0b01](https://github.com/hirosystems/clarity-repl/commit/cad0b013e83be34386461484ee09a321cc1cd8fa)), closes [hirosystems/clarinet#396](https://github.com/hirosystems/clarinet/issues/396)
+
+
+### Features
+
+* add ::read to read exps from a file ([5e55a0d](https://github.com/hirosystems/clarity-repl/commit/5e55a0d1802f51caed107b5ee07e99b2b1f43903))
+* allow pasting of multiple lines ([5ba8d04](https://github.com/hirosystems/clarity-repl/commit/5ba8d041d7d9bc14aebffae79d114c40add3ef97)), closes [#115](https://github.com/hirosystems/clarity-repl/issues/115)
+
 ## [0.28.2](https://github.com/hirosystems/clarity-repl/compare/v0.28.1...v0.28.2) (2022-05-26)
 
 
