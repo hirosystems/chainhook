@@ -118,19 +118,12 @@ impl Node {
             self.ctx.expect_logger(),
             "Listening for chainhook predicate registrations on port {}", DEFAULT_CONTROL_PORT
         );
-
-        let ordinal_index = match initialize_ordinal_index(&event_observer_config, &self.ctx) {
-            Ok(index) => index,
-            Err(e) => {
-                panic!()
-            }
-        };
-        let mut bitcoin_context = BitcoinChainContext::new(Some(ordinal_index));
-
+        
         let context_cloned = self.ctx.clone();
+        let event_observer_config_cloned = event_observer_config.clone();
         let _ = std::thread::spawn(move || {
             let future = start_event_observer(
-                event_observer_config,
+                event_observer_config_cloned,
                 observer_command_tx,
                 observer_command_rx,
                 Some(observer_event_tx),
@@ -307,6 +300,21 @@ impl Node {
                             info!(self.ctx.expect_logger(), "Stacks chainhook {} scan completed: action triggered by {} transactions", stacks_hook.uuid, total_hits);
                         }
                         ChainhookSpecification::Bitcoin(predicate_spec) => {
+
+                            let mut ordinal_index = None;
+
+                            if ordinal_index.is_none() {
+                                ordinal_index = match initialize_ordinal_index(&event_observer_config, &self.ctx) {
+                                    Ok(index) => Some(index),
+                                    Err(e) => {
+                                        info!(self.ctx.expect_logger(), "unable to read ordinal_index: {}", e);
+                                        continue;
+                                    }
+                                };    
+                            }
+
+                            let mut bitcoin_context = BitcoinChainContext::new(ordinal_index);
+
                             let mut inscriptions_hints = BTreeMap::new();
                             let mut use_hinting = false;
                             if let BitcoinPredicateType::Protocol(Protocols::Ordinal(
