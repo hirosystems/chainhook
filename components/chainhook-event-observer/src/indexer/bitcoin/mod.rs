@@ -118,16 +118,15 @@ pub fn standardize_bitcoin_block(
     ctx: &Context,
 ) -> Result<BitcoinBlockData, String> {
     let mut transactions = vec![];
-    ctx.try_log(|logger| slog::info!(logger, "Updating ordinal index"));
 
     let ordinal_index = bitcoin_context.ordinal_index.take();
-    let ctx_ = ctx.clone();
+    // let ctx_ = ctx.clone();
 
-    let block_data = if let Some(ref ordinal_index) = ordinal_index {
-        if let Ok(count) = ordinal_index.block_count() {
-            ctx.try_log(|logger| slog::info!(logger, "Blocks: {} / {}", count, block.height));
-            if count as usize == block.height + 10 {
-                ctx.try_log(|logger| slog::info!(logger, "Will use cached block"));
+    // let block_data = if let Some(ref ordinal_index) = ordinal_index {
+    //     if let Ok(count) = ordinal_index.block_count() {
+    //         ctx.try_log(|logger| slog::info!(logger, "Blocks: {} / {}", count, block.height));
+    //         if count as usize == block.height + 10 {
+    //             ctx.try_log(|logger| slog::info!(logger, "Will use cached block"));
 
                 // let bits = hex::decode(block.bits).unwrap();
                 // let block_data = BlockData {
@@ -187,56 +186,56 @@ pub fn standardize_bitcoin_block(
                 // };
                 // ctx.try_log(|logger| slog::info!(logger, "BlockData: {:?}", block_data));
                 // Some(block_data)
-                None
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    //             None
+    //         } else {
+    //             None
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // } else {
+    //     None
+    // };
 
-    let handle: JoinHandle<Result<_, String>> =
-        hiro_system_kit::thread_named("Ordinal index update")
-            .spawn(move || {
-                if let Some(ref ordinal_index) = ordinal_index {
-                    match hiro_system_kit::nestable_block_on(OrdinalIndexUpdater::update(
-                        &ordinal_index,
-                        block_data,
-                        &ctx_,
-                    )) {
-                        Ok(_) => {
-                            ctx_.try_log(|logger| {
-                                slog::info!(
-                                    logger,
-                                    "Ordinal index successfully updated {:?}",
-                                    ordinal_index.block_count()
-                                )
-                            });
-                        }
-                        Err(e) => {
-                            ctx_.try_log(|logger| {
-                                slog::error!(
-                                    logger,
-                                    "Error updating ordinal index: {}",
-                                    e.to_string()
-                                )
-                            });
-                        }
-                    };
-                }
-                Ok(ordinal_index)
-            })
-            .expect("unable to detach thread");
+    // let handle: JoinHandle<Result<_, String>> =
+    //     hiro_system_kit::thread_named("Ordinal index update")
+    //         .spawn(move || {
+    //             if let Some(ref ordinal_index) = ordinal_index {
+    //                 match hiro_system_kit::nestable_block_on(OrdinalIndexUpdater::update(
+    //                     &ordinal_index,
+    //                     block_data,
+    //                     &ctx_,
+    //                 )) {
+    //                     Ok(_) => {
+    //                         ctx_.try_log(|logger| {
+    //                             slog::info!(
+    //                                 logger,
+    //                                 "Ordinal index successfully updated {:?}",
+    //                                 ordinal_index.block_count()
+    //                             )
+    //                         });
+    //                     }
+    //                     Err(e) => {
+    //                         ctx_.try_log(|logger| {
+    //                             slog::error!(
+    //                                 logger,
+    //                                 "Error updating ordinal index: {}",
+    //                                 e.to_string()
+    //                             )
+    //                         });
+    //                     }
+    //                 };
+    //             }
+    //             Ok(ordinal_index)
+    //         })
+    //         .expect("unable to detach thread");
 
-    match handle.join() {
-        Ok(Ok(ordinal_index)) => {
+    // match handle.join() {
+    //     Ok(Ok(ordinal_index)) => {
             bitcoin_context.ordinal_index = ordinal_index;
-        }
-        _ => {}
-    }
+    //     }
+    //     _ => {}
+    // }
 
     let expected_magic_bytes = get_stacks_canonical_magic_bytes(&indexer_config.bitcoin_network);
     let pox_config = get_canonical_pox_config(&indexer_config.bitcoin_network);
@@ -356,8 +355,6 @@ fn try_parse_ordinal_operation(
                     txid: tx.txid.clone(),
                     index: 0,
                 };
-                let entries = ordinal_index.get_feed_inscriptions(3).unwrap();
-                ctx.try_log(|logger| slog::info!(logger, "Feed: {:?}", entries));
 
                 let inscription_entry = match ordinal_index
                     .get_inscription_entry(inscription_id.clone())
@@ -375,11 +372,14 @@ fn try_parse_ordinal_operation(
                     }
                 };
 
-                let authors = tx.vout[0]
-                    .script_pub_key
-                    .addresses
-                    .clone()
-                    .unwrap_or(vec![]);
+                let authors = if let Ok(authors) = Address::from_script(&tx.vout[0]
+                    .script_pub_key.script().unwrap(), bitcoin::Network::Bitcoin) {
+                        vec![authors.to_string()]
+                    } else {
+                        vec![]
+                    };
+                println!("{:?}", authors);
+
                 let sat = &inscription_entry.sat.unwrap();
                 let no_content_bytes = vec![];
                 let inscription_content_bytes = inscription.body().unwrap_or(&no_content_bytes);
