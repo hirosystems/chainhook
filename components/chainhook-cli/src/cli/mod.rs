@@ -194,7 +194,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let config =
                     Config::default(cmd.devnet, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
                 let mut node = Node::new(config, ctx);
-                node.run();
+                return node.run().await;
             }
         },
         Command::Predicates(subcmd) => match subcmd {
