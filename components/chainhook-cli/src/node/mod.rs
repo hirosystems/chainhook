@@ -9,6 +9,7 @@ use chainhook_event_observer::chainhooks::types::{
     BitcoinPredicateType, ChainhookConfig, OrdinalOperations, Protocols,
 };
 use chainhook_event_observer::indexer::ordinals::indexing::entry::Entry;
+use chainhook_event_observer::indexer::ordinals::indexing::updater::OrdinalIndexUpdater;
 use chainhook_event_observer::indexer::ordinals::indexing::{
     HEIGHT_TO_BLOCK_HASH, INSCRIPTION_NUMBER_TO_INSCRIPTION_ID,
 };
@@ -305,13 +306,24 @@ impl Node {
 
                             if ordinal_index.is_none() {
                                 ordinal_index = match initialize_ordinal_index(&event_observer_config, &self.ctx) {
-                                    Ok(index) => Some(index),
+                                    Ok(index) => {
+                                        match OrdinalIndexUpdater::update(&index, None, &self.ctx).await {
+                                            Ok(_r) => {
+                                                self.ctx.try_log(|logger| error!(logger, "ordinal index successfully updated: {:?}", index.block_count()));
+                                            }
+                                            Err(e) => {
+                                               self.ctx.try_log(|logger| error!(logger, "unable to update ordinal index: {}", e.to_string()));
+                                            }
+                                        };
+                                        Some(index)
+                                    },
                                     Err(e) => {
                                         info!(self.ctx.expect_logger(), "unable to read ordinal_index: {}", e);
                                         continue;
                                     }
                                 };    
                             }
+                            
 
                             let mut bitcoin_context = BitcoinChainContext::new(ordinal_index);
 
