@@ -233,13 +233,13 @@ pub async fn start_event_observer(
         )
     });
 
-    // let ordinal_index = initialize_ordinal_index(&config, &ctx)?;
-    // match OrdinalIndexUpdater::update(&ordinal_index, None, &ctx).await {
-    //     Ok(_r) => {}
-    //     Err(e) => {
-    //         ctx.try_log(|logger| slog::error!(logger, "{}", e.to_string()));
-    //     }
-    // }
+    let ordinal_index = initialize_ordinal_index(&config, &ctx)?;
+    match OrdinalIndexUpdater::update(&ordinal_index, None, &ctx).await {
+        Ok(_r) => {}
+        Err(e) => {
+            ctx.try_log(|logger| slog::error!(logger, "{}", e.to_string()));
+        }
+    }
 
     // ctx.try_log(|logger| {
     //     slog::info!(
@@ -258,7 +258,7 @@ pub async fn start_event_observer(
             stacks_network: StacksNetwork::Devnet,
             bitcoin_network: BitcoinNetwork::Regtest,
         },
-        None,
+        Some(ordinal_index),
     );
 
     let log_level = if config.display_logs {

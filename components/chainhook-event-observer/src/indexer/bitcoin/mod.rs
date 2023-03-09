@@ -120,7 +120,7 @@ pub fn standardize_bitcoin_block(
     let mut transactions = vec![];
 
     let ordinal_index = bitcoin_context.ordinal_index.take();
-    // let ctx_ = ctx.clone();
+    let ctx_ = ctx.clone();
 
     // let block_data = if let Some(ref ordinal_index) = ordinal_index {
     //     if let Ok(count) = ordinal_index.block_count() {
@@ -197,45 +197,45 @@ pub fn standardize_bitcoin_block(
     //     None
     // };
 
-    // let handle: JoinHandle<Result<_, String>> =
-    //     hiro_system_kit::thread_named("Ordinal index update")
-    //         .spawn(move || {
-    //             if let Some(ref ordinal_index) = ordinal_index {
-    //                 match hiro_system_kit::nestable_block_on(OrdinalIndexUpdater::update(
-    //                     &ordinal_index,
-    //                     block_data,
-    //                     &ctx_,
-    //                 )) {
-    //                     Ok(_) => {
-    //                         ctx_.try_log(|logger| {
-    //                             slog::info!(
-    //                                 logger,
-    //                                 "Ordinal index successfully updated {:?}",
-    //                                 ordinal_index.block_count()
-    //                             )
-    //                         });
-    //                     }
-    //                     Err(e) => {
-    //                         ctx_.try_log(|logger| {
-    //                             slog::error!(
-    //                                 logger,
-    //                                 "Error updating ordinal index: {}",
-    //                                 e.to_string()
-    //                             )
-    //                         });
-    //                     }
-    //                 };
-    //             }
-    //             Ok(ordinal_index)
-    //         })
-    //         .expect("unable to detach thread");
+    let handle: JoinHandle<Result<_, String>> =
+        hiro_system_kit::thread_named("Ordinal index update")
+            .spawn(move || {
+                if let Some(ref ordinal_index) = ordinal_index {
+                    match hiro_system_kit::nestable_block_on(OrdinalIndexUpdater::update(
+                        &ordinal_index,
+                        None,
+                        &ctx_,
+                    )) {
+                        Ok(_) => {
+                            ctx_.try_log(|logger| {
+                                slog::info!(
+                                    logger,
+                                    "Ordinal index successfully updated {:?}",
+                                    ordinal_index.block_count()
+                                )
+                            });
+                        }
+                        Err(e) => {
+                            ctx_.try_log(|logger| {
+                                slog::error!(
+                                    logger,
+                                    "Error updating ordinal index: {}",
+                                    e.to_string()
+                                )
+                            });
+                        }
+                    };
+                }
+                Ok(ordinal_index)
+            })
+            .expect("unable to detach thread");
 
-    // match handle.join() {
-    //     Ok(Ok(ordinal_index)) => {
+    match handle.join() {
+        Ok(Ok(ordinal_index)) => {
             bitcoin_context.ordinal_index = ordinal_index;
-    //     }
-    //     _ => {}
-    // }
+        }
+        _ => {}
+    }
 
     let expected_magic_bytes = get_stacks_canonical_magic_bytes(&indexer_config.bitcoin_network);
     let pox_config = get_canonical_pox_config(&indexer_config.bitcoin_network);

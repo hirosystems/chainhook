@@ -302,6 +302,9 @@ impl Node {
                         }
                         ChainhookSpecification::Bitcoin(predicate_spec) => {
 
+                            error!(self.ctx.expect_logger(), "Bitcoin replay disabled");
+                            continue;
+
                             let mut ordinal_index = None;
 
                             if ordinal_index.is_none() {
