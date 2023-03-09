@@ -362,13 +362,7 @@ fn try_parse_ordinal_operation(
                     Ok(Some(entry)) => entry,
                     _ => {
                         ctx.try_log(|logger| slog::info!(logger, "No inscriptions entry found in index, despite inscription detected in transaction"));
-                        InscriptionEntry {
-                            fee: 0,
-                            height: 0,
-                            number: 0,
-                            sat: Some(Sat(0)),
-                            timestamp: 0,
-                        }
+                        return None;
                     }
                 };
 
