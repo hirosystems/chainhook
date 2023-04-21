@@ -547,40 +547,7 @@ pub async fn start_observer_commands_handler(
                             )
                             .expect("unable to build http client");
 
-                            let mut proofs = HashMap::new();
-                            for hook_to_trigger in chainhooks_to_trigger.iter() {
-                                for (transactions, block) in hook_to_trigger.apply.iter() {
-                                    for transaction in transactions.iter() {
-                                        if !proofs.contains_key(&transaction.transaction_identifier)
-                                        {
-                                            ctx.try_log(|logger| {
-                                                slog::info!(
-                                                    logger,
-                                                    "collecting proof for transaction {}",
-                                                    transaction.transaction_identifier.hash
-                                                )
-                                            });
-                                            match get_bitcoin_proof(
-                                                &bitcoin_client_rpc,
-                                                &transaction.transaction_identifier,
-                                                &block.block_identifier,
-                                            ) {
-                                                Ok(proof) => {
-                                                    proofs.insert(
-                                                        &transaction.transaction_identifier,
-                                                        proof,
-                                                    );
-                                                }
-                                                Err(e) => {
-                                                    ctx.try_log(|logger| {
-                                                        slog::error!(logger, "{e}")
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            let proofs = HashMap::new();
                             ctx.try_log(|logger| {
                                 slog::info!(
                                     logger,
