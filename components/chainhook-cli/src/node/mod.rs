@@ -9,6 +9,7 @@ use chainhook_event_observer::chainhooks::types::{
     BitcoinPredicateType, ChainhookConfig, OrdinalOperations, Protocols,
 };
 use chainhook_event_observer::indexer::ordinals::indexing::entry::Entry;
+use chainhook_event_observer::indexer::ordinals::indexing::updater::OrdinalIndexUpdater;
 use chainhook_event_observer::indexer::ordinals::indexing::{
     HEIGHT_TO_BLOCK_HASH, INSCRIPTION_NUMBER_TO_INSCRIPTION_ID,
 };
@@ -118,7 +119,7 @@ impl Node {
             self.ctx.expect_logger(),
             "Listening for chainhook predicate registrations on port {}", DEFAULT_CONTROL_PORT
         );
-        
+
         let context_cloned = self.ctx.clone();
         let event_observer_config_cloned = event_observer_config.clone();
         let _ = std::thread::spawn(move || {
@@ -300,17 +301,27 @@ impl Node {
                             info!(self.ctx.expect_logger(), "Stacks chainhook {} scan completed: action triggered by {} transactions", stacks_hook.uuid, total_hits);
                         }
                         ChainhookSpecification::Bitcoin(predicate_spec) => {
-
                             let mut ordinal_index = None;
 
                             if ordinal_index.is_none() {
-                                ordinal_index = match initialize_ordinal_index(&event_observer_config, &self.ctx) {
-                                    Ok(index) => Some(index),
+                                ordinal_index = match initialize_ordinal_index(
+                                    &event_observer_config,
+                                    &self.ctx,
+                                ) {
+                                    Ok(index) => {
+                                        let _ =
+                                            OrdinalIndexUpdater::update(&index, None, &self.ctx)
+                                                .await;
+                                        Some(index)
+                                    }
                                     Err(e) => {
-                                        info!(self.ctx.expect_logger(), "unable to read ordinal_index: {}", e);
+                                        info!(
+                                            self.ctx.expect_logger(),
+                                            "unable to read ordinal_index: {}", e
+                                        );
                                         continue;
                                     }
-                                };    
+                                };
                             }
 
                             let mut bitcoin_context = BitcoinChainContext::new(ordinal_index);
