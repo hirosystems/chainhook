@@ -961,19 +961,17 @@ pub async fn handle_new_bitcoin_block(
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
 
-    let (block_height, block) =
-        match retrieve_full_block(bitcoin_config, marshalled_block.into_inner(), ctx).await {
-            Ok(block) => block,
+    let (block_height, block) = loop {
+        match retrieve_full_block(bitcoin_config, marshalled_block.clone().into_inner(), ctx).await {
+            Ok(block) => break block,
             Err(e) => {
                 ctx.try_log(|logger| {
                     slog::warn!(logger, "unable to retrieve_full_block: {}", e.to_string())
                 });
-                return Json(json!({
-                    "status": 500,
-                    "result": "unable to retrieve_full_block",
-                }));
+                std::thread::sleep(std::time::Duration::from_secs(1));
             }
         };
+    };
 
     let chain_update = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer.handle_bitcoin_block(block_height, block, &ctx),
