@@ -497,7 +497,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-event-observer"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "base58 0.2.0",
@@ -691,9 +691,9 @@ dependencies = [
 
 [[package]]
 name = "clarity-repl"
-version = "1.6.3"
+version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87d44ba2d29ae88d2fb2d06c22e5ca746ab4c3cf82363faf58a5ddc998769db3"
+checksum = "5a0deb0194874c1759dab6b6df926980d1de17a5317b22bacd21b00e213b0d8d"
 dependencies = [
  "ansi_term",
  "atty",
@@ -726,9 +726,9 @@ dependencies = [
 
 [[package]]
 name = "clarity-vm"
-version = "2.0.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6e381821d03b70f011cf233ab3e1115a93340071010041b3923c9be0eef7c2d"
+checksum = "2e5220a98e4642ba807d5cc42af6ebcdc48a179d9686e3934acee31cb7fb14a5"
 dependencies = [
  "integer-sqrt",
  "lazy_static",
@@ -3531,9 +3531,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.24.2"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9512ffd81e3a3503ed401f79c33168b9148c75038956039166cd750eaa037c3"
+checksum = "6b1629c9c557ef9b293568b338dddfc8208c98a18c59d722a9d53f859d9c9b62"
 dependencies = [
  "bitcoin_hashes 0.11.0",
  "secp256k1-sys",
@@ -3949,9 +3949,9 @@ dependencies = [
 
 [[package]]
 name = "stacks-common"
-version = "0.0.1"
+version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbe3cb43f95b8604323c93444665182acf4c6b46261c50e1179c14b9c86b312d"
+checksum = "c887baefb047fb7cd1c82d5a62e1deaca4b9ea9c701f965407db6c39a3fc902f"
 dependencies = [
  "chrono",
  "curve25519-dalek",
