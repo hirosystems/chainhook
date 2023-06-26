@@ -32,3 +32,59 @@ With chainhooks, developers can trigger actions based on predicates they can wri
 - A particular contract was involved in a transaction.
 - A quantity of BTC was received at a Bitcoin address.
 - A POX transfer occurred on the Bitcoin chain.
+
+## Understand the Predicate Design
+
+Predicates are the conditions that you can define to scan the blocks easier and faster on a block chain.
+
+Predicates are defined in the If-this, then-that format. You'll write your condition in the `if-this` condition template and use `then-that` to output the result.
+
+### If-this predicate design
+
+The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' paramter is mandatory to use with any of the other parameters. 
+
+- scope (mandatory)
+- equals
+- op_return
+  - ends_with
+- p2pkh
+- p2sh
+- p2wpkh
+- operation
+
+**Example:**
+
+```json
+
+{
+    "if_this": {
+        "scope": "txid",
+        "equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"
+    }
+}
+```
+
+### Then-that predicate design 
+
+The `then-that` predicate design can use the following attributes to output the result based on the `if-this` condition defined.
+
+- http_post
+  - url
+  - authorization_header
+- file_append
+  - path
+
+**Example:**
+
+```jsonc
+{
+    "then_that": {
+        "file_append": {
+            "path": "/tmp/events.json",
+        }
+    }
+}
+```
+
+For more information on predicate definitions, refer to [how to use chainhook with bitcoin](how-to-se-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](how-to-use-chainhook-with-stacks.md).
+

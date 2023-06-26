@@ -4,21 +4,24 @@ title: Getting Started
 
 # Getting Started
 
-Chainhooks interact with Bicoin and stacks layers. You can use chainhooks as a tool in your local environment and as a service in the cloud environment. 
+Chainhooks interact with Bitcoin and stacks layers. You can use chainhooks as a tool in your local environment or as a service in the cloud environment. 
 
 - Chainhooks as a tool
 - Chainhooks as a service
 
 ## Chainhooks as a tool
 
-Chainhooks can be run as a tool in your local environment by understanding the steps below:
+Chainhooks can be run as a tool in your local environment by understanding the steps below. Chainhooks are often described using the term predicates that are defined as conditions to scan your blocks on the blockchain.
 
+1. Define predicates
+2. Test/Scan predicates
+3. Deploy predicates
 
+Note that the above three steps are common for running chainhooks as a service using both Stacks and Bitcoin.
 
+Once you are ready to run chainhooks as a tool in your local environment, you can install chainhooks by following the next section.
 
-This document walks you through the installation steps and the predicate design to understand Chainhooks.
-
-## Install Chainhooks from source
+### Install Chainhooks from source
 
 Chainhooks can be installed from the source by following the steps below:
 
@@ -40,58 +43,15 @@ Chainhooks can be installed from the source by following the steps below:
     cargo chainhook-install
     ```
 
+Next, you can define your predicates by following the [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md) and [how to use chainhook with stacks](how-to-use-chainhook-with-stacks.md).
 
-## Predicate Design
+## Chainhooks as a service
 
-Predicates are the conditions that you can define to scan the blocks easier and faster on a block chain.
+You can run chainhooks as service in your cloud environment by passing the path of the predicates in a json format or define the predicates dynamically.
 
-Predicates are defined in the If-this, then-that format. You'll write your condition in the `if-this` condition template and use `then-that` to output the result.
+You can also define the predicates dynamically using two options.
 
-### If-this predicate design
+- Use the *predicate json file path* while starting the chainhook service.
+- Use the *start-http-api* option to instantiate a REST API allowing developers to list, add, and remove predicates at runtime.
 
-The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' paramter is mandatory to use with any of the other parameters. 
-
-- scope (mandatory)
-- equals
-- op_return
-  - ends_with
-- p2pkh
-- p2sh
-- p2wpkh
-- operation
-
-**Example:**
-
-```json
-
-{
-    "if_this": {
-        "scope": "txid",
-        "equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"
-    }
-}
-```
-
-### Then-that predicate design 
-
-The `then-that` predicate design can use the following attributes to output the result based on the `if-this` condition defined.
-
-- http_post
-  - url
-  - authorization_header
-- file_append
-  - path
-
-**Example:**
-
-```jsonc
-{
-    "then_that": {
-        "file_append": {
-            "path": "/tmp/events.json",
-        }
-    }
-}
-```
-
-For more information on predicate definitions, refer to [how to use chainhook with bitcoin](how-to-se-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](how-to-use-chainhook-with-stacks.md).
+Now, if you decide to use chainhooks as a tool in your local environment, you can get started with installing chainhooks from source.

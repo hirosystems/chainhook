@@ -9,7 +9,6 @@ The following document helps you with the steps to run chainhooks as a service u
 ## Prerequisite
 
 - Need stacks node running. You can refer to [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration)
-    - Users can choose between the options to configure the nodes.
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
 - Register event observer stacks.toml file (Refer to https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration#events_observer)
 
@@ -19,7 +18,15 @@ When you configure stacks node, a `stacks.toml` that gets generated as shown in 
 
 test predicate on machine, use the link below. 
 
-Chainhook config --generate command genartes the following config by default.
+### Configure chainhook
+
+In this section, you will configure chainhook using the following command, and generate a chainhook toml file. 
+
+```bash
+$ chainhook config generate --mainnet
+```
+
+Observe that the generated Chainhook config file has the following configuration.
 
 ```
 [[event_source]]
@@ -28,6 +35,9 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 In the `stacks.toml` file that gets generated, make sure the following matches with the bitcoind username, password and ports.  
 
+```
 username = "user"
 password = "pass"
-rpc_port = 8332```
+rpc_port = 8332
+```
+
