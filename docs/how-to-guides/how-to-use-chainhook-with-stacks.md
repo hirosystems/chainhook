@@ -14,12 +14,20 @@ To get started with Stacks predicates, we can use the `chainhook` to generate a 
 $ chainhook predicates new hello-arkadiko.json --stacks
 ```
 
+*******************Explain the above command and disccuss about Chainhooks vs Chainhooks********************
+
 ## `if_this` and `then_that` specifications
+
+*******************Are the below conditions specific to Stacks blockchain?
+If the stacks blockchain adds new function, can our chainhooks need a new if-this condition?
+************************
 
 The current `stacks` predicates support the following `if_this` constructs:
 
 Get any transaction matching a given `txid` mandatory argument admits:
-- 32 bytes hex encoded type. Example:
+- 32 bytes hex encoded type. 
+
+Example:
 
 ```json
  
@@ -30,159 +38,115 @@ Get any transaction matching a given `txid` mandatory argument admits:
     }
 }
 ```
-
-Get any transaction, including an OP_RETURN output starting with a set of characters. The `starts_with` mandatory argument admits:
- - ASCII string type. example: `X2[`
- - hex encoded bytes. example: `0x589403`
-
-```json
+```
+// Get any stacks block matching constraints
+// `block_height` mandatory argument admits:
+//  - `equals`, `higher_than`, `lower_than`, `between`: integer type.
 {
     "if_this": {
-        "scope": "outputs",
-        "op_return": {
-            "starts_with": "X2["
-        }
+        "scope": "block_height",
+        "higher_than": 10000
     }
 }
 ```
-
-Get any transaction, including an OP_RETURN output matching the sequence of bytes specified `equals` mandatory argument admits:
-- hex encoded bytes. Example: `0x589403`
-```json
+```
+// Get any transaction related to a given fungible token asset identifier
+// `asset-identifier` mandatory argument admits:
+//  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
+// `actions` mandatory argument admits:
+//  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 {
     "if_this": {
-        "scope": "outputs",
-        "op_return": {
-            "equals": "0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012"
-        }
-    }
+        "scope": "ft_event",
+        "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-token::cbtc",
+        "actions": ["burn"]
+    },
 }
 ```
-
-Get any transaction, including an OP_RETURN output ending with a set of characters `ends_with` mandatory argument admits:
-- ASCII string type. example: `X2[`
-- hex encoded bytes. example: `0x589403`
-
-```json
+```
+// Get any transaction related to a given non fungible token asset identifier
+// `asset-identifier` mandatory argument admits:
+//  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
+// `actions` mandatory argument admits:
+//  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 {
     "if_this": {
-        "scope": "outputs",
-        "op_return": {
-            "ends_with": "0x76a914000000000000000000000000000000000000000088ac"
-        }
-    }
+        "scope": "nft_event",
+        "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys",
+        "actions": ["mint", "transfer", "burn"]
+    },
 }
 ```
-
-Get any transaction including a p2pkh output paying a given recipient `p2pkh` construct admits:
-- string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
-- hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac" 
-```json
+```
+// Get any transaction moving STX tokens
+// `actions` mandatory argument admits:
+//  - array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
 {
     "if_this": {
-        "scope": "outputs",
-        "p2pkh": "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
-    }
+        "scope": "stx_event",
+        "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys",
+        "actions": ["transfer", "lock"]
+    },
 }
 ```
-
-Get any transaction including a p2sh output paying a given recipient `p2sh` construct admits:
-- string type. example: "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
-- hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
-```json
+```
+// Get any transaction emitting given print events predicate
+// `contract-identifier` mandatory argument admits:
+//  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
+// `contains` mandatory argument admits:
+//  - string type, used for matching event
 {
     "if_this": {
-        "scope": "outputs",
-        "p2sh": "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
-    }
+        "scope": "print_event",
+        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09",
+        "contains": "vault"
+    },
 }
 ```
-
-Get any transaction including a p2wpkh output paying a given recipient `p2wpkh` construct admits:
- - string type. example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
-```json
+```
+// Get any transaction calling a specific method for a given contract **directly**.
+// Warning: if the watched method is being called by another contract, this predicate won't detect it.
+// `contract-identifier` mandatory argument admits:
+//  - string type, fully qualifying the contract to observe. example: `SP000000000000000000002Q6VF78.pox`
+// `method` mandatory argument admits:
+//  - string type, used for specifying the method to observe. example: `stack-stx`
 {
     "if_this": {
-        "scope": "outputs",
-        "p2wpkh": "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
-    }
+        "scope": "contract_call",
+        "contract_identifier": "SP000000000000000000002Q6VF78.pox",
+        "method": "stack-stx"
+    },
 }
 ```
-
-Get any transaction including a p2wsh output paying a given recipient
-`p2wsh` construct admits:
- - string type. example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
-
-```json
+```
+// Get any transaction including a contract deployment
+// `deployer` mandatory argument admits:
+//  - string "*"
+//  - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 {
     "if_this": {
-        "scope": "outputs",
-        "p2wsh": "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
-    }
+        "scope": "contract_deployment",
+        "deployer": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+    },
 }
 ```
-
-Get any Bitcoin transaction, including a Block commitment.
-Broadcasted payloads include Proof of Transfer reward information.
-```json
+```
+// Get any transaction including a contract deployment implementing a given trait (coming soon)
+// `implement-trait` mandatory argument admits:
+//  - string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
 {
     "if_this": {
-        "scope": "stacks_protocol",
-        "operation": "block_committed"
-    }
+        "scope": "contract_deployment",
+        "implement_trait": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol"
+    },
 }
 ```
-
-Get any transaction, including a key registration operation.
-
-```json
-{
-    "if_this": {
-        "scope": "stacks_protocol",
-        "operation": "leader_key_registered"
-    }
-}
+In terms of actions available, the following then_that constructs are supported:
 ```
-
-Get any transaction, including an STX transfer operation 
-// Coming soon
-```json
-{
-    "if_this": {
-        "scope": "stacks_protocol",
-        "operation": "stx_transferred"
-    }
-}
-```
-
-Get any transaction, including an STX lock operation
-// Coming soon
-```json
-{
-    "if_this": {
-        "scope": "stacks_protocol",
-        "operation": "stx_locked"
-    }
-}
-```
-
-Get any transaction including a new Ordinal inscription (inscription revealed and transferred)
-```json
-{
-    "if_this": {
-        "scope": "ordinals_protocol",
-        "operation": "inscription_feed"
-    }
-}
-```
-
-In terms of actions available, the following `then_that` constructs are supported:
-
-HTTP Post block/transaction payload to a given endpoint. The `http_post` construct admits:
-- url (string type). Example: http://localhost:3000/api/v1/wrapBtc
-- authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
-
-```jsonc
+// HTTP Post block / transaction payload to a given endpoint.
+// `http_post` construct admits:
+//  - url (string type). Example: http://localhost:3000/api/v1/wrapBtc
+//  - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 {
     "then_that": {
         "http_post": {
@@ -192,11 +156,10 @@ HTTP Post block/transaction payload to a given endpoint. The `http_post` constru
     }
 }
 ```
-
-Append events to a file through the filesystem. Convenient for local tests. The `file_append` construct admits:
-- path (string type). Path to file on disk.
-
-```jsonc
+```
+// Append events to a file through filesystem. Convenient for local tests.
+// `file_append` construct admits:
+//  - path (string type). Path to file on disk.
 {
     "then_that": {
         "file_append": {
@@ -205,48 +168,26 @@ Append events to a file through the filesystem. Convenient for local tests. The 
     }
 }
 ```
+Additional configuration knobs available:
 
-## Additional configuration knobs available
-
-```json
-// Ignore any block before the given block:
+// Ignore any block prior to given block:
 "start_block": 101
 
-// Ignore any block after the given block:
+// Ignore any block after given block:
 "end_block": 201
 
 // Stop evaluating chainhook after a given number of occurrences found:
 "expire_after_occurrence": 1
 
-// Include proof:
-"include_proof": false
+// Include decoded clarity values in payload
+"decode_clarity_values": true
+Putting all the pieces together:
 
-// Include Bitcoin transaction inputs in the payload:
-"include_inputs": false
-
-// Include Bitcoin transaction outputs in the payload:
-"include_outputs": false
-
-// Include Bitcoin transaction witness in the payload:
-"include_witness": false
+// Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` 
+// the 5 first transactions interacting with ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09,
+// emitting print events containing the word 'vault'.
 
 ```
-
-:::tip
-
-To optimize your experience with scanning, developers have a few knobs they can play with:
-- Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the speed.
-
-:::
-
-
-
-## Putting all the above configurations together
-
-Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`. The five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount occurring after block height 10200. 
-
-```json
-
 {
   "chain": "stacks",
   "uuid": "1",
@@ -272,12 +213,11 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`. The five first
 }
 ```
 
-## Another example
+```
 
-A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
-
-```json
-
+// A specification file can also include different networks.
+// In this case, the chainhook will select the predicate
+// corresponding to the network it was launched against.
 {
   "chain": "stacks",
   "uuid": "1",
@@ -316,7 +256,6 @@ A specification file can also include different networks. In this case, the chai
     }
   }
 }
-
 ```
 
 ## Guide to local Stacks testnet / mainnet predicate scanning

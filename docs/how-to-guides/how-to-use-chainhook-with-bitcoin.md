@@ -342,7 +342,7 @@ Configuring a `bitcoind` instance is out of the scope of this guide.
 Assuming a `bitcoind` node is correctly configured, you can perform scans using the following command:
 
 ```bash
-$ chainhook predicates scan ./path/to/predicate.json --testnet
+$ chainhook predicates scan ./path/to/predicate.json --mainnet
 ```
 When using the flag `--testnet`, the scan operation will generate a configuration file in memory using the following settings:
 
