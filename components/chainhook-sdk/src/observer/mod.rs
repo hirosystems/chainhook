@@ -366,8 +366,8 @@ impl ChainhookStore {
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct ChainMetrics {
     pub tip_height: u64,
-    pub last_reorg: i64,
-    pub last_block_ingestion: i64,
+    pub last_reorg_at: i64,
+    pub last_block_ingestion_at: i64,
     pub registered_predicates: usize,
     pub deregistered_predicates: usize,
 }
@@ -1011,7 +1011,8 @@ pub async fn start_observer_commands_handler(
                         {
                             Some(highest_tip_block) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
-                                    metrics.bitcoin.last_reorg = highest_tip_block.timestamp.into();
+                                    metrics.bitcoin.last_reorg_at =
+                                        highest_tip_block.timestamp.into();
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(logger, "Failed to aquire lock: {}", e)
@@ -1243,7 +1244,8 @@ pub async fn start_observer_commands_handler(
                         {
                             Some(highest_tip_update) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
-                                    metrics.stacks.last_reorg = highest_tip_update.block.timestamp;
+                                    metrics.stacks.last_reorg_at =
+                                        highest_tip_update.block.timestamp;
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(logger, "Failed to aquire lock: {}", e)
