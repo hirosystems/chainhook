@@ -433,6 +433,9 @@ pub async fn start_event_observer(
 
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
+    let observer_metrics = ObserverMetrics::default();
+    let observer_metrics_arc = Arc::new(Mutex::new(observer_metrics));
+
     let limits = Limits::default().limit("json", 4.megabytes());
     let mut shutdown_config = config::Shutdown::default();
     shutdown_config.ctrlc = false;
@@ -476,6 +479,7 @@ pub async fn start_event_observer(
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(services_config)
+        .manage(observer_metrics_arc.clone())
         .mount("/", routes)
         .ignite()
         .await?;
