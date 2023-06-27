@@ -368,8 +368,8 @@ pub struct ChainMetrics {
     pub tip_height: u64,
     pub last_reorg: i64,
     pub last_block_ingestion: i64,
-    pub active_predicates: u64,
-    pub expired_predicates: u64,
+    pub registered_predicates: usize,
+    pub deregistered_predicates: usize,
 }
 
 #[derive(Debug, Default, Serialize, Clone)]
@@ -433,8 +433,17 @@ pub async fn start_event_observer(
 
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
-    let observer_metrics = ObserverMetrics::default();
-    let observer_metrics_arc = Arc::new(Mutex::new(observer_metrics));
+    let observer_metrics = ObserverMetrics {
+        bitcoin: ChainMetrics {
+            registered_predicates: chainhook_store.predicates.bitcoin_chainhooks.len(),
+            ..Default::default()
+        },
+        stacks: ChainMetrics {
+            registered_predicates: chainhook_store.predicates.stacks_chainhooks.len(),
+            ..Default::default()
+        },
+    };
+    let observer_metrics_mutex = Arc::new(Mutex::new(observer_metrics));
 
     let limits = Limits::default().limit("json", 4.megabytes());
     let mut shutdown_config = config::Shutdown::default();
@@ -479,7 +488,7 @@ pub async fn start_event_observer(
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(services_config)
-        .manage(observer_metrics_arc.clone())
+        .manage(observer_metrics_mutex.clone())
         .mount("/", routes)
         .ignite()
         .await?;
@@ -499,7 +508,7 @@ pub async fn start_event_observer(
         observer_commands_rx,
         observer_events_tx,
         ingestion_shutdown,
-        observer_metrics_arc.clone(),
+        observer_metrics_mutex.clone(),
         ctx,
     )
     .await
@@ -1379,6 +1388,20 @@ pub async fn start_observer_commands_handler(
                     ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
                     chainhook_store.predicates.enable_specification(&mut spec);
                 }
+
+                match observer_metrics.lock() {
+                    Ok(mut metrics) => match spec {
+                        ChainhookSpecification::Bitcoin(_) => {
+                            metrics.bitcoin.registered_predicates += 1
+                        }
+                        ChainhookSpecification::Stacks(_) => {
+                            metrics.stacks.registered_predicates += 1
+                        }
+                    },
+                    Err(e) => {
+                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
+                    }
+                };
             }
             ObserverCommand::EnablePredicate(mut spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
@@ -1397,6 +1420,16 @@ pub async fn start_observer_commands_handler(
                         ChainhookSpecification::Stacks(hook),
                     ));
                 }
+
+                match observer_metrics.lock() {
+                    Ok(mut metrics) => {
+                        metrics.stacks.registered_predicates -= 1;
+                        metrics.stacks.deregistered_predicates += 1;
+                    }
+                    Err(e) => {
+                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
+                    }
+                }
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
                 ctx.try_log(|logger| {
@@ -1409,6 +1442,15 @@ pub async fn start_observer_commands_handler(
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         ChainhookSpecification::Bitcoin(hook),
                     ));
+
+                    match observer_metrics.lock() {
+                        Ok(mut metrics) => {
+                            metrics.bitcoin.registered_predicates -= 1;
+                            metrics.bitcoin.deregistered_predicates += 1;
+                        }
+                        Err(e) => ctx
+                            .try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e)),
+                    }
                 }
             }
         }
