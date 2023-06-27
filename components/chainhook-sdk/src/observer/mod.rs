@@ -443,7 +443,7 @@ pub async fn start_event_observer(
             ..Default::default()
         },
     };
-    let observer_metrics_mutex = Arc::new(Mutex::new(observer_metrics));
+    let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
 
     let limits = Limits::default().limit("json", 4.megabytes());
     let mut shutdown_config = config::Shutdown::default();
@@ -488,7 +488,7 @@ pub async fn start_event_observer(
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(services_config)
-        .manage(observer_metrics_mutex.clone())
+        .manage(observer_metrics_rw_lock.clone())
         .mount("/", routes)
         .ignite()
         .await?;
@@ -508,7 +508,7 @@ pub async fn start_event_observer(
         observer_commands_rx,
         observer_events_tx,
         ingestion_shutdown,
-        observer_metrics_mutex.clone(),
+        observer_metrics_rw_lock.clone(),
         ctx,
     )
     .await
@@ -693,7 +693,7 @@ pub async fn start_observer_commands_handler(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
-    observer_metrics: Arc<Mutex<ObserverMetrics>>,
+    observer_metrics: Arc<RwLock<ObserverMetrics>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -744,7 +744,7 @@ pub async fn start_observer_commands_handler(
                         }
                     };
 
-                match observer_metrics.lock() {
+                match observer_metrics.write() {
                     Ok(mut metrics) => {
                         metrics.bitcoin.tip_height = new_block.block_identifier.index;
                     }
@@ -1002,7 +1002,7 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block_identifier.index)
                         {
-                            Some(highest_tip_block) => match observer_metrics.lock() {
+                            Some(highest_tip_block) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
                                     metrics.bitcoin.last_reorg = highest_tip_block.timestamp.into();
                                 }
@@ -1204,7 +1204,7 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => match observer_metrics.lock() {
+                            Some(highest_tip_update) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
                                     if highest_tip_update.block.block_identifier.index
                                         > metrics.stacks.tip_height
@@ -1227,7 +1227,7 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => match observer_metrics.lock() {
+                            Some(highest_tip_update) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
                                     metrics.stacks.last_reorg = highest_tip_update.block.timestamp;
                                 }
@@ -1389,7 +1389,7 @@ pub async fn start_observer_commands_handler(
                     chainhook_store.predicates.enable_specification(&mut spec);
                 }
 
-                match observer_metrics.lock() {
+                match observer_metrics.write() {
                     Ok(mut metrics) => match spec {
                         ChainhookSpecification::Bitcoin(_) => {
                             metrics.bitcoin.registered_predicates += 1
@@ -1421,7 +1421,7 @@ pub async fn start_observer_commands_handler(
                     ));
                 }
 
-                match observer_metrics.lock() {
+                match observer_metrics.write() {
                     Ok(mut metrics) => {
                         metrics.stacks.registered_predicates -= 1;
                         metrics.stacks.deregistered_predicates += 1;
@@ -1443,7 +1443,7 @@ pub async fn start_observer_commands_handler(
                         ChainhookSpecification::Bitcoin(hook),
                     ));
 
-                    match observer_metrics.lock() {
+                    match observer_metrics.write() {
                         Ok(mut metrics) => {
                             metrics.bitcoin.registered_predicates -= 1;
                             metrics.bitcoin.deregistered_predicates += 1;

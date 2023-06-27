@@ -15,12 +15,12 @@ use super::{
 #[rocket::get("/ping", format = "application/json")]
 pub fn handle_ping(
     ctx: &State<Context>,
-    metrics: &State<Arc<Mutex<ObserverMetrics>>>,
+    metrics_rw_lock: &State<Arc<RwLock<ObserverMetrics>>>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "GET /ping"));
     Json(json!({
         "status": 200,
-        "result": metrics.inner(),
+        "result": metrics_rw_lock.inner(),
     }))
 }
 
