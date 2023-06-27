@@ -363,6 +363,21 @@ impl ChainhookStore {
     }
 }
 
+#[derive(Debug, Default, Serialize, Clone)]
+pub struct ChainMetrics {
+    pub tip_height: u64,
+    pub last_reorg: i64,
+    pub last_block_ingestion: i64,
+    pub active_predicates: u64,
+    pub expired_predicates: u64,
+}
+
+#[derive(Debug, Default, Serialize, Clone)]
+pub struct ObserverMetrics {
+    pub bitcoin: ChainMetrics,
+    pub stacks: ChainMetrics, // todo: do users sometimes start with just bitcoin, making stacks unnecessary?
+}
+
 pub async fn start_event_observer(
     mut config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
