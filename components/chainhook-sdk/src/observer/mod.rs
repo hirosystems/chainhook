@@ -44,7 +44,7 @@ use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 #[cfg(feature = "zeromq")]
 use zeromq::{Socket, SocketRecv};
 
@@ -367,7 +367,7 @@ impl ChainhookStore {
 pub struct ChainMetrics {
     pub tip_height: u64,
     pub last_reorg_at: i64,
-    pub last_block_ingestion_at: i64,
+    pub last_block_ingestion_at: u128,
     pub registered_predicates: usize,
     pub deregistered_predicates: usize,
 }
@@ -753,7 +753,14 @@ pub async fn start_observer_commands_handler(
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => {
-                        metrics.bitcoin.tip_height = new_block.block_identifier.index;
+                        if new_block.block_identifier.index > metrics.bitcoin.tip_height {
+                            metrics.bitcoin.tip_height = new_block.block_identifier.index;
+                        }
+                        metrics.bitcoin.last_block_ingestion_at = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Could not get current time in ms")
+                            .as_millis()
+                            .into();
                     }
                     Err(e) => {
                         ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
@@ -1227,6 +1234,11 @@ pub async fn start_observer_commands_handler(
                                         metrics.stacks.tip_height =
                                             highest_tip_update.block.block_identifier.index;
                                     }
+                                    metrics.stacks.last_block_ingestion_at = SystemTime::now()
+                                        .duration_since(UNIX_EPOCH)
+                                        .expect("Could not get current time in ms")
+                                        .as_millis()
+                                        .into();
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(logger, "Failed to aquire lock: {}", e)
