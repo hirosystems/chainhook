@@ -1365,11 +1365,11 @@ pub async fn start_observer_commands_handler(
             ObserverCommand::RegisterPredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling RegisterPredicate command"));
 
-                let mut spec = match chainhook_store
+                let mut spec: ChainhookSpecification = match chainhook_store
                     .predicates
                     .register_full_specification(networks, spec)
                 {
-                    Ok(uuid) => uuid,
+                    Ok(spec) => spec,
                     Err(e) => {
                         ctx.try_log(|logger| {
                             slog::error!(
@@ -1383,7 +1383,7 @@ pub async fn start_observer_commands_handler(
                 };
                 ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
                 if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec));
+                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
                 } else {
                     ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
                     chainhook_store.predicates.enable_specification(&mut spec);
