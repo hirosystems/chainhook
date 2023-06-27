@@ -499,6 +499,7 @@ pub async fn start_event_observer(
         observer_commands_rx,
         observer_events_tx,
         ingestion_shutdown,
+        observer_metrics_arc.clone(),
         ctx,
     )
     .await
@@ -683,6 +684,7 @@ pub async fn start_observer_commands_handler(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
+    observer_metrics: Arc<Mutex<ObserverMetrics>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -732,6 +734,15 @@ pub async fn start_observer_commands_handler(
                             continue;
                         }
                     };
+
+                match observer_metrics.lock() {
+                    Ok(mut metrics) => {
+                        metrics.bitcoin.tip_height = new_block.block_identifier.index;
+                    }
+                    Err(e) => {
+                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
+                    }
+                };
                 bitcoin_block_store.insert(new_block.block_identifier.clone(), new_block);
             }
             ObserverCommand::CacheBitcoinBlock(block) => {
@@ -978,6 +989,21 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
+                        match blocks_to_apply
+                            .iter()
+                            .max_by_key(|b| b.block_identifier.index)
+                        {
+                            Some(highest_tip_block) => match observer_metrics.lock() {
+                                Ok(mut metrics) => {
+                                    metrics.bitcoin.last_reorg = highest_tip_block.timestamp.into();
+                                }
+                                Err(e) => ctx.try_log(|logger| {
+                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                }),
+                            },
+                            None => {}
+                        }
+
                         BitcoinChainEvent::ChainUpdatedWithReorg(BitcoinChainUpdatedWithReorgData {
                             blocks_to_apply,
                             blocks_to_rollback,
@@ -1161,6 +1187,50 @@ pub async fn start_observer_commands_handler(
                         stacks_chainhooks.len()
                     )
                 });
+                // track stacks chain metrics
+                match &chain_event {
+                    StacksChainEvent::ChainUpdatedWithBlocks(update) => {
+                        match update
+                            .new_blocks
+                            .iter()
+                            .max_by_key(|b| b.block.block_identifier.index)
+                        {
+                            Some(highest_tip_update) => match observer_metrics.lock() {
+                                Ok(mut metrics) => {
+                                    if highest_tip_update.block.block_identifier.index
+                                        > metrics.stacks.tip_height
+                                    {
+                                        metrics.stacks.tip_height =
+                                            highest_tip_update.block.block_identifier.index;
+                                    }
+                                }
+                                Err(e) => ctx.try_log(|logger| {
+                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                }),
+                            },
+                            None => {}
+                        }
+                    }
+                    StacksChainEvent::ChainUpdatedWithReorg(update) => {
+                        // todo: I don't know which block's timestamp we actually want
+                        match update
+                            .blocks_to_apply
+                            .iter()
+                            .max_by_key(|b| b.block.block_identifier.index)
+                        {
+                            Some(highest_tip_update) => match observer_metrics.lock() {
+                                Ok(mut metrics) => {
+                                    metrics.stacks.last_reorg = highest_tip_update.block.timestamp;
+                                }
+                                Err(e) => ctx.try_log(|logger| {
+                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                }),
+                            },
+                            None => {}
+                        }
+                    }
+                    _ => {}
+                }
 
                 // process hooks
                 let (predicates_triggered, predicates_evaluated) =
