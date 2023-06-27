@@ -1433,7 +1433,7 @@ pub async fn start_observer_commands_handler(
             ObserverCommand::RegisterPredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling RegisterPredicate command"));
 
-                let mut spec: ChainhookSpecification = match chainhook_store
+                let mut spec = match chainhook_store
                     .predicates
                     .register_full_specification(networks, spec)
                 {
