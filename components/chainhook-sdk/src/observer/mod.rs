@@ -1029,7 +1029,7 @@ pub async fn start_observer_commands_handler(
                                         timestamp: highest_tip_block.timestamp.into(),
                                         applied_blocks: blocks_to_apply.len(),
                                         rolled_back_blocks: blocks_to_rollback.len(),
-                                    })
+                                    });
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(
@@ -1282,7 +1282,7 @@ pub async fn start_observer_commands_handler(
                                         timestamp: highest_tip_update.block.timestamp.into(),
                                         applied_blocks: update.blocks_to_apply.len(),
                                         rolled_back_blocks: update.blocks_to_rollback.len(),
-                                    })
+                                    });
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(
