@@ -364,9 +364,16 @@ impl ChainhookStore {
 }
 
 #[derive(Debug, Default, Serialize, Clone)]
+pub struct ReorgMetrics {
+    timestamp: i64,
+    applied_blocks: usize,
+    rolled_back_blocks: usize,
+}
+
+#[derive(Debug, Default, Serialize, Clone)]
 pub struct ChainMetrics {
     pub tip_height: u64,
-    pub last_reorg_at: i64,
+    pub last_reorg: ReorgMetrics,
     pub last_block_ingestion_at: u128,
     pub registered_predicates: usize,
     pub deregistered_predicates: usize,
@@ -1018,8 +1025,11 @@ pub async fn start_observer_commands_handler(
                         {
                             Some(highest_tip_block) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
-                                    metrics.bitcoin.last_reorg_at =
-                                        highest_tip_block.timestamp.into();
+                                    metrics.bitcoin.last_reorg = ReorgMetrics {
+                                        timestamp: highest_tip_block.timestamp.into(),
+                                        applied_blocks: blocks_to_apply.len(),
+                                        rolled_back_blocks: blocks_to_rollback.len(),
+                                    }
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(
@@ -1268,8 +1278,11 @@ pub async fn start_observer_commands_handler(
                         {
                             Some(highest_tip_update) => match observer_metrics.write() {
                                 Ok(mut metrics) => {
-                                    metrics.stacks.last_reorg_at =
-                                        highest_tip_update.block.timestamp;
+                                    metrics.stacks.last_reorg = ReorgMetrics {
+                                        timestamp: highest_tip_update.block.timestamp.into(),
+                                        applied_blocks: update.blocks_to_apply.len(),
+                                        rolled_back_blocks: update.blocks_to_rollback.len(),
+                                    }
                                 }
                                 Err(e) => ctx.try_log(|logger| {
                                     slog::warn!(
