@@ -372,6 +372,13 @@ pub struct ChainMetrics {
     pub deregistered_predicates: usize,
 }
 
+impl ChainMetrics {
+    pub fn deregister_prediate(&mut self) {
+        self.registered_predicates -= 1;
+        self.deregistered_predicates += 1;
+    }
+}
+
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct ObserverMetrics {
     pub bitcoin: ChainMetrics,
@@ -1147,6 +1154,13 @@ pub async fn start_observer_commands_handler(
                                 ChainhookSpecification::Bitcoin(chainhook),
                             ));
                         }
+
+                        match observer_metrics.write() {
+                            Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
+                            Err(e) => ctx.try_log(|logger| {
+                                slog::warn!(logger, "Failed to aquire lock: {}", e)
+                            }),
+                        }
                     }
                 }
 
@@ -1324,6 +1338,13 @@ pub async fn start_observer_commands_handler(
                                 ChainhookSpecification::Stacks(chainhook),
                             ));
                         }
+
+                        match observer_metrics.write() {
+                            Ok(mut metrics) => metrics.stacks.deregister_prediate(),
+                            Err(e) => ctx.try_log(|logger| {
+                                slog::warn!(logger, "Failed to aquire lock: {}", e)
+                            }),
+                        }
                     }
                 }
 
@@ -1422,10 +1443,7 @@ pub async fn start_observer_commands_handler(
                 }
 
                 match observer_metrics.write() {
-                    Ok(mut metrics) => {
-                        metrics.stacks.registered_predicates -= 1;
-                        metrics.stacks.deregistered_predicates += 1;
-                    }
+                    Ok(mut metrics) => metrics.stacks.deregister_prediate(),
                     Err(e) => {
                         ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
                     }
@@ -1444,10 +1462,7 @@ pub async fn start_observer_commands_handler(
                     ));
 
                     match observer_metrics.write() {
-                        Ok(mut metrics) => {
-                            metrics.bitcoin.registered_predicates -= 1;
-                            metrics.bitcoin.deregistered_predicates += 1;
-                        }
+                        Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
                         Err(e) => ctx
                             .try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e)),
                     }
