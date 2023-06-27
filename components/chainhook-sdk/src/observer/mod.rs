@@ -762,9 +762,9 @@ pub async fn start_observer_commands_handler(
                             .as_millis()
                             .into();
                     }
-                    Err(e) => {
-                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
-                    }
+                    Err(e) => ctx.try_log(|logger| {
+                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                    }),
                 };
                 bitcoin_block_store.insert(new_block.block_identifier.clone(), new_block);
             }
@@ -1022,7 +1022,11 @@ pub async fn start_observer_commands_handler(
                                         highest_tip_block.timestamp.into();
                                 }
                                 Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                    slog::warn!(
+                                        logger,
+                                        "unable to acquire observer_metrics_rw_lock:{}",
+                                        e
+                                    )
                                 }),
                             },
                             None => {}
@@ -1166,7 +1170,11 @@ pub async fn start_observer_commands_handler(
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
                             Err(e) => ctx.try_log(|logger| {
-                                slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to acquire observer_metrics_rw_lock:{}",
+                                    e
+                                )
                             }),
                         }
                     }
@@ -1241,7 +1249,11 @@ pub async fn start_observer_commands_handler(
                                         .into();
                                 }
                                 Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                    slog::warn!(
+                                        logger,
+                                        "unable to acquire observer_metrics_rw_lock:{}",
+                                        e
+                                    )
                                 }),
                             },
                             None => {}
@@ -1260,7 +1272,11 @@ pub async fn start_observer_commands_handler(
                                         highest_tip_update.block.timestamp;
                                 }
                                 Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                    slog::warn!(
+                                        logger,
+                                        "unable to acquire observer_metrics_rw_lock:{}",
+                                        e
+                                    )
                                 }),
                             },
                             None => {}
@@ -1356,7 +1372,11 @@ pub async fn start_observer_commands_handler(
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.stacks.deregister_prediate(),
                             Err(e) => ctx.try_log(|logger| {
-                                slog::warn!(logger, "Failed to aquire lock: {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to acquire observer_metrics_rw_lock:{}",
+                                    e
+                                )
                             }),
                         }
                     }
@@ -1433,9 +1453,9 @@ pub async fn start_observer_commands_handler(
                             metrics.stacks.registered_predicates += 1
                         }
                     },
-                    Err(e) => {
-                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
-                    }
+                    Err(e) => ctx.try_log(|logger| {
+                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                    }),
                 };
             }
             ObserverCommand::EnablePredicate(mut spec) => {
@@ -1458,9 +1478,9 @@ pub async fn start_observer_commands_handler(
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => metrics.stacks.deregister_prediate(),
-                    Err(e) => {
-                        ctx.try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e))
-                    }
+                    Err(e) => ctx.try_log(|logger| {
+                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                    }),
                 }
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
@@ -1477,8 +1497,9 @@ pub async fn start_observer_commands_handler(
 
                     match observer_metrics.write() {
                         Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
-                        Err(e) => ctx
-                            .try_log(|logger| slog::warn!(logger, "Failed to aquire lock: {}", e)),
+                        Err(e) => ctx.try_log(|logger| {
+                            slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                        }),
                     }
                 }
             }
