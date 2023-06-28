@@ -504,7 +504,6 @@ pub fn start_zeromq_runloop(
 ) {
     #[cfg(feature = "zeromq")]
     {
-        use crate::indexer::bitcoin::download_and_parse_block_with_retry;
         use crate::indexer::fork_scratch_pad::ForkScratchPad;
 
         if let BitcoinBlockSignaling::ZeroMQ(ref bitcoind_zmq_url) = config.bitcoin_block_signaling
