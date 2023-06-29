@@ -389,7 +389,7 @@ impl ChainMetrics {
 #[derive(Debug, Default, Serialize, Clone)]
 pub struct ObserverMetrics {
     pub bitcoin: ChainMetrics,
-    pub stacks: ChainMetrics, // todo: do users sometimes start with just bitcoin, making stacks unnecessary?
+    pub stacks: ChainMetrics,
 }
 
 pub async fn start_event_observer(
