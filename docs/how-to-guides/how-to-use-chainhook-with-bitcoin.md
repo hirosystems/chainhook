@@ -6,44 +6,12 @@ title: Use Chainhook with Bitcoin
 
 The following guide helps you define predicates to use chainhook with Bitcoin.
 
-## Guide to `if_this` / `then_that` predicate design
 
-To get started with Bitcoin predicates, we can use the `chainhook` to generate a template: 
+##  `if_this` specifications
 
-```bash
-$ chainhook predicates new hello-ordinals.json --bitcoin
-```
+The current `bitcoin` predicates support the following `if_this` constructs. 
 
-The above command generates a hello-ordinals.json file that looks like this:
-
-```
-{
-  "chain": "bitcoin",
-  "uuid": "a618b9ab-b836-43c9-954d-e31e8940322e",
-  "name": "Hello world",
-  "version": 1,
-  "networks": {
-    "mainnet": {
-      "start_block": 0,
-      "end_block": 100,
-      "if_this": {
-        "scope": "ordinals_protocol",
-        "operation": "inscription_feed"
-      },
-      "then_that": {
-        "file_append": {
-          "path": "ordinals.txt"
-        }
-      }
-    }
-  }
-}
-```
-
-##  `if_this` and `then_that` specifications
-
-The current `bitcoin` predicates support the following `if_this` constructs. Get any transaction matching a given txid. The `txid` mandatory argument admits: - 32 bytes hex encoded type. 
-
+Get any transaction matching a given txid. The `txid` mandatory argument admits: - 32 bytes hex encoded type. 
 
 ```json
 
@@ -54,6 +22,7 @@ The current `bitcoin` predicates support the following `if_this` constructs. Get
     }
 }
 ```
+
 Get any transaction, including an OP_RETURN output starting with a set of characters. The `starts_with` mandatory argument admits:
  - ASCII string type. example: `X2[`
  - hex encoded bytes. example: `0x589403`
@@ -197,6 +166,8 @@ Get any transaction including a new Ordinal inscription (inscription revealed an
 }
 ```
 
+##  `then_that` constructs
+
 In terms of actions available, the following `then_that` constructs are supported:
 
 HTTP Post block/transaction payload to a given endpoint. The `http_post` construct admits:
@@ -229,31 +200,29 @@ Append events to a file through the filesystem. Convenient for local tests. The 
 
 ## Additional configuration knobs available
 
-```json
-// Ignore any block before the given block:
-"start_block": 101
+- Ignore any block before the given block:
+`"start_block": 101`
 
-// Ignore any block after the given block:
-"end_block": 201
+- Ignore any block after the given block:
+`"end_block": 201`
 
-// Stop evaluating chainhook after a given number of occurrences found:
-"expire_after_occurrence": 1
+- Stop evaluating chainhook after a given number of occurrences found:
+`"expire_after_occurrence": 1`
 
-// Include proof:
-"include_proof": false
+- Include proof:
+`"include_proof": false`
 
-// Include Bitcoin transaction inputs in the payload:
-"include_inputs": false
+- Include Bitcoin transaction inputs in the payload:
+`"include_inputs": false`
 
-// Include Bitcoin transaction outputs in the payload:
-"include_outputs": false
+- Include Bitcoin transaction outputs in the payload:
+`"include_outputs": false`
 
-// Include Bitcoin transaction witness in the payload:
-"include_witness": false
+- Include Bitcoin transaction witness in the payload:
+`"include_witness": false`
 
-```
 
-## Putting all the above configurations together
+## Example predicate definition to post first five transfers
 
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount, occurring after block height 10200.
 
@@ -284,7 +253,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first 
 }
 ```
 
-## Another example
+## Example predicate with multiple networks
 
 A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
 
@@ -327,72 +296,3 @@ A specification file can also include different networks. In this case, the chai
 }
 
 ```
-
-## Guide to local Bitcoin testnet / mainnet predicate scanning
-
-To scan the Bitcoin chain with a given predicate, a `bitcoind` instance with access to the RPC methods `getblockhash` and `getblock` must be accessible. The RPC calls latency will directly impact the speed of the scans.
-
-:::note
-
-Configuring a `bitcoind` instance is out of the scope of this guide.
-
-:::
-
-
-Assuming a `bitcoind` node is correctly configured, you can perform scans using the following command:
-
-```bash
-$ chainhook predicates scan ./path/to/predicate.json --mainnet
-```
-When using the flag `--testnet`, the scan operation will generate a configuration file in memory using the following settings:
-
-```toml
-[storage]
-driver = "memory"
-
-[chainhooks]
-max_stacks_registrations = 500
-max_bitcoin_registrations = 500
-
-[network]
-mode = "testnet"
-bitcoind_rpc_url = "http://0.0.0.0:18332"
-bitcoind_rpc_username = "testnet"
-bitcoind_rpc_password = "testnet"
-stacks_node_rpc_url = "http://0.0.0.0:20443"
-```
-
-When using the flag `--mainnet`, the scan operation will generate a configuration file in memory using the following settings:
-
-```toml
-[storage]
-driver = "memory"
-
-[chainhooks]
-max_stacks_registrations = 500
-max_bitcoin_registrations = 500
-
-[network]
-mode = "mainnet"
-bitcoind_rpc_url = "http://0.0.0.0:8332"
-bitcoind_rpc_username = "mainnet"
-bitcoind_rpc_password = "mainnet"
-stacks_node_rpc_url = "http://0.0.0.0:20443"
-
-```
-
-Developers can customize their Bitcoin node's credentials and network address by adding the flag `-config=/path/to/config.toml`.
-
-```bash
-$ chainhook config new --testnet
-✔ Generated config file Testnet.toml
-
-$ chainhook predicates scan ./path/predicate.json --config=./Testnet.toml
-```
-
-## Tips and tricks
-
-To optimize your experience with scanning, the following are a few knobs you can play with:
-
-- Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the speed.
-- Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help a lot.

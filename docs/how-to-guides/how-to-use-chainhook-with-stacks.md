@@ -4,23 +4,10 @@ title: Use Chainhook with Stacks
 
 # Use chainhook with Stacks
 
-The following guide helps you define predicates to use chainhook with Stacks.
+The following guide helps you define predicates to use chainhook with Stacks. The predicates are specified based on `if-this`
+, `then-that` constructs. You can use the following example definition and [run the chainhook as a service using stacks](run-chainhook-as-a-service-using-stacks.md).
 
-## Guide to `if_this` / `then_that` predicate design
-
-To get started with Stacks predicates, we can use the `chainhook` to generate a template: 
-
-```bash
-$ chainhook predicates new hello-arkadiko.json --stacks
-```
-
-*******************Explain the above command and disccuss about Chainhooks vs Chainhooks********************
-
-## `if_this` and `then_that` specifications
-
-*******************Are the below conditions specific to Stacks blockchain?
-If the stacks blockchain adds new function, can our chainhooks need a new if-this condition?
-************************
+## `if_this` specifications
 
 The current `stacks` predicates support the following `if_this` constructs:
 
@@ -38,10 +25,11 @@ Example:
     }
 }
 ```
+
+Get any stacks block matching constraints `block_height` mandatory argument admits:
+- `equals`, `higher_than`, `lower_than`, `between`: integer type.
+
 ```
-// Get any stacks block matching constraints
-// `block_height` mandatory argument admits:
-//  - `equals`, `higher_than`, `lower_than`, `between`: integer type.
 {
     "if_this": {
         "scope": "block_height",
@@ -49,12 +37,12 @@ Example:
     }
 }
 ```
+
+Get any transaction related to a given fungible token asset identifier 
+- `asset-identifier` mandatory argument admits: string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc` `actions` mandatory argument admits: 
+- array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+
 ```
-// Get any transaction related to a given fungible token asset identifier
-// `asset-identifier` mandatory argument admits:
-//  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
-// `actions` mandatory argument admits:
-//  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 {
     "if_this": {
         "scope": "ft_event",
@@ -63,12 +51,12 @@ Example:
     },
 }
 ```
+
+Get any transaction related to a given non fungible token asset identifier `asset-identifier` mandatory argument admits:
+- string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys` `actions` mandatory argument admits: 
+- array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+
 ```
-// Get any transaction related to a given non fungible token asset identifier
-// `asset-identifier` mandatory argument admits:
-//  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
-// `actions` mandatory argument admits:
-//  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 {
     "if_this": {
         "scope": "nft_event",
@@ -77,10 +65,10 @@ Example:
     },
 }
 ```
+
+Get any transaction moving STX tokens `actions` mandatory argument admits: 
+- array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
 ```
-// Get any transaction moving STX tokens
-// `actions` mandatory argument admits:
-//  - array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
 {
     "if_this": {
         "scope": "stx_event",
@@ -89,12 +77,10 @@ Example:
     },
 }
 ```
+
+Get any transaction emitting given print events predicate `contract-identifier` mandatory argument admits:
+- string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits: - string type, used for matching event
 ```
-// Get any transaction emitting given print events predicate
-// `contract-identifier` mandatory argument admits:
-//  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
-// `contains` mandatory argument admits:
-//  - string type, used for matching event
 {
     "if_this": {
         "scope": "print_event",
@@ -103,13 +89,13 @@ Example:
     },
 }
 ```
+
+Get any transaction calling a specific method for a given contract **directly**. 
+
+> [!Warning]
+> If the watched method is being called by another contract, this predicate won't detect it. `contract-identifier` mandatory argument admits: - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
+
 ```
-// Get any transaction calling a specific method for a given contract **directly**.
-// Warning: if the watched method is being called by another contract, this predicate won't detect it.
-// `contract-identifier` mandatory argument admits:
-//  - string type, fully qualifying the contract to observe. example: `SP000000000000000000002Q6VF78.pox`
-// `method` mandatory argument admits:
-//  - string type, used for specifying the method to observe. example: `stack-stx`
 {
     "if_this": {
         "scope": "contract_call",
@@ -118,11 +104,11 @@ Example:
     },
 }
 ```
+
+Get any transaction including a contract deployment `deployer` mandatory argument admits: 
+- string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
+
 ```
-// Get any transaction including a contract deployment
-// `deployer` mandatory argument admits:
-//  - string "*"
-//  - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 {
     "if_this": {
         "scope": "contract_deployment",
@@ -130,10 +116,10 @@ Example:
     },
 }
 ```
+
+(coming soon) Get any transaction, including a contract deployment implementing a given trait  `implement-trait` mandatory argument admits: 
+- string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
 ```
-// Get any transaction including a contract deployment implementing a given trait (coming soon)
-// `implement-trait` mandatory argument admits:
-//  - string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
 {
     "if_this": {
         "scope": "contract_deployment",
@@ -141,12 +127,13 @@ Example:
     },
 }
 ```
-In terms of actions available, the following then_that constructs are supported:
+
+## Then-that constructs
+
+HTTP Post block/transaction payload to a given endpoint. `http_post` construct admits:
+- url (string type). 
+Example: http://localhost:3000/api/v1/wrapBtc - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 ```
-// HTTP Post block / transaction payload to a given endpoint.
-// `http_post` construct admits:
-//  - url (string type). Example: http://localhost:3000/api/v1/wrapBtc
-//  - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 {
     "then_that": {
         "http_post": {
@@ -156,10 +143,9 @@ In terms of actions available, the following then_that constructs are supported:
     }
 }
 ```
+Append events to a file through the filesystem. Convenient for local tests. The `file_append` construct admits: 
+- path (string type). Path to file on disk.
 ```
-// Append events to a file through filesystem. Convenient for local tests.
-// `file_append` construct admits:
-//  - path (string type). Path to file on disk.
 {
     "then_that": {
         "file_append": {
@@ -168,24 +154,24 @@ In terms of actions available, the following then_that constructs are supported:
     }
 }
 ```
-Additional configuration knobs available:
 
-// Ignore any block prior to given block:
-"start_block": 101
+## Additional configuration knobs available
 
-// Ignore any block after given block:
-"end_block": 201
+- Ignore any block prior to the given block:
+`"start_block": 101`
 
-// Stop evaluating chainhook after a given number of occurrences found:
-"expire_after_occurrence": 1
+- Ignore any block after the given block:
+`"end_block": 201`
 
-// Include decoded clarity values in payload
-"decode_clarity_values": true
-Putting all the pieces together:
+- Stop evaluating chainhook after a given number of occurrences found:
+`"expire_after_occurrence": 1`
 
-// Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` 
-// the 5 first transactions interacting with ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09,
-// emitting print events containing the word 'vault'.
+- Include decoded clarity values in the payload
+`"decode_clarity_values": true`
+
+## Example predicate definition to print events
+
+Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five transactions interacting with ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09, emitting print events containing the word 'vault'.
 
 ```
 {
@@ -212,12 +198,11 @@ Putting all the pieces together:
   }
 }
 ```
+## Example predicate with multiple networks
+
+A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
 
 ```
-
-// A specification file can also include different networks.
-// In this case, the chainhook will select the predicate
-// corresponding to the network it was launched against.
 {
   "chain": "stacks",
   "uuid": "1",
@@ -257,18 +242,3 @@ Putting all the pieces together:
   }
 }
 ```
-
-## Guide to local Stacks testnet / mainnet predicate scanning
-
-Developers can test their Stacks predicates without spinning up a Stacks node.
-To date, the Stacks blockchain has just over two years of activity, and the `chainhook` utility can work with both `testnet` and `mainnet` chainstates in memory.  
-
-To test a Stacks `if_this` / `then_that` predicate, the following command can be used:
-
-```bash
-$ chainhook predicates scan ./path/to/predicate.json --testnet
-```
-
-The first time this command run, a chainstate archive will be downloaded, uncompressed, and written to disk (around 3GB required for the testnet and 10GB for the mainnet).
-
-The subsequent scans will use the cached chainstate if already present, speeding up iterations and the overall feedback loop. 
