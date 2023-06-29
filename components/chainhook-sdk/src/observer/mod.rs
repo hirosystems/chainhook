@@ -18,7 +18,9 @@ use crate::hord::{
     revert_hord_db_with_augmented_bitcoin_block, update_hord_db_and_augment_bitcoin_block,
     HordConfig,
 };
-use crate::indexer::bitcoin::{standardize_bitcoin_block, BitcoinBlockFullBreakdown};
+use crate::indexer::bitcoin::{
+    download_and_parse_block_with_retry, standardize_bitcoin_block, BitcoinBlockFullBreakdown,
+};
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::utils::{send_request, Context};
 
@@ -342,12 +344,6 @@ pub struct BitcoinConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ServicesConfig {
-    pub stacks_node_url: String,
-    pub bitcoin_node_url: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct ChainhookStore {
     pub predicates: ChainhookConfig,
 }
@@ -425,11 +421,6 @@ pub async fn start_event_observer(
     let bitcoin_rpc_proxy_enabled = config.bitcoin_rpc_proxy_enabled;
     let bitcoin_config = config.get_bitcoin_config();
 
-    let services_config = ServicesConfig {
-        stacks_node_url: config.bitcoind_rpc_url.clone(),
-        bitcoin_node_url: config.stacks_node_rpc_url.clone(),
-    };
-
     let mut chainhook_store = ChainhookStore::new();
     // If authorization not required, we create a default ChainhookConfig
     if let Some(ref mut initial_chainhook_config) = config.chainhook_config {
@@ -459,7 +450,7 @@ pub async fn start_event_observer(
     };
     let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
 
-    let limits = Limits::default().limit("json", 4.megabytes());
+    let limits = Limits::default().limit("json", 20.megabytes());
     let mut shutdown_config = config::Shutdown::default();
     shutdown_config.ctrlc = false;
     shutdown_config.grace = 0;
@@ -501,7 +492,6 @@ pub async fn start_event_observer(
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
-        .manage(services_config)
         .manage(observer_metrics_rw_lock.clone())
         .mount("/", routes)
         .ignite()
@@ -557,7 +547,6 @@ pub fn start_zeromq_runloop(
 ) {
     #[cfg(feature = "zeromq")]
     {
-        use crate::indexer::bitcoin::download_and_parse_block_with_retry;
         use crate::indexer::fork_scratch_pad::ForkScratchPad;
 
         if let BitcoinBlockSignaling::ZeroMQ(ref bitcoind_zmq_url) = config.bitcoin_block_signaling
@@ -746,18 +735,43 @@ pub async fn start_observer_commands_handler(
                 }
                 break;
             }
-            ObserverCommand::ProcessBitcoinBlock(block_data) => {
-                let new_block =
-                    match standardize_bitcoin_block(block_data, &config.bitcoin_network, &ctx) {
-                        Ok(block) => block,
-                        Err(e) => {
+            ObserverCommand::ProcessBitcoinBlock(mut block_data) => {
+                let block_hash = block_data.hash.to_string();
+                let new_block = loop {
+                    match standardize_bitcoin_block(
+                        block_data.clone(),
+                        &config.bitcoin_network,
+                        &ctx,
+                    ) {
+                        Ok(block) => break block,
+                        Err((e, retry)) => {
                             ctx.try_log(|logger| {
                                 slog::error!(logger, "Error standardizing block: {}", e)
                             });
-                            continue;
+                            if retry {
+                                block_data = match download_and_parse_block_with_retry(
+                                    &block_hash,
+                                    &config.get_bitcoin_config(),
+                                    &ctx,
+                                )
+                                .await
+                                {
+                                    Ok(block) => block,
+                                    Err(e) => {
+                                        ctx.try_log(|logger| {
+                                            slog::warn!(
+                                                logger,
+                                                "unable to download_and_parse_block: {}",
+                                                e.to_string()
+                                            )
+                                        });
+                                        continue;
+                                    }
+                                };
+                            }
                         }
                     };
-
+                };
                 match observer_metrics.write() {
                     Ok(mut metrics) => {
                         if new_block.block_identifier.index > metrics.bitcoin.tip_height {
