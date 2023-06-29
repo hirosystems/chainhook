@@ -1270,7 +1270,6 @@ pub async fn start_observer_commands_handler(
                         }
                     }
                     StacksChainEvent::ChainUpdatedWithReorg(update) => {
-                        // todo: I don't know which block's timestamp we actually want
                         match update
                             .blocks_to_apply
                             .iter()
