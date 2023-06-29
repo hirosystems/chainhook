@@ -16,7 +16,7 @@ mode = "mainnet"
 bitcoind_rpc_url = "http://localhost:8332"
 bitcoind_rpc_username = "devnet"
 bitcoind_rpc_password = "devnet"
-# Bitcion block events can be received by Chainhook
+# Bitcoin block events can be received by Chainhook
 # either through a Bitcoin node's ZeroMQ interface,
 # or through the Stacks node. The Stacks node is
 # used by default:
