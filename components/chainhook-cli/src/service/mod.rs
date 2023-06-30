@@ -107,7 +107,10 @@ impl Service {
         };
 
         // Download and ingest a Stacks dump
-        let _ = consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
+        if self.config.rely_on_remote_stacks_tsv() {
+            let _ =
+                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
+        }
 
         // Download and ingest a Ordinal dump, if hord is enabled
         if !hord_disabled {
@@ -162,6 +165,22 @@ impl Service {
             })
             .expect("unable to spawn thread");
 
+        // Enable HTTP Predicates API, if required
+        if let PredicatesApi::On(ref api_config) = self.config.http_api {
+            info!(
+                self.ctx.expect_logger(),
+                "Listening on port {} for chainhook predicate registrations", api_config.http_port
+            );
+            let ctx = self.ctx.clone();
+            let api_config = api_config.clone();
+            let moved_observer_command_tx = observer_command_tx.clone();
+            // Test and initialize a database connection
+            let _ = hiro_system_kit::thread_named("HTTP Predicate API").spawn(move || {
+                let future = start_predicate_api_server(api_config, moved_observer_command_tx, ctx);
+                let _ = hiro_system_kit::nestable_block_on(future);
+            });
+        }
+
         info!(
             self.ctx.expect_logger(),
             "Listening on port {} for Stacks chain events", event_observer_config.ingestion_port
@@ -180,21 +199,6 @@ impl Service {
                 );
             }
         }
-        // Enable HTTP Chainhook API, if required
-        if let PredicatesApi::On(ref api_config) = self.config.http_api {
-            info!(
-                self.ctx.expect_logger(),
-                "Listening for chainhook predicate registrations on port {}", api_config.http_port
-            );
-            let ctx = self.ctx.clone();
-            let api_config = api_config.clone();
-            let moved_observer_command_tx = observer_command_tx.clone();
-            // Test and initialize a database connection
-            let _ = hiro_system_kit::thread_named("HTTP Predicate API").spawn(move || {
-                let future = start_predicate_api_server(api_config, moved_observer_command_tx, ctx);
-                let _ = hiro_system_kit::nestable_block_on(future);
-            });
-        }
 
         let mut stacks_event = 0;
         loop {
@@ -212,7 +216,7 @@ impl Service {
             match event {
                 ObserverEvent::PredicateRegistered(spec) => {
                     // If start block specified, use it.
-                    // I no start block specified, depending on the nature the hook, we'd like to retrieve:
+                    // If no start block specified, depending on the nature the hook, we'd like to retrieve:
                     // - contract-id
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let mut predicates_db_conn = match open_readwrite_predicates_db_conn(config)
