@@ -1,7 +1,6 @@
 pub mod file;
 pub mod generator;
 
-use chainhook_sdk::hord::HordConfig;
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_types::{BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig};
@@ -107,21 +106,6 @@ impl Config {
         }
     }
 
-    pub fn get_hord_config(&self) -> HordConfig {
-        HordConfig {
-            network_thread_max: self.limits.max_number_of_networking_threads,
-            ingestion_thread_max: self.limits.max_number_of_processing_threads,
-            cache_size: self.limits.max_caching_memory_size_mb,
-            db_path: self.expected_cache_path(),
-            first_inscription_height: match self.network.bitcoin_network {
-                BitcoinNetwork::Mainnet => 767430,
-                BitcoinNetwork::Regtest => 1,
-                BitcoinNetwork::Testnet => 2413343,
-                // BitcoinNetwork::Signet => 112402,
-            },
-        }
-    }
-
     pub fn get_event_observer_config(&self) -> EventObserverConfig {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
@@ -136,7 +120,6 @@ impl Config {
             cache_path: self.storage.working_dir.clone(),
             bitcoin_network: self.network.bitcoin_network.clone(),
             stacks_network: self.network.stacks_network.clone(),
-            hord_config: Some(self.get_hord_config()),
         }
     }
 

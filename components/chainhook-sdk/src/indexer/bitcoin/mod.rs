@@ -6,8 +6,6 @@ use crate::chainhooks::types::{
     get_canonical_pox_config, get_stacks_canonical_magic_bytes, PoxConfig, StacksOpcodes,
 };
 
-#[cfg(feature = "ordinals")]
-use crate::hord;
 use crate::observer::BitcoinConfig;
 use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::hex::FromHex;
@@ -354,9 +352,6 @@ pub fn standardize_bitcoin_block(
         }
 
         let mut ordinal_operations = vec![];
-
-        #[cfg(feature = "ordinals")]
-        ordinal_operations.append(&mut hord::parse_ordinal_operations(&tx, ctx));
 
         let mut inputs = vec![];
         let mut sats_in = 0;

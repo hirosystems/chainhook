@@ -17,7 +17,6 @@ use crate::{
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
-    rocksdb::DB,
     utils::Context,
 };
 use chainhook_sdk::{
@@ -28,6 +27,7 @@ use chainhook_sdk::{
     utils::{file_append, send_request, AbstractStacksBlock},
 };
 use chainhook_types::BlockIdentifier;
+use rocksdb::DB;
 
 pub async fn get_canonical_fork_from_tsv(
     config: &mut Config,

@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 pub extern crate bitcoincore_rpc;
+pub extern crate bitcoincore_rpc_json;
 pub extern crate dashmap;
 pub extern crate fxhash;
 pub extern crate stacks_rpc_client;
@@ -23,9 +24,6 @@ pub mod utils;
 
 #[cfg(feature = "ordinals")]
 pub extern crate rocksdb;
-
-#[cfg(feature = "ordinals")]
-pub mod hord;
 
 // TODO
 // pub mod clarity {
