@@ -2,7 +2,6 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::{
     archive::download_stacks_dataset_if_required,
-    block::{Record, RecordKind},
     config::{Config, PredicatesApi},
     service::{
         open_readwrite_predicates_db_conn_or_panic, update_predicate_status, PredicateStatus,
@@ -28,6 +27,38 @@ use chainhook_sdk::{
 };
 use chainhook_types::BlockIdentifier;
 use rocksdb::DB;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum DigestingCommand {
+    DigestSeedBlock(BlockIdentifier),
+    GarbageCollect,
+    Kill,
+    Terminate,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Record {
+    pub id: u64,
+    pub created_at: String,
+    pub kind: RecordKind,
+    pub blob: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub enum RecordKind {
+    #[serde(rename = "/new_block")]
+    StacksBlockReceived,
+    #[serde(rename = "/new_microblocks")]
+    StacksMicroblockReceived,
+    #[serde(rename = "/new_burn_block")]
+    BitcoinBlockReceived,
+    #[serde(rename = "/new_mempool_tx")]
+    TransactionAdmitted,
+    #[serde(rename = "/drop_mempool_tx")]
+    TransactionDropped,
+    #[serde(rename = "/attachments/new")]
+    AttachmentReceived,
+}
 
 pub async fn get_canonical_fork_from_tsv(
     config: &mut Config,

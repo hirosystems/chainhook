@@ -13,8 +13,6 @@ const DEFAULT_MAINNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest";
 const DEFAULT_TESTNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
-const DEFAULT_MAINNET_ORDINALS_SQLITE_ARCHIVE: &str =
-    "https://archive.hiro.so/mainnet/chainhooks/hord-latest.sqlite";
 const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20455;
@@ -440,14 +438,9 @@ impl Config {
                 working_dir: default_cache_path(),
             },
             http_api: PredicatesApi::Off,
-            event_sources: vec![
-                EventSourceConfig::StacksTsvUrl(UrlConfig {
-                    file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
-                }),
-                EventSourceConfig::OrdinalsSqliteUrl(UrlConfig {
-                    file_url: DEFAULT_MAINNET_ORDINALS_SQLITE_ARCHIVE.into(),
-                }),
-            ],
+            event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
+                file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
+            })],
             limits: LimitsConfig {
                 max_number_of_bitcoin_predicates: BITCOIN_MAX_PREDICATE_REGISTRATION,
                 max_number_of_concurrent_bitcoin_scans: BITCOIN_SCAN_THREAD_POOL_SIZE,

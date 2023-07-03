@@ -1,5 +1,4 @@
 use crate::archive::download_stacks_dataset_if_required;
-use crate::block::DigestingCommand;
 use crate::config::generator::generate_config;
 use crate::config::{Config, PredicatesApi};
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
@@ -199,41 +198,6 @@ struct StartCommand {
     /// Start REST API for managing predicates
     #[clap(long = "start-http-api")]
     pub start_http_api: bool,
-    /// Disable hord indexing
-    #[clap(long = "no-hord")]
-    pub hord_disabled: bool,
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-enum HordCommand {
-    /// Db maintenance related commands
-    #[clap(subcommand)]
-    Db(HordDbCommand),
-    /// Db maintenance related commands
-    #[clap(subcommand)]
-    Scan(ScanCommand),
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-enum HordDbCommand {
-    /// Rewrite hord db
-    #[clap(name = "rewrite", bin_name = "rewrite")]
-    Rewrite(UpdateHordDbCommand),
-    /// Catch-up hord db
-    #[clap(name = "sync", bin_name = "sync")]
-    Sync(SyncHordDbCommand),
-    /// Rebuild inscriptions entries for a given block
-    #[clap(name = "drop", bin_name = "drop")]
-    Drop(DropHordDbCommand),
-    /// Check integrity
-    #[clap(name = "check", bin_name = "check")]
-    Check(CheckDbCommand),
-    /// Patch DB
-    #[clap(name = "patch", bin_name = "patch")]
-    Patch(PatchHordDbCommand),
-    /// Migrate
-    #[clap(name = "migrate", bin_name = "migrate")]
-    Migrate(MigrateHordDbCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -254,133 +218,6 @@ enum StacksDbCommand {
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-enum ScanCommand {
-    /// Compute ordinal number of the 1st satoshi of the 1st input of a given transaction
-    #[clap(name = "inscriptions", bin_name = "inscriptions")]
-    Inscriptions(ScanInscriptionsCommand),
-    /// Retrieve all the transfers for a given inscription
-    #[clap(name = "transfers", bin_name = "transfers")]
-    Transfers(ScanTransfersCommand),
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct ScanInscriptionsCommand {
-    /// Block height
-    pub block_height: u64,
-    /// Txid
-    pub txid: Option<String>,
-    /// Target Devnet network
-    #[clap(
-        long = "devnet",
-        conflicts_with = "testnet",
-        conflicts_with = "mainnet"
-    )]
-    pub devnet: bool,
-    /// Target Testnet network
-    #[clap(
-        long = "testnet",
-        conflicts_with = "devnet",
-        conflicts_with = "mainnet"
-    )]
-    pub testnet: bool,
-    /// Target Mainnet network
-    #[clap(
-        long = "mainnet",
-        conflicts_with = "testnet",
-        conflicts_with = "devnet"
-    )]
-    pub mainnet: bool,
-    /// Load config file path
-    #[clap(
-        long = "config-path",
-        conflicts_with = "mainnet",
-        conflicts_with = "testnet",
-        conflicts_with = "devnet"
-    )]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct ScanTransfersCommand {
-    /// Inscription ID
-    pub inscription_id: String,
-    /// Block height
-    pub block_height: Option<u64>,
-    /// Target Devnet network
-    #[clap(
-        long = "devnet",
-        conflicts_with = "testnet",
-        conflicts_with = "mainnet"
-    )]
-    pub devnet: bool,
-    /// Target Testnet network
-    #[clap(
-        long = "testnet",
-        conflicts_with = "devnet",
-        conflicts_with = "mainnet"
-    )]
-    pub testnet: bool,
-    /// Target Mainnet network
-    #[clap(
-        long = "mainnet",
-        conflicts_with = "testnet",
-        conflicts_with = "devnet"
-    )]
-    pub mainnet: bool,
-    /// Load config file path
-    #[clap(
-        long = "config-path",
-        conflicts_with = "mainnet",
-        conflicts_with = "testnet",
-        conflicts_with = "devnet"
-    )]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct UpdateHordDbCommand {
-    /// Starting block
-    pub start_block: u64,
-    /// Starting block
-    pub end_block: u64,
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct SyncHordDbCommand {
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct DropHordDbCommand {
-    /// Starting block
-    pub start_block: u64,
-    /// Starting block
-    pub end_block: u64,
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct PatchHordDbCommand {
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct MigrateHordDbCommand {
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -459,7 +296,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 info!(ctx.expect_logger(), "Starting service...",);
 
                 let mut service = Service::new(config, ctx);
-                return service.run(predicates, cmd.hord_disabled).await;
+                return service.run(predicates).await;
             }
         },
         Command::Config(subcmd) => match subcmd {
@@ -739,17 +576,6 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
         },
     }
     Ok(())
-}
-
-#[allow(dead_code)]
-pub fn install_ctrlc_handler(terminate_tx: Sender<DigestingCommand>, ctx: Context) {
-    ctrlc::set_handler(move || {
-        warn!(&ctx.expect_logger(), "Manual interruption signal received");
-        terminate_tx
-            .send(DigestingCommand::Kill)
-            .expect("Unable to terminate service");
-    })
-    .expect("Error setting Ctrl-C handler");
 }
 
 pub fn load_predicate_from_path(
