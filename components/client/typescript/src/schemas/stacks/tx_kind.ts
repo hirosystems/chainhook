@@ -1,11 +1,10 @@
 import { Static, Type } from '@sinclair/typebox';
-import { StacksPrincipalSchema } from './payload';
 
 export const StacksTransactionContractCallKindSchema = Type.Object({
   type: Type.Literal('ContractCall'),
   data: Type.Object({
     args: Type.Array(Type.String()),
-    contract_identifier: StacksPrincipalSchema,
+    contract_identifier: Type.String(),
     method: Type.String(),
   }),
 });
@@ -16,7 +15,7 @@ export type StacksTransactionContractCallKind = Static<
 export const StacksTransactionContractDeploymentKindSchema = Type.Object({
   type: Type.Literal('ContractDeployment'),
   data: Type.Object({
-    contract_identifier: StacksPrincipalSchema,
+    contract_identifier: Type.String(),
     code: Type.String(),
   }),
 });
