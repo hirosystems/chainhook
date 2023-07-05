@@ -4,7 +4,7 @@ title: Getting Started
 
 # Getting Started
 
-Chainhook is an index based data extraction tool and a service to generate data based on the predicate definition. Chainhook can be used as a tool and a service.
+Chainhook is re-org aware transaction indexing engine for Stacks and Bitcoin. It can extract data from blockchains based on a predicate definition. Chainhook can be used as a development tool and a service.
 
 - Chainhooks as a tool
 - Chainhooks as a service
