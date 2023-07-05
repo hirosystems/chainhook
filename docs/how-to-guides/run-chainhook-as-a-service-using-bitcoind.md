@@ -4,45 +4,31 @@ title: Run Chainhook as a service using Bitcoind
 
 # Run Chainhook as a service using Bitcoind
 
-Chainhoook node can interact with Bitcoin and Stacks blockchains. However, chainhook can get blocks from either bitcoind or Stacks. This document helps you with running chainhook as a service using Bitcoind. To run chainhook as a service using Stacks, refer to [this](run-chainhook-as-a-service-using-stacks.md).
+Chainhoook node can interact with Bitcoin and Stacks blockchains. However, chainhook can get blocks from either bitcoind or Stacks. This document helps you with running chainhook as a service using Bitcoind.
 
 ## Prerequisites
 
-- Install bitcoind using [this](https://bitcoin.org/en/bitcoin-core/) link.
-- Install the latest version of chainhook by following [Install Chainhooks from source](../getting-started.md#install-chainhooks-from-source).
+### Setting up a bitcoin node
 
-Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx64.tar.gz`. You can extract the zip file to view the folders. Expand the `bin` folder to see executable files. The `bitcoind` executable file also exists here.
+- Install bitcoind using [this](https://bitcoin.org/en/bitcoin-core/) link. Ingesting blocks using bitcoind happens through zeromq, an embedded networking library in the bitcoind installation package.
 
-## Steps to run chainhooks as a service
+Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx64.tar.gz`. You can extract the zip file to view the folders. Expand the `bin` folder to see the bitcoind executable files.
 
-To run chainhook as a service, you will follow the steps:
-
-- Ingesting blocks through bitcoind
-  - To understand predicates for bitcoind, refer to [how to use chainhook with bitcoind](how-to-use-chainhook-with-bitcoin.md)
-- Test your predicates
-- Deploy your predicates
-
-## Ingesting blocks through bitcoind
-
-Ingesting blocks happens through zeromq, an embedded networking library in the bitcoind installation package.
-
-### Prepare the bitcoind node
-
-- Create a config file `bitcoin.conf` on your local machine, use the configurations below and save it.
-- Get the downloaded path of the Bitcoind from the [prerequisites section](#prerequisites) and use it in the `datadir` configuration below.
+- Navigate to your project folder and create a new file and rename it to `bitcoin.conf` on your local machine. Copy the below configuration to the `bitcoin.conf` file.
+- Get the downloaded path of the bitcoind from the [prerequisites section](#prerequisites) and use it in the `datadir` configuration below.
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below.
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below.
 
 >[!NOTE]
-> Make a note of the `rpcuser`, `rpcpassword` and `rpcport` values to use later in the chainhook configuration.
+> Make a note of the `rpcuser`, `rpcpassword` and `rpcport` values to use them later in the chainhook configuration.
 
 
 ```conf
 datadir=<path-to-your-downloaded-bitcoind>
 server=1
-rpcuser="bitcoind_username"  --> You can set the username here
-rpcpassword="bitcoind_password"  --> You can set the password here
-rpcport=8332   --> You can set your localhost port number here
+rpcuser="bitcoind_username"  # You can set the username here
+rpcpassword="bitcoind_password"  #  You can set the password here
+rpcport=8332   # You can set your localhost port number here
 rpcallowip=0.0.0.0/0
 rpcallowip=::/0
 txindex=1
@@ -62,10 +48,11 @@ dbcache=4096
 zmqpubhashblock=tcp://0.0.0.0:18543
 ```
 
-### Run the bitcoind node
-
 Now that you have `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node.
 In the command below, use the path to your `bitcoin.conf` file from your machine and run the command in the terminal.
+
+> [!NOTE]
+> The below command is a startup process that might take a few hours to run.
 
 ```bash
 $ ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf
@@ -74,38 +61,17 @@ Once the above command is running, you will see `zmq_url` entries in the output,
 
 ### Configure chainhook
 
+In this section, you will configure chainhook to match the network configurations with bitcoin config file.
+
+- Install the latest version of chainhook by following [Install Chainhook from source](../getting-started.md#install-chainhooks-from-source).
+
 In this section, you will configure the chainhook and generate a `chainhook.toml` file to connect the chainhook with your bitcoind node. Navigate to the directory where you want to generate `chainhook.toml` file and use the following command in your terminal.
 
 ```bash
 $ chainhook config generate --mainnet
 ```
 
-You'll see that chainhook.toml file is generated.
-
-In the `chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#prepare-the-bitcoind-node) section.
-
-Now, in the `chainhook.toml`, update the following network parameters to use the bitcoind username, password and the network port from `bitcoin.conf`.
-
-The Bitcoin node is exposing the rpc endpoints. In order to protect the endpoints, we are using rpc username and password fields. To run chainhooks as a service using stacks, we need to match the rpc endpoints username, password, and network ports.
-
-Make sure the following configurations match before you proceed further in this article.
-
-| bitcoin.conf      | chainhook.toml                |
-| -----------       | -----------                   |
-| rpcuser           | bitcoind_rpc_username         |
-| rpcpassword       | bitcoind_rpc_password         |
-| rpcport           | bitcoind_rpc_url              |
-| zmqpubhashblock   | bitcoind_zmq_url              |
-
-- Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
-- Update the `bitcoind_rpc_password` to use the password set for  `rpcpassword` earlier.
-- Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
-- Next, update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
-
-> [!NOTE]
-> The `bitcoind_zmq_url` is optional when running chainhooks as a service using stacks because stacks will pull the blocks from both stacks and the Bitcoin chain.
-
-The generated file `chainhook.toml` looks like this:
+You'll see that `chainhook.toml` file is generated and the file looks like this:
 
 ```toml
 [storage]
@@ -121,9 +87,9 @@ working_dir = "cache"
 
 [network]
 mode = "mainnet"
-bitcoind_rpc_url = "http://localhost:8332"   --> Must match the rpcport in the bitcoin.conf
-bitcoind_rpc_username = "<bitcoind_username>"             --> Must match the rpcuser in the bitcoin.conf
-bitcoind_rpc_password = "<bitcoind_password>"             --> Must match the rpcpassword in the bitcoin.conf
+bitcoind_rpc_url = "http://localhost:8332" # Must match the rpcport in the bitcoin.conf
+bitcoind_rpc_username = "<bitcoind_username>" # Must match the rpcuser in the bitcoin.conf
+bitcoind_rpc_password = "<bitcoind_password>" # Must match the rpcpassword in the bitcoin.conf
 stacks_node_rpc_url = "http://localhost:20443"
 
 [limits]
@@ -140,22 +106,36 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 ```
 
-## Scan the blocks with predicate
+In the `chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#prepare-the-bitcoind-node) section to allow chainhook connect to the bitcoin layer.
 
-Now that your configurations are done, you can scan your blocks by defining your predicates. This section helps you with an example JSON file to scan a range of blocks in the blockchain and render the results. To understand the supported predicates for Bitcoin, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
+Now, in the `chainhook.toml`, update the following network parameters to to match with the `bitcoin.conf`.
+The Bitcoin node is exposing the rpc endpoints. In order to protect the endpoints, we are using rpc username and password fields. To run chainhooks as a service using bitcoin, you'll need to match the rpc endpoints username, password, and network ports.
 
-You will follow the steps below to scan blocks based on the predicates defined.
+Make sure the following configurations match before you proceed further in this article.
 
-- Define the json file with your predicates
-- Use the chainhook scan command to generate output.
+| bitcoin.conf      | chainhook.toml                |
+| -----------       | -----------                   |
+| rpcuser           | bitcoind_rpc_username         |
+| rpcpassword       | bitcoind_rpc_password         |
+| rpcport           | bitcoind_rpc_url              |
+| zmqpubhashblock   | bitcoind_zmq_url              |
 
-### Define the predicates
+In the `chainhook.toml` file,
 
-This section walks you through the `ordinals.json` as an example to scan a range of blocks. You can use this file as a reference to create a JSON file with your predicates.
+- Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
+- Update the `bitcoind_rpc_password` to use the password set for  `rpcpassword` earlier.
+- Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
+- Next, update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
+
+
+## Scan the predicates
+
+Now that your configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with an example JSON file to scan a range of blocks in the blockchain and render the results. To understand the supported predicates for Bitcoin, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
+
+This section walks you with an example `ordinals.json` file to scan a range of blocks. You can use this file as a reference to create a JSON file with your predicates.
 
 Create a new file, `ordinals.json`, in your project directory and paste the following code into it.
 
-In the predicate definition below, the blocks are generated to a text file `inscription_feed.txt`.
 
 ```json
 {
@@ -181,8 +161,8 @@ In the predicate definition below, the blocks are generated to a text file `insc
     }
 }
 ```
-
-### Scan predicates using chainhook
+> [!NOTE]
+> You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals.json` file.
 
@@ -190,17 +170,14 @@ Now, use the following command to scan the blocks based on the predicates define
 $ chainhook predicates scan ordinals.json --config-path=./Chainhook.toml
 ```
 
->[!NOTE]
-> You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
+The output of the above command will be a text file `inscription_feed.txt` generated based on the predicate definition.
 
-The above command will generate a new file, `mainnet-inscription_feed.txt,` in your directory with the results of the blocks based on the predicates.
-
-Also, note that the above JSON file uses the `file_append` function in the `then-that` predicate design to output the scanned blocks into a file.
+Also, note that the above JSON file uses the `file_append` function and `then-that` predicate design to output the scanned blocks into a file.
 
 > [!TIP]
 > To optimize your experience with scanning, the following are a few knobs you can play with:
-> - Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the speed.
-> - Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
+> Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
+> Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
 
 
 ## Initiate chainhook service with predicate
@@ -209,7 +186,7 @@ In this section, you'll initiate the chainhook service and use the REST API call
 
 The following is an example of predicate design where you define the start block with a scope and let the chainhook post the events to the local server.
 
-In your terminal, navigate to your project directory and run the command below to generate a sample JSON file with predicates.
+In your terminal, run the command below to generate a sample JSON file with predicates.
 
 `$ chainhook predicates new ordinals_protocol.json --bitcoin`
 
@@ -242,22 +219,25 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
 
 Once you have your JSON ready with the predicates, you can now start the chainhook service by passing the path to your JSON file.
 
+- `--predicate-path` is the path to your JSON file with predicates.
+- `--config-path` is the path to your chainhook config file.
+
 ``` bash
 $ chainhook service start --predicate-path=ordinals_protocol.json --config-path=./Chainhook.toml
 ```
 
-> [!NOTE]
-> The `--predicate-path` and  `--config-path` flags are always the path to your predicate definition JSON file and the chainhook configuration file on your machine.
-
-While the chainhook service runs, you can dynamically add more predicates or update your predicates. You can do this by
+While the chainhook service runs, you can dynamically add more predicates or update your predicates. You can do this by:
 
 - enabling the http_port to send events dynamically.
-  - Uncomment these lines of code in your JSON file.
+  - Uncomment the following lines of code in your JSON file.
     - ```
         [http_api]
         http_port = 20456
         database_uri = "redis://localhost:6379/"
-        ```
+      ```
+- Pass the JSON file as input in your HTTP API call.
+  - During your API call, you pass the JSON in the body of the API call.
+    ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
 In this case, `chainhook` will post payloads to `http://localhost:6379/events`. The following is a sample payload response.
 

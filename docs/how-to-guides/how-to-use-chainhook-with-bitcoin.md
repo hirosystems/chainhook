@@ -4,14 +4,17 @@ title: Use Chainhook with Bitcoin
 
 # Use Chainhook with Bitcoin
 
-The following guide helps you define predicates to use chainhook with Bitcoin.
+The following guide helps you define predicates to use chainhook with Bitcoin. The predicates are specified based on `if-this`
+, `then-that` constructs.
 
 
 ##  `if_this` specifications
 
 The current `bitcoin` predicates support the following `if_this` constructs. 
 
-Get any transaction matching a given txid. The `txid` mandatory argument admits: - 32 bytes hex encoded type. 
+Get any transaction matching a given txid. The 
+- `txid` mandatory argument 
+  - admits: - 32 bytes hex encoded type. 
 
 ```json
 
@@ -23,9 +26,13 @@ Get any transaction matching a given txid. The `txid` mandatory argument admits:
 }
 ```
 
-Get any transaction, including an OP_RETURN output starting with a set of characters. The `starts_with` mandatory argument admits:
- - ASCII string type. example: `X2[`
- - hex encoded bytes. example: `0x589403`
+Get any transaction, including an 
+- OP_RETURN output starting with a set of characters. 
+  - `starts_with` mandatory argument 
+    - admits:
+      - ASCII string type. example: `X2[`
+      - hex encoded bytes. example: `0x589403`
+
 ```json
 {
     "if_this": {
@@ -37,8 +44,10 @@ Get any transaction, including an OP_RETURN output starting with a set of charac
 }
 ```
 
-Get any transaction, including an OP_RETURN output matching the sequence of bytes specified `equals` mandatory argument admits:
- - hex encoded bytes. example: `0x589403`
+Get any transaction, including an OP_RETURN output matching the sequence of bytes specified
+-  `equals` mandatory argument 
+   -  admits:
+    - hex encoded bytes. example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
 ```json
 {
     "if_this": {
@@ -50,9 +59,10 @@ Get any transaction, including an OP_RETURN output matching the sequence of byte
 }
 ```
 
-Get any transaction, including an OP_RETURN output ending with a set of characters `ends_with` mandatory argument admits:
-- ASCII string type. example: `X2[`
-- hex encoded bytes. example: `0x589403`
+Get any transaction, including an OP_RETURN output ending with a set of characters 
+  -  `ends_with` mandatory argument admits:
+    - ASCII string type. example: `X2[`
+    - hex encoded bytes. example: `0x76a914000000000000000000000000000000000000000088ac`
 
 ```json
 {
@@ -65,15 +75,26 @@ Get any transaction, including an OP_RETURN output ending with a set of characte
 }
 ```
 
-Get any transaction including a p2pkh output paying a given recipient `p2pkh` construct admits:
-- string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
-- hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
+Get any transaction with a p2pkh output paying a given recipient
+- `p2pkh` construct 
+  - admits:
+  - ASCII string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
+  - hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
 
 ```json
 {
     "if_this": {
         "scope": "outputs",
         "p2pkh": "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
+    }
+}
+```
+
+```json
+{
+    "if_this": {
+        "scope": "outputs",
+        "p2pkh": "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
     }
 }
 ```
@@ -91,8 +112,18 @@ Get any transaction including a p2sh output paying a given recipient `p2sh` cons
 }
 ```
 
-Get any transaction including a p2wpkh output paying a given recipient `p2wpkh` construct admits:
-- string type. example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
+```json
+{
+    "if_this": {
+        "scope": "outputs",
+        "p2sh": "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
+    }
+}
+```
+
+Get any transaction including a p2wpkh output paying a given recipient
+-  `p2wpkh` construct admits:
+  - string type. example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
 
 ```json
 {
@@ -103,8 +134,9 @@ Get any transaction including a p2wpkh output paying a given recipient `p2wpkh` 
 }
 ```
 
-Get any transaction including a p2wsh output paying a given recipient `p2wsh` construct admits:
-- string type. example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
+Get any transaction including a p2wsh output paying a given recipient
+- `p2wsh` construct admits:
+  - string type. example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
 
 ```json
 {
@@ -125,7 +157,9 @@ Get any Bitcoin transaction, including a Block commitment. Broadcasted payloads 
     }
 }
 ```
-Get any transaction, including a key registration operation
+
+Get any transaction, including a key registration operation:
+
 ```json
 {
     "if_this": {
@@ -170,9 +204,10 @@ Get any transaction including a new Ordinal inscription (inscription revealed an
 
 In terms of actions available, the following `then_that` constructs are supported:
 
-HTTP Post block/transaction payload to a given endpoint. The `http_post` construct admits:
-- url (string type). Example: http://localhost:3000/api/v1/wrapBtc
-- authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
+HTTP Post block/transaction payload to a given endpoint. The 
+- `http_post` construct admits:
+  - url (string type). Example: http://localhost:3000/api/v1/wrapBtc
+  - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 
 ```jsonc
 
@@ -185,8 +220,9 @@ HTTP Post block/transaction payload to a given endpoint. The `http_post` constru
     }
 }
 
-Append events to a file through the filesystem. Convenient for local tests. The `file_append` construct admits:
-- path (string type). Path to the file on disk.
+Append events to a file through the filesystem. Convenient for local tests. The 
+- `file_append` construct admits:
+  - path (string type). Path to the file on disk.
 
 ```jsonc
 {
@@ -200,6 +236,7 @@ Append events to a file through the filesystem. Convenient for local tests. The 
 
 ## Additional configuration knobs available
 
+Following additional configurations can be used to improve performance of chainhooks by preventing full scan of the blockchain
 - Ignore any block before the given block:
 `"start_block": 101`
 
@@ -247,7 +284,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first 
         }
       },
       "start_block": 10200,
-      "expire_after_occurrence": 5,
+      "expire_after_occurrence": 5, // only prints the first 5 characters
     }
   }
 }

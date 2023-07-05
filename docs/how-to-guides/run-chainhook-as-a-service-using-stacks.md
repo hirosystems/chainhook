@@ -94,6 +94,9 @@ Now, in order to have Chainhook communicating with Stacks and Bitcoin layers, we
 |                   | rpc_bind               | stacks_node_rpc_url          |
 |                   | endpoint               | stacks_events_ingestion_port |
 
+> [!NOTE]
+> The `bitcoind_zmq_url` is optional when running chainhook as a service using stacks because stacks will pull the blocks from both stacks and the Bitcoin chain.
+
 Once you have all the above configurations matched, you can start your chainhook service by running the following command:
 
 ## Scan the blocks with predicate

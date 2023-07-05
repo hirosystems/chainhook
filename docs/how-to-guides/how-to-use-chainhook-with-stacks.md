@@ -5,13 +5,14 @@ title: Use Chainhook with Stacks
 # Use chainhook with Stacks
 
 The following guide helps you define predicates to use chainhook with Stacks. The predicates are specified based on `if-this`
-, `then-that` constructs. You can use the following example definition and [run the chainhook as a service using stacks](run-chainhook-as-a-service-using-stacks.md).
+, `then-that` constructs.
 
 ## `if_this` specifications
 
 The current `stacks` predicates support the following `if_this` constructs:
 
-Get any transaction matching a given `txid` mandatory argument admits:
+Get any transaction matching a given `txid` mandatory argument 
+admits:
 - 32 bytes hex encoded type. 
 
 Example:
@@ -26,8 +27,10 @@ Example:
 }
 ```
 
-Get any stacks block matching constraints `block_height` mandatory argument admits:
-- `equals`, `higher_than`, `lower_than`, `between`: integer type.
+Get any stacks block matching constraints
+-  `block_height` mandatory argument 
+   - admits:
+     - `equals`, `higher_than`, `lower_than`, `between`: integer type.
 
 ```
 {
@@ -39,8 +42,12 @@ Get any stacks block matching constraints `block_height` mandatory argument admi
 ```
 
 Get any transaction related to a given fungible token asset identifier 
-- `asset-identifier` mandatory argument admits: string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc` `actions` mandatory argument admits: 
-- array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+- `asset-identifier` mandatory argument 
+  - admits: 
+    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc` 
+- `actions` mandatory argument 
+  - admits: 
+    - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 
 ```
 {
@@ -52,9 +59,13 @@ Get any transaction related to a given fungible token asset identifier
 }
 ```
 
-Get any transaction related to a given non fungible token asset identifier `asset-identifier` mandatory argument admits:
-- string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys` `actions` mandatory argument admits: 
-- array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+Get any transaction related to a given non fungible token asset identifier 
+- `asset-identifier` mandatory argument 
+  - admits:
+    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys` 
+-  `actions` mandatory argument 
+   - admits: 
+     - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 
 ```
 {
@@ -66,8 +77,10 @@ Get any transaction related to a given non fungible token asset identifier `asse
 }
 ```
 
-Get any transaction moving STX tokens `actions` mandatory argument admits: 
-- array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
+Get any transaction moving STX tokens 
+- `actions` mandatory argument 
+  - admits: 
+    - array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
 ```
 {
     "if_this": {
@@ -78,8 +91,10 @@ Get any transaction moving STX tokens `actions` mandatory argument admits:
 }
 ```
 
-Get any transaction emitting given print events predicate `contract-identifier` mandatory argument admits:
-- string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits: - string type, used for matching event
+Get any transaction emitting given print events predicate
+- `contract-identifier` mandatory argument 
+  - admits:
+    - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits: - string type, used for matching event
 ```
 {
     "if_this": {
@@ -105,8 +120,10 @@ Get any transaction calling a specific method for a given contract **directly**.
 }
 ```
 
-Get any transaction including a contract deployment `deployer` mandatory argument admits: 
-- string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
+Get any transaction including a contract deployment
+- `deployer` mandatory argument 
+  - admits: 
+    - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 
 ```
 {
@@ -117,8 +134,10 @@ Get any transaction including a contract deployment `deployer` mandatory argumen
 }
 ```
 
-(coming soon) Get any transaction, including a contract deployment implementing a given trait  `implement-trait` mandatory argument admits: 
-- string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
+(coming soon) Get any transaction, including a contract deployment implementing a given trait 
+- `implement-trait` mandatory argument 
+  - admits: 
+    - string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
 ```
 {
     "if_this": {
@@ -130,9 +149,11 @@ Get any transaction including a contract deployment `deployer` mandatory argumen
 
 ## Then-that constructs
 
-HTTP Post block/transaction payload to a given endpoint. `http_post` construct admits:
-- url (string type). 
-Example: http://localhost:3000/api/v1/wrapBtc - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
+HTTP Post block/transaction payload to a given endpoint. 
+- `http_post` construct
+  -  admits:
+     - url (string type). Example: http://localhost:3000/api/v1/wrapBtc 
+     - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 ```
 {
     "then_that": {
@@ -143,8 +164,11 @@ Example: http://localhost:3000/api/v1/wrapBtc - authorization_header (string typ
     }
 }
 ```
-Append events to a file through the filesystem. Convenient for local tests. The `file_append` construct admits: 
-- path (string type). Path to file on disk.
+Append events to a file through the filesystem. Convenient for local tests. The
+-  `file_append` construct 
+   -  admits: 
+      - path (string type). Path to file on disk.
+  
 ```
 {
     "then_that": {
@@ -157,6 +181,7 @@ Append events to a file through the filesystem. Convenient for local tests. The 
 
 ## Additional configuration knobs available
 
+Following additional configurations can be used to improve performance of chainhooks by preventing full scan of the blockchain
 - Ignore any block prior to the given block:
 `"start_block": 101`
 
