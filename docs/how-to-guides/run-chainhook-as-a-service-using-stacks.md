@@ -18,7 +18,7 @@ Start with the prerequisite section and configure your files to start the chainh
 
 A `stacks.toml` file gets generated when you configure the stacks node, as shown below. Ensure that the `username`, `password`, and `rpc_port` values match the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `chainhook.toml` configuration in the next section of this article.
 
-Below is the sample `stacks.toml` file generated with you configure stacks.
+Below is the sample `stacks.toml` file.
 
 ```toml
 [node]
@@ -52,6 +52,8 @@ $ chainhook config generate --testnet
 ```
 
 Ensure that the `bitcoind_rpc_url`, `bitcoind_rpc_username`, `bitcoind_rpc_password` are matching with the `rpcport`, `rpcuser` and `rpcpassword` in the `bitcoin.conf` file and the port of the `stacks_node_rpc_url` matches the `rpc_bind` in the `Stacks.toml` file.
+
+Below is a sample `chainhook.toml` file.
 
 ```toml
 [storage]
@@ -187,7 +189,7 @@ Run the following command in your terminal to generate a sample JSON file with p
 
 `$ chainhook predicates new print_event_2.json --stacks`
 
-A JSON file `print_event_2.json` is generated. You can now edit the JSON based on the available predicates for Stacks. To understand the available predicates, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
+A JSON file `print_event_2.json` is generated.
 
 ```json
 {
@@ -215,35 +217,37 @@ A JSON file `print_event_2.json` is generated. You can now edit the JSON based o
 }
 ```
 
-
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_2.json` file.
 
 ``` bash
 $ chainhook predicates scan print_event_2.json --testnet
 ```
 
-The above command posts events to the URL `http://localhost:3000/api/v1/vaults` mentioned in the JSON file.
+The above command posts events to the URL `redis://localhost:6379/` mentioned in the `chainhook.toml` file.
 
 
 ## Initiate chainhook service
 
 In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
 
-``` bash
-$ `chainhook service start --predicate-path=print_event_1.json --config-path=chainhook.toml`
-```
+`$ chainhook service start --predicate-path=print_event_1.json --config-path=chainhook.toml`
 
-The above command posts the events to the `http://localhost:6379/events` as mentioned in the `chainhook.toml` file.
+The above command registers the predicates based on the predicate definition in the `print_event_1.json` file. You can next run the chainhook service to see the output events based on the `then-that` predicate definition.
 
-While the chainhook service runs, you can dynamically add more predicates or update your predicates and pass the JSON file as input in the body of the HTTP API call.
+While the chainhook service runs, you can dynamically add more predicates or update your predicates and pass the JSON file as input in the body of the HTTP API call. You can do this by:
 
-Run the following command and dynamically pass your predicates as a JSON during the API call.
+Uncommenting the following lines of code in the `chainhook.toml` file.
+-   ```
+    [http_api]
+    http_port = 20456
+    database_uri = "redis://localhost:6379/"
+    ```
+- Passing the JSON file as input in the body of the HTTP API call.
+  ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
 `$ chainhook service start --config-path=chainhook.toml`
 
-![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
-
-Ensure the port number `http_port = 20456`  in the `chainhook.toml` file matches with the port number `http_post` of the predicate definition JSON file.
+The above command posts the events to the `localhost:6379/` as mentioned in the predicate definition.
 
 > [!TIP]
 > You can define multiple predicates and pass them as arguments to start the chainhook service. 

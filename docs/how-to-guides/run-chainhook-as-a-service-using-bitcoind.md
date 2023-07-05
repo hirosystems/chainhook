@@ -237,13 +237,21 @@ In this section, you'll initiate the chainhook service and use the REST API call
 $ chainhook service start --predicate-path=ordinals_protocol.json --config-path=./Chainhook.toml
 ```
 
-The above command posts the events to the `http://localhost:6379/events` as mentioned in the `chainhook.toml` file.
+The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file. You can next run the chainhook service to see the output events based on the `then-that` predicate definition.
 
-You can also start the chainhook service and pass the predicates dynamically. You can do this by passing the JSON file with predicates as input in the body of the HTTP API call.
+You can also start the chainhook service and pass the predicates dynamically. You can do this by 
+
+Uncommenting the following lines of code in the `chainhook.toml` file.
+-   ```
+    [http_api]
+    http_port = 20456
+    database_uri = "redis://localhost:6379/"
+    ```
+- Pass the JSON file as input in the body of the HTTP API call.
+    ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
 `$ chainhook service start --config-path=chainhook.toml`
 
-![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
 In this case, `chainhook` will post payloads to `http://localhost:6379/events`. The following is a sample payload response.
 
