@@ -13,7 +13,7 @@ Chainhook is an index based data extraction tool and a service to generate data 
 
 Chainhooks are often described using the term predicates, which are defined as conditions to scan your blocks on the blockchain. Chainhooks can be run as a tool in your local environment by defining, scanning and deploying your predicates.
 
-Once you are ready to run chainhooks as a tool in your local environment, you can install chainhooks by following the next section.
+Once you are ready to run chainhook as a tool in your local environment, you can install chainhook by following the next section.
 
 ### Install Chainhook from the source
 

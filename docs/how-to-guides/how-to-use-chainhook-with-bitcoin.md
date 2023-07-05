@@ -236,7 +236,7 @@ Append events to a file through the filesystem. Convenient for local tests. The
 
 ## Additional configuration knobs available
 
-Following additional configurations can be used to improve performance of chainhooks by preventing full scan of the blockchain
+Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain
 - Ignore any block before the given block:
 `"start_block": 101`
 

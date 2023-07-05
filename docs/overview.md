@@ -14,7 +14,7 @@ Crypto applications can improve customer experiences by promptly delivering busi
 
 To address this issue, Chainhooks takes away all that burden from developers, so they can focus on automating the trigger of predefined operations whenever blockchain events occur.
 
-## Features of Chainhooks
+## Features
 
 1. **Improved Developer Experience**: instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine in minutes.
    
@@ -24,7 +24,7 @@ To address this issue, Chainhooks takes away all that burden from developers, so
 
 ## Chainhook triggers
 
-With chainhooks, developers can trigger actions based on predicates they can write. Chainhooks support the following predicates non-exhaustively:
+With chainhook, developers can trigger actions based on predicates they can write. Chainhooks support the following predicates non-exhaustively:
 
 - A certain amount of SIP-10 tokens were transferred.
 - A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain.
