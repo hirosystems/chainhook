@@ -37,7 +37,7 @@ Chainhook can be installed from the source by following the steps below:
     cargo chainhook-install
     ```
 
-If you want to run chainhook as a service using Bitcoin, Stacks, you can understand the predicate design by following: 
+If you want to start using Chainhook for extracting data from Bitcoin or Stacks, you can design your predicates using the following guides: 
 - [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md) and 
 - [how to use chainhook with stacks](how-to-use-chainhook-with-stacks.md).
 
