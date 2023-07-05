@@ -24,7 +24,7 @@ To address this issue, Chainhooks takes away all that burden from developers, so
 
 ## Chainhook triggers
 
-With chainhook, developers can trigger actions based on predicates they can write. Chainhooks support the following predicates non-exhaustively:
+With Chainhook, developers can trigger actions based on predicates they can write. Chainhooks support the following predicates non-exhaustively:
 
 - A certain amount of SIP-10 tokens were transferred.
 - A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain.
