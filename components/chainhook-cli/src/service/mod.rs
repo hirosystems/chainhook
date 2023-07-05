@@ -2,7 +2,6 @@ mod http_api;
 mod runloops;
 
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
-use crate::scan::bitcoin::process_block_with_predicates;
 use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};

@@ -351,8 +351,6 @@ pub fn standardize_bitcoin_block(
             stacks_operations.push(op);
         }
 
-        let mut ordinal_operations = vec![];
-
         let mut inputs = vec![];
         let mut sats_in = 0;
         for (index, input) in tx.vin.drain(..).enumerate() {
@@ -431,7 +429,7 @@ pub fn standardize_bitcoin_block(
                 inputs,
                 outputs,
                 stacks_operations,
-                ordinal_operations,
+                ordinal_operations: vec![],
                 proof: None,
                 fee: sats_in - sats_out,
             },

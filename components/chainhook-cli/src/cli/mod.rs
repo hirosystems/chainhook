@@ -22,17 +22,14 @@ use chainhook_sdk::indexer::bitcoin::{
 use chainhook_sdk::observer::BitcoinConfig;
 use chainhook_sdk::utils::Context;
 use chainhook_types::{
-    BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork, TransactionIdentifier,
+    BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork,
 };
 use clap::{Parser, Subcommand};
-use ctrlc;
 use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::process;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

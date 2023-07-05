@@ -9,7 +9,7 @@ use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
-use chainhook_sdk::chainhooks::types::{BitcoinChainhookSpecification, BitcoinPredicateType};
+use chainhook_sdk::chainhooks::types::{BitcoinChainhookSpecification};
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
@@ -17,7 +17,7 @@ use chainhook_sdk::indexer::bitcoin::{
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::utils::{file_append, send_request, Context};
 use chainhook_types::{BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     predicate_spec: &BitcoinChainhookSpecification,
@@ -83,7 +83,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         let block_hash = retrieve_block_hash_with_retry(&cursor, &bitcoin_config, ctx).await?;
         let block_breakdown =
             download_and_parse_block_with_retry(&block_hash, &bitcoin_config, ctx).await?;
-        let mut block = match indexer::bitcoin::standardize_bitcoin_block(
+        let block = match indexer::bitcoin::standardize_bitcoin_block(
             block_breakdown,
             &event_observer_config.bitcoin_network,
             ctx,
