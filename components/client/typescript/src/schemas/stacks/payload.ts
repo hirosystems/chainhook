@@ -8,9 +8,6 @@ import {
 import { StacksTransactionEventSchema } from './tx_events';
 import { StacksTransactionKindSchema } from './tx_kind';
 
-export const StacksPrincipalSchema = Type.String();
-export type StacksPrincipal = Static<typeof StacksPrincipalSchema>;
-
 export const StacksExecutionCostSchema = Type.Optional(
   Type.Object({
     read_count: Type.Integer(),
@@ -47,8 +44,8 @@ export const StacksTransactionMetadataSchema = Type.Object({
   raw_tx: Type.String(),
   receipt: StacksTransactionReceiptSchema,
   result: Type.String(),
-  sender: StacksPrincipalSchema,
-  sponsor: Type.Optional(StacksPrincipalSchema),
+  sender: Type.String(),
+  sponsor: Type.Optional(Type.String()),
   success: Type.Boolean(),
 });
 export type StacksTransactionMetadata = Static<typeof StacksTransactionMetadataSchema>;

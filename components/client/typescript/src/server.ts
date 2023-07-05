@@ -181,7 +181,7 @@ export async function buildServer(
     Server,
     TypeBoxTypeProvider
   > = (fastify, options, done) => {
-    const compiledSchema = TypeCompiler.Compile(PayloadSchema);
+    const compiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
     fastify.addHook('preHandler', isEventAuthorized);
     fastify.post(
       '/chainhook/:uuid',
@@ -196,10 +196,10 @@ export async function buildServer(
       async (request, reply) => {
         if (
           (serverOpts.validate_chainhook_payloads ?? false) &&
-          !compiledSchema.Check(request.body)
+          !compiledPayloadSchema.Check(request.body)
         ) {
           logger.error(
-            [...compiledSchema.Errors(request.body)],
+            [...compiledPayloadSchema.Errors(request.body)],
             `ChainhookEventObserver received an invalid payload`
           );
           await reply.code(422).send();

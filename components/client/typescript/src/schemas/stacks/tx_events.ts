@@ -1,12 +1,11 @@
 import { Static, Type } from '@sinclair/typebox';
-import { StacksPrincipalSchema } from './payload';
 
 export const StacksTransactionNftMintEventSchema = Type.Object({
   type: Type.Literal('NFTMintEvent'),
   data: Type.Object({
     asset_class_identifier: Type.String(),
     asset_identifier: Type.String(),
-    recipient: StacksPrincipalSchema,
+    recipient: Type.String(),
   }),
 });
 export type StacksTransactionNftMintEvent = Static<typeof StacksTransactionNftMintEventSchema>;
@@ -16,8 +15,8 @@ export const StacksTransactionNftTransferEventSchema = Type.Object({
   data: Type.Object({
     raw_value: Type.String(),
     asset_identifier: Type.String(),
-    recipient: StacksPrincipalSchema,
-    sender: StacksPrincipalSchema,
+    recipient: Type.String(),
+    sender: Type.String(),
   }),
 });
 export type StacksTransactionNftTransferEvent = Static<
@@ -29,7 +28,7 @@ export const StacksTransactionNftBurnEventSchema = Type.Object({
   data: Type.Object({
     asset_class_identifier: Type.String(),
     asset_identifier: Type.String(),
-    sender: StacksPrincipalSchema,
+    sender: Type.String(),
   }),
 });
 export type StacksTransactionNftBurnEvent = Static<typeof StacksTransactionNftBurnEventSchema>;
@@ -39,8 +38,8 @@ export const StacksTransactionFtTransferEventSchema = Type.Object({
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
-    recipient: StacksPrincipalSchema,
-    sender: StacksPrincipalSchema,
+    recipient: Type.String(),
+    sender: Type.String(),
   }),
 });
 export type StacksTransactionFtTransferEvent = Static<
@@ -52,7 +51,7 @@ export const StacksTransactionFtMintEventSchema = Type.Object({
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
-    recipient: StacksPrincipalSchema,
+    recipient: Type.String(),
   }),
 });
 export type StacksTransactionFtMintEvent = Static<typeof StacksTransactionFtMintEventSchema>;
@@ -62,7 +61,7 @@ export const StacksTransactionFtBurnEventSchema = Type.Object({
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
-    sender: StacksPrincipalSchema,
+    sender: Type.String(),
   }),
 });
 export type StacksTransactionFtBurnEvent = Static<typeof StacksTransactionFtBurnEventSchema>;
@@ -70,7 +69,7 @@ export type StacksTransactionFtBurnEvent = Static<typeof StacksTransactionFtBurn
 export const StacksTransactionSmartContractEventSchema = Type.Object({
   type: Type.Literal('SmartContractEvent'),
   data: Type.Object({
-    contract_identifier: StacksPrincipalSchema,
+    contract_identifier: Type.String(),
     raw_value: Type.String(),
     topic: Type.String(),
   }),
@@ -83,8 +82,8 @@ export const StacksTransactionStxTransferEventSchema = Type.Object({
   type: Type.Literal('STXTransferEvent'),
   data: Type.Object({
     amount: Type.String(),
-    sender: StacksPrincipalSchema,
-    recipient: StacksPrincipalSchema,
+    sender: Type.String(),
+    recipient: Type.String(),
   }),
 });
 export type StacksTransactionStxTransferEvent = Static<
@@ -95,7 +94,7 @@ export const StacksTransactionStxMintEventSchema = Type.Object({
   type: Type.Literal('STXMintEvent'),
   data: Type.Object({
     amount: Type.String(),
-    recipient: StacksPrincipalSchema,
+    recipient: Type.String(),
   }),
 });
 export type StacksTransactionStxMintEvent = Static<typeof StacksTransactionStxMintEventSchema>;
@@ -114,7 +113,7 @@ export const StacksTransactionStxBurnEventSchema = Type.Object({
   type: Type.Literal('STXBurnEvent'),
   data: Type.Object({
     amount: Type.String(),
-    sender: StacksPrincipalSchema,
+    sender: Type.String(),
   }),
 });
 export type StacksTransactionStxBurnEvent = Static<typeof StacksTransactionStxBurnEventSchema>;
