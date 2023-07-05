@@ -223,7 +223,7 @@ Now, use the following command to scan the blocks based on the predicates define
 $ chainhook predicates scan print_event_2.json --testnet
 ```
 
-The above command posts events to the URL `redis://localhost:6379/` mentioned in the `chainhook.toml` file.
+The above command posts events to the URL `http://localhost:3000/api/v1/vaults` mentioned in the `chainhook.toml` file.
 
 
 ## Initiate chainhook service

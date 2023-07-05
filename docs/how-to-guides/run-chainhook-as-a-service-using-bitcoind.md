@@ -253,7 +253,7 @@ Uncommenting the following lines of code in the `chainhook.toml` file.
 `$ chainhook service start --config-path=chainhook.toml`
 
 
-In this case, `chainhook` will post payloads to `http://localhost:6379/events`. The following is a sample payload response.
+In this case, `chainhook` will post payloads to `http://localhost:3000/events`. The following is a sample payload response.
 
 ```jsonc
 {
