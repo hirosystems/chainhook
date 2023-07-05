@@ -6,7 +6,7 @@ title: Getting Started
 
 Chainhook is re-org aware transaction indexing engine for Stacks and Bitcoin. It can extract data from blockchains based on a predicate definition. Chainhook can be used as a development tool and a service.
 
-- Chainhooks as a tool
+- Chainhook as a development tool
 - Chainhooks as a service
 
 ## Chainhooks as a tool
