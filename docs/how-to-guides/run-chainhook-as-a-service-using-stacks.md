@@ -252,3 +252,7 @@ The above command posts the events to the `localhost:6379/` as mentioned in the 
 > [!TIP]
 > You can define multiple predicates and pass them as arguments to start the chainhook service. 
 > Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=chainhook.toml`
+
+## Reference
+
+- The [OpenAPI specification for chainhook](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) is available to understand the scope of chainhook.
