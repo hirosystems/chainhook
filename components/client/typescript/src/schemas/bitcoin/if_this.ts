@@ -33,25 +33,33 @@ export type BitcoinIfThisOpReturnEndsWith = Static<typeof BitcoinIfThisOpReturnE
 
 export const BitcoinIfThisP2PKHSchema = Type.Object({
   scope: Type.Literal('outputs'),
-  p2pkh: Type.String(),
+  p2pkh: Type.Object({
+    equals: Type.String(),
+  }),
 });
 export type BitcoinIfThisP2PKH = Static<typeof BitcoinIfThisP2PKHSchema>;
 
 export const BitcoinIfThisP2SHSchema = Type.Object({
   scope: Type.Literal('outputs'),
-  p2sh: Type.String(),
+  p2sh: Type.Object({
+    equals: Type.String(),
+  }),
 });
 export type BitcoinIfThisP2SH = Static<typeof BitcoinIfThisP2SHSchema>;
 
 export const BitcoinIfThisP2WPKHSchema = Type.Object({
   scope: Type.Literal('outputs'),
-  p2wpkh: Type.String(),
+  p2wpkh: Type.Object({
+    equals: Type.String(),
+  }),
 });
 export type BitcoinIfThisP2WPKH = Static<typeof BitcoinIfThisP2WPKHSchema>;
 
 export const BitcoinIfThisP2WSHSchema = Type.Object({
   scope: Type.Literal('outputs'),
-  p2wsh: Type.String(),
+  p2wsh: Type.Object({
+    equals: Type.String(),
+  }),
 });
 export type BitcoinIfThisP2WSH = Static<typeof BitcoinIfThisP2WSHSchema>;
 
@@ -65,7 +73,7 @@ export type BitcoinIfThisStacksBlockCommitted = Static<
 
 export const BitcoinIfThisStacksLeaderKeyRegisteredSchema = Type.Object({
   scope: Type.Literal('stacks_protocol'),
-  operation: Type.Literal('leader_key_registered'),
+  operation: Type.Literal('leader_registered'),
 });
 export type BitcoinIfThisStacksLeaderKeyRegistered = Static<
   typeof BitcoinIfThisStacksLeaderKeyRegisteredSchema

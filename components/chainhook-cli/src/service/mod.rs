@@ -9,7 +9,9 @@ use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
+use chainhook_sdk::chainhooks::types::{
+    BitcoinChainhookSpecification, ChainhookConfig, ChainhookFullSpecification,
+};
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
