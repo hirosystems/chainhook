@@ -11,7 +11,9 @@ Chainhook is re-org aware transaction indexing engine for Stacks and Bitcoin. It
 
 ## Chainhook as a development tool
 
-Chainhooks are often described using the term predicates, which are defined as conditions to scan your blocks on the blockchain. Chainhooks can be run as a tool in your local environment by defining, scanning and deploying your predicates.
+Chainhook can extract data from both the Bitcoin and the Stacks blockchains by using predicates (sometimes called `chainhooks`). A predicate specifies a rule applied as a filtering function on every block transaction. 
+
+Chainhook has a few convenient features designed to make developers as productive as possible by iterating quickly on their local environments.
 
 
 ### Install Chainhook from the source
