@@ -36,7 +36,12 @@ export type StacksIfThisNftEvent = Static<typeof StacksIfThisNftEventSchema>;
 export const StacksIfThisStxEventSchema = Type.Object({
   scope: Type.Literal('stx_event'),
   actions: Type.Array(
-    Type.Union([Type.Literal('mint'), Type.Literal('transfer'), Type.Literal('lock')])
+    Type.Union([
+      Type.Literal('mint'),
+      Type.Literal('transfer'),
+      Type.Literal('burn'),
+      Type.Literal('lock'),
+    ])
   ),
 });
 export type StacksIfThisStxEvent = Static<typeof StacksIfThisStxEventSchema>;
