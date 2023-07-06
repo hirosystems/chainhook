@@ -641,7 +641,7 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
     // todo: handle ordinals coinbase spend
 
     for (tx_index, new_tx) in block.transactions.iter_mut().skip(1).enumerate() {
-        for input in new_tx.metadata.inputs.iter() {
+        for (input_index, input) in new_tx.metadata.inputs.iter().enumerate() {
             // input.previous_output.txid
             let outpoint_pre_transfer = format_outpoint_to_watch(
                 &input.previous_output.txid,
@@ -667,7 +667,6 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                 // Question is: are inscriptions moving to a new output,
                 // burnt or lost in fees and transfered to the miner?
 
-                let (_, input_index) = parse_outpoint_to_watch(&outpoint_pre_transfer);
                 let inputs = new_tx
                     .metadata
                     .inputs
