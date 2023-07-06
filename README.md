@@ -431,7 +431,7 @@ The current `stacks` predicates support the following `if_this` constructs:
 
 // Get any transaction moving STX tokens
 // `actions` mandatory argument admits:
-//  - array of string type constrained to `mint`, `transfer`, and `lock` values. example: ["mint", "lock"]
+//  - array of string type constrained to `mint`, `transfer`, `burn`, and `lock` values. example: ["mint", "lock"]
 {
     "if_this": {
         "scope": "stx_event",
