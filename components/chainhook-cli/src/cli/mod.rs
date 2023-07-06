@@ -462,6 +462,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 if cmd.predicates_paths.len() > 0 && !cmd.start_http_api {
                     config.http_api = PredicatesApi::Off;
                 }
+                info!(ctx.expect_logger(), "Starting service...",);
+
+                std::thread::sleep(std::time::Duration::from_secs(7200));
 
                 let _ = initialize_hord_db(&config.expected_cache_path(), &ctx);
 
@@ -470,8 +473,6 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     .iter()
                     .map(|p| load_predicate_from_path(p))
                     .collect::<Result<Vec<ChainhookFullSpecification>, _>>()?;
-
-                info!(ctx.expect_logger(), "Starting service...",);
 
                 let mut service = Service::new(config, ctx);
                 return service.run(predicates, cmd.hord_disabled).await;
