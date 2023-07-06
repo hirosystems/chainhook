@@ -14,7 +14,7 @@ Yes, Chainhooks can be used for coordinating cross-chain actions. You can use ch
 
 #### **Can I use chainhook for chain-indexing?**
 
-Chainhooks can easily extract the information they need to build (or rebuild) databases for their front end.
+Chainhook can easily extract the information needed to build (or rebuild) databases for a front end.
 
 #### **Can I use chainhook with distributed nodes?**
 
