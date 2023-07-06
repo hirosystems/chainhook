@@ -18,14 +18,18 @@ export type StacksIfThisBlockHeightHigherThan = Static<
 export const StacksIfThisFtEventSchema = Type.Object({
   scope: Type.Literal('ft_event'),
   asset_identifier: Type.String(),
-  actions: Type.Array(Type.String()),
+  actions: Type.Array(
+    Type.Union([Type.Literal('mint'), Type.Literal('transfer'), Type.Literal('burn')])
+  ),
 });
 export type StacksIfThisFtEvent = Static<typeof StacksIfThisFtEventSchema>;
 
 export const StacksIfThisNftEventSchema = Type.Object({
   scope: Type.Literal('nft_event'),
   asset_identifier: Type.String(),
-  actions: Type.Array(Type.String()),
+  actions: Type.Array(
+    Type.Union([Type.Literal('mint'), Type.Literal('transfer'), Type.Literal('burn')])
+  ),
 });
 export type StacksIfThisNftEvent = Static<typeof StacksIfThisNftEventSchema>;
 
