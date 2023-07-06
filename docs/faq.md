@@ -4,7 +4,7 @@ title: FAQ's
 
 # FAQ's
 
-#### **Can Chainhook target both Bitcoin and stacks?**
+#### **Can Chainhook target both Bitcoin and Stacks?**
 
 Chainhooks can listen and act on events from the Bitcoin and Stacks network.
 
