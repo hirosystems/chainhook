@@ -8,7 +8,7 @@ The following guide helps you define predicates to use chainhook with Bitcoin. T
 , `then-that` constructs.
 
 
-##  `if_this` specifications
+##  `if_this` Specifications
 
 The current `bitcoin` predicates support the following `if_this` constructs. 
 
@@ -200,7 +200,7 @@ Get any transaction including a new Ordinal inscription (inscription revealed an
 }
 ```
 
-##  `then_that` constructs
+##  `then_that` Constructs
 
 In terms of actions available, the following `then_that` constructs are supported:
 

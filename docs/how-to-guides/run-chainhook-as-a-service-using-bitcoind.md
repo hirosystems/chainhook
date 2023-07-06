@@ -1,14 +1,14 @@
 ---
-title: Run Chainhook as a service using Bitcoind
+title: Run Chainhook as a Service using Bitcoind
 ---
 
-# Run Chainhook as a service using Bitcoind
+# Run Chainhook as a Service using Bitcoind
 
 This document helps you configure Bitcoind and chainhook nodes to extract on-chain data based on the predicate definition.
 
 ## Prerequisites
 
-### Setting up a Bitcoin node
+### Setting up a Bitcoin Node
 
 - Install bitcoind using [this](https://bitcoin.org/en/bitcoin-core/) link. Ingesting blocks using bitcoind happens through zeromq, an embedded networking library in the bitcoind installation package.
 
@@ -59,7 +59,7 @@ $ ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf
 ```
 Once the above command is running, you will see `zmq_url` entries in the output, enabling zeromq.
 
-### Configure chainhook
+### Configure Chainhook
 
 In this section, you will configure chainhook to match the network configurations with the bitcoin config file.
 
@@ -228,7 +228,7 @@ $ chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.tom
 The above command posts events to the URL, `http://localhost:3000/events` mentioned in the JSON file.
 
 
-## Initiate chainhook service
+## Initiate Chainhook Service
 
 In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
 

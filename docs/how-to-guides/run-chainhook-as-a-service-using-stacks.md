@@ -1,8 +1,8 @@
 ---
-title: Run Chainhook as a service using Stacks
+title: Run Chainhook as a Service using Stacks
 ---
 
-# Run Chainhook as a service using Stacks
+# Run Chainhook as a Service using Stacks
 
 This document helps you configure the Stacks and chainhook nodes to extract on-chain data based on the predicate definition.
 
@@ -10,7 +10,7 @@ Start with the prerequisite section and configure your files to start the chainh
 
 ## Prerequisite
 
-### Configure stacks node
+### Configure Stacks Node
 
 - Configure your stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
@@ -226,7 +226,7 @@ $ chainhook predicates scan print_event_2.json --testnet
 The above command posts events to the URL `http://localhost:3000/api/v1/vaults` mentioned in the `chainhook.toml` file.
 
 
-## Initiate chainhook service
+## Initiate Chainhook Service
 
 In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
 

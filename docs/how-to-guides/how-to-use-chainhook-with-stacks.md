@@ -2,12 +2,12 @@
 title: Use Chainhook with Stacks
 ---
 
-# Use chainhook with Stacks
+# Use Chainhook with Stacks
 
 The following guide helps you define predicates to use chainhook with Stacks. The predicates are specified based on `if-this`
 , `then-that` constructs.
 
-## `if_this` specifications
+## `if_this` Specifications
 
 The current `stacks` predicates support the following `if_this` constructs:
 
@@ -147,7 +147,7 @@ Get any transaction including a contract deployment
 }
 ```
 
-## Then-that constructs
+## Then-that Constructs
 
 HTTP Post block/transaction payload to a given endpoint. 
 - `http_post` construct
@@ -179,7 +179,7 @@ Append events to a file through the filesystem. Convenient for local tests. The
 }
 ```
 
-## Additional configuration knobs available
+## Additional Configurations available
 
 Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain
 - Ignore any block prior to the given block:
@@ -223,7 +223,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five
   }
 }
 ```
-## Example predicate with multiple networks
+## Example predicate definition with multiple networks
 
 A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
 
