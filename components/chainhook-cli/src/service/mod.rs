@@ -572,6 +572,7 @@ impl Service {
                         ),
                         post_transfer_output_value: Some(10000),
                         tx_index: 0,
+                        ordinal_number: Some(entry.ordinal_number),
                     }),
                 );
             }

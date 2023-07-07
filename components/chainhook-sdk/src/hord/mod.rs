@@ -769,6 +769,7 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                     satpoint_pre_transfer,
                     satpoint_post_transfer,
                     post_transfer_output_value,
+                    ordinal_number: None,
                 };
 
                 // Update watched outpoint
