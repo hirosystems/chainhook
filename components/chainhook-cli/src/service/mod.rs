@@ -19,7 +19,7 @@ use chainhook_sdk::chainhooks::types::{
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::hord::db::{
-    find_all_inscriptions_in_block, find_latest_inscription_block_height,
+    find_all_inscriptions_in_block, find_latest_inscription_block_height, format_satpoint_to_watch,
     insert_entry_in_locations, open_readonly_hord_db_conn, open_readwrite_hord_db_conn,
     remove_entries_from_locations_at_block_height,
 };
@@ -28,9 +28,13 @@ use chainhook_sdk::hord::{
 };
 use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
 use chainhook_sdk::utils::Context;
-use chainhook_types::{BitcoinBlockData, BitcoinBlockSignaling, StacksChainEvent};
+use chainhook_types::{
+    BitcoinBlockData, BitcoinBlockSignaling, OrdinalInscriptionTransferData, OrdinalOperation,
+    StacksChainEvent,
+};
 use redis::{Commands, Connection};
 
+use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Sender};
 
 pub struct Service {
@@ -536,6 +540,7 @@ impl Service {
                 &self.ctx,
             );
 
+            let mut operations = BTreeMap::new();
             for (_, entry) in inscriptions.iter() {
                 let inscription_id = entry.get_inscription_id();
                 info!(
@@ -548,7 +553,27 @@ impl Service {
                     &entry.transfer_data,
                     &transaction,
                     &self.ctx,
-                )
+                );
+
+                operations.insert(
+                    entry.transaction_identifier_inscription.clone(),
+                    OrdinalOperation::InscriptionTransferred(OrdinalInscriptionTransferData {
+                        inscription_id: entry.get_inscription_id(),
+                        updated_address: None,
+                        satpoint_pre_transfer: format_satpoint_to_watch(
+                            &entry.transaction_identifier_inscription,
+                            entry.inscription_input_index,
+                            0,
+                        ),
+                        satpoint_post_transfer: format_satpoint_to_watch(
+                            &entry.transfer_data.transaction_identifier_location,
+                            entry.transfer_data.output_index,
+                            entry.transfer_data.inscription_offset_intra_output,
+                        ),
+                        post_transfer_output_value: Some(10000),
+                        tx_index: 0,
+                    }),
+                );
             }
             transaction.commit().unwrap();
 
@@ -556,6 +581,14 @@ impl Service {
                 self.ctx.expect_logger(),
                 "Rewriting transfers for block {}", block.block_identifier.index
             );
+
+            for (i, tx) in block.transactions.iter_mut().enumerate() {
+                tx.metadata.ordinal_operations.clear();
+                if let Some(entry) = operations.remove(&tx.transaction_identifier) {
+                    tx.metadata.ordinal_operations.push(entry);
+                }
+            }
+
             update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                 &mut block,
                 &mut storage,
