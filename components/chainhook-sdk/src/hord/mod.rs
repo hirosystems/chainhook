@@ -631,7 +631,7 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
 ) -> Result<bool, String> {
     let mut storage_updated = false;
     let mut cumulated_fees = 0;
-    let first_sat_post_subsidy = Height(block.block_identifier.index).starting_sat().0;
+    let subsidy = Height(block.block_identifier.index).subsidy();
     let coinbase_txid = &block.transactions[0].transaction_identifier.clone();
     let network = match block.metadata.network {
         BitcoinNetwork::Mainnet => Network::Bitcoin,
@@ -721,6 +721,19 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                                 None
                             }
                         };
+
+                        // At this point we know that inscriptions are being moved.
+                        ctx.try_log(|logger| {
+                            slog::info!(
+                                logger,
+                                "Inscription {} moved from {} to {} (block: {})",
+                                watched_satpoint.inscription_id,
+                                satpoint_pre_transfer,
+                                outpoint,
+                                block.block_identifier.index,
+                            )
+                        });
+
                         (
                             outpoint,
                             offset,
@@ -730,23 +743,21 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                     }
                     SatPosition::Fee(offset) => {
                         // Get Coinbase TX
-                        let offset = first_sat_post_subsidy + cumulated_fees + offset;
+                        let total_offset = subsidy + cumulated_fees + offset;
                         let outpoint = format_outpoint_to_watch(&coinbase_txid, 0);
-                        (outpoint, offset, None, None)
+                        ctx.try_log(|logger| {
+                            slog::info!(
+                                logger,
+                                "Inscription {} spent in fees ({}+{}+{})",
+                                watched_satpoint.inscription_id,
+                                subsidy,
+                                cumulated_fees,
+                                offset
+                            )
+                        });
+                        (outpoint, total_offset, None, None)
                     }
                 };
-
-                // At this point we know that inscriptions are being moved.
-                ctx.try_log(|logger| {
-                    slog::info!(
-                        logger,
-                        "Inscription {} moved from {} to {} (block: {})",
-                        watched_satpoint.inscription_id,
-                        satpoint_pre_transfer,
-                        outpoint_post_transfer,
-                        block.block_identifier.index,
-                    )
-                });
 
                 let satpoint_post_transfer =
                     format!("{}:{}", outpoint_post_transfer, offset_post_transfer);
