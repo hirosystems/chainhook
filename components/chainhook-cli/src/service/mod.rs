@@ -20,7 +20,7 @@ use chainhook_sdk::chainhooks::types::{
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::hord::db::{
     find_all_inscriptions_in_block, insert_entry_in_locations, open_readonly_hord_db_conn,
-    open_readwrite_hord_db_conn, remove_entries_from_locations_at_block_height,
+    open_readwrite_hord_db_conn, remove_entries_from_locations_at_block_height, find_latest_inscription_block_height,
 };
 use chainhook_sdk::hord::{
     update_storage_and_augment_bitcoin_block_with_inscription_transfer_data, Storage,
@@ -166,42 +166,16 @@ impl Service {
                 })
                 .expect("unable to spawn thread");
 
-            let auth = Auth::UserPass(
-                self.config.network.bitcoind_rpc_username.clone(),
-                self.config.network.bitcoind_rpc_password.clone(),
-            );
-            let bitcoin_rpc = match Client::new(&self.config.network.bitcoind_rpc_url, auth) {
-                Ok(con) => con,
-                Err(message) => {
-                    return Err(format!("Bitcoin RPC error: {}", message.to_string()));
-                }
-            };
+            let inscriptions_db_conn =
+                open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
-            let mut end_block = match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => result.blocks - 1,
-                Err(e) => {
-                    return Err(format!(
-                        "unable to retrieve Bitcoin chain tip ({})",
-                        e.to_string()
-                    ));
-                }
-            };
-
-            let mut cursor = 767430;
-            while cursor < end_block {
-                self.replay_transfers(cursor, end_block, Some(tx.clone()))?;
-
-                cursor = end_block;
-                end_block = match bitcoin_rpc.get_blockchain_info() {
-                    Ok(result) => result.blocks - 1,
-                    Err(e) => {
-                        return Err(format!(
-                            "unable to retrieve Bitcoin chain tip ({})",
-                            e.to_string()
-                        ));
-                    }
+            let end_block =
+                match find_latest_inscription_block_height(&inscriptions_db_conn, &self.ctx)? {
+                    Some(height) => height,
+                    None => panic!(),
                 };
-            }
+
+            self.replay_transfers(767430, end_block, Some(tx.clone()))?;
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
