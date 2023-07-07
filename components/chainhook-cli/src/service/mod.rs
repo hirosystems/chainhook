@@ -13,6 +13,8 @@ use crate::storage::{
 };
 
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client, RpcApi};
+use chainhook_sdk::bitcoincore_rpc_json::bitcoin::hashes::hex::FromHex;
+use chainhook_sdk::bitcoincore_rpc_json::bitcoin::{Address, Network, Script};
 use chainhook_sdk::chainhooks::types::{
     BitcoinChainhookSpecification, ChainhookConfig, ChainhookFullSpecification,
 };
@@ -21,7 +23,7 @@ use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::hord::db::{
     find_all_inscriptions_in_block, find_latest_inscription_block_height, format_satpoint_to_watch,
     insert_entry_in_locations, open_readonly_hord_db_conn, open_readwrite_hord_db_conn,
-    remove_entries_from_locations_at_block_height,
+    parse_satpoint_to_watch, remove_entries_from_locations_at_block_height,
 };
 use chainhook_sdk::hord::{
     update_storage_and_augment_bitcoin_block_with_inscription_transfer_data, Storage,
@@ -29,8 +31,8 @@ use chainhook_sdk::hord::{
 use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
 use chainhook_sdk::utils::Context;
 use chainhook_types::{
-    BitcoinBlockData, BitcoinBlockSignaling, OrdinalInscriptionTransferData, OrdinalOperation,
-    StacksChainEvent,
+    BitcoinBlockData, BitcoinBlockSignaling, BitcoinNetwork, OrdinalInscriptionTransferData,
+    OrdinalOperation, StacksChainEvent,
 };
 use redis::{Commands, Connection};
 
@@ -540,6 +542,12 @@ impl Service {
                 &self.ctx,
             );
 
+            let network = match block.metadata.network {
+                BitcoinNetwork::Mainnet => Network::Bitcoin,
+                BitcoinNetwork::Regtest => Network::Regtest,
+                BitcoinNetwork::Testnet => Network::Testnet,
+            };
+
             let mut operations = BTreeMap::new();
             for (_, entry) in inscriptions.iter() {
                 let inscription_id = entry.get_inscription_id();
@@ -557,7 +565,7 @@ impl Service {
 
                 operations.insert(
                     entry.transaction_identifier_inscription.clone(),
-                    OrdinalOperation::InscriptionTransferred(OrdinalInscriptionTransferData {
+                    OrdinalInscriptionTransferData {
                         inscription_id: entry.get_inscription_id(),
                         updated_address: None,
                         satpoint_pre_transfer: format_satpoint_to_watch(
@@ -570,10 +578,10 @@ impl Service {
                             entry.transfer_data.output_index,
                             entry.transfer_data.inscription_offset_intra_output,
                         ),
-                        post_transfer_output_value: Some(10000),
+                        post_transfer_output_value: None,
                         tx_index: 0,
                         ordinal_number: Some(entry.ordinal_number),
-                    }),
+                    },
                 );
             }
             transaction.commit().unwrap();
@@ -585,8 +593,27 @@ impl Service {
 
             for (i, tx) in block.transactions.iter_mut().enumerate() {
                 tx.metadata.ordinal_operations.clear();
-                if let Some(entry) = operations.remove(&tx.transaction_identifier) {
-                    tx.metadata.ordinal_operations.push(entry);
+                if let Some(mut entry) = operations.remove(&tx.transaction_identifier) {
+                    let (_, output_index, _) =
+                        parse_satpoint_to_watch(&entry.satpoint_post_transfer);
+
+                    let script_pub_key_hex =
+                        tx.metadata.outputs[output_index].get_script_pubkey_hex();
+                    let updated_address = match Script::from_hex(&script_pub_key_hex) {
+                        Ok(script) => match Address::from_script(&script, network.clone()) {
+                            Ok(address) => Some(address.to_string()),
+                            Err(e) => None,
+                        },
+                        Err(e) => None,
+                    };
+
+                    entry.updated_address = updated_address;
+                    entry.post_transfer_output_value =
+                        Some(tx.metadata.outputs[output_index].value);
+
+                    tx.metadata
+                        .ordinal_operations
+                        .push(OrdinalOperation::InscriptionTransferred(entry));
                 }
             }
 
