@@ -19,8 +19,9 @@ use chainhook_sdk::chainhooks::types::{
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::hord::db::{
-    find_all_inscriptions_in_block, insert_entry_in_locations, open_readonly_hord_db_conn,
-    open_readwrite_hord_db_conn, remove_entries_from_locations_at_block_height, find_latest_inscription_block_height,
+    find_all_inscriptions_in_block, find_latest_inscription_block_height,
+    insert_entry_in_locations, open_readonly_hord_db_conn, open_readwrite_hord_db_conn,
+    remove_entries_from_locations_at_block_height,
 };
 use chainhook_sdk::hord::{
     update_storage_and_augment_bitcoin_block_with_inscription_transfer_data, Storage,
@@ -477,45 +478,8 @@ impl Service {
         block_post_processor: Option<Sender<BitcoinBlockData>>,
     ) -> Result<(), String> {
         info!(self.ctx.expect_logger(), "Transfers only");
-        let mut inscriptions_db_conn_rw =
-            open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
         let inscriptions_db_conn =
             open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
-
-        for cursor in start_block..=end_block {
-            info!(
-                self.ctx.expect_logger(),
-                "Cleaning transfers from block {}", cursor
-            );
-            let inscriptions =
-                find_all_inscriptions_in_block(&cursor, &inscriptions_db_conn, &self.ctx);
-            info!(
-                self.ctx.expect_logger(),
-                "{} inscriptions retrieved at block {}",
-                inscriptions.len(),
-                cursor
-            );
-
-            let transaction = inscriptions_db_conn_rw.transaction().unwrap();
-
-            remove_entries_from_locations_at_block_height(&cursor, &transaction, &self.ctx);
-
-            for (_, entry) in inscriptions.iter() {
-                let inscription_id = entry.get_inscription_id();
-                info!(
-                    self.ctx.expect_logger(),
-                    "Processing inscription {}", inscription_id
-                );
-                insert_entry_in_locations(
-                    &inscription_id,
-                    cursor,
-                    &entry.transfer_data,
-                    &transaction,
-                    &self.ctx,
-                )
-            }
-            transaction.commit().unwrap();
-        }
 
         info!(self.ctx.expect_logger(), "Fetching blocks");
 
@@ -545,6 +509,49 @@ impl Service {
             open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
         let mut storage = Storage::Sqlite(&inscriptions_db_conn_rw);
         while let Ok(mut block) = rx.recv() {
+            let mut inscriptions_db_conn_rw =
+                open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+
+            info!(
+                self.ctx.expect_logger(),
+                "Cleaning transfers from block {}", block.block_identifier.index
+            );
+            let inscriptions = find_all_inscriptions_in_block(
+                &block.block_identifier.index,
+                &inscriptions_db_conn,
+                &self.ctx,
+            );
+            info!(
+                self.ctx.expect_logger(),
+                "{} inscriptions retrieved at block {}",
+                inscriptions.len(),
+                block.block_identifier.index
+            );
+
+            let transaction = inscriptions_db_conn_rw.transaction().unwrap();
+
+            remove_entries_from_locations_at_block_height(
+                &block.block_identifier.index,
+                &transaction,
+                &self.ctx,
+            );
+
+            for (_, entry) in inscriptions.iter() {
+                let inscription_id = entry.get_inscription_id();
+                info!(
+                    self.ctx.expect_logger(),
+                    "Processing inscription {}", inscription_id
+                );
+                insert_entry_in_locations(
+                    &inscription_id,
+                    block.block_identifier.index,
+                    &entry.transfer_data,
+                    &transaction,
+                    &self.ctx,
+                )
+            }
+            transaction.commit().unwrap();
+
             info!(
                 self.ctx.expect_logger(),
                 "Rewriting transfers for block {}", block.block_identifier.index
