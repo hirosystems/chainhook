@@ -88,7 +88,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
     let mut blocks_scanned = 0;
     let mut actions_triggered = 0;
-    let mut occurrences_found = 0u64;
+    let occurrences_found = 0u64;
     let mut err_count = 0;
 
     let event_observer_config = config.get_event_observer_config();
@@ -129,12 +129,8 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         if let Some(ref inscriptions_db_conn) = inscriptions_db_conn {
             // Evaluating every single block is required for also keeping track of transfers.
             let local_traverals =
-                match find_all_inscriptions_in_block(&cursor, &inscriptions_db_conn, &ctx)
-                    .remove(&cursor)
-                {
-                    Some(entry) => entry,
-                    None => vec![],
-                };
+                find_all_inscriptions_in_block(&cursor, &inscriptions_db_conn, &ctx);
+
             for (transaction_identifier, traversal_result) in local_traverals.into_iter() {
                 traversals.insert(
                     (

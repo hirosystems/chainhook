@@ -1,6 +1,7 @@
 mod http_api;
 mod runloops;
 
+use crate::cli::fetch_and_standardize_block;
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
 use crate::hord::should_sync_hord_db;
 use crate::scan::bitcoin::process_block_with_predicates;
@@ -11,17 +12,25 @@ use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
 };
 
+use chainhook_sdk::bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_sdk::chainhooks::types::{
     BitcoinChainhookSpecification, ChainhookConfig, ChainhookFullSpecification,
 };
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
-use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
+use chainhook_sdk::hord::db::{
+    find_all_inscriptions_in_block, insert_entry_in_locations, open_readonly_hord_db_conn,
+    open_readwrite_hord_db_conn, remove_entries_from_locations_at_block_height,
+};
+use chainhook_sdk::hord::{
+    update_storage_and_augment_bitcoin_block_with_inscription_transfer_data, Storage,
+};
+use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
 use chainhook_sdk::utils::Context;
-use chainhook_types::{BitcoinBlockSignaling, StacksChainEvent};
+use chainhook_types::{BitcoinBlockData, BitcoinBlockSignaling, StacksChainEvent};
 use redis::{Commands, Connection};
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 
 pub struct Service {
     config: Config,
@@ -156,6 +165,43 @@ impl Service {
                     }
                 })
                 .expect("unable to spawn thread");
+
+            let auth = Auth::UserPass(
+                self.config.network.bitcoind_rpc_username.clone(),
+                self.config.network.bitcoind_rpc_password.clone(),
+            );
+            let bitcoin_rpc = match Client::new(&self.config.network.bitcoind_rpc_url, auth) {
+                Ok(con) => con,
+                Err(message) => {
+                    return Err(format!("Bitcoin RPC error: {}", message.to_string()));
+                }
+            };
+
+            let mut end_block = match bitcoin_rpc.get_blockchain_info() {
+                Ok(result) => result.blocks - 1,
+                Err(e) => {
+                    return Err(format!(
+                        "unable to retrieve Bitcoin chain tip ({})",
+                        e.to_string()
+                    ));
+                }
+            };
+
+            let mut cursor = 767430;
+            while cursor < end_block {
+                self.replay_transfers(cursor, end_block, Some(tx.clone()))?;
+
+                cursor = end_block;
+                end_block = match bitcoin_rpc.get_blockchain_info() {
+                    Ok(result) => result.blocks - 1,
+                    Err(e) => {
+                        return Err(format!(
+                            "unable to retrieve Bitcoin chain tip ({})",
+                            e.to_string()
+                        ));
+                    }
+                };
+            }
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
@@ -445,6 +491,98 @@ impl Service {
                     break;
                 }
                 _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    pub fn replay_transfers(
+        &self,
+        start_block: u64,
+        end_block: u64,
+        block_post_processor: Option<Sender<BitcoinBlockData>>,
+    ) -> Result<(), String> {
+        info!(self.ctx.expect_logger(), "Transfers only");
+        let mut inscriptions_db_conn_rw =
+            open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+        let inscriptions_db_conn =
+            open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+
+        for cursor in start_block..=end_block {
+            info!(
+                self.ctx.expect_logger(),
+                "Cleaning transfers from block {}", cursor
+            );
+            let inscriptions =
+                find_all_inscriptions_in_block(&cursor, &inscriptions_db_conn, &self.ctx);
+            info!(
+                self.ctx.expect_logger(),
+                "{} inscriptions retrieved at block {}",
+                inscriptions.len(),
+                cursor
+            );
+
+            let transaction = inscriptions_db_conn_rw.transaction().unwrap();
+
+            remove_entries_from_locations_at_block_height(&cursor, &transaction, &self.ctx);
+
+            for (_, entry) in inscriptions.iter() {
+                let inscription_id = entry.get_inscription_id();
+                info!(
+                    self.ctx.expect_logger(),
+                    "Processing inscription {}", inscription_id
+                );
+                insert_entry_in_locations(
+                    &inscription_id,
+                    cursor,
+                    &entry.transfer_data,
+                    &transaction,
+                    &self.ctx,
+                )
+            }
+            transaction.commit().unwrap();
+        }
+
+        info!(self.ctx.expect_logger(), "Fetching blocks");
+
+        let bitcoin_config = BitcoinConfig {
+            username: self.config.network.bitcoind_rpc_username.clone(),
+            password: self.config.network.bitcoind_rpc_password.clone(),
+            rpc_url: self.config.network.bitcoind_rpc_url.clone(),
+            network: self.config.network.bitcoin_network.clone(),
+            bitcoin_block_signaling: self.config.network.bitcoin_block_signaling.clone(),
+        };
+        let (tx, rx) = channel();
+        let moved_ctx = self.ctx.clone();
+        hiro_system_kit::thread_named("Block fetch")
+            .spawn(move || {
+                for cursor in start_block..=end_block {
+                    info!(moved_ctx.expect_logger(), "Fetching block {}", cursor);
+                    let future = fetch_and_standardize_block(cursor, &bitcoin_config, &moved_ctx);
+
+                    let block = hiro_system_kit::nestable_block_on(future).unwrap();
+
+                    let _ = tx.send(block);
+                }
+            })
+            .unwrap();
+
+        let inscriptions_db_conn_rw =
+            open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+        let mut storage = Storage::Sqlite(&inscriptions_db_conn_rw);
+        while let Ok(mut block) = rx.recv() {
+            info!(
+                self.ctx.expect_logger(),
+                "Rewriting transfers for block {}", block.block_identifier.index
+            );
+            update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
+                &mut block,
+                &mut storage,
+                &self.ctx,
+            )
+            .unwrap();
+            if let Some(ref tx) = block_post_processor {
+                let _ = tx.send(block);
             }
         }
         Ok(())
