@@ -15,7 +15,7 @@ use hiro_system_kit::slog;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rocksdb::DB;
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::hash::BuildHasherDefault;
 use std::ops::Div;
@@ -41,9 +41,9 @@ use crate::{
 use self::db::{
     find_inscription_with_id, find_latest_cursed_inscription_number_at_block_height,
     find_latest_inscription_number_at_block_height, format_satpoint_to_watch,
-    insert_transfer_in_locations, parse_outpoint_to_watch, parse_satpoint_to_watch,
-    remove_entry_from_blocks, remove_entry_from_inscriptions, LazyBlock, LazyBlockTransaction,
-    TraversalResult, WatchedSatpoint,
+    insert_transfer_in_locations, insert_transfer_in_locations_tx, parse_outpoint_to_watch,
+    parse_satpoint_to_watch, remove_entry_from_blocks, remove_entry_from_inscriptions, LazyBlock,
+    LazyBlockTransaction, TraversalResult, WatchedSatpoint,
 };
 use self::inscription::InscriptionParser;
 use self::ord::inscription_id::InscriptionId;
@@ -881,4 +881,168 @@ fn test_identify_next_output_index_destination() {
         compute_next_satpoint_data(2, 45, &vec![20, 30, 45], &vec![20, 30, 45]),
         SatPosition::Fee(0)
     );
+}
+
+pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx(
+    block: &mut BitcoinBlockData,
+    hord_db_tx: &Transaction,
+    hord_db_conn: &Connection,
+    ctx: &Context,
+) -> Result<bool, String> {
+    let mut storage_updated = false;
+    let mut cumulated_fees = 0;
+    let subsidy = Height(block.block_identifier.index).subsidy();
+    let coinbase_txid = &block.transactions[0].transaction_identifier.clone();
+    let network = match block.metadata.network {
+        BitcoinNetwork::Mainnet => Network::Bitcoin,
+        BitcoinNetwork::Regtest => Network::Regtest,
+        BitcoinNetwork::Testnet => Network::Testnet,
+    };
+    // todo: handle ordinals coinbase spend
+
+    for (tx_index, new_tx) in block.transactions.iter_mut().skip(1).enumerate() {
+        for (input_index, input) in new_tx.metadata.inputs.iter().enumerate() {
+            // input.previous_output.txid
+            let outpoint_pre_transfer = format_outpoint_to_watch(
+                &input.previous_output.txid,
+                input.previous_output.vout as usize,
+            );
+
+            let entries =
+                find_inscriptions_at_wached_outpoint(&outpoint_pre_transfer, &hord_db_conn)?;
+
+            // For each satpoint inscribed retrieved, we need to compute the next
+            // outpoint to watch
+            for mut watched_satpoint in entries.into_iter() {
+                let satpoint_pre_transfer =
+                    format!("{}:{}", outpoint_pre_transfer, watched_satpoint.offset);
+
+                // Question is: are inscriptions moving to a new output,
+                // burnt or lost in fees and transfered to the miner?
+
+                let inputs = new_tx
+                    .metadata
+                    .inputs
+                    .iter()
+                    .map(|o| o.previous_output.value)
+                    .collect::<_>();
+                let outputs = new_tx
+                    .metadata
+                    .outputs
+                    .iter()
+                    .map(|o| o.value)
+                    .collect::<_>();
+                let post_transfer_data = compute_next_satpoint_data(
+                    input_index,
+                    watched_satpoint.offset,
+                    &inputs,
+                    &outputs,
+                );
+
+                let (
+                    outpoint_post_transfer,
+                    offset_post_transfer,
+                    updated_address,
+                    post_transfer_output_value,
+                ) = match post_transfer_data {
+                    SatPosition::Output((output_index, offset)) => {
+                        let outpoint =
+                            format_outpoint_to_watch(&new_tx.transaction_identifier, output_index);
+                        let script_pub_key_hex =
+                            new_tx.metadata.outputs[output_index].get_script_pubkey_hex();
+                        let updated_address = match Script::from_hex(&script_pub_key_hex) {
+                            Ok(script) => match Address::from_script(&script, network.clone()) {
+                                Ok(address) => Some(address.to_string()),
+                                Err(e) => {
+                                    ctx.try_log(|logger| {
+                                            slog::warn!(
+                                                logger,
+                                                "unable to retrieve address from {script_pub_key_hex}: {}", e.to_string()
+                                            )
+                                        });
+                                    None
+                                }
+                            },
+                            Err(e) => {
+                                ctx.try_log(|logger| {
+                                    slog::warn!(
+                                        logger,
+                                        "unable to retrieve address from {script_pub_key_hex}: {}",
+                                        e.to_string()
+                                    )
+                                });
+                                None
+                            }
+                        };
+
+                        // At this point we know that inscriptions are being moved.
+                        ctx.try_log(|logger| {
+                            slog::info!(
+                                logger,
+                                "Inscription {} moved from {} to {} (block: {})",
+                                watched_satpoint.inscription_id,
+                                satpoint_pre_transfer,
+                                outpoint,
+                                block.block_identifier.index,
+                            )
+                        });
+
+                        (
+                            outpoint,
+                            offset,
+                            updated_address,
+                            Some(new_tx.metadata.outputs[output_index].value),
+                        )
+                    }
+                    SatPosition::Fee(offset) => {
+                        // Get Coinbase TX
+                        let total_offset = subsidy + cumulated_fees + offset;
+                        let outpoint = format_outpoint_to_watch(&coinbase_txid, 0);
+                        ctx.try_log(|logger| {
+                            slog::info!(
+                                logger,
+                                "Inscription {} spent in fees ({}+{}+{})",
+                                watched_satpoint.inscription_id,
+                                subsidy,
+                                cumulated_fees,
+                                offset
+                            )
+                        });
+                        (outpoint, total_offset, None, None)
+                    }
+                };
+
+                let satpoint_post_transfer =
+                    format!("{}:{}", outpoint_post_transfer, offset_post_transfer);
+
+                let transfer_data = OrdinalInscriptionTransferData {
+                    inscription_id: watched_satpoint.inscription_id.clone(),
+                    updated_address,
+                    tx_index,
+                    satpoint_pre_transfer,
+                    satpoint_post_transfer,
+                    post_transfer_output_value,
+                    ordinal_number: None,
+                };
+
+                // Update watched outpoint
+
+                insert_transfer_in_locations_tx(
+                    &transfer_data,
+                    &block.block_identifier,
+                    &hord_db_tx,
+                    &ctx,
+                );
+                storage_updated = true;
+
+                // Attach transfer event
+                new_tx
+                    .metadata
+                    .ordinal_operations
+                    .push(OrdinalOperation::InscriptionTransferred(transfer_data));
+            }
+        }
+        cumulated_fees += new_tx.metadata.fee;
+    }
+    Ok(storage_updated)
 }

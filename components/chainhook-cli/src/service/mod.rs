@@ -12,7 +12,6 @@ use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_sdk::bitcoincore_rpc_json::bitcoin::hashes::hex::FromHex;
 use chainhook_sdk::bitcoincore_rpc_json::bitcoin::{Address, Network, Script};
 use chainhook_sdk::chainhooks::types::{
@@ -26,7 +25,7 @@ use chainhook_sdk::hord::db::{
     parse_satpoint_to_watch, remove_entries_from_locations_at_block_height,
 };
 use chainhook_sdk::hord::{
-    update_storage_and_augment_bitcoin_block_with_inscription_transfer_data, Storage,
+    update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx
 };
 use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
 use chainhook_sdk::utils::Context;
@@ -182,7 +181,7 @@ impl Service {
                     None => panic!(),
                 };
 
-            self.replay_transfers(784628, end_block, Some(tx.clone()))?;
+            self.replay_transfers(786000, end_block, Some(tx.clone()))?;
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
@@ -511,8 +510,6 @@ impl Service {
             })
             .unwrap();
 
-        let inscriptions_db_conn_rw =
-            open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
         while let Ok(mut block) = rx.recv() {
             let network = match block.metadata.network {
                 BitcoinNetwork::Mainnet => Network::Bitcoin,
@@ -618,13 +615,17 @@ impl Service {
                 }
             }
 
-            let mut storage = Storage::Sqlite(&inscriptions_db_conn_rw);
-            update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
-                &mut block,
-                &mut storage,
-                &self.ctx,
-            )
-            .unwrap();
+            {
+                let transaction = inscriptions_db_conn_rw.transaction().unwrap();
+                update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx(
+                    &mut block,
+                    &transaction,
+                    &inscriptions_db_conn,
+                    &self.ctx,
+                )
+                .unwrap();
+                transaction.commit().unwrap();
+            }
 
             if let Some(ref tx) = block_post_processor {
                 let _ = tx.send(block);
