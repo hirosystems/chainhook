@@ -886,7 +886,6 @@ fn test_identify_next_output_index_destination() {
 pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx(
     block: &mut BitcoinBlockData,
     hord_db_tx: &Transaction,
-    hord_db_conn: &Connection,
     ctx: &Context,
 ) -> Result<bool, String> {
     let mut storage_updated = false;
@@ -909,7 +908,7 @@ pub fn update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_t
             );
 
             let entries =
-                find_inscriptions_at_wached_outpoint(&outpoint_pre_transfer, &hord_db_conn)?;
+                find_inscriptions_at_wached_outpoint(&outpoint_pre_transfer, &hord_db_tx)?;
 
             // For each satpoint inscribed retrieved, we need to compute the next
             // outpoint to watch
