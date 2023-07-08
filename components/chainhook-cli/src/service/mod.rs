@@ -182,7 +182,7 @@ impl Service {
                     None => panic!(),
                 };
 
-            self.replay_transfers(767430, end_block, Some(tx.clone()))?;
+            self.replay_transfers(784628, end_block, Some(tx.clone()))?;
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
@@ -513,8 +513,13 @@ impl Service {
 
         let inscriptions_db_conn_rw =
             open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
-        let mut storage = Storage::Sqlite(&inscriptions_db_conn_rw);
         while let Ok(mut block) = rx.recv() {
+            let network = match block.metadata.network {
+                BitcoinNetwork::Mainnet => Network::Bitcoin,
+                BitcoinNetwork::Regtest => Network::Regtest,
+                BitcoinNetwork::Testnet => Network::Testnet,
+            };
+
             let mut inscriptions_db_conn_rw =
                 open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
@@ -533,58 +538,54 @@ impl Service {
                 inscriptions.len(),
                 block.block_identifier.index
             );
-
-            let transaction = inscriptions_db_conn_rw.transaction().unwrap();
-
-            remove_entries_from_locations_at_block_height(
-                &block.block_identifier.index,
-                &transaction,
-                &self.ctx,
-            );
-
-            let network = match block.metadata.network {
-                BitcoinNetwork::Mainnet => Network::Bitcoin,
-                BitcoinNetwork::Regtest => Network::Regtest,
-                BitcoinNetwork::Testnet => Network::Testnet,
-            };
-
             let mut operations = BTreeMap::new();
-            for (_, entry) in inscriptions.iter() {
-                let inscription_id = entry.get_inscription_id();
-                info!(
-                    self.ctx.expect_logger(),
-                    "Processing inscription {}", inscription_id
-                );
-                insert_entry_in_locations(
-                    &inscription_id,
-                    block.block_identifier.index,
-                    &entry.transfer_data,
+
+            {
+                let transaction = inscriptions_db_conn_rw.transaction().unwrap();
+
+                remove_entries_from_locations_at_block_height(
+                    &block.block_identifier.index,
                     &transaction,
                     &self.ctx,
                 );
 
-                operations.insert(
-                    entry.transaction_identifier_inscription.clone(),
-                    OrdinalInscriptionTransferData {
-                        inscription_id: entry.get_inscription_id(),
-                        updated_address: None,
-                        satpoint_pre_transfer: format_satpoint_to_watch(
-                            &entry.transaction_identifier_inscription,
-                            entry.inscription_input_index,
-                            0,
-                        ),
-                        satpoint_post_transfer: format_satpoint_to_watch(
-                            &entry.transfer_data.transaction_identifier_location,
-                            entry.transfer_data.output_index,
-                            entry.transfer_data.inscription_offset_intra_output,
-                        ),
-                        post_transfer_output_value: None,
-                        tx_index: 0,
-                        ordinal_number: Some(entry.ordinal_number),
-                    },
-                );
+                for (_, entry) in inscriptions.iter() {
+                    let inscription_id = entry.get_inscription_id();
+                    info!(
+                        self.ctx.expect_logger(),
+                        "Processing inscription {}", inscription_id
+                    );
+                    insert_entry_in_locations(
+                        &inscription_id,
+                        block.block_identifier.index,
+                        &entry.transfer_data,
+                        &transaction,
+                        &self.ctx,
+                    );
+
+                    operations.insert(
+                        entry.transaction_identifier_inscription.clone(),
+                        OrdinalInscriptionTransferData {
+                            inscription_id: entry.get_inscription_id(),
+                            updated_address: None,
+                            satpoint_pre_transfer: format_satpoint_to_watch(
+                                &entry.transaction_identifier_inscription,
+                                entry.inscription_input_index,
+                                0,
+                            ),
+                            satpoint_post_transfer: format_satpoint_to_watch(
+                                &entry.transfer_data.transaction_identifier_location,
+                                entry.transfer_data.output_index,
+                                entry.transfer_data.inscription_offset_intra_output,
+                            ),
+                            post_transfer_output_value: None,
+                            tx_index: 0,
+                            ordinal_number: Some(entry.ordinal_number),
+                        },
+                    );
+                }
+                transaction.commit().unwrap();
             }
-            transaction.commit().unwrap();
 
             info!(
                 self.ctx.expect_logger(),
@@ -617,12 +618,14 @@ impl Service {
                 }
             }
 
+            let mut storage = Storage::Sqlite(&inscriptions_db_conn_rw);
             update_storage_and_augment_bitcoin_block_with_inscription_transfer_data(
                 &mut block,
                 &mut storage,
                 &self.ctx,
             )
             .unwrap();
+
             if let Some(ref tx) = block_post_processor {
                 let _ = tx.send(block);
             }
