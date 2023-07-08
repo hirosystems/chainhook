@@ -189,7 +189,7 @@ impl Service {
                     None => panic!(),
                 };
 
-            self.replay_transfers(787500, end_block, Some(tx.clone()))?;
+            self.replay_transfers(776800, end_block, Some(tx.clone()))?;
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
