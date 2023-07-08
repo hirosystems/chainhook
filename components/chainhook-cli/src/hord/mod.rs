@@ -77,7 +77,7 @@ pub async fn perform_hord_db_update(
     end_block: u64,
     hord_config: &HordConfig,
     config: &Config,
-    block_post_processor: Option<Sender<BitcoinBlockData>>,
+    block_post_processor: Option<crossbeam_channel::Sender<BitcoinBlockData>>,
     ctx: &Context,
 ) -> Result<(), String> {
     info!(

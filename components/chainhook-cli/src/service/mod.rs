@@ -24,9 +24,7 @@ use chainhook_sdk::hord::db::{
     insert_entry_in_locations, open_readonly_hord_db_conn, open_readwrite_hord_db_conn,
     parse_satpoint_to_watch, remove_entries_from_locations_at_block_height,
 };
-use chainhook_sdk::hord::{
-    update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx
-};
+use chainhook_sdk::hord::update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx;
 use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
 use chainhook_sdk::utils::Context;
 use chainhook_types::{
@@ -140,7 +138,7 @@ impl Service {
                 "Ordinal indexing is enabled by default, checking index... (use --no-hord to disable ordinals)"
             );
 
-            let (tx, rx) = channel();
+            let (tx, rx) = crossbeam_channel::bounded::<BitcoinBlockData>(50);
 
             let mut moved_event_observer_config = event_observer_config.clone();
             let moved_ctx = self.ctx.clone();
@@ -157,6 +155,12 @@ impl Service {
                             bitcoin_predicates_ref.push(bitcoin_predicate);
                         }
                         while let Ok(block) = rx.recv() {
+                            let block_index = block.block_identifier.index;
+                            info!(
+                                moved_ctx.expect_logger(),
+                                "Start processing block {} with predicates", block_index
+                            );
+
                             let future = process_block_with_predicates(
                                 block,
                                 &bitcoin_predicates_ref,
@@ -167,6 +171,10 @@ impl Service {
                             if let Err(_) = res {
                                 error!(moved_ctx.expect_logger(), "Initial ingestion failing");
                             }
+                            info!(
+                                moved_ctx.expect_logger(),
+                                "Done processing block {} with predicates", block_index
+                            );
                         }
                     }
                 })
@@ -480,13 +488,11 @@ impl Service {
         &self,
         start_block: u64,
         end_block: u64,
-        block_post_processor: Option<Sender<BitcoinBlockData>>,
+        block_post_processor: Option<crossbeam_channel::Sender<BitcoinBlockData>>,
     ) -> Result<(), String> {
         info!(self.ctx.expect_logger(), "Transfers only");
         let inscriptions_db_conn =
             open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
-
-        info!(self.ctx.expect_logger(), "Fetching blocks");
 
         let bitcoin_config = BitcoinConfig {
             username: self.config.network.bitcoind_rpc_username.clone(),
@@ -495,7 +501,7 @@ impl Service {
             network: self.config.network.bitcoin_network.clone(),
             bitcoin_block_signaling: self.config.network.bitcoin_block_signaling.clone(),
         };
-        let (tx, rx) = crossbeam_channel::bounded(1024);
+        let (tx, rx) = crossbeam_channel::bounded(100);
         let moved_ctx = self.ctx.clone();
         hiro_system_kit::thread_named("Block fetch")
             .spawn(move || {
@@ -626,6 +632,12 @@ impl Service {
                 .unwrap();
                 transaction.commit().unwrap();
             }
+
+
+            info!(
+                self.ctx.expect_logger(),
+                "Transfers in block {} repaired", block.block_identifier.index
+            );
 
             if let Some(ref tx) = block_post_processor {
                 let _ = tx.send(block);

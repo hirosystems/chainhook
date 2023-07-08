@@ -896,7 +896,7 @@ pub async fn fetch_and_cache_blocks_in_hord_db(
     start_block: u64,
     end_block: u64,
     hord_config: &HordConfig,
-    block_post_processor: Option<Sender<BitcoinBlockData>>,
+    block_post_processor: Option<crossbeam_channel::Sender<BitcoinBlockData>>,
     ctx: &Context,
 ) -> Result<(), String> {
     let ordinal_computing_height = hord_config.first_inscription_height;
