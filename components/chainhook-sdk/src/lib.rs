@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 pub extern crate bitcoincore_rpc;
+pub extern crate bitcoincore_rpc_json;
 pub extern crate dashmap;
 pub extern crate fxhash;
 pub extern crate stacks_rpc_client;
