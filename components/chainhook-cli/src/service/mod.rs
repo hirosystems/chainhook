@@ -496,7 +496,7 @@ impl Service {
             network: self.config.network.bitcoin_network.clone(),
             bitcoin_block_signaling: self.config.network.bitcoin_block_signaling.clone(),
         };
-        let (tx, rx) = channel();
+        let (tx, rx) = crossbeam_channel::bounded(1024);
         let moved_ctx = self.ctx.clone();
         hiro_system_kit::thread_named("Block fetch")
             .spawn(move || {
