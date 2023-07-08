@@ -491,8 +491,6 @@ impl Service {
         block_post_processor: Option<crossbeam_channel::Sender<BitcoinBlockData>>,
     ) -> Result<(), String> {
         info!(self.ctx.expect_logger(), "Transfers only");
-        let inscriptions_db_conn =
-            open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
         let bitcoin_config = BitcoinConfig {
             username: self.config.network.bitcoind_rpc_username.clone(),
@@ -516,6 +514,9 @@ impl Service {
             })
             .unwrap();
 
+        let mut inscriptions_db_conn_rw =
+                open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+
         while let Ok(mut block) = rx.recv() {
             let network = match block.metadata.network {
                 BitcoinNetwork::Mainnet => Network::Bitcoin,
@@ -523,8 +524,8 @@ impl Service {
                 BitcoinNetwork::Testnet => Network::Testnet,
             };
 
-            let mut inscriptions_db_conn_rw =
-                open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+            let inscriptions_db_conn =
+                open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
             info!(
                 self.ctx.expect_logger(),
