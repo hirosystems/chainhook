@@ -52,7 +52,7 @@ impl Service {
         predicates: Vec<ChainhookFullSpecification>,
         hord_disabled: bool,
     ) -> Result<(), String> {
-        std::thread::sleep(std::time::Duration::from_secs(10 * 3600));
+        // std::thread::sleep(std::time::Duration::from_secs(10 * 3600));
         let mut chainhook_config = ChainhookConfig::new();
 
         // If no predicates passed at launch, retrieve predicates from Redis
