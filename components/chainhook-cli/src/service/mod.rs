@@ -20,9 +20,10 @@ use chainhook_sdk::chainhooks::types::{
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::hord::db::{
-    find_all_inscriptions_in_block, find_latest_inscription_block_height, format_satpoint_to_watch,
-    insert_entry_in_locations, open_readonly_hord_db_conn, open_readwrite_hord_db_conn,
-    parse_satpoint_to_watch, remove_entries_from_locations_at_block_height,
+    delete_data_in_hord_db, find_all_inscriptions_in_block, find_latest_inscription_block_height,
+    format_satpoint_to_watch, insert_entry_in_locations, open_readonly_hord_db_conn,
+    open_readwrite_hord_db_conn, open_readwrite_hord_db_conn_rocks_db, parse_satpoint_to_watch,
+    remove_entries_from_locations_at_block_height,
 };
 use chainhook_sdk::hord::update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx;
 use chainhook_sdk::observer::{start_event_observer, BitcoinConfig, ObserverEvent};
@@ -180,16 +181,27 @@ impl Service {
                 })
                 .expect("unable to spawn thread");
 
-            let inscriptions_db_conn =
-                open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+            {
+                let blocks_db = open_readwrite_hord_db_conn_rocks_db(
+                    &self.config.expected_cache_path(),
+                    &self.ctx,
+                )?;
+                let inscriptions_db_conn_rw =
+                    open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
-            let end_block =
-                match find_latest_inscription_block_height(&inscriptions_db_conn, &self.ctx)? {
-                    Some(height) => height,
-                    None => panic!(),
-                };
-
-            self.replay_transfers(776800, end_block, Some(tx.clone()))?;
+                delete_data_in_hord_db(
+                    797640,
+                    800000,
+                    &blocks_db,
+                    &inscriptions_db_conn_rw,
+                    &self.ctx,
+                )?;
+                info!(
+                    self.ctx.expect_logger(),
+                    "Cleaning hord_db: {} blocks dropped",
+                    797640 - 800000
+                );
+            }
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
@@ -524,16 +536,13 @@ impl Service {
                 BitcoinNetwork::Testnet => Network::Testnet,
             };
 
-            let inscriptions_db_conn =
-                open_readonly_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
-
             info!(
                 self.ctx.expect_logger(),
                 "Cleaning transfers from block {}", block.block_identifier.index
             );
             let inscriptions = find_all_inscriptions_in_block(
                 &block.block_identifier.index,
-                &inscriptions_db_conn,
+                &inscriptions_db_conn_rw,
                 &self.ctx,
             );
             info!(
@@ -544,51 +553,48 @@ impl Service {
             );
             let mut operations = BTreeMap::new();
 
-            {
-                let transaction = inscriptions_db_conn_rw.transaction().unwrap();
+            let transaction = inscriptions_db_conn_rw.transaction().unwrap();
 
-                remove_entries_from_locations_at_block_height(
-                    &block.block_identifier.index,
+            remove_entries_from_locations_at_block_height(
+                &block.block_identifier.index,
+                &transaction,
+                &self.ctx,
+            );
+
+            for (_, entry) in inscriptions.iter() {
+                let inscription_id = entry.get_inscription_id();
+                info!(
+                    self.ctx.expect_logger(),
+                    "Processing inscription {}", inscription_id
+                );
+                insert_entry_in_locations(
+                    &inscription_id,
+                    block.block_identifier.index,
+                    &entry.transfer_data,
                     &transaction,
                     &self.ctx,
                 );
 
-                for (_, entry) in inscriptions.iter() {
-                    let inscription_id = entry.get_inscription_id();
-                    info!(
-                        self.ctx.expect_logger(),
-                        "Processing inscription {}", inscription_id
-                    );
-                    insert_entry_in_locations(
-                        &inscription_id,
-                        block.block_identifier.index,
-                        &entry.transfer_data,
-                        &transaction,
-                        &self.ctx,
-                    );
-
-                    operations.insert(
-                        entry.transaction_identifier_inscription.clone(),
-                        OrdinalInscriptionTransferData {
-                            inscription_id: entry.get_inscription_id(),
-                            updated_address: None,
-                            satpoint_pre_transfer: format_satpoint_to_watch(
-                                &entry.transaction_identifier_inscription,
-                                entry.inscription_input_index,
-                                0,
-                            ),
-                            satpoint_post_transfer: format_satpoint_to_watch(
-                                &entry.transfer_data.transaction_identifier_location,
-                                entry.transfer_data.output_index,
-                                entry.transfer_data.inscription_offset_intra_output,
-                            ),
-                            post_transfer_output_value: None,
-                            tx_index: 0,
-                            ordinal_number: Some(entry.ordinal_number),
-                        },
-                    );
-                }
-                transaction.commit().unwrap();
+                operations.insert(
+                    entry.transaction_identifier_inscription.clone(),
+                    OrdinalInscriptionTransferData {
+                        inscription_id: entry.get_inscription_id(),
+                        updated_address: None,
+                        satpoint_pre_transfer: format_satpoint_to_watch(
+                            &entry.transaction_identifier_inscription,
+                            entry.inscription_input_index,
+                            0,
+                        ),
+                        satpoint_post_transfer: format_satpoint_to_watch(
+                            &entry.transfer_data.transaction_identifier_location,
+                            entry.transfer_data.output_index,
+                            entry.transfer_data.inscription_offset_intra_output,
+                        ),
+                        post_transfer_output_value: None,
+                        tx_index: 0,
+                        ordinal_number: Some(entry.ordinal_number),
+                    },
+                );
             }
 
             info!(
@@ -622,20 +628,18 @@ impl Service {
                 }
             }
 
-            {
-                let transaction = inscriptions_db_conn_rw.transaction().unwrap();
-                update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx(
-                    &mut block,
-                    &transaction,
-                    &self.ctx,
-                )
-                .unwrap();
-                info!(
-                    self.ctx.expect_logger(),
-                    "Saving transfersupdates for block {}", block.block_identifier.index
-                );
-                transaction.commit().unwrap();
-            }
+            update_storage_and_augment_bitcoin_block_with_inscription_transfer_data_tx(
+                &mut block,
+                &transaction,
+                &self.ctx,
+            )
+            .unwrap();
+
+            info!(
+                self.ctx.expect_logger(),
+                "Saving supdates for block {}", block.block_identifier.index
+            );
+            transaction.commit().unwrap();
 
             info!(
                 self.ctx.expect_logger(),
