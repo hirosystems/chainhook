@@ -52,7 +52,6 @@ impl Service {
         predicates: Vec<ChainhookFullSpecification>,
         hord_disabled: bool,
     ) -> Result<(), String> {
-
         std::thread::sleep(std::time::Duration::from_secs(10 * 3600));
         let mut chainhook_config = ChainhookConfig::new();
 

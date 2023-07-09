@@ -226,6 +226,19 @@ enum HordCommand {
     /// Db maintenance related commands
     #[clap(subcommand)]
     Scan(ScanCommand),
+    /// Db maintenance related commands
+    #[clap(subcommand)]
+    Repair(RepairCommand),
+}
+
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+enum RepairCommand {
+    /// Rewrite blocks hord db
+    #[clap(name = "blocks", bin_name = "blocks")]
+    Blocks(RepairBlocksCommand),
+    /// Rewrite blocks hord db
+    #[clap(name = "transfers", bin_name = "transfers")]
+    Transfers(RepairTransfersCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -233,9 +246,6 @@ enum HordDbCommand {
     /// Rewrite hord db
     #[clap(name = "rewrite", bin_name = "rewrite")]
     Rewrite(UpdateHordDbCommand),
-    /// Rewrite blocks hord db
-    #[clap(name = "blocks", bin_name = "blocks")]
-    Blocks(BlocksHordDbCommand),
     /// Catch-up hord db
     #[clap(name = "sync", bin_name = "sync")]
     Sync(SyncHordDbCommand),
@@ -369,7 +379,18 @@ struct UpdateHordDbCommand {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-struct BlocksHordDbCommand {
+struct RepairBlocksCommand {
+    /// Starting block
+    pub start_block: u64,
+    /// Starting block
+    pub end_block: u64,
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct RepairTransfersCommand {
     /// Starting block
     pub start_block: u64,
     /// Starting block
@@ -845,8 +866,8 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 }
             }
         },
-        Command::Hord(HordCommand::Db(subcmd)) => match subcmd {
-            HordDbCommand::Blocks(cmd) => {
+        Command::Hord(HordCommand::Repair(subcmd)) => match subcmd {
+            RepairCommand::Blocks(cmd) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
 
                 let bitcoin_config = BitcoinConfig {
@@ -869,6 +890,13 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 )
                 .await?
             }
+            RepairCommand::Transfers(cmd) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+                let service = Service::new(config, ctx);
+                service.replay_transfers(cmd.start_block, cmd.end_block, None)?;
+            }
+        },
+        Command::Hord(HordCommand::Db(subcmd)) => match subcmd {
             HordDbCommand::Sync(cmd) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
                 if let Some((start_block, end_block)) =
