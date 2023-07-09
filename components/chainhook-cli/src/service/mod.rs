@@ -203,30 +203,30 @@ impl Service {
             //     );
             // }
 
-            while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
-            {
-                if start_block == 0 {
-                    info!(
-                        self.ctx.expect_logger(),
-                        "Initializing hord indexing from block #{}", start_block
-                    );
-                } else {
-                    info!(
-                        self.ctx.expect_logger(),
-                        "Resuming hord indexing from block #{}", start_block
-                    );
-                }
+            // while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
+            // {
+            //     if start_block == 0 {
+            //         info!(
+            //             self.ctx.expect_logger(),
+            //             "Initializing hord indexing from block #{}", start_block
+            //         );
+            //     } else {
+            //         info!(
+            //             self.ctx.expect_logger(),
+            //             "Resuming hord indexing from block #{}", start_block
+            //         );
+            //     }
 
-                crate::hord::perform_hord_db_update(
-                    start_block,
-                    end_block,
-                    &self.config.get_hord_config(),
-                    &self.config,
-                    Some(tx.clone()),
-                    &self.ctx,
-                )
-                .await?;
-            }
+            //     crate::hord::perform_hord_db_update(
+            //         start_block,
+            //         end_block,
+            //         &self.config.get_hord_config(),
+            //         &self.config,
+            //         Some(tx.clone()),
+            //         &self.ctx,
+            //     )
+            //     .await?;
+            // }
         }
 
         // Stacks scan operation threadpool
