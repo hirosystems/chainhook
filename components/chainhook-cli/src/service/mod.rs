@@ -181,27 +181,27 @@ impl Service {
                 })
                 .expect("unable to spawn thread");
 
-            {
-                let blocks_db = open_readwrite_hord_db_conn_rocks_db(
-                    &self.config.expected_cache_path(),
-                    &self.ctx,
-                )?;
-                let inscriptions_db_conn_rw =
-                    open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
+            // {
+            //     let blocks_db = open_readwrite_hord_db_conn_rocks_db(
+            //         &self.config.expected_cache_path(),
+            //         &self.ctx,
+            //     )?;
+            //     let inscriptions_db_conn_rw =
+            //         open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
-                delete_data_in_hord_db(
-                    797750,
-                    797800,
-                    &blocks_db,
-                    &inscriptions_db_conn_rw,
-                    &self.ctx,
-                )?;
-                info!(
-                    self.ctx.expect_logger(),
-                    "Cleaning hord_db: {} blocks dropped",
-                    797640 - 800000
-                );
-            }
+            //     delete_data_in_hord_db(
+            //         797750,
+            //         797800,
+            //         &blocks_db,
+            //         &inscriptions_db_conn_rw,
+            //         &self.ctx,
+            //     )?;
+            //     info!(
+            //         self.ctx.expect_logger(),
+            //         "Cleaning hord_db: {} blocks dropped",
+            //         797640 - 800000
+            //     );
+            // }
 
             while let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)?
             {
