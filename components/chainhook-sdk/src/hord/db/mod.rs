@@ -463,7 +463,14 @@ pub fn get_any_entry_in_ordinal_activities(
 ) -> bool {
     let args: &[&dyn ToSql] = &[&block_height.to_sql().unwrap()];
     let mut stmt = inscriptions_db_conn
-        .prepare("SELECT block_height FROM activities WHERE block_height = ?")
+        .prepare("SELECT DISTINCT block_height FROM inscriptions WHERE block_height = ?")
+        .unwrap();
+    let mut rows = stmt.query(args).unwrap();
+    while let Ok(Some(_)) = rows.next() {
+        return true;
+    }
+    let mut stmt = inscriptions_db_conn
+        .prepare("SELECT DISTINCT block_height FROM locations WHERE block_height = ?")
         .unwrap();
     let mut rows = stmt.query(args).unwrap();
     while let Ok(Some(_)) = rows.next() {
