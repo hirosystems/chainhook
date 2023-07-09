@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     hash::BuildHasherDefault,
     path::PathBuf,
-    sync::{mpsc::Sender, Arc},
+    sync::Arc,
 };
 
 use chainhook_types::{
@@ -1828,4 +1828,141 @@ impl<'a> Iterator for LazyBlockTransactionIterator<'a> {
             outputs_len,
         ))
     }
+}
+
+pub async fn rebuild_rocks_db(
+    bitcoin_config: &BitcoinConfig,
+    blocks_db_rw: &DB,
+    start_block: u64,
+    end_block: u64,
+    hord_config: &HordConfig,
+    ctx: &Context,
+) -> Result<(), String> {
+    let number_of_blocks_to_process = end_block - start_block + 1;
+    let (block_hash_req_lim, block_req_lim, block_process_lim) = (256, 128, 128);
+
+    let retrieve_block_hash_pool = ThreadPool::new(hord_config.network_thread_max);
+    let (block_hash_tx, block_hash_rx) = crossbeam_channel::bounded(block_hash_req_lim);
+    let retrieve_block_data_pool = ThreadPool::new(hord_config.network_thread_max);
+    let (block_data_tx, block_data_rx) = crossbeam_channel::bounded(block_req_lim);
+    let compress_block_data_pool = ThreadPool::new(hord_config.ingestion_thread_max);
+    let (block_compressed_tx, block_compressed_rx) = crossbeam_channel::bounded(block_process_lim);
+
+    // Thread pool #1: given a block height, retrieve the block hash
+    for block_cursor in start_block..=end_block {
+        let block_height = block_cursor.clone();
+        let block_hash_tx = block_hash_tx.clone();
+        let config = bitcoin_config.clone();
+        let moved_ctx = ctx.clone();
+        retrieve_block_hash_pool.execute(move || {
+            let future = retrieve_block_hash_with_retry(&block_height, &config, &moved_ctx);
+            let block_hash = hiro_system_kit::nestable_block_on(future).unwrap();
+            block_hash_tx
+                .send(Some((block_height, block_hash)))
+                .expect("unable to channel block_hash");
+        })
+    }
+
+    // Thread pool #2: given a block hash, retrieve the full block (verbosity max, including prevout)
+    let bitcoin_config = bitcoin_config.clone();
+    let moved_ctx = ctx.clone();
+    let block_data_tx_moved = block_data_tx.clone();
+    let _ = hiro_system_kit::thread_named("Block data retrieval")
+        .spawn(move || {
+            while let Ok(Some((block_height, block_hash))) = block_hash_rx.recv() {
+                let moved_bitcoin_config = bitcoin_config.clone();
+                let block_data_tx = block_data_tx_moved.clone();
+                let moved_ctx = moved_ctx.clone();
+                retrieve_block_data_pool.execute(move || {
+                    moved_ctx
+                        .try_log(|logger| slog::debug!(logger, "Fetching block #{block_height}"));
+                    let future =
+                        download_block_with_retry(&block_hash, &moved_bitcoin_config, &moved_ctx);
+                    let res = match hiro_system_kit::nestable_block_on(future) {
+                        Ok(block_data) => Some(block_data),
+                        Err(e) => {
+                            moved_ctx.try_log(|logger| {
+                                slog::error!(logger, "unable to fetch block #{block_height}: {e}")
+                            });
+                            None
+                        }
+                    };
+                    let _ = block_data_tx.send(res);
+                });
+            }
+            let res = retrieve_block_data_pool.join();
+            res
+        })
+        .expect("unable to spawn thread");
+
+    let _ = hiro_system_kit::thread_named("Block data compression")
+        .spawn(move || {
+            while let Ok(Some(block_data)) = block_data_rx.recv() {
+                let block_compressed_tx_moved = block_compressed_tx.clone();
+                compress_block_data_pool.execute(move || {
+                    let compressed_block =
+                        LazyBlock::from_full_block(&block_data).expect("unable to serialize block");
+                    let block_index = block_data.height as u32;
+                    let _ = block_compressed_tx_moved.send(Some((
+                        block_index,
+                        compressed_block,
+                        block_data,
+                    )));
+                });
+            }
+            let res = compress_block_data_pool.join();
+            res
+        })
+        .expect("unable to spawn thread");
+
+    let mut blocks_stored = 0;
+    let mut num_writes = 0;
+
+    while let Ok(Some((block_height, compacted_block, _raw_block))) = block_compressed_rx.recv() {
+        insert_entry_in_blocks(block_height, &compacted_block, &blocks_db_rw, &ctx);
+        blocks_stored += 1;
+        num_writes += 1;
+
+        // In the context of ordinals, we're constrained to process blocks sequentially
+        // Blocks are processed by a threadpool and could be coming out of order.
+        // Inbox block for later if the current block is not the one we should be
+        // processing.
+
+        // Should we start look for inscriptions data in blocks?
+        ctx.try_log(|logger| slog::info!(logger, "Storing compacted block #{block_height}",));
+
+        if blocks_stored == number_of_blocks_to_process {
+            let _ = block_data_tx.send(None);
+            let _ = block_hash_tx.send(None);
+            ctx.try_log(|logger| {
+                slog::info!(
+                    logger,
+                    "Local block storage successfully seeded with #{blocks_stored} blocks"
+                )
+            });
+            return Ok(());
+        }
+
+        if num_writes % 128 == 0 {
+            ctx.try_log(|logger| {
+                slog::info!(logger, "Flushing DB to disk ({num_writes} inserts)");
+            });
+            if let Err(e) = blocks_db_rw.flush() {
+                ctx.try_log(|logger| {
+                    slog::error!(logger, "{}", e.to_string());
+                });
+            }
+            num_writes = 0;
+        }
+    }
+
+    if let Err(e) = blocks_db_rw.flush() {
+        ctx.try_log(|logger| {
+            slog::error!(logger, "{}", e.to_string());
+        });
+    }
+
+    retrieve_block_hash_pool.join();
+
+    Ok(())
 }

@@ -20,7 +20,8 @@ use chainhook_sdk::hord::db::{
     delete_data_in_hord_db, find_last_block_inserted, find_lazy_block_at_block_height,
     find_watched_satpoint_for_inscription, initialize_hord_db, open_readonly_hord_db_conn,
     open_readonly_hord_db_conn_rocks_db, open_readwrite_hord_db_conn,
-    open_readwrite_hord_db_conn_rocks_db, retrieve_satoshi_point_using_lazy_storage,
+    open_readwrite_hord_db_conn_rocks_db, rebuild_rocks_db,
+    retrieve_satoshi_point_using_lazy_storage,
 };
 use chainhook_sdk::hord::{
     new_traversals_lazy_cache, retrieve_inscribed_satoshi_points_from_block,
@@ -232,6 +233,9 @@ enum HordDbCommand {
     /// Rewrite hord db
     #[clap(name = "rewrite", bin_name = "rewrite")]
     Rewrite(UpdateHordDbCommand),
+    /// Rewrite blocks hord db
+    #[clap(name = "blocks", bin_name = "blocks")]
+    Blocks(BlocksHordDbCommand),
     /// Catch-up hord db
     #[clap(name = "sync", bin_name = "sync")]
     Sync(SyncHordDbCommand),
@@ -355,6 +359,17 @@ struct ScanTransfersCommand {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 struct UpdateHordDbCommand {
+    /// Starting block
+    pub start_block: u64,
+    /// Starting block
+    pub end_block: u64,
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct BlocksHordDbCommand {
     /// Starting block
     pub start_block: u64,
     /// Starting block
@@ -831,6 +846,29 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             }
         },
         Command::Hord(HordCommand::Db(subcmd)) => match subcmd {
+            HordDbCommand::Blocks(cmd) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+
+                let bitcoin_config = BitcoinConfig {
+                    username: config.network.bitcoind_rpc_username.clone(),
+                    password: config.network.bitcoind_rpc_password.clone(),
+                    rpc_url: config.network.bitcoind_rpc_url.clone(),
+                    network: config.network.bitcoin_network.clone(),
+                    bitcoin_block_signaling: config.network.bitcoin_block_signaling.clone(),
+                };
+                let blocks_db =
+                    open_readwrite_hord_db_conn_rocks_db(&config.expected_cache_path(), &ctx)?;
+
+                rebuild_rocks_db(
+                    &bitcoin_config,
+                    &blocks_db,
+                    cmd.start_block,
+                    cmd.end_block,
+                    &config.get_hord_config(),
+                    &ctx,
+                )
+                .await?
+            }
             HordDbCommand::Sync(cmd) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
                 if let Some((start_block, end_block)) =
