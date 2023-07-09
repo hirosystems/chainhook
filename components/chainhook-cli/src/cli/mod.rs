@@ -384,6 +384,8 @@ struct RepairBlocksCommand {
     pub start_block: u64,
     /// Starting block
     pub end_block: u64,
+    /// Network threads
+    pub network_threads: usize,
     /// Load config file path
     #[clap(long = "config-path")]
     pub config_path: Option<String>,
@@ -869,6 +871,8 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
         Command::Hord(HordCommand::Repair(subcmd)) => match subcmd {
             RepairCommand::Blocks(cmd) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
+                let mut hord_config = config.get_hord_config();
+                hord_config.network_thread_max = cmd.network_threads;
 
                 let bitcoin_config = BitcoinConfig {
                     username: config.network.bitcoind_rpc_username.clone(),
