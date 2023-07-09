@@ -139,7 +139,7 @@ impl Service {
                 "Ordinal indexing is enabled by default, checking index... (use --no-hord to disable ordinals)"
             );
 
-            let (tx, rx) = crossbeam_channel::bounded::<BitcoinBlockData>(50);
+            let (tx, rx) = crossbeam_channel::bounded::<BitcoinBlockData>(150);
 
             let mut moved_event_observer_config = event_observer_config.clone();
             let moved_ctx = self.ctx.clone();
@@ -190,8 +190,8 @@ impl Service {
                     open_readwrite_hord_db_conn(&self.config.expected_cache_path(), &self.ctx)?;
 
                 delete_data_in_hord_db(
-                    797640,
-                    800000,
+                    797750,
+                    797800,
                     &blocks_db,
                     &inscriptions_db_conn_rw,
                     &self.ctx,

@@ -835,7 +835,7 @@ pub async fn start_observer_commands_handler(
                         #[cfg(feature = "ordinals")]
                         {
                             if let Some(ref hord_config) = config.hord_config {
-                                let (blocks_db, inscriptions_db_conn_rw) =
+                                let (blocks_db, mut inscriptions_db_conn_rw) =
                                     match open_readwrite_hord_dbs(
                                         &config.get_cache_path_buf(),
                                         &ctx,
@@ -863,7 +863,7 @@ pub async fn start_observer_commands_handler(
                                     if let Err(e) = update_hord_db_and_augment_bitcoin_block(
                                         block,
                                         &blocks_db,
-                                        &inscriptions_db_conn_rw,
+                                        &mut inscriptions_db_conn_rw,
                                         true,
                                         &hord_config,
                                         &traversals_cache,
@@ -937,7 +937,7 @@ pub async fn start_observer_commands_handler(
                         traversals_cache.clear();
 
                         #[cfg(feature = "ordinals")]
-                        let (blocks_db, inscriptions_db_conn_rw) =
+                        let (blocks_db, mut inscriptions_db_conn_rw) =
                             match open_readwrite_hord_dbs(&config.get_cache_path_buf(), &ctx) {
                                 Ok(dbs) => dbs,
                                 Err(e) => {
@@ -1000,7 +1000,7 @@ pub async fn start_observer_commands_handler(
                                         if let Err(e) = update_hord_db_and_augment_bitcoin_block(
                                             block,
                                             &blocks_db,
-                                            &inscriptions_db_conn_rw,
+                                            &mut inscriptions_db_conn_rw,
                                             true,
                                             &hord_config,
                                             &traversals_cache,

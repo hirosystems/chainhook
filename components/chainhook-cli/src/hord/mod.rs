@@ -95,12 +95,13 @@ pub async fn perform_hord_db_update(
     };
 
     let blocks_db = open_readwrite_hord_db_conn_rocks_db(&config.expected_cache_path(), &ctx)?;
-    let inscriptions_db_conn_rw = open_readwrite_hord_db_conn(&config.expected_cache_path(), &ctx)?;
+    let mut inscriptions_db_conn_rw =
+        open_readwrite_hord_db_conn(&config.expected_cache_path(), &ctx)?;
 
     let _ = fetch_and_cache_blocks_in_hord_db(
         &bitcoin_config,
         &blocks_db,
-        &inscriptions_db_conn_rw,
+        &mut inscriptions_db_conn_rw,
         start_block,
         end_block,
         hord_config,

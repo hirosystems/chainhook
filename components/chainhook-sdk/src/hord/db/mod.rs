@@ -892,7 +892,7 @@ pub fn delete_data_in_hord_db(
 pub async fn fetch_and_cache_blocks_in_hord_db(
     bitcoin_config: &BitcoinConfig,
     blocks_db_rw: &DB,
-    inscriptions_db_conn_rw: &Connection,
+    inscriptions_db_conn_rw: &mut Connection,
     start_block: u64,
     end_block: u64,
     hord_config: &HordConfig,
@@ -1039,7 +1039,7 @@ pub async fn fetch_and_cache_blocks_in_hord_db(
                 if let Err(e) = update_hord_db_and_augment_bitcoin_block(
                     &mut new_block,
                     blocks_db_rw,
-                    &inscriptions_db_conn_rw,
+                    inscriptions_db_conn_rw,
                     false,
                     &hord_config,
                     &traversals_cache,
