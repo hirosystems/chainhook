@@ -141,6 +141,9 @@ pub fn get_inscriptions_revealed_in_block(
             if let OrdinalOperation::InscriptionRevealed(op) = op {
                 ops.push(op);
             }
+            if let OrdinalOperation::CursedInscriptionRevealed(op) = op {
+                ops.push(op);
+            }
         }
     }
     ops
