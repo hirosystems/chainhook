@@ -1,6 +1,6 @@
 [package]
 name = "chainhook-sdk"
-version = "0.5.0"
+version = "0.6.0"
 description = "Stateless Transaction Indexing Engine for Stacks and Bitcoin"
 license = "GPL-3.0"
 edition = "2021"

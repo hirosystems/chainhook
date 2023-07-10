@@ -22,9 +22,6 @@ pub mod indexer;
 pub mod observer;
 pub mod utils;
 
-#[cfg(feature = "ordinals")]
-pub extern crate rocksdb;
-
 // TODO
 // pub mod clarity {
 //     pub use stacks_rpc_client::clarity::stacks_common::*;
