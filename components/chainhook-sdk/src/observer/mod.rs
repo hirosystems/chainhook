@@ -510,9 +510,9 @@ pub async fn start_event_observer(
         .await?;
     let ingestion_shutdown = Some(ignite.shutdown());
 
-    // let _ = std::thread::spawn(move || {
-    //     let _ = hiro_system_kit::nestable_block_on(ignite.launch());
-    // });
+    let _ = std::thread::spawn(move || {
+        let _ = hiro_system_kit::nestable_block_on(ignite.launch());
+    });
 
     #[cfg(feature = "zeromq")]
     start_zeromq_runloop(&config, observer_commands_tx, &ctx);
