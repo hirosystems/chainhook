@@ -22,7 +22,12 @@ The chainhook event observer was designed as a library written in Rust, which ma
 
 #### **How can I connect chainhook with Oracles?**
 
-An event emitted on-chain triggers a centralized logic that can be committed on-chain once computed.
+Oracles, in general, do the following:
+ 1. Capture relevant on-chain events
+ 2. Process the events via some off-chain, centralized logic
+ 3. Commit the resultant data on-chain
+ 
+ Chainhook can be used to efficiently capture relevant on-chain events and forward them to off-chain services.
 
 #### **How can I use Chainhook in my application?**
 
