@@ -42,9 +42,10 @@ use crate::{
 use self::db::{
     find_inscription_with_id, find_latest_cursed_inscription_number_at_block_height,
     find_latest_inscription_number_at_block_height, format_satpoint_to_watch,
-    insert_transfer_in_locations, insert_transfer_in_locations_tx, parse_outpoint_to_watch,
-    parse_satpoint_to_watch, remove_entry_from_blocks, remove_entry_from_inscriptions, LazyBlock,
-    LazyBlockTransaction, TraversalResult, WatchedSatpoint,
+    get_any_entry_in_ordinal_activities, insert_transfer_in_locations,
+    insert_transfer_in_locations_tx, parse_outpoint_to_watch, parse_satpoint_to_watch,
+    remove_entry_from_blocks, remove_entry_from_inscriptions, LazyBlock, LazyBlockTransaction,
+    TraversalResult, WatchedSatpoint,
 };
 use self::inscription::InscriptionParser;
 use self::ord::inscription_id::InscriptionId;
@@ -360,6 +361,12 @@ pub fn update_hord_db_and_augment_bitcoin_block(
         let _ = blocks_db_rw.flush();
     }
 
+    let write_changes = get_any_entry_in_ordinal_activities(
+        &new_block.block_identifier.index,
+        inscriptions_db_conn_rw,
+        ctx,
+    );
+
     let traversals = retrieve_inscribed_satoshi_points_from_block(
         &new_block,
         Some(inscriptions_db_conn_rw),
@@ -385,21 +392,31 @@ pub fn update_hord_db_and_augment_bitcoin_block(
             &ctx,
         )?;
 
-    ctx.try_log(|logger| {
-        slog::info!(
-            logger,
-            "Saving updates for block {}",
-            new_block.block_identifier.index,
-        )
-    });
-    transaction.commit().unwrap();
-    ctx.try_log(|logger| {
-        slog::info!(
-            logger,
-            "Updates saved for block {}",
-            new_block.block_identifier.index,
-        )
-    });
+    if write_changes {
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Saving updates for block {}",
+                new_block.block_identifier.index,
+            )
+        });
+        transaction.commit().unwrap();
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Updates saved for block {}",
+                new_block.block_identifier.index,
+            )
+        });
+    } else {
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Ignoring updates for block #{}, activities present in database",
+                new_block.block_identifier.index,
+            )
+        });
+    }
 
     if any_inscription_revealed || any_inscription_transferred {
         let inscriptions_revealed = get_inscriptions_revealed_in_block(&new_block)
