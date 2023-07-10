@@ -361,7 +361,7 @@ pub fn update_hord_db_and_augment_bitcoin_block(
         let _ = blocks_db_rw.flush();
     }
 
-    let write_changes = get_any_entry_in_ordinal_activities(
+    let discard_changes = get_any_entry_in_ordinal_activities(
         &new_block.block_identifier.index,
         inscriptions_db_conn_rw,
         ctx,
@@ -392,7 +392,15 @@ pub fn update_hord_db_and_augment_bitcoin_block(
             &ctx,
         )?;
 
-    if write_changes {
+    if discard_changes {
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Ignoring updates for block #{}, activities present in database",
+                new_block.block_identifier.index,
+            )
+        });
+    } else {
         ctx.try_log(|logger| {
             slog::info!(
                 logger,
@@ -405,14 +413,6 @@ pub fn update_hord_db_and_augment_bitcoin_block(
             slog::info!(
                 logger,
                 "Updates saved for block {}",
-                new_block.block_identifier.index,
-            )
-        });
-    } else {
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Ignoring updates for block #{}, activities present in database",
                 new_block.block_identifier.index,
             )
         });
