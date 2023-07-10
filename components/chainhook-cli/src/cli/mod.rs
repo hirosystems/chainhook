@@ -962,12 +962,13 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
                 // Delete data, if any
                 {
-                    let blocks_db_rw =
-                        open_readwrite_hord_db_conn_rocks_db(&config.expected_cache_path(), &ctx)?;
-
+                    let blocks_db =
+                        open_readonly_hord_db_conn_rocks_db(&config.expected_cache_path(), &ctx)?;
+                    let tip = find_last_block_inserted(&blocks_db) as u64;
+                    println!("Tip: {}", tip);
                     let mut missing_blocks = vec![];
-                    for i in 1..=790000 {
-                        if find_lazy_block_at_block_height(i, 3, false, &blocks_db_rw, &ctx)
+                    for i in 1..=800000 {
+                        if find_lazy_block_at_block_height(i, 3, false, &blocks_db, &ctx)
                             .is_none()
                         {
                             println!("Missing block {i}");
