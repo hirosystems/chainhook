@@ -154,10 +154,6 @@ impl Service {
             });
         }
 
-        info!(
-            self.ctx.expect_logger(),
-            "Listening on port {} for Stacks chain events", event_observer_config.ingestion_port
-        );
         match event_observer_config.bitcoin_block_signaling {
             BitcoinBlockSignaling::ZeroMQ(ref url) => {
                 info!(
