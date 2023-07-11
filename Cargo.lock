@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "addr2line"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a76fd60b23679b7d19bd066031410fb7e458ccc5e958eb5c325888ce4baedc97"
-dependencies = [
- "gimli",
-]
-
-[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -68,15 +59,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "anyhow"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
-dependencies = [
- "backtrace",
 ]
 
 [[package]]
@@ -170,21 +152,6 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
-
-[[package]]
-name = "backtrace"
-version = "0.3.67"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233d376d6d185f2a3093e58f283f60f880315b6c60075b01f36b3b85154564ca"
-dependencies = [
- "addr2line",
- "cc",
- "cfg-if 1.0.0",
- "libc",
- "miniz_oxide",
- "object",
- "rustc-demangle",
-]
 
 [[package]]
 name = "base-x"
@@ -475,6 +442,7 @@ dependencies = [
  "reqwest",
  "rocket",
  "rocket_okapi",
+ "rocksdb",
  "serde",
  "serde-redis",
  "serde_derive",
@@ -490,19 +458,14 @@ dependencies = [
 name = "chainhook-sdk"
 version = "0.5.0"
 dependencies = [
- "anyhow",
  "base58 0.2.0",
  "base64",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "chainhook-types 1.0.7",
- "chrono",
- "clap 3.2.23",
- "clap_generate",
  "clarinet-files",
  "clarinet-utils",
  "crossbeam-channel 0.5.8",
- "ctrlc",
  "dashmap 5.4.0",
  "futures",
  "fxhash",
@@ -512,8 +475,6 @@ dependencies = [
  "rand 0.8.5",
  "reqwest",
  "rocket",
- "rocksdb",
- "rusqlite",
  "schemars",
  "serde",
  "serde-hex",
@@ -522,7 +483,6 @@ dependencies = [
  "stacks-rpc-client",
  "threadpool",
  "tokio",
- "toml",
  "zeromq",
 ]
 
@@ -1656,12 +1616,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gimli"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
-
-[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2184,9 +2138,9 @@ dependencies = [
 
 [[package]]
 name = "libz-sys"
-version = "1.1.8"
+version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9702761c3935f8cc2f101793272e202c72b99da8f4224a19ddcf1279a6450bbf"
+checksum = "56ee889ecc9568871456d42f603d6a0ce59ff328d291063a45cbdf0036baf6db"
 dependencies = [
  "cc",
  "pkg-config",
@@ -2478,15 +2432,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "object"
-version = "0.30.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea86265d3d3dcb6a27fc51bd29a4bf387fae9d2986b823079d4986af253eb439"
-dependencies = [
- "memchr",
 ]
 
 [[package]]
@@ -3299,12 +3244,6 @@ dependencies = [
  "serde_json",
  "smallvec 1.10.0",
 ]
-
-[[package]]
-name = "rustc-demangle"
-version = "0.1.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ef03e0a2b150c7a90d01faf6254c9c48a41e95fb2a8c2ac1c6f0d2b9aefc342"
 
 [[package]]
 name = "rustc-hash"

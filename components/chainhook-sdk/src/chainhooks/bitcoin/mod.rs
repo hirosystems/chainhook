@@ -421,11 +421,10 @@ impl BitcoinPredicateType {
             }
             BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed) => {
                 for op in tx.metadata.ordinal_operations.iter() {
-                    if let OrdinalOperation::InscriptionRevealed(_) = op {
-                        return true;
-                    }
-                    if let OrdinalOperation::InscriptionTransferred(_) = op {
-                        return true;
+                    match op {
+                        OrdinalOperation::InscriptionRevealed(_)
+                        | OrdinalOperation::CursedInscriptionRevealed(_)
+                        | OrdinalOperation::InscriptionTransferred(_) => return true,
                     }
                 }
                 false

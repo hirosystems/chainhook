@@ -42,7 +42,6 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
         cache_path: "cache".into(),
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: StacksNetwork::Devnet,
-        hord_config: None,
     };
     let predicates = ChainhookConfig::new();
     let chainhook_store = ChainhookStore { predicates };

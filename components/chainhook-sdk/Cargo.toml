@@ -1,6 +1,6 @@
 [package]
 name = "chainhook-sdk"
-version = "0.5.0"
+version = "0.6.0"
 description = "Stateless Transaction Indexing Engine for Stacks and Bitcoin"
 license = "GPL-3.0"
 edition = "2021"
@@ -32,36 +32,21 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 tokio = { version = "1.24", features = ["full"] }
 base58 = "0.2.0"
-clap = { version = "3.1.6", features = ["derive"], optional = true }
-clap_generate = { version = "3.0.3", optional = true }
-toml = { version = "0.5.6", features = ["preserve_order"], optional = true }
-ctrlc = { version = "3.2.2", optional = true }
 schemars = { version = "0.8.10" }
 crossbeam-channel = "0.5.6"
-chrono = { version = "0.4.19", optional = true }
-anyhow = { version = "1.0.56", features = ["backtrace"], optional = true  }
 futures = "0.3.21"
 hyper = { version = "0.14.24", features = ["http1", "client"] }
 hex = "0.4.3"
-rusqlite = { version = "0.27.0", features = ["bundled"], optional = true }
 threadpool = "1.8.1"
 rand = "0.8.5"
 zeromq = { version = "0.3.3", default-features = false, features = ["tokio-runtime", "tcp-transport"], optional = true }
 dashmap = "5.4.0"
 fxhash = "0.2.1"
 
-[dependencies.rocksdb]
-version = "0.20.1"
-default-features = false
-optional = true
-features = ["lz4", "snappy"]
-
 [replace]
 "jsonrpc:0.13.0" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
 
 [features]
-default = ["cli", "ordinals"]
+default = ["log"]
 zeromq = ["dep:zeromq"]
-cli = ["clap", "clap_generate", "toml", "ctrlc", "log"]
 log = ["hiro-system-kit/log"]
-ordinals = ["rocksdb", "chrono", "anyhow", "rusqlite"]
