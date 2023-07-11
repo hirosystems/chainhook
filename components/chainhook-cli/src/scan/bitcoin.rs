@@ -59,7 +59,6 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         },
     };
 
-    // If so, we could use the ordinal storage to provide a set of hints.
 
     info!(
         ctx.expect_logger(),
