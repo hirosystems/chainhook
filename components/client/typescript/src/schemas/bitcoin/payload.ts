@@ -13,12 +13,15 @@ export const BitcoinInscriptionRevealedSchema = Type.Object({
   inscription_number: Type.Integer(),
   inscription_fee: Type.Integer(),
   inscription_id: Type.String(),
+  inscription_input_index: Type.Integer(),
   inscription_output_value: Type.Integer(),
   inscriber_address: Nullable(Type.String()),
   ordinal_number: Type.Integer(),
   ordinal_block_height: Type.Integer(),
   ordinal_offset: Type.Integer(),
   satpoint_post_inscription: Type.String(),
+  transfers_pre_inscription: Type.Integer(),
+  tx_index: Type.Integer(),
 });
 export type BitcoinInscriptionRevealed = Static<typeof BitcoinInscriptionRevealedSchema>;
 
@@ -28,6 +31,7 @@ export const BitcoinInscriptionTransferredSchema = Type.Object({
   satpoint_pre_transfer: Type.String(),
   satpoint_post_transfer: Type.String(),
   post_transfer_output_value: Nullable(Type.Integer()),
+  tx_index: Type.Integer(),
 });
 export type BitcoinInscriptionTransferred = Static<typeof BitcoinInscriptionTransferredSchema>;
 
@@ -39,12 +43,15 @@ export const BitcoinCursedInscriptionRevealedSchema = Type.Object({
   inscription_fee: Type.Integer(),
   inscription_id: Type.String(),
   inscription_output_value: Type.Integer(),
+  inscription_input_index: Type.Integer(),
   inscriber_address: Nullable(Type.String()),
   ordinal_number: Type.Integer(),
   ordinal_block_height: Type.Integer(),
   ordinal_offset: Type.Integer(),
   satpoint_post_inscription: Type.String(),
+  transfers_pre_inscription: Type.Integer(),
   curse_type: Nullable(Type.Any()),
+  tx_index: Type.Integer(),
 });
 export type BitcoinCursedInscriptionRevealed = Static<
   typeof BitcoinCursedInscriptionRevealedSchema
