@@ -2,18 +2,17 @@
 title: Use Chainhook with Stacks
 ---
 
-# Use Chainhook with Stacks
-
-The following guide helps you define predicates to use chainhook with Stacks. The predicates are specified based on `if-this`
+This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`
 , `then-that` constructs.
 
 ## `if_this` Specifications
 
 The current `stacks` predicates support the following `if_this` constructs:
 
-Get any transaction matching a given `txid` mandatory argument 
+Get any transaction matching a given `txid` mandatory argument
 admits:
-- 32 bytes hex encoded type. 
+
+- 32 bytes hex encoded type
 
 Example:
 
@@ -28,7 +27,8 @@ Example:
 ```
 
 Get any stacks block matching constraints
--  `block_height` mandatory argument 
+
+-  `block_height` mandatory argument
    - admits:
      - `equals`, `higher_than`, `lower_than`, `between`: integer type.
 
@@ -41,12 +41,12 @@ Get any stacks block matching constraints
 }
 ```
 
-Get any transaction related to a given fungible token asset identifier 
-- `asset-identifier` mandatory argument 
-  - admits: 
-    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc` 
-- `actions` mandatory argument 
-  - admits: 
+Get any transaction related to a given fungible token asset identifier
+- `asset-identifier` mandatory argument
+  - admits:
+    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
+- `actions` mandatory argument
+  - admits:
     - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 
 ```
@@ -59,12 +59,12 @@ Get any transaction related to a given fungible token asset identifier
 }
 ```
 
-Get any transaction related to a given non fungible token asset identifier 
-- `asset-identifier` mandatory argument 
+Get any transaction related to a given non fungible token asset identifier
+- `asset-identifier` mandatory argument
   - admits:
-    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys` 
--  `actions` mandatory argument 
-   - admits: 
+    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
+-  `actions` mandatory argument
+   - admits:
      - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
 
 ```
@@ -77,10 +77,11 @@ Get any transaction related to a given non fungible token asset identifier
 }
 ```
 
-Get any transaction moving STX tokens 
-- `actions` mandatory argument 
-  - admits: 
-    - array of string type constrained to `mint`, `transfer` and `lock` values. example: ["mint", "lock"]
+Get any transaction moving STX tokens
+- `actions` mandatory argument
+  - admits:
+    - array of string type constrained to `mint`, `transfer` , `burn` and `lock` values. example: ["mint", "lock"]
+
 ```
 {
     "if_this": {
@@ -92,9 +93,11 @@ Get any transaction moving STX tokens
 ```
 
 Get any transaction emitting given print events predicate
-- `contract-identifier` mandatory argument 
+
+- `contract-identifier` mandatory argument
   - admits:
     - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits: - string type, used for matching event
+
 ```
 {
     "if_this": {
@@ -105,10 +108,12 @@ Get any transaction emitting given print events predicate
 }
 ```
 
-Get any transaction calling a specific method for a given contract **directly**. 
+Get any transaction calling a specific method for a given contract **directly**.
 
 > [!Warning]
-> If the watched method is being called by another contract, this predicate won't detect it. `contract-identifier` mandatory argument admits: - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
+> If the `watched` method is being called by another contract, this predicate won't detect it.
+
+- `contract-identifier` mandatory argument admits: - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
 
 ```
 {
@@ -121,7 +126,7 @@ Get any transaction calling a specific method for a given contract **directly**.
 ```
 
 Get any transaction including a contract deployment
-- `deployer` mandatory argument 
+- `deployer` mandatory argument
   - admits: 
     - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 
@@ -147,13 +152,15 @@ Get any transaction including a contract deployment
 }
 ```
 
-## Then-that Constructs
+## `then_that` Specifications
 
-HTTP Post block/transaction payload to a given endpoint. 
+HTTP Post block/transaction payload to a given endpoint.
+
 - `http_post` construct
   -  admits:
      - url (string type). Example: http://localhost:3000/api/v1/wrapBtc 
      - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
+
 ```
 {
     "then_that": {
@@ -164,9 +171,10 @@ HTTP Post block/transaction payload to a given endpoint.
     }
 }
 ```
-Append events to a file through the filesystem. Convenient for local tests. The
--  `file_append` construct 
-   -  admits: 
+
+Append events to a file through the filesystem. Convenient for local tests.
+-  `file_append` construct
+   -  admits:
       - path (string type). Path to file on disk.
   
 ```
@@ -223,6 +231,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five
   }
 }
 ```
+
 ## Example predicate definition with multiple networks
 
 A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.

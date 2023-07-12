@@ -2,19 +2,16 @@
 title: Use Chainhook with Bitcoin
 ---
 
-# Use Chainhook with Bitcoin
 
-The following guide helps you define predicates to use chainhook with Bitcoin. The predicates are specified based on `if-this`
+The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`
 , `then-that` constructs.
 
+## `if_this` Specifications
 
-##  `if_this` Specifications
-
-The current `bitcoin` predicates support the following `if_this` constructs. 
-
-Get any transaction matching a given txid. The 
-- `txid` mandatory argument 
-  - admits: - 32 bytes hex encoded type. 
+Currently, `bitcoin` predicates support the following `if_this` constructs
+Get any transaction matching a given txid.
+- `txid` mandatory argument
+  - admits: - 32 bytes hex encoded type.
 
 ```json
 
@@ -26,8 +23,8 @@ Get any transaction matching a given txid. The
 }
 ```
 
-Get any transaction, including an 
-- OP_RETURN output starting with a set of characters. 
+Get any transaction, including an
+- OP_RETURN output starting with a set of characters.
   - `starts_with` mandatory argument 
     - admits:
       - ASCII string type. example: `X2[`
@@ -45,9 +42,10 @@ Get any transaction, including an
 ```
 
 Get any transaction, including an OP_RETURN output matching the sequence of bytes specified
--  `equals` mandatory argument 
+-  `equals` mandatory argument
    -  admits:
     - hex encoded bytes. example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
+
 ```json
 {
     "if_this": {
@@ -59,9 +57,9 @@ Get any transaction, including an OP_RETURN output matching the sequence of byte
 }
 ```
 
-Get any transaction, including an OP_RETURN output ending with a set of characters 
-  -  `ends_with` mandatory argument admits:
-    - ASCII string type. example: `X2[`
+Get any transaction, including an OP_RETURN output ending with a set of characters
+-  `ends_with` mandatory argument admits:
+  - ASCII string type. example: `X2[`
     - hex encoded bytes. example: `0x76a914000000000000000000000000000000000000000088ac`
 
 ```json
@@ -76,7 +74,7 @@ Get any transaction, including an OP_RETURN output ending with a set of characte
 ```
 
 Get any transaction with a p2pkh output paying a given recipient
-- `p2pkh` construct 
+- `p2pkh` construct
   - admits:
   - ASCII string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
   - hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
@@ -202,9 +200,9 @@ Get any transaction including a new Ordinal inscription (inscription revealed an
 
 ##  `then_that` Constructs
 
-In terms of actions available, the following `then_that` constructs are supported:
+The following `then_that` constructs are supported:
 
-HTTP Post block/transaction payload to a given endpoint. The 
+HTTP Post block/transaction payload to a given endpoint.
 - `http_post` construct admits:
   - url (string type). Example: http://localhost:3000/api/v1/wrapBtc
   - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
@@ -220,7 +218,7 @@ HTTP Post block/transaction payload to a given endpoint. The
     }
 }
 
-Append events to a file through the filesystem. Convenient for local tests. The 
+Append events to a file through the filesystem. Convenient for local tests.
 - `file_append` construct admits:
   - path (string type). Path to the file on disk.
 
@@ -236,7 +234,7 @@ Append events to a file through the filesystem. Convenient for local tests. The
 
 ## Additional configuration knobs available
 
-Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain
+The following additional configurations can be used to improve performance of Chainhook by preventing a full scan of the blockchain:
 - Ignore any block before the given block:
 `"start_block": 101`
 
@@ -246,22 +244,24 @@ Following additional configurations can be used to improve performance of chainh
 - Stop evaluating chainhook after a given number of occurrences found:
 `"expire_after_occurrence": 1`
 
-- Include proof:
+- Don't include proofs:
 `"include_proof": false`
 
-- Include Bitcoin transaction inputs in the payload:
+- Don't include Bitcoin transaction inputs in the payload:
 `"include_inputs": false`
 
-- Include Bitcoin transaction outputs in the payload:
+- Don't include Bitcoin transaction outputs in the payload:
 `"include_outputs": false`
 
-- Include Bitcoin transaction witness in the payload:
+- Don't include Bitcoin transaction witnesses in the payload:
 `"include_witness": false`
-
 
 ## Example predicate definition to post first five transfers
 
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount, occurring after block height 10200.
+
+> [!NOTE]
+> The start_block is mandatory to post events to 
 
 ```json
 {

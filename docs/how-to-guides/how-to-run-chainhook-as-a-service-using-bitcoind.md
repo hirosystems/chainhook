@@ -2,9 +2,7 @@
 title: Run Chainhook as a Service using Bitcoind
 ---
 
-# Run Chainhook as a Service using Bitcoind
-
-This document helps you configure Bitcoind and chainhook nodes to extract on-chain data based on the predicate definition.
+You can run Chainhook as a service to evaluate Bitcoin against your predicates. You can also dynamically register new predicates by enabling predicates registration API.
 
 ## Prerequisites
 
@@ -21,7 +19,6 @@ Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx6
 
 >[!NOTE]
 > Make a note of the `rpcuser`, `rpcpassword` and `rpcport` values to use them later in the chainhook configuration.
-
 
 ```conf
 datadir=<path-to-your-downloaded-bitcoind>
@@ -54,24 +51,19 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 > [!NOTE]
 > The below command is a startup process that might take a few hours to run.
 
-```bash
-$ ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf
-```
+`$ ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf`
+
 Once the above command is running, you will see `zmq_url` entries in the output, enabling zeromq.
 
 ### Configure Chainhook
 
-In this section, you will configure chainhook to match the network configurations with the bitcoin config file.
+In this section, you will configure chainhook to match the network configurations with the bitcoin config file. First, [install the latest version of chainhook](../getting-started.md#install-chainhook-from-source).
 
-- Install the latest version of chainhook by following [Install Chainhook from source](../getting-started.md#install-chainhook-from-source).
+Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file, and use the following command in your terminal:
 
-In this section, you will configure the chainhook and generate a `chainhook.toml` file to connect the chainhook with your bitcoind node. Navigate to the directory where you want to generate `chainhook.toml` file and use the following command in your terminal.
+`$ chainhook config generate --testnet`
 
-```bash
-$ chainhook config generate --testnet
-```
-
-You'll see that `chainhook.toml` file is generated and the file looks like this:
+The following `Chainhook.toml` file should be generated:
 
 ```toml
 [storage]
@@ -106,21 +98,20 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 ```
 
-In the `chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#prepare-the-bitcoind-node) section to allow chainhook connect to the bitcoin layer.
+In the `Chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#prepare-the-bitcoind-node) section to allow Chainhook to connect to the bitcoin layer.
 
-Now, in the `chainhook.toml`, update the following network parameters to match the `bitcoin.conf`.
-The Bitcoin node is exposing the rpc endpoints. To protect the endpoints, we are using rpc username and password fields. To run chainhook as a service using Bitcoin, you must match the rpc endpoints username, password, and network ports.
+The Bitcoin node is exposing the rpc endpoints. To protect the endpoints, we are using rpc username and password fields. To run Chainhook as a service using Bitcoin, you must match the rpc endpoints username, password, and network ports.
 
-Make sure the following configurations match before you proceed further in this article.
+As such, some configurations will need to match between Chainhook and the bitcoind node. In the `Chainhook.toml`, update the following network parameters to match the `bitcoin.conf`:
 
-| bitcoin.conf      | chainhook.toml                |
+| bitcoin.conf      | Chainhook.toml                |
 | -----------       | -----------                   |
 | rpcuser           | bitcoind_rpc_username         |
 | rpcpassword       | bitcoind_rpc_password         |
 | rpcport           | bitcoind_rpc_url              |
 | zmqpubhashblock   | bitcoind_zmq_url              |
 
-In the `chainhook.toml` file,
+In the `Chainhook.toml` file,
 
 - Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
 - Update the `bitcoind_rpc_password` to use the password set for  `rpcpassword` earlier.
@@ -129,7 +120,7 @@ In the `chainhook.toml` file,
 
 ## Scan blockchain based on predicates
 
-Now that your bitcoind and chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with an example JSON file to scan a range of blocks in the blockchain and render the results. To understand the supported predicates for Bitcoin, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
+Now that your bitcoind and Chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with an example JSON file to scan a range of blocks in the blockchain and render the results. To understand the supported predicates for Bitcoin, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
 
 The following are the two examples to walk you through `file_append` and `http_post` `then-that` predicate designs.
 
@@ -176,16 +167,14 @@ A JSON file `ordinals.json` is generated.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals.json` file.
 
-``` bash
-$ chainhook predicates scan ordinals.json --config-path=./Chainhook.toml
-```
+`$ chainhook predicates scan ordinals.json --config-path=./Chainhook.toml`
 
 The output of the above command will be a text file `inscription_feed.txt` generated based on the predicate definition.
 
 > [!TIP]
 > To optimize your experience with scanning, the following are a few knobs you can play with:
-> Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
-> Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
+> - Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
+> - Reducing the number of network hops between the Chainhook and the bitcoind processes can also help, so your network setup can play a major role in performance.
 
 ### Example 2
 
@@ -203,7 +192,6 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
     "version": 1,
     "networks": {
         "testnet": {
-            "start_block": 777534,
             "if_this": {
                 "scope": "ordinals_protocol",
                 "operation": "inscription_feed"
@@ -213,45 +201,43 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
                     "url": "http://localhost:3000/events",
                     "authorization_header": "123904"
                 }
-            }
+            },
+            "start_block": 777534,
         }
 
     }
 }
 ```
+
+> [!Note]
+> The `start_block` is the required field to use the `http_post` `then-that` predicate.
+
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals_protocol.json` file.
 
-``` bash
-$ chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.toml
-```
+`$ chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.toml`
 
 The above command posts events to the URL, `http://localhost:3000/events` mentioned in the JSON file.
-
 
 ## Initiate Chainhook Service
 
 In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
 
-
-``` bash
-$ chainhook service start --predicate-path=ordinals_protocol.json --config-path=./Chainhook.toml
-```
+`$ chainhook service start --predicate-path=ordinals_protocol.json --config-path=./Chainhook.toml`
 
 The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file. You can next run the chainhook service to see the output events based on the `then-that` predicate definition.
 
-You can also start the chainhook service and pass the predicates dynamically. You can do this by 
+You can also start the chainhook service and pass the predicates dynamically. You can do this by:
 
-Uncommenting the following lines of code in the `chainhook.toml` file.
--   ```
+- Uncommenting the following lines of code in the `Chainhook.toml` file.
+    ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-- Pass the JSON file as input in the body of the HTTP API call.
+- Passing the JSON file as input in the body of the HTTP API call.
     ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
-`$ chainhook service start --config-path=chainhook.toml`
-
+`$ chainhook service start --config-path=Chainhook.toml`
 
 In this case, `chainhook` will post payloads to `http://localhost:3000/events`. The following is a sample payload response.
 
@@ -306,6 +292,7 @@ In this case, `chainhook` will post payloads to `http://localhost:3000/events`. 
     "rollback": [],
 }
 ```
+
 Understand the output of the above JSON file with the following details.
 
 - The `apply` payload includes the block header and the transactions that triggered the predicate.
@@ -314,7 +301,7 @@ Understand the output of the above JSON file with the following details.
 
 > [!TIP]
 > You can define multiple predicates and pass them as arguments to start the chainhook service. 
-> Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=chainhook.toml`
+> Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
 
 ## References
 
