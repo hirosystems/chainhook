@@ -1,7 +1,6 @@
 pub mod file;
 pub mod generator;
 
-use chainhook_sdk::hord::HordConfig;
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_types::{BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig};
@@ -14,8 +13,6 @@ const DEFAULT_MAINNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest";
 const DEFAULT_TESTNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
-const DEFAULT_MAINNET_ORDINALS_SQLITE_ARCHIVE: &str =
-    "https://archive.hiro.so/mainnet/chainhooks/hord-latest.sqlite";
 const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20455;
@@ -107,21 +104,6 @@ impl Config {
         }
     }
 
-    pub fn get_hord_config(&self) -> HordConfig {
-        HordConfig {
-            network_thread_max: self.limits.max_number_of_networking_threads,
-            ingestion_thread_max: self.limits.max_number_of_processing_threads,
-            cache_size: self.limits.max_caching_memory_size_mb,
-            db_path: self.expected_cache_path(),
-            first_inscription_height: match self.network.bitcoin_network {
-                BitcoinNetwork::Mainnet => 767430,
-                BitcoinNetwork::Regtest => 1,
-                BitcoinNetwork::Testnet => 2413343,
-                // BitcoinNetwork::Signet => 112402,
-            },
-        }
-    }
-
     pub fn get_event_observer_config(&self) -> EventObserverConfig {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
@@ -136,7 +118,6 @@ impl Config {
             cache_path: self.storage.working_dir.clone(),
             bitcoin_network: self.network.bitcoin_network.clone(),
             stacks_network: self.network.stacks_network.clone(),
-            hord_config: Some(self.get_hord_config()),
         }
     }
 
@@ -451,14 +432,9 @@ impl Config {
                 working_dir: default_cache_path(),
             },
             http_api: PredicatesApi::Off,
-            event_sources: vec![
-                EventSourceConfig::StacksTsvUrl(UrlConfig {
-                    file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
-                }),
-                EventSourceConfig::OrdinalsSqliteUrl(UrlConfig {
-                    file_url: DEFAULT_MAINNET_ORDINALS_SQLITE_ARCHIVE.into(),
-                }),
-            ],
+            event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
+                file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
+            })],
             limits: LimitsConfig {
                 max_number_of_bitcoin_predicates: BITCOIN_MAX_PREDICATE_REGISTRATION,
                 max_number_of_concurrent_bitcoin_scans: BITCOIN_SCAN_THREAD_POOL_SIZE,

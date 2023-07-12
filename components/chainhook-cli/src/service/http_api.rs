@@ -115,19 +115,30 @@ fn handle_get_predicates(
 #[openapi(tag = "Chainhooks")]
 #[post("/v1/chainhooks", format = "application/json", data = "<predicate>")]
 fn handle_create_predicate(
-    predicate: Json<ChainhookFullSpecification>,
+    predicate: Result<Json<ChainhookFullSpecification>, rocket::serde::json::Error>,
     api_config: &State<PredicatesApiConfig>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP POST /v1/chainhooks"));
-    let predicate = predicate.into_inner();
-    if let Err(e) = predicate.validate() {
-        return Json(json!({
-            "status": 422,
-            "error": e,
-        }));
-    }
+    let predicate = match predicate {
+        Err(e) => {
+            return Json(json!({
+                "status": 422,
+                "error": e.to_string(),
+            }))
+        }
+        Ok(predicate) => {
+            let predicate = predicate.into_inner();
+            if let Err(e) = predicate.validate() {
+                return Json(json!({
+                    "status": 422,
+                    "error": e,
+                }));
+            }
+            predicate
+        }
+    };
 
     let predicate_uuid = predicate.get_uuid().to_string();
 

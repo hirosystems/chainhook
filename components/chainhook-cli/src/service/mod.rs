@@ -2,8 +2,6 @@ pub(crate) mod http_api;
 mod runloops;
 
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
-use crate::hord::should_sync_hord_db;
-use crate::scan::bitcoin::process_block_with_predicates;
 use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
@@ -33,11 +31,7 @@ impl Service {
         Self { config, ctx }
     }
 
-    pub async fn run(
-        &mut self,
-        predicates: Vec<ChainhookFullSpecification>,
-        hord_disabled: bool,
-    ) -> Result<(), String> {
+    pub async fn run(&mut self, predicates: Vec<ChainhookFullSpecification>) -> Result<(), String> {
         let mut chainhook_config = ChainhookConfig::new();
 
         // If no predicates passed at launch, retrieve predicates from Redis
@@ -105,82 +99,11 @@ impl Service {
 
         let mut event_observer_config = self.config.get_event_observer_config();
         event_observer_config.chainhook_config = Some(chainhook_config);
-        event_observer_config.hord_config = match hord_disabled {
-            true => None,
-            false => Some(self.config.get_hord_config()),
-        };
 
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {
             let _ =
                 consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
-        }
-
-        // Download and ingest a Ordinal dump, if hord is enabled
-        if !hord_disabled {
-            // TODO: add flag
-            // let _ = download_ordinals_dataset_if_required(&mut self.config, &self.ctx).await;
-            info!(
-                self.ctx.expect_logger(),
-                "Ordinal indexing is enabled by default, checking index... (use --no-hord to disable ordinals)"
-            );
-
-            if let Some((start_block, end_block)) = should_sync_hord_db(&self.config, &self.ctx)? {
-                if start_block == 0 {
-                    info!(
-                        self.ctx.expect_logger(),
-                        "Initializing hord indexing from block #{}", start_block
-                    );
-                } else {
-                    info!(
-                        self.ctx.expect_logger(),
-                        "Resuming hord indexing from block #{}", start_block
-                    );
-                }
-
-                let (tx, rx) = channel();
-
-                let mut moved_event_observer_config = event_observer_config.clone();
-                let moved_ctx = self.ctx.clone();
-
-                let _ = hiro_system_kit::thread_named("Initial predicate processing")
-                    .spawn(move || {
-                        if let Some(mut chainhook_config) =
-                            moved_event_observer_config.chainhook_config.take()
-                        {
-                            let mut bitcoin_predicates_ref: Vec<&BitcoinChainhookSpecification> =
-                                vec![];
-                            for bitcoin_predicate in chainhook_config.bitcoin_chainhooks.iter_mut()
-                            {
-                                bitcoin_predicate.enabled = false;
-                                bitcoin_predicates_ref.push(bitcoin_predicate);
-                            }
-                            while let Ok(block) = rx.recv() {
-                                let future = process_block_with_predicates(
-                                    block,
-                                    &bitcoin_predicates_ref,
-                                    &moved_event_observer_config,
-                                    &moved_ctx,
-                                );
-                                let res = hiro_system_kit::nestable_block_on(future);
-                                if let Err(_) = res {
-                                    error!(moved_ctx.expect_logger(), "Initial ingestion failing");
-                                }
-                            }
-                        }
-                    })
-                    .expect("unable to spawn thread");
-
-                crate::hord::perform_hord_db_update(
-                    start_block,
-                    end_block,
-                    &self.config.get_hord_config(),
-                    &self.config,
-                    Some(tx),
-                    &self.ctx,
-                )
-                .await?;
-            }
         }
 
         // Stacks scan operation threadpool
