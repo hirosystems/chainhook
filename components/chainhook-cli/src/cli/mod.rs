@@ -3,6 +3,7 @@ use crate::config::generator::generate_config;
 use crate::config::{Config, PredicatesApi};
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
 use crate::scan::stacks::scan_stacks_chainstate_via_csv_using_predicate;
+use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
     get_last_block_height_inserted, get_stacks_block_at_block_height, is_stacks_block_present,
@@ -52,6 +53,9 @@ enum Command {
     /// Stacks related subcommands  
     #[clap(subcommand)]
     Stacks(StacksCommand),
+    /// Generate documentation  
+    #[clap(subcommand)]
+    Docs(DocsCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -246,6 +250,22 @@ struct InitHordDbCommand {
     /// Load config file path
     #[clap(long = "config-path")]
     pub config_path: Option<String>,
+}
+
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+#[clap(bin_name = "docs", aliases=&["doc"])]
+enum DocsCommand {
+    /// Generate new documentation for the predicate registration API.
+    #[clap(subcommand)]
+    #[clap(name = "api")]
+    Api(ApiDocsCommand),
+}
+
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+enum ApiDocsCommand {
+    /// Generate documentation for the predicate registration API.
+    #[clap(name = "new", bin_name = "new", aliases = &["generate"])]
+    Generate,
 }
 
 pub fn main() {
@@ -570,6 +590,25 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                 }
             }
+        },
+        Command::Docs(subcmd) => match subcmd {
+            DocsCommand::Api(api_docs_cmd) => match api_docs_cmd {
+                ApiDocsCommand::Generate => {
+                    use std::fs::File;
+                    use std::io::Write;
+                    let spec = document_predicate_api_server()
+                        .map_err(|e| format!("unable to generate API docs: {}", e))?;
+                    let mut file_path = PathBuf::new();
+                    file_path.push("openapi.json");
+                    let mut file = File::create(&file_path).map_err(|e| {
+                        format!("unable to open file {}\n{}", file_path.display(), e)
+                    })?;
+                    file.write_all(spec.as_bytes()).map_err(|e| {
+                        format!("unable to write file {}\n{}", file_path.display(), e)
+                    })?;
+                    println!("Created file openapi.json");
+                }
+            },
         },
     }
     Ok(())
