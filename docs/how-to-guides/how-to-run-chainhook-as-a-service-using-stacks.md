@@ -43,7 +43,7 @@ events_keys = ["*"]
 
 ### Configure Chainhook
 
-In this section, you will configure chainhook to communicate with the network. Run the following command in your terminal and generate the `Chainhook.toml` file.
+In this section, you will configure a chainhook to communicate with the network. Run the following command in your terminal and generate the `Chainhook.toml` file.
 
 `$ chainhook config generate --testnet`
 
@@ -55,7 +55,7 @@ The following `Chainhook.toml` file should be generated:
 [storage]
 working_dir = "cache"
 
-# The Http API allows you to register/deregister
+# The HTTP API allows you to register/deregister
 # dynamically predicates
 # Disable by default
 #
@@ -104,14 +104,14 @@ Now that the stacks and chainhook configurations are done, you can scan your blo
 
 The following are the two examples to walk you through `file_append` and `http_post` `then-that` predicate designs.
 
-Example 1 uses `print_eventjson` file to scan the predicates and render results using `file_append`.
+Example 1 uses a `print_eventjson` file to scan the predicates and render results using `file_append`.
 Example 2 uses `print_event.json` to scan the predicates and render results using `http_post`.
 
 You can choose between the following examples to scan the predicates.
 
 ### Example 1
 
-Run the following command in your terminal to generate a sample JSON file with predicates.
+Run the following command to generate a sample JSON file with predicates in your terminal.
 
 `$ chainhook predicates new print_event_1.json --stacks`
 
@@ -159,7 +159,7 @@ A JSON file `print_event_1.json` is generated.
 > [!NOTE]
 > You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
 
-The sample `arkadiko.txt` should look like:
+The sample `arkadiko.txt` should look like this:
 
 ```
 {"apply":[{"block_identifier":{"hash":"0xf048102fee15dda049e6781c8e9aec1b39b1b9dc68d06fd9b84dced1b80ddd62","index":34307},"metadata":{"bitcoin_anchor_block_identifier":{"hash":"0x000000000000000000098e9ebc30e7c8e32b30ffecbd7dc5c715b5f07e1de25c","index":705648},"confirm_microblock_identifier":{"hash":"0xa65642590e98f54183a0be747a1c01e41d3ba211f6599eff2574d78ed2578468","index":2},"pox_cycle_index":18,"pox_cycle_length":2100,"pox_cycle_position":1797,"stacks_block_hash":"0x77a1aed86e895cb4b7b969986aa6a28eb2465e7227f351dd4e23d28448b222e9"},"parent_block_identifier":{"hash":"0x3117663ee5c5690d76e3f6c97597cbcc95085e7cecb0791d3edc4f95a4ce6f23","index":34306},"timestamp":1634625398,"transactions":[{"metadata":{"description":"invoked: SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1::collateralize-and-mint(u300000000, u130000000, (tuple (auto-payoff true) (stack-pox true)), \"STX-A\", SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-stx-reserve-v1-1, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-token, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-collateral-types-v1-1, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-oracle-v1-1)","execution_cost":{"read_count":155,"read_length":318312,"runtime":349859000,"write_count":10,"write_length":3621},"fee":188800,"kind":{"data":{"args":["u300000000","u130000000","(tuple (auto-payoff true) (stack-pox true))","\"STX-A\"","SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-stx-reserve-v1-1","SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-token","SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-collateral-types-v1-1","SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-oracle-v1-1"],"contract_identifier":"SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1","method":"collateralize-and-mint"},"type":"ContractCall"},"nonce":15,"position":{"index":16},"proof":null,...
@@ -176,7 +176,7 @@ The output of the above command will be a text file `arkadiko.txt` generated bas
 > Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
 > Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
 
-The sample output file, `arkadiko.txt` looks like this:
+The sample output file, `arkadiko.txt,` looks like this:
 
 ```text
 {"apply":[{"block_identifier":{"hash":"0xf048102fee15dda049e6781c8e9aec1b39b1b9dc68d06fd9b84dced1b80ddd62","index":34307},"metadata":{"bitcoin_anchor_block_identifier":{"hash":"0x000000000000000000098e9ebc30e7c8e32b30ffecbd7dc5c715b5f07e1de25c","index":705648},"confirm_microblock_identifier":{"hash":"0xa65642590e98f54183a0be747a1c01e41d3ba211f6599eff2574d78ed2578468","index":2},"pox_cycle_index":18,"pox_cycle_length":2100,"pox_cycle_position":1797,"stacks_block_hash":"0x77a1aed86e895cb4b7b969986aa6a28eb2465e7227f351dd4e23d28448b222e9"},"parent_block_identifier":{"hash":"0x3117663ee5c5690d76e3f6c97597cbcc95085e7cecb0791d3edc4f95a4ce6f23","index":34306},"timestamp":1634625398,"transactions":[{"metadata":{"description":"invoked: SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1::collateralize-and-mint(u300000000, u130000000, (tuple (auto-payoff true) (stack-pox true)), \"STX-A\", SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-stx-reserve-v1-1, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-token, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-collateral-types-v1-1, SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-oracle-v1-1)","execution_cost":{"read_count":155,"read_length":318312,"runtime":349859000,"write_count":10,"write_length":3621},"fee":188800,"kind":{"data":{"args":["u300000000","u130000000","(tuple (auto-payoff true) (stack-pox true))","\"STX-A\"",.........
@@ -184,7 +184,7 @@ The sample output file, `arkadiko.txt` looks like this:
 
 ### Example 2
 
-Run the following command in your terminal to generate a sample JSON file with predicates.
+Run the following command to generate a sample JSON file with predicates in your terminal.
 
 `$ chainhook predicates new print_event_2.json --stacks`
 
@@ -219,7 +219,6 @@ A JSON file `print_event_2.json` is generated.
 > [!Note]
 > The `start_block` is the required field to use the `http_post` `then-that` predicate.
 
-
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_2.json` file.
 
 `$ chainhook predicates scan print_event_2.json --testnet`
@@ -228,31 +227,33 @@ The above command posts events to the URL `http://localhost:3000/api/v1/vaults` 
 
 ## Initiate Chainhook Service
 
-In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
+In this section, you'll learn how to initiate the chainhook service using the following two ways and use the REST API call to post the events onto a server.
 
-`$ chainhook service start --predicate-path=print_event_1.json --config-path=Chainhook.toml`
+- Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-The above command registers the predicates based on the predicate definition in the `print_event_1.json` file. You can next run the chainhook service to see the output events based on the `then-that` predicate definition.
+  `$ chainhook service start --predicate-path=print_event_1.json --config-path=Chainhook.toml`
 
-While the chainhook service runs, you can dynamically add more predicates or update your predicates and pass the JSON file as input in the body of the HTTP API call. You can do this by:
-
-Uncommenting the following lines of code in the `Chainhook.toml` file.
--   ```
+  The above command registers the predicates based on the predicate definition in the `print_event_1.json` file.
+  
+- You can start the chainhook service and pass the predicates dynamically to post the events based on the `then-that` predicate definition. To do this, first:
+  - Uncomment the following lines of code in the `Chainhook.toml` file.
+	  ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-- Passing the JSON file as input in the body of the HTTP API call.
+  - Pass the JSON file as input in the body of the HTTP API call as shown in the screenshot below.
   ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
+Then, start the chainhook service using the following command:
 `$ chainhook service start --config-path=Chainhook.toml`
 
-The above command posts the events to the `localhost:6379/`   as mentioned in the predicate definition.
+The above command posts the events to the `http://localhost:3000/api/v1/vaults` as mentioned in the predicate definition.
 
 > [!TIP]
-> You can define multiple predicates and pass them as arguments to start the chainhook service. 
+> You can define multiple predicates and pass them as arguments to start the chainhook service.
 > Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
 
 ## Reference
 
-- The [OpenAPI specification for chainhook](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) is available to understand the scope of chainhook.
+The [OpenAPI specification for chainhook](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) is available to understand the scope of chainhook.

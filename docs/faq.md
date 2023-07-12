@@ -16,17 +16,18 @@ Yes, Chainhooks can be used for coordinating cross-chain actions. You can use ch
 
 Chainhook can easily extract the information needed to build (or rebuild) databases for a front end.
 
-#### **Can I use chainhook with distributed nodes?**
+#### **Can I use Chainhook with distributed nodes?**
 
 The chainhook event observer was designed as a library written in Rust, which makes it very portable. Bindings can easily be created from other languages (Node, Ruby, Python, etc.), making this tool a very convenient and performant library, usable by anyone.
 
 #### **How can I connect chainhook with Oracles?**
 
 Oracles, in general, do the following:
+
  1. Capture relevant on-chain events
  2. Process the events via some off-chain, centralized logic
  3. Commit the resultant data on-chain
- 
+
  Chainhook can be used to efficiently capture relevant on-chain events and forward them to off-chain services.
 
 #### **How can I use Chainhook in my application?**
@@ -39,6 +40,4 @@ Yes, you can run chainhook on both the testnet and mainnet.
 
 #### **How can I optimize chainhook scanning?**
 
-Use of adequate values for `start_block` and `end_block` in predicates.
-
-Networking: Reducing the number of networks hops between chainhook and `bitcoind` process.
+Use of adequate values for `start_block` and `end_block` in predicates by reducing the number of networks hops between chainhook and `bitcoind` process.

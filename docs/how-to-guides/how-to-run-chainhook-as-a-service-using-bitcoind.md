@@ -53,13 +53,13 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 
 `$ ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf`
 
-Once the above command is running, you will see `zmq_url` entries in the output, enabling zeromq.
+Once the above command runs, you will see `zmq_url` entries in the output, enabling zeromq.
 
 ### Configure Chainhook
 
 In this section, you will configure chainhook to match the network configurations with the bitcoin config file. First, [install the latest version of chainhook](../getting-started.md#install-chainhook-from-source).
 
-Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file, and use the following command in your terminal:
+Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file and use the following command in your terminal:
 
 `$ chainhook config generate --testnet`
 
@@ -69,7 +69,7 @@ The following `Chainhook.toml` file should be generated:
 [storage]
 working_dir = "cache"
 
-# The Http Api allows you to register / deregister
+# The Http Api allows you to register/deregister
 # dynamically predicates.
 # Disable by default.
 #
@@ -220,26 +220,30 @@ The above command posts events to the URL, `http://localhost:3000/events` mentio
 
 ## Initiate Chainhook Service
 
-In this section, you'll initiate the chainhook service and use the REST API call to post the events onto a local server.
+In this section, you'll learn how to initiate the chainhook service using the following two ways and use the REST API call to post the events onto a server.
 
-`$ chainhook service start --predicate-path=ordinals_protocol.json --config-path=./Chainhook.toml`
+- Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file. You can next run the chainhook service to see the output events based on the `then-that` predicate definition.
+  `$ chainhook service start --predicate-path=ordinals_protocol.json --config-path=Chainhook.toml`
 
-You can also start the chainhook service and pass the predicates dynamically. You can do this by:
-
-- Uncommenting the following lines of code in the `Chainhook.toml` file.
-    ```
+  The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file.
+  
+- You can start the chainhook service and pass the predicates dynamically to post the events based on the `then-that` predicate definition. To do this, first:
+  - Uncomment the following lines of code in the `Chainhook.toml` file.
+	  ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-- Passing the JSON file as input in the body of the HTTP API call.
-    ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
+  - Pass the JSON file as input in the body of the HTTP API call as shown in the screenshot below.
+  ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
 
+Then, start the chainhook service using the following command:
 `$ chainhook service start --config-path=Chainhook.toml`
 
-In this case, `chainhook` will post payloads to `http://localhost:3000/events`. The following is a sample payload response.
+The above command posts the events to the `http://localhost:3000/api/v1/vaults` as mentioned in the predicate definition.
+
+The sample payload response should look like:
 
 ```jsonc
 {

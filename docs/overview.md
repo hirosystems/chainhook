@@ -64,7 +64,7 @@ The `if-this` predicate design can use the following attributes to define the pr
 }
 ```
 
-### `then-that` Predicate Design 
+### `then-that` Predicate Design
 
 The `then-that` predicate design can use the following attributes to output the result based on the `if-this` condition defined.
 
