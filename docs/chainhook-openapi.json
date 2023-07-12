@@ -171,27 +171,27 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["Regtest"],
+                    "required": ["\"regtest\""],
                     "properties": {
-                      "Regtest": {
+                      "\"regtest\"": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["Testnet"],
+                    "required": ["\"testnet\""],
                     "properties": {
-                      "Testnet": {
+                      "\"testnet\"": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["Mainnet"],
+                    "required": ["\"mainnet\""],
                     "properties": {
-                      "Mainnet": {
+                      "\"mainnet\"": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
@@ -227,36 +227,36 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["Simnet"],
+                    "required": ["\"simnet\""],
                     "properties": {
-                      "Simnet": {
+                      "\"simnet\"": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["Devnet"],
+                    "required": ["\"devnet\""],
                     "properties": {
-                      "Devnet": {
+                      "\"devnet\"": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["Testnet"],
+                    "required": ["\"testnet\""],
                     "properties": {
-                      "Testnet": {
+                      "\"testnet\"": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["Mainnet"],
+                    "required": ["\"mainnet\""],
                     "properties": {
-                      "Mainnet": {
+                      "\"mainnet\"": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
@@ -266,6 +266,10 @@
             }
           }
         ]
+      },
+      "BitcoinNetwork": {
+        "type": "string",
+        "enum": ["regtest", "testnet", "mainnet"]
       },
       "BitcoinChainhookNetworkSpecification": {
         "type": "object",
@@ -638,6 +642,10 @@
           }
         }
       },
+      "StacksNetwork": {
+        "type": "string",
+        "enum": ["simnet", "devnet", "testnet", "mainnet"]
+      },
       "StacksChainhookNetworkSpecification": {
         "type": "object",
         "required": ["if_this", "then_that"],
@@ -724,9 +732,18 @@
                   "between": {
                     "type": "array",
                     "items": {
-                      "type": "integer",
-                      "format": "uint64",
-                      "minimum": 0.0
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "format": "uint64",
+                          "minimum": 0.0
+                        },
+                        {
+                          "type": "integer",
+                          "format": "uint64",
+                          "minimum": 0.0
+                        }
+                      ]
                     },
                     "maxItems": 2,
                     "minItems": 2
