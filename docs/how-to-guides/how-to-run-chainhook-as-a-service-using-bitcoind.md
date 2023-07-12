@@ -229,7 +229,7 @@ In this section, you'll learn how to initiate the chainhook service using the fo
   The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file.
   
 - You can start the chainhook service and pass the predicates dynamically to post the events based on the `then-that` predicate definition. To do this, first:
-  - Uncomment the following lines of code in the `Chainhook.toml` file.
+  - Uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
 	  ```
     [http_api]
     http_port = 20456
