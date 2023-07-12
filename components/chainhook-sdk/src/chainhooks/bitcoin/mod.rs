@@ -54,7 +54,7 @@ pub enum BitcoinChainhookOccurrence {
 
 pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
     chain_event: &'a BitcoinChainEvent,
-    active_chainhooks: Vec<&'a BitcoinChainhookSpecification>,
+    active_chainhooks: &Vec<&'a BitcoinChainhookSpecification>,
     ctx: &Context,
 ) -> (
     Vec<BitcoinTriggerChainhook<'a>>,
@@ -158,6 +158,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
         "chainhook": {
             "uuid": trigger.chainhook.uuid,
             "predicate": trigger.chainhook.predicate,
+            "is_streaming_blocks": trigger.chainhook.enabled
         }
     })
 }
@@ -420,11 +421,10 @@ impl BitcoinPredicateType {
             }
             BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed) => {
                 for op in tx.metadata.ordinal_operations.iter() {
-                    if let OrdinalOperation::InscriptionRevealed(_) = op {
-                        return true;
-                    }
-                    if let OrdinalOperation::InscriptionTransferred(_) = op {
-                        return true;
+                    match op {
+                        OrdinalOperation::InscriptionRevealed(_)
+                        | OrdinalOperation::CursedInscriptionRevealed(_)
+                        | OrdinalOperation::InscriptionTransferred(_) => return true,
                     }
                 }
                 false

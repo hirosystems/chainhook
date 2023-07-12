@@ -1,4 +1,4 @@
-mod http_api;
+pub(crate) mod http_api;
 mod runloops;
 
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
@@ -9,7 +9,9 @@ use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
+use chainhook_sdk::chainhooks::types::{
+    BitcoinChainhookSpecification, ChainhookConfig, ChainhookFullSpecification,
+};
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
@@ -29,11 +31,7 @@ impl Service {
         Self { config, ctx }
     }
 
-    pub async fn run(
-        &mut self,
-        predicates: Vec<ChainhookFullSpecification>,
-        hord_disabled: bool,
-    ) -> Result<(), String> {
+    pub async fn run(&mut self, predicates: Vec<ChainhookFullSpecification>) -> Result<(), String> {
         let mut chainhook_config = ChainhookConfig::new();
 
         // If no predicates passed at launch, retrieve predicates from Redis
@@ -101,37 +99,12 @@ impl Service {
 
         let mut event_observer_config = self.config.get_event_observer_config();
         event_observer_config.chainhook_config = Some(chainhook_config);
-        event_observer_config.hord_config = match hord_disabled {
-            true => None,
-            false => Some(self.config.get_hord_config()),
-        };
 
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {
             let _ =
                 consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
         }
-
-        // Download and ingest a Ordinal dump, if hord is enabled
-        if !hord_disabled {
-            // TODO: add flag
-            // let _ = download_ordinals_dataset_if_required(&mut self.config, &self.ctx).await;
-        }
-
-        // Start chainhook event observer
-        let context_cloned = self.ctx.clone();
-        let event_observer_config_moved = event_observer_config.clone();
-        let observer_command_tx_moved = observer_command_tx.clone();
-        let _ = hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
-            let future = start_event_observer(
-                event_observer_config_moved,
-                observer_command_tx_moved,
-                observer_command_rx,
-                Some(observer_event_tx),
-                context_cloned,
-            );
-            let _ = hiro_system_kit::nestable_block_on(future);
-        });
 
         // Stacks scan operation threadpool
         let (stacks_scan_op_tx, stacks_scan_op_rx) = crossbeam_channel::unbounded();
@@ -193,6 +166,28 @@ impl Service {
                 );
             }
             BitcoinBlockSignaling::Stacks(ref _url) => {
+                // Start chainhook event observer
+                let context_cloned = self.ctx.clone();
+                let event_observer_config_moved = event_observer_config.clone();
+                let observer_command_tx_moved = observer_command_tx.clone();
+                let _ =
+                    hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
+                        let future = start_event_observer(
+                            event_observer_config_moved,
+                            observer_command_tx_moved,
+                            observer_command_rx,
+                            Some(observer_event_tx),
+                            context_cloned,
+                        );
+                        let _ = hiro_system_kit::nestable_block_on(future);
+                    });
+                info!(
+                    self.ctx.expect_logger(),
+                    "Listening on port {} for Stacks chain events",
+                    event_observer_config
+                        .get_stacks_node_config()
+                        .ingestion_port
+                );
                 info!(
                     self.ctx.expect_logger(),
                     "Observing Bitcoin chain events via Stacks node"
