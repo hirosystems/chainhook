@@ -171,27 +171,27 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["\"regtest\""],
+                    "required": ["regtest"],
                     "properties": {
-                      "\"regtest\"": {
+                      "regtest": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["\"testnet\""],
+                    "required": ["testnet"],
                     "properties": {
-                      "\"testnet\"": {
+                      "testnet": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["\"mainnet\""],
+                    "required": ["mainnet"],
                     "properties": {
-                      "\"mainnet\"": {
+                      "mainnet": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
                       }
                     }
@@ -227,36 +227,36 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["\"simnet\""],
+                    "required": ["simnet"],
                     "properties": {
-                      "\"simnet\"": {
+                      "simnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["\"devnet\""],
+                    "required": ["devnet"],
                     "properties": {
-                      "\"devnet\"": {
+                      "devnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["\"testnet\""],
+                    "required": ["testnet"],
                     "properties": {
-                      "\"testnet\"": {
+                      "testnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
                   },
                   {
                     "type": "object",
-                    "required": ["\"mainnet\""],
+                    "required": ["mainnet"],
                     "properties": {
-                      "\"mainnet\"": {
+                      "mainnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
                       }
                     }
