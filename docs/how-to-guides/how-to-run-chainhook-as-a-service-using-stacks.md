@@ -14,9 +14,7 @@ Start with the prerequisite section and configure your files to start the chainh
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
 - Set up the bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
-A `Stacks.toml` file gets generated when you configure the stacks node.
-
-Below is the sample `Stacks.toml` file.
+A `Stacks.toml` file gets generated when you configure the stacks node. Below is the sample `Stacks.toml` file.
 
 ```toml
 [node]
@@ -107,7 +105,7 @@ Now that the stacks and chainhook configurations are done, you can scan your blo
 
 The following are the two examples to walk you through `file_append` and `http_post` `then-that` predicate designs.
 
-Example 1 uses a `print_eventjson` file to scan the predicates and render results using `file_append`.
+Example 1 uses a `print_event.json` file to scan the predicates and render results using `file_append`.
 Example 2 uses `print_event.json` to scan the predicates and render results using `http_post`.
 
 You can choose between the following examples to scan the predicates.
@@ -160,7 +158,7 @@ A JSON file `print_event_1.json` is generated.
 ```
 
 > [!NOTE]
-> You can get blockchain height and current block in the [Explorer](https://explorer.hiro.so/blocks?chain=mainnet)
+> You can get blockchain height and current block in the [Explorer](https://explorer.hiro.so/blocks?chain=mainnet).
 
 The sample `arkadiko.txt` should look like this:
 
