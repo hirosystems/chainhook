@@ -14,8 +14,7 @@ use redis::{Commands, Connection};
 use rocket::config::{self, Config, LogLevel};
 use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::State;
-use rocket_okapi::openapi;
-use rocket_okapi::openapi_get_routes;
+use rocket_okapi::{okapi::openapi3::OpenApi, openapi, openapi_get_routes_spec};
 use std::error::Error;
 
 use crate::config::PredicatesApiConfig;
@@ -46,14 +45,7 @@ pub async fn start_predicate_api_server(
         ..Config::default()
     };
 
-    let routes = openapi_get_routes![
-        handle_ping,
-        handle_get_predicates,
-        handle_get_predicate,
-        handle_create_predicate,
-        handle_delete_bitcoin_predicate,
-        handle_delete_stacks_predicate
-    ];
+    let (routes, _) = get_routes_spec();
 
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
@@ -371,4 +363,22 @@ pub fn load_predicates_from_redis(
         .get_connection()
         .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
     get_entries_from_predicates_db(&mut predicate_db_conn, ctx)
+}
+
+pub fn document_predicate_api_server() -> Result<String, String> {
+    let (_, spec) = get_routes_spec();
+    let json_spec = serde_json::to_string_pretty(&spec)
+        .map_err(|e| format!("failed to serialize openapi spec: {}", e.to_string()))?;
+    Ok(json_spec)
+}
+
+pub fn get_routes_spec() -> (Vec<rocket::Route>, OpenApi) {
+    openapi_get_routes_spec![
+        handle_ping,
+        handle_get_predicates,
+        handle_get_predicate,
+        handle_create_predicate,
+        handle_delete_bitcoin_predicate,
+        handle_delete_stacks_predicate
+    ]
 }

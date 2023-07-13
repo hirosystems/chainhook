@@ -1,4 +1,4 @@
-mod http_api;
+pub(crate) mod http_api;
 mod runloops;
 
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
