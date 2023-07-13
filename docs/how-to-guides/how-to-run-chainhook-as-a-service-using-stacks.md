@@ -12,7 +12,7 @@ Start with the prerequisite section and configure your files to start the chainh
 
 - Configure your stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
-- Set up bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then, get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
+- Set up the bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
 A `Stacks.toml` file gets generated when you configure the stacks node.
 
@@ -29,9 +29,9 @@ bootstrap_node = "02da7a464ac770ae8337a343670778b93410f2f3fef6bea98dd1c3e9224459
 chain = "bitcoin"
 mode = "mainnet"
 peer_host = "localhost"
-username = "bitcoind_username"       # Must match with the rpcuser in the bitcoin.conf
-password = "bitcoind_password"       # Must match with the rpcpassword in the bitcoin.conf
-rpc_port = 8332                      # Must match with the rpcport in the bitcoin.conf
+username = "bitcoind_username"       # Must match the rpcuser in the bitcoin.conf
+password = "bitcoind_password"       # Must match the rpcpassword in the bitcoin.conf
+rpc_port = 8332                      # Must match the rpcport in the bitcoin.conf
 peer_port = 8333
 
 [[events_observer]]
@@ -42,7 +42,7 @@ events_keys = ["*"]
 ```
 
 > [!NOTE]
-> Ensure that the `username`, `password`, and `rpc_port` values in the `Stacks.toml` file match with the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `Chainhook.toml` configuration in the next section of this article.
+> Ensure that the `username`, `password`, and `rpc_port` values in the `Stacks.toml` file match the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `Chainhook.toml` configuration in the next section of this article.
 
 ### Configure Chainhook
 
@@ -50,7 +50,7 @@ In this section, you will configure a chainhook to communicate with the network.
 
 `$ chainhook config generate --testnet`
 
-Ensure that the `bitcoind_rpc_url`, `bitcoind_rpc_username`, `bitcoind_rpc_password` are matching with the `rpcport`, `rpcuser` and `rpcpassword` in the `bitcoin.conf` file and the port of the `stacks_node_rpc_url` matches the `rpc_bind` in the `Stacks.toml` file.
+Ensure that the `bitcoind_rpc_url`, `bitcoind_rpc_username`, `bitcoind_rpc_password` match with the `rpcport`, `rpcuser` and `rpcpassword` in the `bitcoin.conf` file and the port of the `stacks_node_rpc_url` matches the `rpc_bind` in the `Stacks.toml` file.
 
 The following `Chainhook.toml` file should be generated:
 
@@ -240,13 +240,13 @@ In this section, you'll learn how to initiate the chainhook service using the fo
   
 - You can also dynamically register predicates via the predicate registration server. To do this:
   - Uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
-	  ```
+    ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
   - Start the Chainhook service by running `$ chainhook service start --config-path=Chainhook.toml`.
-  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For full documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
+  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For complete documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
   - ![Example post request](../images/chainhook-post-request.jpeg)
 
 > [!TIP]
