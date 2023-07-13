@@ -12,9 +12,9 @@ Start with the prerequisite section and configure your files to start the chainh
 
 - Configure your stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
-- Get the rpcuser, rpcpassword, and rpc_port defined in the `bitcoin.conf` file from [this section](run-chainhook-as-a-service-using-bitcoind.md#prepare-the-bitcoind-node) of the [running chainhook as a service using bitcoind](run-chainhook-as-a-service-using-bitcoind.md) to use in this article.
+- Set up bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then, get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
-A `Stacks.toml` file gets generated when you configure the stacks node, as shown below. Ensure that the `username`, `password`, and `rpc_port` values match the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `Chainhook.toml` configuration in the next section of this article.
+A `Stacks.toml` file gets generated when you configure the stacks node.
 
 Below is the sample `Stacks.toml` file.
 
@@ -40,6 +40,9 @@ retry_count = 255
 events_keys = ["*"]
 
 ```
+
+> [!NOTE]
+> Ensure that the `username`, `password`, and `rpc_port` values in the `Stacks.toml` file match with the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `Chainhook.toml` configuration in the next section of this article.
 
 ### Configure Chainhook
 
@@ -157,7 +160,7 @@ A JSON file `print_event_1.json` is generated.
 ```
 
 > [!NOTE]
-> You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
+> You can get blockchain height and current block in the [Explorer](https://explorer.hiro.so/blocks?chain=mainnet)
 
 The sample `arkadiko.txt` should look like this:
 
@@ -242,18 +245,10 @@ In this section, you'll learn how to initiate the chainhook service using the fo
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-  - Pass the JSON file as input in the body of the HTTP API call as shown in the screenshot below.
-  ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
-
-Then, start the chainhook service using the following command:
-`$ chainhook service start --config-path=Chainhook.toml`
-
-The above command posts the events to the `http://localhost:3000/api/v1/vaults` as mentioned in the predicate definition.
+  - Start the Chainhook service by running `$ chainhook service start --config-path=Chainhook.toml`.
+  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For full documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
+  - ![Example post request](../images/chainhook-post-request.jpeg)
 
 > [!TIP]
-> You can define multiple predicates and pass them as arguments to start the chainhook service.
+> You can also run chainhook service by passing multiple predicates.
 > Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
-
-## Reference
-
-The [OpenAPI specification for chainhook](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) is available to understand the scope of chainhook.

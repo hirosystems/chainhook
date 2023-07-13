@@ -8,7 +8,7 @@ You can run Chainhook as a service to evaluate Bitcoin against your predicates. 
 
 ### Setting up a Bitcoin Node
 
-- Install bitcoind using [this](https://bitcoin.org/en/bitcoin-core/) link. Ingesting blocks using bitcoind happens through zeromq, an embedded networking library in the bitcoind installation package.
+Install bitcoind using [this](https://bitcoin.org/en/bitcoin-core/) link. Ingesting blocks using bitcoind happens through zeromq, an embedded networking library in the bitcoind installation package.
 
 Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx64.tar.gz`. You can extract the zip file to view the folders. Expand the `bin` folder to see the bitcoind executable files.
 
@@ -235,13 +235,9 @@ In this section, you'll learn how to initiate the chainhook service using the fo
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-  - Pass the JSON file as input in the body of the HTTP API call as shown in the screenshot below.
-  ![Example of the JSON file passed in the body of the API call](../images/api-post-json-in-body.jpeg)
-
-Then, start the chainhook service using the following command:
-`$ chainhook service start --config-path=Chainhook.toml`
-
-The above command posts the events to the `http://localhost:3000/api/v1/vaults` as mentioned in the predicate definition.
+  - Start the Chainhook service by running `$ chainhook service start --config-path=Chainhook.toml`.
+  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For full documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
+  - ![Example post request](../images/chainhook-post-request.jpeg)
 
 The sample payload response should look like:
 
@@ -304,8 +300,8 @@ Understand the output of the above JSON file with the following details.
 - The `rollback` payload includes the block header and the transactions that triggered the predicate for a past block that is no longer part of the canonical chain and must be reverted.
 
 > [!TIP]
-> You can define multiple predicates and pass them as arguments to start the chainhook service. 
-> Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
+> You can also run chainhook service by passing multiple predicates.
+> Example:  `$ chainhook service start --predicate-path=predicate_1.json  --predicate-path=predicate_2.json --config-path=Chainhook.toml`
 
 ## References
 
