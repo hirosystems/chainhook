@@ -22,9 +22,7 @@ use chainhook_sdk::indexer::bitcoin::{
 };
 use chainhook_sdk::observer::BitcoinConfig;
 use chainhook_sdk::utils::Context;
-use chainhook_types::{
-    BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork,
-};
+use chainhook_types::{BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use clap::{Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
@@ -342,8 +340,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         let mut networks = BTreeMap::new();
 
                         networks.insert(StacksNetwork::Testnet, StacksChainhookNetworkSpecification {
-                            start_block: Some(0),
-                            end_block: Some(100),
+                            start_block: Some(34239),
+                            end_block: Some(50000),
+                            blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
                                 contract_identifier: "ST1SVA0SST0EDT4MFYGWGP6GNSXMMQJDVP1G8QTTC.arkadiko-freddie-v1-1".into(),
                                 contains: "vault".into(),
@@ -357,8 +356,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         });
 
                         networks.insert(StacksNetwork::Mainnet, StacksChainhookNetworkSpecification {
-                            start_block: Some(0),
-                            end_block: Some(100),
+                            start_block: Some(34239),
+                            end_block: Some(50000),
+                            blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
                                 contract_identifier: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1".into(),
                                 contains: "vault".into(),
@@ -385,8 +385,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         networks.insert(
                             BitcoinNetwork::Mainnet,
                             BitcoinChainhookNetworkSpecification {
-                                start_block: Some(0),
-                                end_block: Some(100),
+                                start_block: Some(767430),
+                                end_block: Some(767430),
+                                blocks: None,
                                 predicate: BitcoinPredicateType::OrdinalsProtocol(
                                     OrdinalOperations::InscriptionFeed,
                                 ),

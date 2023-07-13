@@ -9,9 +9,7 @@ use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::chainhooks::types::{
-    BitcoinChainhookSpecification, ChainhookConfig, ChainhookFullSpecification,
-};
+use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
@@ -382,10 +380,10 @@ pub enum PredicateStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanningData {
-    pub start_block: u64,
-    pub cursor: u64,
-    pub end_block: u64,
-    pub occurrences_found: u64,
+    pub number_of_blocks_to_scan: u64,
+    pub number_of_blocks_scanned: u64,
+    pub number_of_blocks_sent: u64,
+    pub current_block_height: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
