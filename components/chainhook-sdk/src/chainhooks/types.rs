@@ -237,6 +237,8 @@ pub struct BitcoinChainhookSpecification {
     pub network: BitcoinNetwork,
     pub version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_block: Option<u64>,
@@ -325,6 +327,7 @@ impl BitcoinChainhookFullSpecification {
             version: self.version,
             start_block: spec.start_block,
             end_block: spec.end_block,
+            blocks: spec.blocks,
             expire_after_occurrence: spec.expire_after_occurrence,
             predicate: spec.predicate,
             action: spec.action,
@@ -339,6 +342,8 @@ impl BitcoinChainhookFullSpecification {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct BitcoinChainhookNetworkSpecification {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -386,6 +391,7 @@ impl StacksChainhookFullSpecification {
             version: self.version,
             start_block: spec.start_block,
             end_block: spec.end_block,
+            blocks: spec.blocks,
             capture_all_events: spec.capture_all_events,
             decode_clarity_values: spec.decode_clarity_values,
             expire_after_occurrence: spec.expire_after_occurrence,
@@ -398,6 +404,8 @@ impl StacksChainhookFullSpecification {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct StacksChainhookNetworkSpecification {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -696,6 +704,8 @@ pub struct StacksChainhookSpecification {
     pub name: String,
     pub network: StacksNetwork,
     pub version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]

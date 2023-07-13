@@ -60,6 +60,7 @@ fn stacks_chainhook_contract_call(
         StacksChainhookNetworkSpecification {
             start_block: None,
             end_block: None,
+            blocks: None,
             expire_after_occurrence,
             capture_all_events: None,
             decode_clarity_values: Some(true),
@@ -92,6 +93,7 @@ fn bitcoin_chainhook_p2pkh(
         BitcoinChainhookNetworkSpecification {
             start_block: None,
             end_block: None,
+            blocks: None,
             expire_after_occurrence,
             predicate: BitcoinPredicateType::Outputs(OutputPredicate::P2pkh(
                 ExactMatchingRule::Equals(address.to_string()),
