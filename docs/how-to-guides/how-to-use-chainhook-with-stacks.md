@@ -2,8 +2,7 @@
 title: Use Chainhook with Stacks
 ---
 
-This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`
-, `then-that` constructs.
+This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`, `then-that` constructs.
 
 ## `if_this` Specifications
 
@@ -25,7 +24,7 @@ Example:
 }
 ```
 
-Get any stacks block matching constraints
+Get any stacks block matching constraints:
 
 - `block_height` mandatory argument admits:
   - `equals`, `higher_than`, `lower_than`, `between`: integer type.
@@ -44,7 +43,7 @@ Get any transaction related to a given fungible token asset identifier:
 - `asset-identifier` mandatory argument admits:
   - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
 - `actions` mandatory argument admits:
-  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+  - array of string type constrained to `mint`, `transfer` and `burn` values. Example: ["mint", "burn"]
 
 ```json
 {
@@ -56,12 +55,12 @@ Get any transaction related to a given fungible token asset identifier:
 }
 ```
 
-Get any transaction related to a given non fungible token asset identifier:
+Get any transaction related to a given non-fungible token asset identifier:
 
 - `asset-identifier` mandatory argument admits:
   - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
 - `actions` mandatory argument admits:
-  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+  - array of string type constrained to `mint`, `transfer` and `burn` values. Example: ["mint", "burn"]
 
 ```json
 {
@@ -76,7 +75,7 @@ Get any transaction related to a given non fungible token asset identifier:
 Get any transaction moving STX tokens:
 
 - `actions` mandatory argument admits:
-  - array of string type constrained to `mint`, `transfer` , `burn` and `lock` values. example: ["mint", "lock"]
+  - array of string type constrained to `mint`, `transfer` , `burn` and `lock` values. Example: ["mint", "lock"]
 
 ```json
 {
@@ -91,7 +90,7 @@ Get any transaction moving STX tokens:
 Get any transaction emitting given print events predicate
 
 - `contract-identifier` mandatory argument admits:
-  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits:
+  - string type, fully qualifying the contract to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits:
   - string type, used for matching event
 
 ```json
@@ -107,7 +106,7 @@ Get any transaction emitting given print events predicate
 Get any transaction calling a specific method for a given contract **directly**.
 
 > [!Warning]
-> If the `watched` method is being called by another contract, this predicate won't detect it.
+> If the observed method is being called by another contract, this predicate won't detect it.
 
 - `contract-identifier` mandatory argument admits:
   - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
@@ -122,7 +121,7 @@ Get any transaction calling a specific method for a given contract **directly**.
 }
 ```
 
-Get any transaction including a contract deployment
+Get any transaction, including a contract deployment:
 
 - `deployer` mandatory argument admits:
   - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
@@ -188,9 +187,9 @@ Append events to a file through the filesystem. Convenient for local tests:
 
 ## Additional Configurations available
 
-Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain:
+Following additional configurations can be used to improve the performance of chainhook by preventing a full scan of the blockchain:
 
-- Ignore any block prior to the given block:
+- Ignore any block before the given block:
 `"start_block": 101`
 
 - Ignore any block after the given block:
@@ -236,7 +235,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five
 
 A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
 
-```jsonq
+```json
 {
   "chain": "stacks",
   "uuid": "1",

@@ -98,7 +98,7 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 ```
 
-In the `Chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#prepare-the-bitcoind-node) section to allow Chainhook to connect to the bitcoin layer.
+In the `Chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#setting-up-a-bitcoin-node) section to allow Chainhook to connect to the bitcoin layer.
 
 The Bitcoin node is exposing the rpc endpoints. To protect the endpoints, we are using rpc username and password fields. To run Chainhook as a service using Bitcoin, you must match the rpc endpoints username, password, and network ports.
 
@@ -178,7 +178,7 @@ The output of the above command will be a text file `inscription_feed.txt` gener
 
 ### Example 2
 
-Run the following command in your terminal to generate a sample JSON file with predicates.
+Run the following command to generate a sample JSON file with predicates in your terminal.
 
 `$ chainhook predicates new ordinals_protocol.json --bitcoin`
 
@@ -230,16 +230,16 @@ In this section, you'll learn how to initiate the chainhook service using the fo
   
 - You can also dynamically register predicates via the predicate registration server. To do this:
   - Uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
-	  ```
+      ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
   - Start the Chainhook service by running `$ chainhook service start --config-path=Chainhook.toml`.
-  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For full documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
+  - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For complete documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
   - ![Example post request](../images/chainhook-post-request.jpeg)
 
-The sample payload response should look like:
+The sample payload response should look like this:
 
 ```jsonc
 {

@@ -35,13 +35,13 @@ With Chainhook, developers can trigger actions based on predicates they can writ
 
 ## Understand the Predicate Design
 
-Predicates are the conditions that you can define to scan the blocks easier and faster on a block chain.
+Predicates are the conditions that you can define to scan the blocks easier and faster on a blockchain.
 
 Predicates are defined in the If-this, then-that format. You'll write your condition in the `if-this` condition template and use `then-that` to output the result.
 
 ### `if-this` Predicate Design
 
-The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' paramter is mandatory to use with any of the other parameters.
+The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' parameter is mandatory to use with any of the other parameters.
 
 - scope (mandatory)
 - equals
@@ -86,4 +86,4 @@ The `then-that` predicate design can use the following attributes to output the 
 }
 ```
 
-For more information on predicate definitions, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](how-to-use-chainhook-with-stacks.md).
+For more information on predicate definitions, refer to [how to use chainhook with bitcoin](../docs/how-to-guides/how-to-use-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](../docs/how-to-guides/how-to-use-chainhook-with-stacks.md).

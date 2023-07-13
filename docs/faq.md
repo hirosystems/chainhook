@@ -40,4 +40,4 @@ Yes, you can run chainhook on both the testnet and mainnet.
 
 #### **How can I optimize chainhook scanning?**
 
-Use of adequate values for `start_block` and `end_block` in predicates by reducing the number of networks hops between chainhook and `bitcoind` process.
+Use adequate values for `start_block` and `end_block` in predicates by reducing the number of network hops between the chainhook and the `bitcoind` process.
