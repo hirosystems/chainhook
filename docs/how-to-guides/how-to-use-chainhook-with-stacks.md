@@ -9,10 +9,9 @@ This guide helps you define predicates to use Chainhook with Stacks. The predica
 
 The current `stacks` predicates support the following `if_this` constructs:
 
-Get any transaction matching a given `txid` mandatory argument
-admits:
+Get any transaction matching a given `txid` mandatory argument admits:
 
-- 32 bytes hex encoded type
+    - 32 bytes hex encoded type
 
 Example:
 
@@ -28,11 +27,10 @@ Example:
 
 Get any stacks block matching constraints
 
--  `block_height` mandatory argument
-   - admits:
-     - `equals`, `higher_than`, `lower_than`, `between`: integer type.
+- `block_height` mandatory argument admits:
+  - `equals`, `higher_than`, `lower_than`, `between`: integer type.
 
-```
+```json
 {
     "if_this": {
         "scope": "block_height",
@@ -41,15 +39,14 @@ Get any stacks block matching constraints
 }
 ```
 
-Get any transaction related to a given fungible token asset identifier
-- `asset-identifier` mandatory argument
-  - admits:
-    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
-- `actions` mandatory argument
-  - admits:
-    - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+Get any transaction related to a given fungible token asset identifier:
 
-```
+- `asset-identifier` mandatory argument admits:
+  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
+- `actions` mandatory argument admits:
+  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+
+```json
 {
     "if_this": {
         "scope": "ft_event",
@@ -59,15 +56,14 @@ Get any transaction related to a given fungible token asset identifier
 }
 ```
 
-Get any transaction related to a given non fungible token asset identifier
-- `asset-identifier` mandatory argument
-  - admits:
-    - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
--  `actions` mandatory argument
-   - admits:
-     - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+Get any transaction related to a given non fungible token asset identifier:
 
-```
+- `asset-identifier` mandatory argument admits:
+  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
+- `actions` mandatory argument admits:
+  - array of string type constrained to `mint`, `transfer` and `burn` values. example: ["mint", "burn"]
+
+```json
 {
     "if_this": {
         "scope": "nft_event",
@@ -77,12 +73,12 @@ Get any transaction related to a given non fungible token asset identifier
 }
 ```
 
-Get any transaction moving STX tokens
-- `actions` mandatory argument
-  - admits:
-    - array of string type constrained to `mint`, `transfer` , `burn` and `lock` values. example: ["mint", "lock"]
+Get any transaction moving STX tokens:
 
-```
+- `actions` mandatory argument admits:
+  - array of string type constrained to `mint`, `transfer` , `burn` and `lock` values. example: ["mint", "lock"]
+
+```json
 {
     "if_this": {
         "scope": "stx_event",
@@ -94,11 +90,11 @@ Get any transaction moving STX tokens
 
 Get any transaction emitting given print events predicate
 
-- `contract-identifier` mandatory argument
-  - admits:
-    - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits: - string type, used for matching event
+- `contract-identifier` mandatory argument admits:
+  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits:
+  - string type, used for matching event
 
-```
+```json
 {
     "if_this": {
         "scope": "print_event",
@@ -113,9 +109,10 @@ Get any transaction calling a specific method for a given contract **directly**.
 > [!Warning]
 > If the `watched` method is being called by another contract, this predicate won't detect it.
 
-- `contract-identifier` mandatory argument admits: - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
+- `contract-identifier` mandatory argument admits:
+  - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
 
-```
+```json
 {
     "if_this": {
         "scope": "contract_call",
@@ -126,11 +123,11 @@ Get any transaction calling a specific method for a given contract **directly**.
 ```
 
 Get any transaction including a contract deployment
-- `deployer` mandatory argument
-  - admits: 
-    - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 
-```
+- `deployer` mandatory argument admits:
+  - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
+
+```json
 {
     "if_this": {
         "scope": "contract_deployment",
@@ -139,11 +136,14 @@ Get any transaction including a contract deployment
 }
 ```
 
-(coming soon) Get any transaction, including a contract deployment implementing a given trait 
-- `implement-trait` mandatory argument 
-  - admits: 
-    - string type, fully qualifying the trait's shape to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
-```
+Get any transaction, including a contract deployment implementing a given trait
+// coming soon
+
+- `implement-trait` mandatory argument admits:
+
+  - string type, fully qualifying the trait's shape to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
+
+```json
 {
     "if_this": {
         "scope": "contract_deployment",
@@ -156,12 +156,11 @@ Get any transaction including a contract deployment
 
 HTTP Post block/transaction payload to a given endpoint.
 
-- `http_post` construct
-  -  admits:
-     - url (string type). Example: http://localhost:3000/api/v1/wrapBtc 
-     - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
+- `http_post` construct admits:
+  - url (string type). Example: http://localhost:3000/api/v1/wrapBtc 
+  - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
 
-```
+```json
 {
     "then_that": {
         "http_post": {
@@ -172,12 +171,12 @@ HTTP Post block/transaction payload to a given endpoint.
 }
 ```
 
-Append events to a file through the filesystem. Convenient for local tests.
--  `file_append` construct
-   -  admits:
-      - path (string type). Path to file on disk.
+Append events to a file through the filesystem. Convenient for local tests:
+
+- `file_append` construct admits:
+  - path (string type). Path to file on disk.
   
-```
+```json
 {
     "then_that": {
         "file_append": {
@@ -189,7 +188,8 @@ Append events to a file through the filesystem. Convenient for local tests.
 
 ## Additional Configurations available
 
-Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain
+Following additional configurations can be used to improve performance of chainhook by preventing full scan of the blockchain:
+
 - Ignore any block prior to the given block:
 `"start_block": 101`
 
@@ -206,7 +206,7 @@ Following additional configurations can be used to improve performance of chainh
 
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five transactions interacting with ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09, emitting print events containing the word 'vault'.
 
-```
+```json
 {
   "chain": "stacks",
   "uuid": "1",
@@ -236,7 +236,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc`  the first five
 
 A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
 
-```
+```jsonq
 {
   "chain": "stacks",
   "uuid": "1",

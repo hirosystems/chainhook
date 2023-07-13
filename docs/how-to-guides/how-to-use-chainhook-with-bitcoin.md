@@ -2,16 +2,16 @@
 title: Use Chainhook with Bitcoin
 ---
 
-
 The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`
 , `then-that` constructs.
 
 ## `if_this` Specifications
 
 Currently, `bitcoin` predicates support the following `if_this` constructs
-Get any transaction matching a given txid.
-- `txid` mandatory argument
-  - admits: - 32 bytes hex encoded type.
+Get any transaction matching a given transaction ID (txid):
+
+- `txid` mandatory argument admits:
+  - 32 bytes hex encoded type.
 
 ```json
 
@@ -23,12 +23,12 @@ Get any transaction matching a given txid.
 }
 ```
 
-Get any transaction, including an
+Get any transaction, including:
+
 - OP_RETURN output starting with a set of characters.
-  - `starts_with` mandatory argument 
-    - admits:
-      - ASCII string type. example: `X2[`
-      - hex encoded bytes. example: `0x589403`
+  - `starts_with` mandatory argument admits:
+    - ASCII string type. example: `X2[`
+    - hex encoded bytes. example: `0x589403`
 
 ```json
 {
@@ -41,10 +41,10 @@ Get any transaction, including an
 }
 ```
 
-Get any transaction, including an OP_RETURN output matching the sequence of bytes specified
--  `equals` mandatory argument
-   -  admits:
-    - hex encoded bytes. example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
+Get any transaction, including an OP_RETURN output matching the sequence of bytes specified:
+
+- `equals` mandatory argument admits:
+  - hex encoded bytes. example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
 
 ```json
 {
@@ -57,10 +57,11 @@ Get any transaction, including an OP_RETURN output matching the sequence of byte
 }
 ```
 
-Get any transaction, including an OP_RETURN output ending with a set of characters
--  `ends_with` mandatory argument admits:
+Get any transaction, including an OP_RETURN output ending with a set of characters:
+
+- `ends_with` mandatory argument admits:
   - ASCII string type. example: `X2[`
-    - hex encoded bytes. example: `0x76a914000000000000000000000000000000000000000088ac`
+  - hex encoded bytes. example: `0x76a914000000000000000000000000000000000000000088ac`
 
 ```json
 {
@@ -73,9 +74,9 @@ Get any transaction, including an OP_RETURN output ending with a set of characte
 }
 ```
 
-Get any transaction with a p2pkh output paying a given recipient
-- `p2pkh` construct
-  - admits:
+Get any transaction with a p2pkh output paying a given recipient:
+
+- `p2pkh` construct admits:
   - ASCII string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
   - hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
 
@@ -98,8 +99,10 @@ Get any transaction with a p2pkh output paying a given recipient
 ```
 
 Get any transaction including a p2sh output paying a given recipient `p2sh` construct admits:
-- string type. example: "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
-- hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
+
+- `p2pkh` construct admits:
+  - string type. Example: "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
+  - hex encoded bytes type. Example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
 
 ```json
 {
@@ -119,8 +122,9 @@ Get any transaction including a p2sh output paying a given recipient `p2sh` cons
 }
 ```
 
-Get any transaction including a p2wpkh output paying a given recipient
--  `p2wpkh` construct admits:
+Get any transaction including a `p2wpkh` output paying a given recipient:
+
+- `p2wpkh` construct admits:
   - string type. example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
 
 ```json
@@ -132,9 +136,10 @@ Get any transaction including a p2wpkh output paying a given recipient
 }
 ```
 
-Get any transaction including a p2wsh output paying a given recipient
+Get any transaction including a `p2wsh` output paying a given recipient:
+
 - `p2wsh` construct admits:
-  - string type. example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
+  - string type. Example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
 
 ```json
 {
@@ -145,7 +150,7 @@ Get any transaction including a p2wsh output paying a given recipient
 }
 ```
 
-Get any Bitcoin transaction, including a Block commitment. Broadcasted payloads include Proof of Transfer reward information.
+Get any Bitcoin transaction, including a Block commitment. Broadcasted payloads include _Proof of Transfer_ reward information:
 
 ```json
 {
@@ -167,8 +172,9 @@ Get any transaction, including a key registration operation:
 }
 ```
 
-Get any transaction, including an STX transfer operation 
+Get any transaction, including an STX transfer operation:
 // Coming soon
+
 ```json
 {
     "if_this": {
@@ -178,8 +184,9 @@ Get any transaction, including an STX transfer operation
 }
 ```
 
-Get any transaction, including an STX lock operation
+Get any transaction, including an STX lock operation:
 // Coming soon
+
 ```json
 {
     "if_this": {
@@ -188,7 +195,9 @@ Get any transaction, including an STX lock operation
     }
 }
 ```
+
 Get any transaction including a new Ordinal inscription (inscription revealed and transferred)
+
 ```json
 {
     "if_this": {
@@ -198,11 +207,12 @@ Get any transaction including a new Ordinal inscription (inscription revealed an
 }
 ```
 
-##  `then_that` Constructs
+## `then_that` Constructs
 
 The following `then_that` constructs are supported:
 
-HTTP Post block/transaction payload to a given endpoint.
+`HTTP Post` block/transaction payload to a given endpoint:
+
 - `http_post` construct admits:
   - url (string type). Example: http://localhost:3000/api/v1/wrapBtc
   - authorization_header (string type). Secret to add to the request `authorization` header when posting payloads
@@ -218,9 +228,9 @@ HTTP Post block/transaction payload to a given endpoint.
     }
 }
 
-Append events to a file through the filesystem. Convenient for local tests.
-- `file_append` construct admits:
-  - path (string type). Path to the file on disk.
+Append events to a file through the filesystem. Convenient for local tests:
+  - `file_append` construct admits:
+    - path (string type). Path to the file on disk.
 
 ```jsonc
 {
@@ -235,6 +245,7 @@ Append events to a file through the filesystem. Convenient for local tests.
 ## Additional configuration knobs available
 
 The following additional configurations can be used to improve performance of Chainhook by preventing a full scan of the blockchain:
+
 - Ignore any block before the given block:
 `"start_block": 101`
 
@@ -261,7 +272,7 @@ The following additional configurations can be used to improve performance of Ch
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount, occurring after block height 10200.
 
 > [!NOTE]
-> The start_block is mandatory to post events to 
+> The start_block is mandatory to post events using `http_post` `then-that` predicate.
 
 ```json
 {
@@ -292,8 +303,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first 
 
 ## Example predicate with multiple networks
 
-A specification file can also include different networks. In this case, the chainhook will select the predicate corresponding to the network it was launched against.
-
+A specification file can also include different networks. In this case, the Chainhook will select the predicate corresponding to the network it was launched against. In the below example, testnet and mainnet are the two different networks.
 
 ```json
 {
