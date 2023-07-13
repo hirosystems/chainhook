@@ -7,7 +7,9 @@
   "paths": {
     "/ping": {
       "get": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Health Check"
+        ],
         "operationId": "handle_ping",
         "responses": {
           "200": {
@@ -23,7 +25,9 @@
     },
     "/v1/chainhooks": {
       "get": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Managing Predicates"
+        ],
         "operationId": "handle_get_predicates",
         "responses": {
           "200": {
@@ -37,7 +41,9 @@
         }
       },
       "post": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Managing Predicates"
+        ],
         "operationId": "handle_create_predicate",
         "requestBody": {
           "content": {
@@ -63,7 +69,9 @@
     },
     "/v1/chainhooks/{predicate_uuid}": {
       "get": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Managing Predicates"
+        ],
         "operationId": "handle_get_predicate",
         "parameters": [
           {
@@ -89,7 +97,9 @@
     },
     "/v1/chainhooks/bitcoin/{predicate_uuid}": {
       "delete": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Managing Predicates"
+        ],
         "operationId": "handle_delete_bitcoin_predicate",
         "parameters": [
           {
@@ -115,7 +125,9 @@
     },
     "/v1/chainhooks/stacks/{predicate_uuid}": {
       "delete": {
-        "tags": ["Chainhooks"],
+        "tags": [
+          "Managing Predicates"
+        ],
         "operationId": "handle_delete_stacks_predicate",
         "parameters": [
           {
@@ -146,11 +158,19 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["chain", "name", "networks", "uuid", "version"],
+            "required": [
+              "chain",
+              "name",
+              "networks",
+              "uuid",
+              "version"
+            ],
             "properties": {
               "chain": {
                 "type": "string",
-                "enum": ["bitcoin"]
+                "enum": [
+                  "bitcoin"
+                ]
               },
               "uuid": {
                 "type": "string"
@@ -171,7 +191,9 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["regtest"],
+                    "required": [
+                      "regtest"
+                    ],
                     "properties": {
                       "regtest": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
@@ -180,7 +202,9 @@
                   },
                   {
                     "type": "object",
-                    "required": ["testnet"],
+                    "required": [
+                      "testnet"
+                    ],
                     "properties": {
                       "testnet": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
@@ -189,7 +213,9 @@
                   },
                   {
                     "type": "object",
-                    "required": ["mainnet"],
+                    "required": [
+                      "mainnet"
+                    ],
                     "properties": {
                       "mainnet": {
                         "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
@@ -202,11 +228,19 @@
           },
           {
             "type": "object",
-            "required": ["chain", "name", "networks", "uuid", "version"],
+            "required": [
+              "chain",
+              "name",
+              "networks",
+              "uuid",
+              "version"
+            ],
             "properties": {
               "chain": {
                 "type": "string",
-                "enum": ["stacks"]
+                "enum": [
+                  "stacks"
+                ]
               },
               "uuid": {
                 "type": "string"
@@ -227,7 +261,9 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["simnet"],
+                    "required": [
+                      "simnet"
+                    ],
                     "properties": {
                       "simnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
@@ -236,7 +272,9 @@
                   },
                   {
                     "type": "object",
-                    "required": ["devnet"],
+                    "required": [
+                      "devnet"
+                    ],
                     "properties": {
                       "devnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
@@ -245,7 +283,9 @@
                   },
                   {
                     "type": "object",
-                    "required": ["testnet"],
+                    "required": [
+                      "testnet"
+                    ],
                     "properties": {
                       "testnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
@@ -254,7 +294,9 @@
                   },
                   {
                     "type": "object",
-                    "required": ["mainnet"],
+                    "required": [
+                      "mainnet"
+                    ],
                     "properties": {
                       "mainnet": {
                         "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
@@ -269,12 +311,28 @@
       },
       "BitcoinNetwork": {
         "type": "string",
-        "enum": ["regtest", "testnet", "mainnet"]
+        "enum": [
+          "regtest",
+          "testnet",
+          "mainnet"
+        ]
       },
       "BitcoinChainhookNetworkSpecification": {
         "type": "object",
-        "required": ["if_this", "then_that"],
+        "required": [
+          "if_this",
+          "then_that"
+        ],
         "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "nullable": true
+          },
           "start_block": {
             "type": "integer",
             "format": "uint64",
@@ -321,11 +379,15 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["block"]
+                "enum": [
+                  "block"
+                ]
               }
             }
           },
@@ -334,7 +396,9 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["equals"],
+                "required": [
+                  "equals"
+                ],
                 "properties": {
                   "equals": {
                     "type": "string"
@@ -343,11 +407,15 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["txid"]
+                "enum": [
+                  "txid"
+                ]
               }
             }
           },
@@ -356,7 +424,9 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["txid"],
+                "required": [
+                  "txid"
+                ],
                 "properties": {
                   "txid": {
                     "$ref": "#/components/schemas/TxinPredicate"
@@ -366,7 +436,9 @@
               },
               {
                 "type": "object",
-                "required": ["witness_script"],
+                "required": [
+                  "witness_script"
+                ],
                 "properties": {
                   "witness_script": {
                     "$ref": "#/components/schemas/MatchingRule"
@@ -375,11 +447,15 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["inputs"]
+                "enum": [
+                  "inputs"
+                ]
               }
             }
           },
@@ -388,7 +464,9 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["op_return"],
+                "required": [
+                  "op_return"
+                ],
                 "properties": {
                   "op_return": {
                     "$ref": "#/components/schemas/MatchingRule"
@@ -398,7 +476,9 @@
               },
               {
                 "type": "object",
-                "required": ["p2pkh"],
+                "required": [
+                  "p2pkh"
+                ],
                 "properties": {
                   "p2pkh": {
                     "$ref": "#/components/schemas/ExactMatchingRule"
@@ -408,7 +488,9 @@
               },
               {
                 "type": "object",
-                "required": ["p2sh"],
+                "required": [
+                  "p2sh"
+                ],
                 "properties": {
                   "p2sh": {
                     "$ref": "#/components/schemas/ExactMatchingRule"
@@ -418,7 +500,9 @@
               },
               {
                 "type": "object",
-                "required": ["p2wpkh"],
+                "required": [
+                  "p2wpkh"
+                ],
                 "properties": {
                   "p2wpkh": {
                     "$ref": "#/components/schemas/ExactMatchingRule"
@@ -428,7 +512,9 @@
               },
               {
                 "type": "object",
-                "required": ["p2wsh"],
+                "required": [
+                  "p2wsh"
+                ],
                 "properties": {
                   "p2wsh": {
                     "$ref": "#/components/schemas/ExactMatchingRule"
@@ -437,11 +523,15 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["outputs"]
+                "enum": [
+                  "outputs"
+                ]
               }
             }
           },
@@ -450,60 +540,84 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["stacker_rewarded"]
+                    "enum": [
+                      "stacker_rewarded"
+                    ]
                   }
                 }
               },
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["block_committed"]
+                    "enum": [
+                      "block_committed"
+                    ]
                   }
                 }
               },
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["leader_registered"]
+                    "enum": [
+                      "leader_registered"
+                    ]
                   }
                 }
               },
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["stx_transferred"]
+                    "enum": [
+                      "stx_transferred"
+                    ]
                   }
                 }
               },
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["stx_locked"]
+                    "enum": [
+                      "stx_locked"
+                    ]
                   }
                 }
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["stacks_protocol"]
+                "enum": [
+                  "stacks_protocol"
+                ]
               }
             }
           },
@@ -512,20 +626,28 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["operation"],
+                "required": [
+                  "operation"
+                ],
                 "properties": {
                   "operation": {
                     "type": "string",
-                    "enum": ["inscription_feed"]
+                    "enum": [
+                      "inscription_feed"
+                    ]
                   }
                 }
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["ordinals_protocol"]
+                "enum": [
+                  "ordinals_protocol"
+                ]
               }
             }
           }
@@ -533,7 +655,10 @@
       },
       "TxinPredicate": {
         "type": "object",
-        "required": ["txid", "vout"],
+        "required": [
+          "txid",
+          "vout"
+        ],
         "properties": {
           "txid": {
             "type": "string"
@@ -549,7 +674,9 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["equals"],
+            "required": [
+              "equals"
+            ],
             "properties": {
               "equals": {
                 "type": "string"
@@ -559,7 +686,9 @@
           },
           {
             "type": "object",
-            "required": ["starts_with"],
+            "required": [
+              "starts_with"
+            ],
             "properties": {
               "starts_with": {
                 "type": "string"
@@ -569,7 +698,9 @@
           },
           {
             "type": "object",
-            "required": ["ends_with"],
+            "required": [
+              "ends_with"
+            ],
             "properties": {
               "ends_with": {
                 "type": "string"
@@ -583,7 +714,9 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["equals"],
+            "required": [
+              "equals"
+            ],
             "properties": {
               "equals": {
                 "type": "string"
@@ -597,11 +730,15 @@
         "oneOf": [
           {
             "type": "string",
-            "enum": ["noop"]
+            "enum": [
+              "noop"
+            ]
           },
           {
             "type": "object",
-            "required": ["http_post"],
+            "required": [
+              "http_post"
+            ],
             "properties": {
               "http_post": {
                 "$ref": "#/components/schemas/HttpHook"
@@ -611,7 +748,9 @@
           },
           {
             "type": "object",
-            "required": ["file_append"],
+            "required": [
+              "file_append"
+            ],
             "properties": {
               "file_append": {
                 "$ref": "#/components/schemas/FileHook"
@@ -623,7 +762,10 @@
       },
       "HttpHook": {
         "type": "object",
-        "required": ["authorization_header", "url"],
+        "required": [
+          "authorization_header",
+          "url"
+        ],
         "properties": {
           "url": {
             "type": "string"
@@ -635,7 +777,9 @@
       },
       "FileHook": {
         "type": "object",
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "properties": {
           "path": {
             "type": "string"
@@ -644,12 +788,29 @@
       },
       "StacksNetwork": {
         "type": "string",
-        "enum": ["simnet", "devnet", "testnet", "mainnet"]
+        "enum": [
+          "simnet",
+          "devnet",
+          "testnet",
+          "mainnet"
+        ]
       },
       "StacksChainhookNetworkSpecification": {
         "type": "object",
-        "required": ["if_this", "then_that"],
+        "required": [
+          "if_this",
+          "then_that"
+        ],
         "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "nullable": true
+          },
           "start_block": {
             "type": "integer",
             "format": "uint64",
@@ -691,7 +852,9 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["equals"],
+                "required": [
+                  "equals"
+                ],
                 "properties": {
                   "equals": {
                     "type": "integer",
@@ -703,7 +866,9 @@
               },
               {
                 "type": "object",
-                "required": ["higher_than"],
+                "required": [
+                  "higher_than"
+                ],
                 "properties": {
                   "higher_than": {
                     "type": "integer",
@@ -715,7 +880,9 @@
               },
               {
                 "type": "object",
-                "required": ["lower_than"],
+                "required": [
+                  "lower_than"
+                ],
                 "properties": {
                   "lower_than": {
                     "type": "integer",
@@ -727,7 +894,9 @@
               },
               {
                 "type": "object",
-                "required": ["between"],
+                "required": [
+                  "between"
+                ],
                 "properties": {
                   "between": {
                     "type": "array",
@@ -752,11 +921,15 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["block_height"]
+                "enum": [
+                  "block_height"
+                ]
               }
             }
           },
@@ -765,11 +938,16 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": ["implement_sip09", "implement_sip10"]
+                "enum": [
+                  "implement_sip09",
+                  "implement_sip10"
+                ]
               },
               {
                 "type": "object",
-                "required": ["deployer"],
+                "required": [
+                  "deployer"
+                ],
                 "properties": {
                   "deployer": {
                     "type": "string"
@@ -778,21 +956,31 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["contract_deployment"]
+                "enum": [
+                  "contract_deployment"
+                ]
               }
             }
           },
           {
             "type": "object",
-            "required": ["contract_identifier", "method", "scope"],
+            "required": [
+              "contract_identifier",
+              "method",
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["contract_call"]
+                "enum": [
+                  "contract_call"
+                ]
               },
               "contract_identifier": {
                 "type": "string"
@@ -804,11 +992,17 @@
           },
           {
             "type": "object",
-            "required": ["contains", "contract_identifier", "scope"],
+            "required": [
+              "contains",
+              "contract_identifier",
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["print_event"]
+                "enum": [
+                  "print_event"
+                ]
               },
               "contract_identifier": {
                 "type": "string"
@@ -820,11 +1014,17 @@
           },
           {
             "type": "object",
-            "required": ["actions", "asset_identifier", "scope"],
+            "required": [
+              "actions",
+              "asset_identifier",
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["ft_event"]
+                "enum": [
+                  "ft_event"
+                ]
               },
               "asset_identifier": {
                 "type": "string"
@@ -839,11 +1039,17 @@
           },
           {
             "type": "object",
-            "required": ["actions", "asset_identifier", "scope"],
+            "required": [
+              "actions",
+              "asset_identifier",
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["nft_event"]
+                "enum": [
+                  "nft_event"
+                ]
               },
               "asset_identifier": {
                 "type": "string"
@@ -858,11 +1064,16 @@
           },
           {
             "type": "object",
-            "required": ["actions", "scope"],
+            "required": [
+              "actions",
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["stx_event"]
+                "enum": [
+                  "stx_event"
+                ]
               },
               "actions": {
                 "type": "array",
@@ -877,7 +1088,9 @@
             "oneOf": [
               {
                 "type": "object",
-                "required": ["equals"],
+                "required": [
+                  "equals"
+                ],
                 "properties": {
                   "equals": {
                     "type": "string"
@@ -886,11 +1099,15 @@
                 "additionalProperties": false
               }
             ],
-            "required": ["scope"],
+            "required": [
+              "scope"
+            ],
             "properties": {
               "scope": {
                 "type": "string",
-                "enum": ["txid"]
+                "enum": [
+                  "txid"
+                ]
               }
             }
           }
