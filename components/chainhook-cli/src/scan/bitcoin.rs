@@ -9,13 +9,13 @@ use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
-use chainhook_sdk::chainhooks::types::{BitcoinChainhookSpecification};
+use chainhook_sdk::chainhooks::types::BitcoinChainhookSpecification;
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
 };
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
-use chainhook_sdk::utils::{file_append, send_request, Context};
+use chainhook_sdk::utils::{file_append, send_request, BlockHeights, Context};
 use chainhook_types::{BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData};
 use std::collections::HashMap;
 
@@ -35,51 +35,55 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             return Err(format!("Bitcoin RPC error: {}", message.to_string()));
         }
     };
+    let mut floating_end_block = false;
 
-    let start_block = match predicate_spec.start_block {
-        Some(start_block) => start_block,
-        None => {
-            return Err(
-                "Bitcoin chainhook specification must include a field start_block in replay mode"
-                    .into(),
-            );
-        }
-    };
-
-    let (mut end_block, floating_end_block) = match predicate_spec.end_block {
-        Some(end_block) => (end_block, false),
-        None => match bitcoin_rpc.get_blockchain_info() {
-            Ok(result) => (result.blocks - 1, true),
-            Err(e) => {
-                return Err(format!(
-                    "unable to retrieve Bitcoin chain tip ({})",
-                    e.to_string()
-                ));
+    let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
+        BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
+    } else {
+        let start_block = match predicate_spec.start_block {
+            Some(start_block) => start_block,
+            None => {
+                return Err(
+                    "Bitcoin chainhook specification must include a field start_block in replay mode"
+                        .into(),
+                );
             }
-        },
+        };
+        let (end_block, update_end_block) = match predicate_spec.end_block {
+            Some(end_block) => (end_block, false),
+            None => match bitcoin_rpc.get_blockchain_info() {
+                Ok(result) => (result.blocks - 1, true),
+                Err(e) => {
+                    return Err(format!(
+                        "unable to retrieve Bitcoin chain tip ({})",
+                        e.to_string()
+                    ));
+                }
+            },
+        };
+        floating_end_block = update_end_block;
+        BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
     };
-
 
     info!(
         ctx.expect_logger(),
         "Starting predicate evaluation on Bitcoin blocks",
     );
 
-    let mut blocks_scanned = 0;
     let mut actions_triggered = 0;
-    let mut occurrences_found = 0u64;
     let mut err_count = 0;
 
     let event_observer_config = config.get_event_observer_config();
     let bitcoin_config = event_observer_config.get_bitcoin_config();
+    let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
+    let mut number_of_blocks_scanned = 0;
+    let mut number_of_blocks_sent = 0u64;
 
-    let mut cursor = start_block.saturating_sub(1);
+    while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        number_of_blocks_scanned += 1;
 
-    while cursor <= end_block {
-        cursor += 1;
-        blocks_scanned += 1;
-
-        let block_hash = retrieve_block_hash_with_retry(&cursor, &bitcoin_config, ctx).await?;
+        let block_hash =
+            retrieve_block_hash_with_retry(&current_block_height, &bitcoin_config, ctx).await?;
         let block_breakdown =
             download_and_parse_block_with_retry(&block_hash, &bitcoin_config, ctx).await?;
         let block = match indexer::bitcoin::standardize_bitcoin_block(
@@ -91,7 +95,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             Err((e, _)) => {
                 warn!(
                     ctx.expect_logger(),
-                    "Unable to standardize block#{} {}: {}", cursor, block_hash, e
+                    "Unable to standardize block#{} {}: {}", current_block_height, block_hash, e
                 );
                 continue;
             }
@@ -105,7 +109,12 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         )
         .await
         {
-            Ok(actions) => actions_triggered += actions,
+            Ok(actions) => {
+                if actions > 0 {
+                    number_of_blocks_sent += 1;
+                }
+                actions_triggered += actions
+            }
             Err(_) => err_count += 1,
         }
 
@@ -114,12 +123,12 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         }
 
         if let PredicatesApi::On(ref api_config) = config.http_api {
-            if blocks_scanned % 50 == 0 {
+            if number_of_blocks_scanned % 50 == 0 {
                 let status = PredicateStatus::Scanning(ScanningData {
-                    start_block,
-                    end_block,
-                    cursor,
-                    occurrences_found,
+                    number_of_blocks_to_scan,
+                    number_of_blocks_scanned,
+                    number_of_blocks_sent,
+                    current_block_height,
                 });
                 let mut predicates_db_conn =
                     open_readwrite_predicates_db_conn_or_panic(api_config, &ctx);
@@ -132,9 +141,13 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             }
         }
 
-        if cursor == end_block && floating_end_block {
-            end_block = match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => result.blocks - 1,
+        if block_heights_to_scan.is_empty() && floating_end_block {
+            match bitcoin_rpc.get_blockchain_info() {
+                Ok(result) => {
+                    for entry in (current_block_height + 1)..result.blocks {
+                        block_heights_to_scan.push_back(entry);
+                    }
+                }
                 Err(_e) => {
                     continue;
                 }
@@ -143,15 +156,15 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     }
     info!(
         ctx.expect_logger(),
-        "{blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
+        "{number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
     );
 
     if let PredicatesApi::On(ref api_config) = config.http_api {
         let status = PredicateStatus::Scanning(ScanningData {
-            start_block,
-            end_block,
-            cursor,
-            occurrences_found,
+            number_of_blocks_to_scan,
+            number_of_blocks_scanned,
+            number_of_blocks_sent,
+            current_block_height: 0,
         });
         let mut predicates_db_conn = open_readwrite_predicates_db_conn_or_panic(api_config, &ctx);
         update_predicate_status(&predicate_spec.key(), status, &mut predicates_db_conn, &ctx)
