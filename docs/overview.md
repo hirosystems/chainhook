@@ -86,4 +86,4 @@ The `then-that` predicate design can use the following attributes to output the 
 }
 ```
 
-For more information on predicate definitions, refer to [how to use chainhook with bitcoin](../docs/how-to-guides/how-to-use-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](../docs/how-to-guides/how-to-use-chainhook-with-stacks.md).
+For more information on predicate definitions, refer to [how to use chainhook with bitcoin](./how-to-guides/how-to-use-chainhook-with-bitcoin.md) and [how to use chainhook with Stacks](./how-to-guides/how-to-use-chainhook-with-stacks.md).
