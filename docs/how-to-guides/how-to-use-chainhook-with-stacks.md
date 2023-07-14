@@ -2,20 +2,18 @@
 title: Use Chainhook with Stacks
 ---
 
-This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`, `then-that` constructs.
+This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`, and `then-that` constructs.
 
 ## `if_this` Specifications
 
 The current `stacks` predicates support the following `if_this` constructs:
 
-Get any transaction matching a given `txid` mandatory argument admits:
+Get any transaction matching a given transaction ID `txid` mandatory argument admits:
 
-    - 32 bytes hex encoded type
-
-Example:
+- 32 bytes hex encoded type
 
 ```json
- 
+
 {
     "if_this": {
         "scope": "txid",
@@ -25,6 +23,8 @@ Example:
 ```
 
 Get any stacks block matching constraints:
+
+`block_height` can be used to check for specific blocks based on the height of the block.
 
 - `block_height` mandatory argument admits:
   - `equals`, `higher_than`, `lower_than`, `between`: integer type.
@@ -41,9 +41,9 @@ Get any stacks block matching constraints:
 Get any transaction related to a given fungible token asset identifier:
 
 - `asset-identifier` mandatory argument admits:
-  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
+  - string type, fully qualifying the asset identifier to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-sip10::cbtc`
 - `actions` mandatory argument admits:
-  - array of string type constrained to `mint`, `transfer` and `burn` values. Example: ["mint", "burn"]
+  - array of string types constrained to `mint`, `transfer`, and `burn` values. Example: ["mint", "burn"]
 
 ```json
 {
@@ -58,7 +58,7 @@ Get any transaction related to a given fungible token asset identifier:
 Get any transaction related to a given non-fungible token asset identifier:
 
 - `asset-identifier` mandatory argument admits:
-  - string type, fully qualifying the asset identifier to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
+  - string type, fully qualifying the asset identifier to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys`
 - `actions` mandatory argument admits:
   - array of string type constrained to `mint`, `transfer` and `burn` values. Example: ["mint", "burn"]
 
@@ -81,7 +81,6 @@ Get any transaction moving STX tokens:
 {
     "if_this": {
         "scope": "stx_event",
-        "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys",
         "actions": ["transfer", "lock"]
     },
 }
@@ -124,7 +123,7 @@ Get any transaction calling a specific method for a given contract **directly**.
 Get any transaction, including a contract deployment:
 
 - `deployer` mandatory argument admits:
-  - string "*" - string encoding a valid STX address. example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
+  - string "*" - string encoding a valid STX address. Example: "ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG"
 
 ```json
 {

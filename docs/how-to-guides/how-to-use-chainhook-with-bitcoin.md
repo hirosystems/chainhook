@@ -2,8 +2,7 @@
 title: Use Chainhook with Bitcoin
 ---
 
-The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`
-, `then-that` constructs.
+The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`, `then-that` constructs.
 
 ## `if_this` Specifications
 
@@ -28,8 +27,8 @@ Get any transaction, including:
 
 - OP_RETURN output starting with a set of characters.
   - `starts_with` mandatory argument admits:
-    - ASCII string type. example: `X2[`
-    - hex encoded bytes. example: `0x589403`
+    - ASCII string type. Example: `X2[`
+    - hex encoded bytes. Example: `0x589403`
 
 ```json
 {
@@ -42,10 +41,12 @@ Get any transaction, including:
 }
 ```
 
+`op_return` is used to find blocks starting, ending, or equivalent to a specific string from the list of output blocks.
+
 Get any transaction, including an OP_RETURN output matching the sequence of bytes specified:
 
 - `equals` mandatory argument admits:
-  - hex encoded bytes. example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
+  - hex encoded bytes. Example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
 
 ```json
 {
@@ -61,8 +62,8 @@ Get any transaction, including an OP_RETURN output matching the sequence of byte
 Get any transaction, including an OP_RETURN output ending with a set of characters:
 
 - `ends_with` mandatory argument admits:
-  - ASCII string type. example: `X2[`
-  - hex encoded bytes. example: `0x76a914000000000000000000000000000000000000000088ac`
+  - ASCII string type. Example: `X2[`
+  - hex encoded bytes. Example: `0x76a914000000000000000000000000000000000000000088ac`
 
 ```json
 {
@@ -78,8 +79,8 @@ Get any transaction, including an OP_RETURN output ending with a set of characte
 Get any transaction with a p2pkh output paying a given recipient:
 
 - `p2pkh` construct admits:
-  - ASCII string type. example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
-  - hex encoded bytes type. example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
+  - ASCII string type. Example: "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
+  - hex encoded bytes type. Example: "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
 
 ```json
 {
@@ -113,16 +114,7 @@ Get any transaction including a p2sh output paying a given recipient `p2sh` cons
 
 `p2sh`(Pay-to-Script-Hash) is a Bitcoin transaction output script type that enables users to send funds to a script instead of a public key, allowing for more complex transaction conditions and multi-signature addresses.
 
-```json
-{
-    "if_this": {
-        "scope": "outputs",
-        "p2sh": "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
-    }
-}
-```
-
-Get any transaction including a `p2wpkh` output paying a given recipient:
+Get any transaction, including a `p2wpkh` output paying a given recipient:
 
 - `p2wpkh` construct admits:
   - string type. Example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
@@ -140,7 +132,7 @@ Get any transaction including a `p2wpkh` output paying a given recipient:
 
 `p2wpkh`(Pay-to-Witness-Public-Key-Hash) is a Bitcoin transaction output script type used in Segregated Witness (SegWit) that allows for more efficient and secure transactions by separating the witness data from the transaction data and storing it in a separate block.
 
-Get any transaction including a `p2wsh` output paying a given recipient:
+Get any transaction, including a `p2wsh` output paying a given recipient:
 
 - `p2wsh` construct admits:
   - string type. Example: "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
@@ -156,7 +148,7 @@ Get any transaction including a `p2wsh` output paying a given recipient:
 }
 ```
 
-'p2wsh'(Pay-to-Witness-Script-Hash) is a Bitcoin transaction output script type used in Segregated Witness (SegWit) that enables users to send funds to a hashed script, allowing for more complex transaction conditions and greater scalability by separating the script from the transaction data.
+`p2wsh`  (Pay-to-Witness-Script-Hash) is a Bitcoin transaction output script type used in Segregated Witness (SegWit) that enables users to send funds to a hashed script, allowing for more complex transaction conditions and greater scalability by separating the script from the transaction data.
 
 Get any Bitcoin transaction, including a Block commitment. Broadcasted payloads include _Proof of Transfer_ reward information:
 
@@ -169,7 +161,7 @@ Get any Bitcoin transaction, including a Block commitment. Broadcasted payloads 
 }
 ```
 
-Proof of Transfer(PoT) is a blockchain consensus mechanism where participants prove ownership of assets outside the blockchain, such as tokens or coins from another network, and transfer them to the target blockchain as a means of validating and securing transactions without relying solely on computational work or stake ownership.
+**Proof of Transfer(PoT)** is a blockchain consensus mechanism where participants prove ownership of assets outside the blockchain from another network and transfer them to the target blockchain to validate and secure transactions without relying solely on computational work or stake ownership.
 
 Get any transaction, including a key registration operation:
 
@@ -315,7 +307,7 @@ Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first 
 
 ## Example predicate with multiple networks
 
-A specification file can also include different networks. In this case, the Chainhook will select the predicate corresponding to the network it was launched against. In the below example, testnet and mainnet are the two different networks.
+A specification file can also include different networks. In this case, the Chainhook will select the predicate corresponding to the network it was launched against. In the below example, the testnet and mainnet are two different networks.
 
 ```json
 {
