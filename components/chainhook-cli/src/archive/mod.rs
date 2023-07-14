@@ -1,5 +1,5 @@
 use crate::config::Config;
-use chainhook_sdk::utils::{Context, read_file_content_at_path, write_file_content_at_path};
+use chainhook_sdk::utils::{read_file_content_at_path, write_file_content_at_path, Context};
 use chainhook_types::StacksNetwork;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;

@@ -154,13 +154,15 @@ pub async fn download_and_parse_block_with_retry(
             Ok(result) => break result,
             Err(e) => {
                 errors_count += 1;
-                ctx.try_log(|logger| {
-                    slog::warn!(
-                        logger,
-                        "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                        e.to_string()
-                    )
-                });
+                if errors_count > 3 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
+                            e.to_string()
+                        )
+                    });
+                }
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
@@ -195,13 +197,12 @@ pub async fn download_block_with_retry(
 
         match parse_downloaded_block(response) {
             Ok(result) => break result,
-            Err(e) => {
+            Err(_e) => {
                 errors_count += 1;
                 ctx.try_log(|logger| {
                     slog::warn!(
                         logger,
-                        "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                        e.to_string()
+                        "unable to retrieve block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
                     )
                 });
                 std::thread::sleep(std::time::Duration::from_millis(500));
@@ -221,16 +222,17 @@ pub async fn retrieve_block_hash_with_retry(
     let block_hash = loop {
         match retrieve_block_hash(block_height, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(e) => {
+            Err(_e) => {
                 errors_count += 1;
-                ctx.try_log(|logger| {
-                    slog::error!(
-                        logger,
-                        "unable to retrieve #{block_height} (attempt #{errors_count}): {}",
-                        e.to_string()
-                    )
-                });
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                if errors_count > 3 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_secs(2));
             }
         }
     };

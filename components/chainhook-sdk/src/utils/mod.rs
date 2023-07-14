@@ -1,7 +1,8 @@
 use std::{
     collections::{BTreeSet, VecDeque},
-    fs::{OpenOptions, self},
-    io::{Write, Read}, path::PathBuf,
+    fs::{self, OpenOptions},
+    io::{Read, Write},
+    path::PathBuf,
 };
 
 use chainhook_types::{
