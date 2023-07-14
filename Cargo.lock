@@ -463,7 +463,6 @@ dependencies = [
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "chainhook-types 1.0.8",
- "clarinet-files",
  "clarinet-utils",
  "crossbeam-channel 0.5.8",
  "dashmap 5.4.0",

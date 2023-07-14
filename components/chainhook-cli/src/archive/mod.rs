@@ -1,12 +1,12 @@
 use crate::config::Config;
 use chainhook_sdk::utils::Context;
 use chainhook_types::StacksNetwork;
-use clarinet_files::FileLocation;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use std::fs;
 use std::io::{self, Cursor};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 
 pub fn default_tsv_file_path(network: &StacksNetwork) -> String {
     format!("{:?}-stacks-events.tsv", network).to_lowercase()
@@ -33,8 +33,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
     let mut local_sha_file_path = destination_path.clone();
     local_sha_file_path.push(default_tsv_sha_file_path(&config.network.stacks_network));
 
-    let local_sha_file = FileLocation::from_path(local_sha_file_path);
-    let _ = local_sha_file.write_content(&res.to_vec());
+    write_file_content_at_path(&local_sha_file_path, &res.to_vec())?;
 
     let file_url = config.expected_remote_stacks_tsv_url();
     let res = reqwest::get(&file_url)
@@ -118,7 +117,7 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
 
             // Download archive if not already present in cache
             // Load the local
-            let local_sha_file = FileLocation::from_path(tsv_sha_file_path).read_content();
+            let local_sha_file = read_file_content_at_path(&tsv_sha_file_path);
             let sha_url = config.expected_remote_stacks_tsv_sha256();
 
             let remote_sha_file = match reqwest::get(&sha_url).await {
@@ -168,4 +167,36 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
         );
         false
     }
+}
+
+pub fn read_file_content_at_path(file_path: &PathBuf) -> Result<Vec<u8>, String> {
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let file = File::open(file_path.clone())
+        .map_err(|e| format!("unable to read file {}\n{:?}", file_path.display(), e))?;
+    let mut file_reader = BufReader::new(file);
+    let mut file_buffer = vec![];
+    file_reader
+        .read_to_end(&mut file_buffer)
+        .map_err(|e| format!("unable to read file {}\n{:?}", file_path.display(), e))?;
+    Ok(file_buffer)
+}
+
+pub fn write_file_content_at_path(file_path: &PathBuf, content: &[u8]) -> Result<(), String> {
+    use std::fs::File;
+    let mut parent_directory = file_path.clone();
+    parent_directory.pop();
+    fs::create_dir_all(&parent_directory).map_err(|e| {
+        format!(
+            "unable to create parent directory {}\n{}",
+            parent_directory.display(),
+            e
+        )
+    })?;
+    let mut file = File::create(&file_path)
+        .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
+    file.write_all(content)
+        .map_err(|e| format!("unable to write file {}\n{}", file_path.display(), e))?;
+    Ok(())
 }
