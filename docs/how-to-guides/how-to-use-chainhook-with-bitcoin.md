@@ -85,21 +85,14 @@ Get any transaction with a p2pkh output paying a given recipient:
 {
     "if_this": {
         "scope": "outputs",
-        "p2pkh": "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
+        "p2pkh": {
+            "equals": "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"
+        }
     }
 }
 ```
 
 `p2pkh`(Pay-to-Public-Key-Hash) is a Bitcoin transaction output script type that allows users to send funds to a recipient's hashed public key, providing security and privacy by concealing the actual public key.
-
-```json
-{
-    "if_this": {
-        "scope": "outputs",
-        "p2pkh": "0x76a914ee9369fb719c0ba43ddf4d94638a970b84775f4788ac"
-    }
-}
-```
 
 Get any transaction including a p2sh output paying a given recipient `p2sh` construct admits:
 
@@ -111,7 +104,9 @@ Get any transaction including a p2sh output paying a given recipient `p2sh` cons
 {
     "if_this": {
         "scope": "outputs",
-        "p2sh": "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
+        "p2sh": {
+          "equals": "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"
+        }
     }
 }
 ```
@@ -130,13 +125,15 @@ Get any transaction including a p2sh output paying a given recipient `p2sh` cons
 Get any transaction including a `p2wpkh` output paying a given recipient:
 
 - `p2wpkh` construct admits:
-  - string type. example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
+  - string type. Example: "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
 
 ```json
 {
     "if_this": {
         "scope": "outputs",
-        "p2wpkh": "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
+        "p2wpkh": {
+          "equals": "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"
+        }
     }
 }
 ```
@@ -152,7 +149,9 @@ Get any transaction including a `p2wsh` output paying a given recipient:
 {
     "if_this": {
         "scope": "outputs",
-        "p2wsh": "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
+        "p2wsh": {
+          "equals": "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"
+        }
     }
 }
 ```
@@ -178,7 +177,7 @@ Get any transaction, including a key registration operation:
 {
     "if_this": {
         "scope": "stacks_protocol",
-        "operation": "leader_key_registered"
+        "operation": "leader_registered"
     }
 }
 ```
