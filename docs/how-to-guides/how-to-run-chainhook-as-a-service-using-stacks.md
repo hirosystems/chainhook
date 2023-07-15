@@ -14,7 +14,7 @@ Start with the prerequisite section and configure your files to start the chainh
 - Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
 - Set up the bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
-A `Stacks.toml` file gets generated when you configure the stacks node. Below is the sample `Stacks.toml` file.
+A `Stacks.toml` file is generated when configuring the stacks node. Below is the sample `Stacks.toml` file.
 
 ```toml
 [node]
@@ -50,7 +50,7 @@ In this section, you will configure a chainhook to communicate with the network.
 
 Ensure that the `bitcoind_rpc_url`, `bitcoind_rpc_username`, `bitcoind_rpc_password` match with the `rpcport`, `rpcuser` and `rpcpassword` in the `bitcoin.conf` file and the port of the `stacks_node_rpc_url` matches the `rpc_bind` in the `Stacks.toml` file.
 
-The following `Chainhook.toml` file should be generated:
+The following `Chainhook.toml` file is generated:
 
 ```toml
 [storage]
