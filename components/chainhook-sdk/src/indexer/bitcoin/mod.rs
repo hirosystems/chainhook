@@ -152,14 +152,13 @@ pub async fn download_and_parse_block_with_retry(
     let block = loop {
         match download_and_parse_block(block_hash, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(e) => {
+            Err(_e) => {
                 errors_count += 1;
                 if errors_count > 3 {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                            e.to_string()
+                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
                         )
                     });
                 }
@@ -180,13 +179,12 @@ pub async fn download_block_with_retry(
         let response = {
             match download_block(block_hash, bitcoin_config, ctx).await {
                 Ok(result) => result,
-                Err(e) => {
+                Err(_e) => {
                     errors_count += 1;
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                            e.to_string()
+                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
                         )
                     });
                     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -197,12 +195,12 @@ pub async fn download_block_with_retry(
 
         match parse_downloaded_block(response) {
             Ok(result) => break result,
-            Err(_e) => {
+            Err(e) => {
                 errors_count += 1;
                 ctx.try_log(|logger| {
                     slog::warn!(
                         logger,
-                        "unable to retrieve block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                        "unable to parse fetched block #{block_hash}: will retry in a few seconds (attempt #{errors_count}) ({e})",
                     )
                 });
                 std::thread::sleep(std::time::Duration::from_millis(500));
