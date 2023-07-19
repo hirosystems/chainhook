@@ -15,7 +15,7 @@ pub extern crate dashmap;
 pub extern crate fxhash;
 pub extern crate stacks_rpc_client;
 
-pub use chainhook_types;
+pub use chainhook_types as types;
 
 pub mod chainhooks;
 pub mod indexer;
