@@ -421,7 +421,6 @@ dependencies = [
  "ansi_term",
  "atty",
  "chainhook-sdk",
- "chainhook-types 1.0.8",
  "clap 3.2.23",
  "clap_generate",
  "clarinet-files",

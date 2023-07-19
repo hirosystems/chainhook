@@ -14,7 +14,7 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
 use chainhook_sdk::utils::Context;
-use chainhook_types::StacksChainEvent;
+use chainhook_sdk::types::StacksChainEvent;
 use redis::{Commands, Connection};
 
 use std::sync::mpsc::channel;

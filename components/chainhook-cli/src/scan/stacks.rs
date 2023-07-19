@@ -25,7 +25,7 @@ use chainhook_sdk::{
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };
-use chainhook_types::BlockIdentifier;
+use chainhook_sdk::types::BlockIdentifier;
 use rocksdb::DB;
 
 #[derive(Debug, Clone, Eq, PartialEq)]

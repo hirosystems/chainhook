@@ -22,7 +22,7 @@ use chainhook_sdk::indexer::bitcoin::{
 };
 use chainhook_sdk::observer::BitcoinConfig;
 use chainhook_sdk::utils::Context;
-use chainhook_types::{BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork};
+use chainhook_sdk::types::{BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use clap::{Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
