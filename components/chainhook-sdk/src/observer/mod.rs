@@ -20,10 +20,12 @@ use crate::utils::{send_request, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc_json::bitcoin::consensus::Decodable;
+use bitcoincore_rpc_json::bitcoin::Transaction;
 use chainhook_types::{
     BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
-    BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
-    StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
+    BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BitcoinTransactionData, BlockIdentifier,
+    BlockchainEvent, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
@@ -34,6 +36,7 @@ use rocket::serde::Deserialize;
 use rocket::Shutdown;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
+use std::io::Cursor;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::str;
@@ -241,6 +244,7 @@ pub enum ObserverCommand {
     ProcessBitcoinBlock(BitcoinBlockFullBreakdown),
     CacheBitcoinBlock(BitcoinBlockData),
     PropagateBitcoinChainEvent(BlockchainEvent),
+    PropagateBitcoinMempoolEvent(BitcoinChainMempoolEvent),
     PropagateStacksChainEvent(StacksChainEvent),
     PropagateStacksMempoolEvent(StacksChainMempoolEvent),
     RegisterPredicate(ChainhookFullSpecification),
@@ -249,6 +253,12 @@ pub enum ObserverCommand {
     DeregisterStacksPredicate(String),
     NotifyBitcoinTransactionProxied,
     Terminate,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BitcoinChainMempoolEvent {
+    TransactionsAdmitted(Vec<BitcoinTransactionData>),
+    TransactionDropped(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -322,6 +332,7 @@ pub enum ObserverEvent {
     PredicatesTriggered(usize),
     Terminate,
     StacksChainMempoolEvent(StacksChainMempoolEvent),
+    BitcoinChainMempoolEvent(BitcoinChainMempoolEvent),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -687,46 +698,71 @@ pub fn start_zeromq_runloop(
                                         continue;
                                     }
                                 };
-                                let block_hash = hex::encode(message.get(1).unwrap().to_vec());
 
-                                let block = match download_and_parse_block_with_retry(
-                                    &block_hash,
-                                    &bitcoin_config,
-                                    &ctx_moved,
-                                )
-                                .await
-                                {
-                                    Ok(block) => block,
-                                    Err(e) => {
-                                        ctx_moved.try_log(|logger| {
-                                            slog::warn!(
+                                match message.get(0) {
+                                    Some(topic) => {
+                                        if topic.starts_with(b"hashblock") {
+                                            let block_hash =
+                                                hex::encode(message.get(1).unwrap().to_vec());
+
+                                            let block = match download_and_parse_block_with_retry(
+                                                &block_hash,
+                                                &bitcoin_config,
+                                                &ctx_moved,
+                                            )
+                                            .await
+                                            {
+                                                Ok(block) => block,
+                                                Err(e) => {
+                                                    ctx_moved.try_log(|logger| {
+                                                        slog::warn!(
                                                 logger,
                                                 "unable to download_and_parse_block: {}",
                                                 e.to_string()
                                             )
-                                        });
-                                        continue;
+                                                    });
+                                                    continue;
+                                                }
+                                            };
+
+                                            ctx_moved.try_log(|logger| {
+                                                slog::info!(
+                                                    logger,
+                                                    "Bitcoin block #{} dispatched for processing",
+                                                    block.height
+                                                )
+                                            });
+
+                                            let header = block.get_block_header();
+                                            let _ = observer_commands_tx
+                                                .send(ObserverCommand::ProcessBitcoinBlock(block));
+
+                                            if let Ok(Some(event)) = bitcoin_blocks_pool
+                                                .process_header(header, &ctx_moved)
+                                            {
+                                                let _ = observer_commands_tx.send(
+                                                    ObserverCommand::PropagateBitcoinChainEvent(
+                                                        event,
+                                                    ),
+                                                );
+                                            }
+                                        } else if topic.starts_with(b"rawtx") {
+                                            // Decode raw transactions
+                                            //
+                                            if let Some(raw_tx) = message.get(1) {
+                                                use bitcoincore_rpc::bitcoin::Transaction;
+                                                let bytes = raw_tx.to_vec();
+                                                let mut cursor = Cursor::new(bytes);
+                                                if let Ok(tx) = Transaction::consensus_decode(&mut cursor) {
+                                                    let _ = observer_commands_tx.send(
+                                                        ObserverCommand::PropagateBitcoinMempoolEvent(BitcoinChainMempoolEvent::TransactionsAdmitted(vec![tx]))
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
+                                    None => continue,
                                 };
-
-                                ctx_moved.try_log(|logger| {
-                                    slog::info!(
-                                        logger,
-                                        "Bitcoin block #{} dispatched for processing",
-                                        block.height
-                                    )
-                                });
-
-                                let header = block.get_block_header();
-                                let _ = observer_commands_tx
-                                    .send(ObserverCommand::ProcessBitcoinBlock(block));
-
-                                if let Ok(Some(event)) =
-                                    bitcoin_blocks_pool.process_header(header, &ctx_moved)
-                                {
-                                    let _ = observer_commands_tx
-                                        .send(ObserverCommand::PropagateBitcoinChainEvent(event));
-                                }
                             }
                         });
                 })
@@ -1381,6 +1417,14 @@ pub async fn start_observer_commands_handler(
                 });
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainMempoolEvent(mempool_event));
+                }
+            }
+            ObserverCommand::PropagateBitcoinMempoolEvent(mempool_event) => {
+                ctx.try_log(|logger| {
+                    slog::debug!(logger, "Handling PropagateBitcoinMempoolEvent command")
+                });
+                if let Some(ref tx) = observer_events_tx {
+                    let _ = tx.send(ObserverEvent::BitcoinChainMempoolEvent(mempool_event));
                 }
             }
             ObserverCommand::NotifyBitcoinTransactionProxied => {
