@@ -15,7 +15,7 @@ const DEFAULT_MAINNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest";
 const DEFAULT_TESTNET_STACKS_TSV_ARCHIVE: &str =
     "https://archive.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
-const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
+pub const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20455;
 pub const DEFAULT_CONTROL_PORT: u16 = 20456;
