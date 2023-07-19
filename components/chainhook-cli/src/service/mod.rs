@@ -14,7 +14,7 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{start_event_observer, ObserverEvent};
 use chainhook_sdk::utils::Context;
-use chainhook_types::{BitcoinBlockSignaling, StacksChainEvent};
+use chainhook_types::StacksChainEvent;
 use redis::{Commands, Connection};
 
 use std::sync::mpsc::channel;
@@ -152,42 +152,13 @@ impl Service {
             });
         }
 
-        match event_observer_config.bitcoin_block_signaling {
-            BitcoinBlockSignaling::ZeroMQ(ref url) => {
-                info!(
-                    self.ctx.expect_logger(),
-                    "Observing Bitcoin chain events via ZeroMQ: {}", url
-                );
-            }
-            BitcoinBlockSignaling::Stacks(ref _url) => {
-                // Start chainhook event observer
-                let context_cloned = self.ctx.clone();
-                let event_observer_config_moved = event_observer_config.clone();
-                let observer_command_tx_moved = observer_command_tx.clone();
-                let _ =
-                    hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
-                        let future = start_event_observer(
-                            event_observer_config_moved,
-                            observer_command_tx_moved,
-                            observer_command_rx,
-                            Some(observer_event_tx),
-                            context_cloned,
-                        );
-                        let _ = hiro_system_kit::nestable_block_on(future);
-                    });
-                info!(
-                    self.ctx.expect_logger(),
-                    "Listening on port {} for Stacks chain events",
-                    event_observer_config
-                        .get_stacks_node_config()
-                        .ingestion_port
-                );
-                info!(
-                    self.ctx.expect_logger(),
-                    "Observing Bitcoin chain events via Stacks node"
-                );
-            }
-        }
+        let _ = start_event_observer(
+            event_observer_config.clone(),
+            observer_command_tx,
+            observer_command_rx,
+            Some(observer_event_tx),
+            self.ctx.clone(),
+        );
 
         let mut stacks_event = 0;
         loop {

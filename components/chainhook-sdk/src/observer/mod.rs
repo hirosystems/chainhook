@@ -391,7 +391,101 @@ pub struct ObserverMetrics {
     pub stacks: ChainMetrics,
 }
 
-pub async fn start_event_observer(
+pub fn start_event_observer(
+    config: EventObserverConfig,
+    observer_commands_tx: Sender<ObserverCommand>,
+    observer_commands_rx: Receiver<ObserverCommand>,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    ctx: Context,
+) -> Result<(), Box<dyn Error>> {
+    match config.bitcoin_block_signaling {
+        BitcoinBlockSignaling::ZeroMQ(ref url) => {
+            ctx.try_log(|logger| {
+                slog::info!(logger, "Observing Bitcoin chain events via ZeroMQ: {}", url)
+            });
+            let context_cloned = ctx.clone();
+            let event_observer_config_moved = config.clone();
+            let observer_commands_tx_moved = observer_commands_tx.clone();
+            let _ = hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
+                let future = start_bitcoin_event_observer(
+                    event_observer_config_moved,
+                    observer_commands_tx_moved,
+                    observer_commands_rx,
+                    observer_events_tx,
+                    context_cloned,
+                );
+                let _ = hiro_system_kit::nestable_block_on(future);
+            });
+        }
+        BitcoinBlockSignaling::Stacks(ref _url) => {
+            // Start chainhook event observer
+            let context_cloned = ctx.clone();
+            let event_observer_config_moved = config.clone();
+            let observer_commands_tx_moved = observer_commands_tx.clone();
+            let _ = hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
+                let future = start_stacks_event_observer(
+                    event_observer_config_moved,
+                    observer_commands_tx_moved,
+                    observer_commands_rx,
+                    observer_events_tx,
+                    context_cloned,
+                );
+                let _ = hiro_system_kit::nestable_block_on(future);
+            });
+
+            ctx.try_log(|logger| {
+                slog::info!(
+                    logger,
+                    "Listening on port {} for Stacks chain events",
+                    config.get_stacks_node_config().ingestion_port
+                )
+            });
+
+            ctx.try_log(|logger| {
+                slog::info!(logger, "Observing Bitcoin chain events via Stacks node")
+            });
+        }
+    }
+    Ok(())
+}
+
+pub async fn start_bitcoin_event_observer(
+    config: EventObserverConfig,
+    observer_commands_tx: Sender<ObserverCommand>,
+    observer_commands_rx: Receiver<ObserverCommand>,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    ctx: Context,
+) -> Result<(), Box<dyn Error>> {
+    let chainhook_store = ChainhookStore::new();
+
+    let observer_metrics = ObserverMetrics {
+        bitcoin: ChainMetrics {
+            registered_predicates: 0,
+            ..Default::default()
+        },
+        stacks: ChainMetrics {
+            registered_predicates: 0,
+            ..Default::default()
+        },
+    };
+    let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
+
+    start_zeromq_runloop(&config, observer_commands_tx, &ctx);
+
+    // This loop is used for handling background jobs, emitted by HTTP calls.
+    start_observer_commands_handler(
+        config,
+        chainhook_store,
+        observer_commands_rx,
+        observer_events_tx,
+        None,
+        observer_metrics_rw_lock.clone(),
+        ctx,
+    )
+    .await
+}
+
+pub async fn start_stacks_event_observer(
     mut config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -503,9 +597,6 @@ pub async fn start_event_observer(
     let _ = std::thread::spawn(move || {
         let _ = hiro_system_kit::nestable_block_on(ignite.launch());
     });
-
-    #[cfg(feature = "zeromq")]
-    start_zeromq_runloop(&config, observer_commands_tx, &ctx);
 
     // This loop is used for handling background jobs, emitted by HTTP calls.
     start_observer_commands_handler(
