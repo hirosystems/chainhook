@@ -315,9 +315,9 @@ impl Service {
                         | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                     };
 
-                    for (predicate_uuid, blocks_ids) in report.predicates_evaluated.iter() {}
+                    for (_predicate_uuid, _blocks_ids) in report.predicates_evaluated.iter() {}
 
-                    for (predicate_uuid, blocks_ids) in report.predicates_triggered.iter() {}
+                    for (_predicate_uuid, _blocks_ids) in report.predicates_triggered.iter() {}
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
                         stacks_event = 0;

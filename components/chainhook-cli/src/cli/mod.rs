@@ -1,7 +1,9 @@
 use crate::config::generator::generate_config;
 use crate::config::{Config, PredicatesApi};
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
-use crate::scan::stacks::{scan_stacks_chainstate_via_csv_using_predicate, consolidate_local_stacks_chainstate_using_csv};
+use crate::scan::stacks::{
+    consolidate_local_stacks_chainstate_using_csv, scan_stacks_chainstate_via_csv_using_predicate,
+};
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{

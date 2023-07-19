@@ -1,5 +1,3 @@
-use bitcoincore_rpc::bitcoin::Script;
-
 use super::super::tests::{helpers, process_bitcoin_blocks_and_check_expectations};
 
 #[test]
