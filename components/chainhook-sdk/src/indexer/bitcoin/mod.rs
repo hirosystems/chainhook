@@ -322,6 +322,103 @@ pub async fn retrieve_block_hash(
     Ok(block_hash)
 }
 
+pub fn standardize_bitcoin_transaction(
+    mut tx: BitcoinTransactionFullBreakdown,
+    block_height: Option<u64>,
+    network: &BitcoinNetwork,
+    ctx: &Context,
+) -> Result<BitcoinTransactionData, (String, bool)> {
+    let txid = tx.txid.to_string();
+
+    ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin transaction {txid}"));
+
+    let mut inputs = vec![];
+    let mut sats_in = 0;
+    for (index, input) in tx.vin.drain(..).enumerate() {
+        if input.is_coinbase() {
+            continue;
+        }
+        let prevout = input.prevout.as_ref().ok_or((
+            format!(
+                "error retrieving prevout for transaction {}, input #{} (block #{:?})",
+                tx.txid, index, block_height
+            ),
+            true,
+        ))?;
+
+        let txid = input.txid.as_ref().ok_or((
+            format!(
+                "error retrieving txid for transaction {}, input #{} (block #{:?})",
+                tx.txid, index, block_height
+            ),
+            true,
+        ))?;
+
+        let vout = input.vout.ok_or((
+            format!(
+                "error retrieving vout for transaction {}, input #{} (block #{:?})",
+                tx.txid, index, block_height
+            ),
+            true,
+        ))?;
+
+        let script_sig = input.script_sig.ok_or((
+            format!(
+                "error retrieving script_sig for transaction {}, input #{} (block #{:?})",
+                tx.txid, index, block_height
+            ),
+            true,
+        ))?;
+
+        sats_in += prevout.value.to_sat();
+        inputs.push(TxIn {
+            previous_output: OutPoint {
+                txid: TransactionIdentifier::new(&txid.to_string()),
+                vout,
+                block_height: prevout.height,
+                value: prevout.value.to_sat(),
+            },
+            script_sig: format!("0x{}", hex::encode(&script_sig.hex)),
+            sequence: input.sequence,
+            witness: input
+                .txinwitness
+                .unwrap_or(vec![])
+                .to_vec()
+                .iter()
+                .map(|w| format!("0x{}", hex::encode(w)))
+                .collect::<Vec<_>>(),
+        })
+    }
+
+    let mut outputs = vec![];
+    let mut sats_out = 0;
+    for output in tx.vout.drain(..) {
+        let value = output.value.to_sat();
+        sats_out += value;
+        outputs.push(TxOut {
+            value,
+            script_pubkey: format!("0x{}", hex::encode(&output.script_pub_key.hex)),
+        });
+    }
+
+    let tx = BitcoinTransactionData {
+        transaction_identifier: TransactionIdentifier {
+            hash: format!("0x{}", txid),
+        },
+        operations: vec![],
+        metadata: BitcoinTransactionMetadata {
+            inputs,
+            outputs,
+            stacks_operations: vec![],
+            ordinal_operations: vec![],
+            proof: None,
+            fee: sats_in - sats_out,
+        },
+    };
+
+    Ok(tx)
+}
+
 pub fn standardize_bitcoin_block(
     block: BitcoinBlockFullBreakdown,
     network: &BitcoinNetwork,
@@ -335,10 +432,6 @@ pub fn standardize_bitcoin_block(
     ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin block {}", block.hash,));
 
     for mut tx in block.tx.into_iter() {
-        let txid = tx.txid.to_string();
-
-        ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin transaction {txid}"));
-
         let mut stacks_operations = vec![];
         if let Some(op) = try_parse_stacks_operation(
             block_height,
@@ -351,89 +444,8 @@ pub fn standardize_bitcoin_block(
             stacks_operations.push(op);
         }
 
-        let mut inputs = vec![];
-        let mut sats_in = 0;
-        for (index, input) in tx.vin.drain(..).enumerate() {
-            if input.is_coinbase() {
-                continue;
-            }
-            let prevout = input.prevout.as_ref().ok_or((
-                format!(
-                    "error retrieving prevout for transaction {}, input #{} (block #{})",
-                    tx.txid, index, block.height
-                ),
-                true,
-            ))?;
-
-            let txid = input.txid.as_ref().ok_or((
-                format!(
-                    "error retrieving txid for transaction {}, input #{} (block #{})",
-                    tx.txid, index, block.height
-                ),
-                true,
-            ))?;
-
-            let vout = input.vout.ok_or((
-                format!(
-                    "error retrieving vout for transaction {}, input #{} (block #{})",
-                    tx.txid, index, block.height
-                ),
-                true,
-            ))?;
-
-            let script_sig = input.script_sig.ok_or((
-                format!(
-                    "error retrieving script_sig for transaction {}, input #{} (block #{})",
-                    tx.txid, index, block.height
-                ),
-                true,
-            ))?;
-
-            sats_in += prevout.value.to_sat();
-            inputs.push(TxIn {
-                previous_output: OutPoint {
-                    txid: TransactionIdentifier::new(&txid.to_string()),
-                    vout,
-                    block_height: prevout.height,
-                    value: prevout.value.to_sat(),
-                },
-                script_sig: format!("0x{}", hex::encode(&script_sig.hex)),
-                sequence: input.sequence,
-                witness: input
-                    .txinwitness
-                    .unwrap_or(vec![])
-                    .to_vec()
-                    .iter()
-                    .map(|w| format!("0x{}", hex::encode(w)))
-                    .collect::<Vec<_>>(),
-            })
-        }
-
-        let mut outputs = vec![];
-        let mut sats_out = 0;
-        for output in tx.vout.drain(..) {
-            let value = output.value.to_sat();
-            sats_out += value;
-            outputs.push(TxOut {
-                value,
-                script_pubkey: format!("0x{}", hex::encode(&output.script_pub_key.hex)),
-            });
-        }
-
-        let tx = BitcoinTransactionData {
-            transaction_identifier: TransactionIdentifier {
-                hash: format!("0x{}", txid),
-            },
-            operations: vec![],
-            metadata: BitcoinTransactionMetadata {
-                inputs,
-                outputs,
-                stacks_operations,
-                ordinal_operations: vec![],
-                proof: None,
-                fee: sats_in - sats_out,
-            },
-        };
+        let mut tx = standardize_bitcoin_transaction(tx, Some(block_height), network, ctx)?;
+        tx.metadata.stacks_operations = stacks_operations;
         transactions.push(tx);
     }
 
