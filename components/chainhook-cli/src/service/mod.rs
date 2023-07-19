@@ -451,8 +451,8 @@ mod tests {
     use itertools::Itertools;
     use rocket::serde::json::Value as JsonValue;
     use std::sync::mpsc::Receiver;
+    use test_case::test_case;
 
-    use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
     use chainhook_sdk::observer::ObserverCommand;
 
     use crate::config::PredicatesApiConfig;
@@ -467,10 +467,7 @@ mod tests {
         status: u64,
         result: String,
     }
-    // Question
-    // Can we generate some payload directly with the open-api spec?
-    // It not, that's ok, let's be pragmatic and construct the payloads ourselves
-    //
+
     fn get_bitcoin_if_this_options(
         txid: &str,
         p2pkh_address: &str,
@@ -620,6 +617,7 @@ mod tests {
             ),
         ]
     }
+
     fn get_combinations(items: Vec<String>) -> Vec<String> {
         // add all combintations of our options,
         // from one option per entry to all options per entry
@@ -638,6 +636,7 @@ mod tests {
         combinations.push(String::new());
         combinations
     }
+
     fn get_bitcoin_filter_combinations() -> Vec<String> {
         let options = vec![
             format!(
@@ -654,17 +653,26 @@ mod tests {
             ),
             format!(
                 r#"
-            "capture_all_events": true"#
+            "include_proof": true"#
             ),
             format!(
                 r#"
-            "decode_clarity_values": true"#
+            "include_inputs": true"#
+            ),
+            format!(
+                r#"
+            "include_outputs": true"#
+            ),
+            format!(
+                r#"
+            "include_witness": true"#
             ),
         ];
         get_combinations(options)
     }
 
     fn build_bitcoin_payloads(
+        network: &str,
         uuid: &str,
         txid: &str,
         p2pkh_address: &str,
@@ -674,27 +682,25 @@ mod tests {
         http_post_url: &str,
     ) -> Vec<String> {
         let mut payloads = vec![];
-        let networks = vec!["mainnet", "testnet", "regtest"];
-        for network in networks {
-            for if_this in get_bitcoin_if_this_options(
-                txid,
-                p2pkh_address,
-                p2sh_address,
-                p2wpkh_address,
-                p2wsh_address,
-            ) {
-                for then_that in get_bitcoin_then_that_options(http_post_url) {
-                    for mut filter in get_bitcoin_filter_combinations() {
-                        let filter_str = {
-                            if filter == String::new() {
-                                filter
-                            } else {
-                                filter.push_str(",");
-                                filter
-                            }
-                        };
-                        payloads.push(format!(
-                            r#"
+        for if_this in get_bitcoin_if_this_options(
+            txid,
+            p2pkh_address,
+            p2sh_address,
+            p2wpkh_address,
+            p2wsh_address,
+        ) {
+            for then_that in get_bitcoin_then_that_options(http_post_url) {
+                for mut filter in get_bitcoin_filter_combinations() {
+                    let filter_str = {
+                        if filter == String::new() {
+                            filter
+                        } else {
+                            filter.push_str(",");
+                            filter
+                        }
+                    };
+                    payloads.push(format!(
+                        r#"
 {{
     "chain": "bitcoin",
     "uuid": "{uuid}",
@@ -706,29 +712,29 @@ mod tests {
         }}
     }}
 }}"#
-                        ))
-                    }
+                    ));
+                    payloads.push(format!(
+                        r#"
+{{
+    "chain": "bitcoin",
+    "uuid": "{uuid}",
+    "owner_uuid": "owner-uuid",
+    "name": "test",
+    "version": 1,
+    "networks": {{
+        "{network}": {{{filter_str}{if_this},
+            {then_that}
+        }}
+    }}
+}}"#
+                    ));
                 }
             }
         }
 
         payloads
     }
-    // pub fn build_bitcoin_p2sh_predicate_payload(p2pkh_address: String) {
 
-    // }
-
-    // pub fn build_bitcoin_p2pkh_predicate_payload(p2pkh_address: String) {
-
-    // }
-
-    // pub fn build_bitcoin_p2pkh_predicate_payload(p2pkh_address: String) {
-
-    // }
-
-    // pub fn build_bitcoin_p2pkh_predicate_payload(p2pkh_address: String) {
-
-    // }
     pub fn build_ctx() -> Context {
         let logger = hiro_system_kit::log::setup_logger();
         let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
@@ -740,24 +746,18 @@ mod tests {
     }
 
     async fn build_service() -> Receiver<ObserverCommand> {
-        // Build config
         let ctx = build_ctx();
         let api_config = PredicatesApiConfig {
             http_port: 8765,
             display_logs: true,
             database_uri: DEFAULT_REDIS_URI.to_string(),
         };
-        // Build service
+
         let (tx, rx) = channel();
-        println!("starting predicate api server");
         start_predicate_api_server(api_config, tx, ctx)
             .await
             .unwrap();
-        println!("started predicate api server");
         rx
-        // Build and spinup event observer
-
-        // Build a timeline of events / expectations
     }
 
     async fn call_register_predicate(predicate: String) -> JsonValue {
@@ -776,9 +776,11 @@ mod tests {
             )
     }
 
+    #[test_case("mainnet" ; "for mainnet predicates")]
+    #[test_case("testnet" ; "for testnet predicates")]
+    #[test_case("regtest" ; "for regtest predicates")]
     #[tokio::test]
-    async fn it_registers_a_predicate() {
-        println!("runnign test");
+    async fn it_registers_all_bitcoin_predicates(network: &str) {
         let uuid = "4ecc-4ecc-435b-9948-d5eeca1c3ce6";
         let txid = "";
         let p2pkh_address = "";
@@ -787,6 +789,7 @@ mod tests {
         let p2wsh_address = "";
         let http_post_url = "http://localhost:1234";
         let payloads = build_bitcoin_payloads(
+            network,
             uuid,
             txid,
             p2pkh_address,
@@ -797,9 +800,12 @@ mod tests {
         );
 
         let rx = build_service().await;
-
+        println!("checking {} predicates", payloads.len());
+        let mut i = 0;
         for predicate in payloads {
+            let predicate_moved = predicate.clone();
             let res = call_register_predicate(predicate.clone()).await;
+
             let (status, result) = match res {
                 JsonValue::Object(obj) => {
                     if let Some(err) = obj.get("error") {
@@ -821,12 +827,19 @@ mod tests {
 
             match command {
                 ObserverCommand::RegisterPredicate(registered_predicate) => {
-                    let deserialized_predicate: ChainhookFullSpecification =
-                        serde_json::from_str(&predicate).unwrap();
-                    assert_eq!(registered_predicate, deserialized_predicate);
+                    let original_predicate: JsonValue =
+                        serde_json::from_str(&predicate_moved).unwrap();
+                    let registered_predicate: JsonValue = serde_json::from_str(
+                        &serde_json::to_string(&registered_predicate).unwrap(),
+                    )
+                    .unwrap();
+                    assert_eq!(registered_predicate, original_predicate);
+                    i = i + 1;
                 }
                 _ => panic!("Received wrong observer command for predicate registration"),
             }
         }
+
+        println!("checked {i} predicates");
     }
 }
