@@ -25,7 +25,7 @@ bitcoind_rpc_password = "devnet"
 # used by default:
 stacks_node_rpc_url = "http://localhost:20443"
 # but zmq can be used instead:
-# bitcoind_zmq_url = "http://0.0.0.0:18543"
+# bitcoind_zmq_url = "tcp://0.0.0.0:18543"
 
 [limits]
 max_number_of_bitcoin_predicates = 100

@@ -318,7 +318,7 @@ mode = "testnet"
 bitcoind_rpc_url = "http://0.0.0.0:18332"
 bitcoind_rpc_username = "bitcoind_username"
 bitcoind_rpc_password = "bitcoind_password"
-# bitcoind_zmq_url = "http://0.0.0.0:18543"
+# bitcoind_zmq_url = "tcp://0.0.0.0:18543"
 
 [limits]
 max_number_of_bitcoin_predicates = 100
@@ -340,7 +340,7 @@ mode = "testnet"
 bitcoind_rpc_url = "http://0.0.0.0:8332"
 bitcoind_rpc_username = "bitcoind_username"
 bitcoind_rpc_password = "bitcoind_password"
-# bitcoind_zmq_url = "http://0.0.0.0:18543"
+# bitcoind_zmq_url = "tcp://0.0.0.0:18543"
 
 [limits]
 max_number_of_bitcoin_predicates = 100
