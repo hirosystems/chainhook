@@ -494,6 +494,36 @@ mod tests {
         })
     }
 
+    fn build_stacks_payload(
+        network: Option<&str>,
+        if_this: Option<JsonValue>,
+        then_that: Option<JsonValue>,
+        filter: Option<JsonValue>,
+    ) -> JsonValue {
+        let network = network.unwrap_or("mainnet");
+        let if_this = if_this.unwrap_or(json!({"scope":"txid", "equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"}));
+        let then_that = then_that.unwrap_or(json!("noop"));
+        let filter = filter.unwrap_or(json!({}));
+
+        let filter = filter.as_object().unwrap();
+        let mut network_val = json!({
+            "if_this": if_this,
+            "then_that": then_that
+        });
+        for (k, v) in filter.iter() {
+            network_val[k] = v.to_owned();
+        }
+        json!({
+            "chain": "stacks",
+            "uuid": UUID,
+            "name": "test",
+            "version": 1,
+            "networks": {
+                network: network_val
+            }
+        })
+    }
+
     async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
         let ctx = Context {
             logger: None,
@@ -665,6 +695,84 @@ mod tests {
     #[tokio::test]
     async fn it_handles_bitcoin_predicates_with_filters(filters: JsonValue) {
         let predicate = build_bitcoin_payload(None, None, None, Some(filters));
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case("mainnet" ; "mainnet")]
+    #[test_case("testnet" ; "testnet")]
+    #[test_case("devnet" ; "devnet")]
+    #[test_case("simnet" ; "simnet")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_stacks_predicates_with_network(network: &str) {
+        let predicate = build_stacks_payload(Some(network), None, None, None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case(json!({"scope":"block_height", "equals": 100}); "with scope block_height equals match")]
+    #[test_case(json!({"scope":"block_height", "higher_than": 100}); "with scope block_height higher_than match")]
+    #[test_case(json!({"scope":"block_height", "lower_than": 100}); "with scope block_height lower_than match")]
+    #[test_case(json!({"scope":"block_height", "between": [100,102]}); "with scope block_height between match")]
+    #[test_case(json!({"scope":"contract_deployment", "deployer": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"}); "with scope contract_deployment type deployer")]
+    // #[test_case(json!({"scope":"contract_deployment", "implement_sip09": 100}); "with scope contract_deployment type implement_sip09")]
+    // #[test_case(json!({"scope":"contract_deployment", "implement_sip10": 0}); "with scope contract_deployment type implement_sip10")]
+    #[test_case(json!({"scope":"contract_call","contract_identifier": "SP000000000000000000002Q6VF78.pox","method": "stack-stx"}); "with scope contract_call")]
+    #[test_case(json!({"scope":"print_event","contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09","contains": "vault"}); "with scope print_event")]
+    #[test_case(json!({"scope":"ft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-token::cbtc","actions": ["burn"]}); "with scope ft_event")]
+    #[test_case(json!({"scope":"nft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys","actions": ["mint", "transfer", "burn"]}); "with scope nft_event")]
+    #[test_case(json!({"scope":"stx_event","actions": ["transfer", "lock"]}); "with scope stx_event")]
+    #[test_case(json!({"scope":"txid","equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"}); "with scope txid")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_stacks_if_this_predicates(if_this: JsonValue) {
+        let predicate = build_stacks_payload(None, Some(if_this), None, None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case(json!("noop") ; "with noop action")]
+    #[test_case(json!({"http_post": {"url": "http://localhost:1234", "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"}}) ; "with http_post action")]
+    #[test_case(json!({"file_append": {"path": "./path"}}) ; "with file_append action")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_stacks_then_that_predicates(then_that: JsonValue) {
+        let predicate = build_stacks_payload(None, None, Some(then_that), None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case(json!({"start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"capture_all_events": true,"decode_clarity_values": true}) ; "all filters")]
+    #[test_case(json!({"start_block": 0}) ; "start_block filter")]
+    #[test_case(json!({"end_block": 0}) ; "end_block filter")]
+    #[test_case(json!({"expire_after_occurrence": 0}) ; "expire_after_occurrence filter")]
+    #[test_case(json!({"capture_all_events": true}) ; "capture_all_events filter")]
+    #[test_case(json!({"decode_clarity_values": true}) ; "decode_clarity_values filter")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_stacks_predicates_with_filters(filters: JsonValue) {
+        let predicate = build_stacks_payload(None, None, None, Some(filters));
         match test_register_predicate(predicate).await {
             Ok(_) => {}
             Err((e, shutdown)) => {
