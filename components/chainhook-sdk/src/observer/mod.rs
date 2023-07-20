@@ -701,6 +701,7 @@ pub fn start_zeromq_runloop(
                                     }
                                 };
 
+
                                 match message.get(0) {
                                     Some(topic) => {
                                         if topic.starts_with(b"hashblock") {
@@ -708,7 +709,7 @@ pub fn start_zeromq_runloop(
                                                 hex::encode(message.get(1).unwrap().to_vec());
 
                                             let block = match download_and_parse_block_with_retry(
-                                    			&http_client,
+                                    			      &http_client,
                                                 &block_hash,
                                                 &bitcoin_config,
                                                 &ctx_moved,
@@ -719,10 +720,10 @@ pub fn start_zeromq_runloop(
                                                 Err(e) => {
                                                     ctx_moved.try_log(|logger| {
                                                         slog::warn!(
-                                                logger,
-                                                "unable to download_and_parse_block: {}",
-                                                e.to_string()
-                                            )
+                                                            logger,
+                                                            "unable to download_and_parse_block: {}",
+                                                            e.to_string()
+                                                        )
                                                     });
                                                     continue;
                                                 }
