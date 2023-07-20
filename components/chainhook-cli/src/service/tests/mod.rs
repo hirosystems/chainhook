@@ -233,7 +233,8 @@ async fn it_handles_bitcoin_then_that_predicates(then_that: JsonValue) {
     }
 }
 
-#[test_case(json!({"start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"include_proof": true,"include_inputs": true,"include_outputs": true,"include_witness": true}) ; "all filters")]
+#[test_case(json!({"blocks": [0, 1, 2],"start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"include_proof": true,"include_inputs": true,"include_outputs": true,"include_witness": true}) ; "all filters")]
+#[test_case(json!({"blocks": [0, 1, 2]}) ; "blocks filter")]
 #[test_case(json!({"start_block": 0}) ; "start_block filter")]
 #[test_case(json!({"end_block": 0}) ; "end_block filter")]
 #[test_case(json!({"expire_after_occurrence": 0}) ; "expire_after_occurrence filter")]
@@ -313,7 +314,8 @@ async fn it_handles_stacks_then_that_predicates(then_that: JsonValue) {
     }
 }
 
-#[test_case(json!({"start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"capture_all_events": true,"decode_clarity_values": true}) ; "all filters")]
+#[test_case(json!({"blocks": [0, 1, 2], "start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"capture_all_events": true,"decode_clarity_values": true}) ; "all filters")]
+#[test_case(json!({"blocks": [0, 1, 2]}) ; "blocks filter")]
 #[test_case(json!({"start_block": 0}) ; "start_block filter")]
 #[test_case(json!({"end_block": 0}) ; "end_block filter")]
 #[test_case(json!({"expire_after_occurrence": 0}) ; "expire_after_occurrence filter")]
