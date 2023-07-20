@@ -470,6 +470,7 @@ dependencies = [
  "hex",
  "hiro-system-kit",
  "hyper",
+ "lazy_static",
  "rand 0.8.5",
  "reqwest",
  "rocket",
