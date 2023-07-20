@@ -90,6 +90,26 @@ async fn build_service(port: u16) -> (Receiver<ObserverCommand>, Shutdown) {
     let shutdown = start_predicate_api_server(api_config, tx, ctx)
         .await
         .unwrap();
+
+    // Loop to check if the server is ready
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: u32 = 10;
+    loop {
+        if attempts >= MAX_ATTEMPTS {
+            panic!("failed to start server");
+        }
+
+        if let Ok(_client) = reqwest::Client::new()
+            .get(format!("http://localhost:{}/ping", port))
+            .send()
+            .await
+        {
+            break; // Server is ready
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        attempts += 1;
+    }
     (rx, shutdown)
 }
 
