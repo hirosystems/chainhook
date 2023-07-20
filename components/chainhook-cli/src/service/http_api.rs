@@ -11,9 +11,12 @@ use chainhook_sdk::{
 };
 use hiro_system_kit::slog;
 use redis::{Commands, Connection};
-use rocket::config::{self, Config, LogLevel};
 use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::State;
+use rocket::{
+    config::{self, Config, LogLevel},
+    Shutdown,
+};
 use rocket_okapi::{okapi::openapi3::OpenApi, openapi, openapi_get_routes_spec};
 use std::error::Error;
 
@@ -25,7 +28,7 @@ pub async fn start_predicate_api_server(
     api_config: PredicatesApiConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     ctx: Context,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Shutdown, Box<dyn Error>> {
     let log_level = LogLevel::Off;
 
     let mut shutdown_config = config::Shutdown::default();
@@ -59,10 +62,12 @@ pub async fn start_predicate_api_server(
         .ignite()
         .await?;
 
+    let ingestion_shutdown = ignite.shutdown();
+
     let _ = std::thread::spawn(move || {
         let _ = hiro_system_kit::nestable_block_on(ignite.launch());
     });
-    Ok(())
+    Ok(ingestion_shutdown)
 }
 
 #[openapi(tag = "Health Check")]
