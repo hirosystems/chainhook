@@ -12,11 +12,13 @@ use chainhook_sdk::chainhooks::bitcoin::{
 use chainhook_sdk::chainhooks::types::BitcoinChainhookSpecification;
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
-    download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
+    build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
 };
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
+use chainhook_sdk::types::{
+    BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
+};
 use chainhook_sdk::utils::{file_append, send_request, BlockHeights, Context};
-use chainhook_sdk::types::{BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData};
 use std::collections::HashMap;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
@@ -78,14 +80,21 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
     let mut number_of_blocks_scanned = 0;
     let mut number_of_blocks_sent = 0u64;
+    let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         number_of_blocks_scanned += 1;
 
-        let block_hash =
-            retrieve_block_hash_with_retry(&current_block_height, &bitcoin_config, ctx).await?;
+        let block_hash = retrieve_block_hash_with_retry(
+            &http_client,
+            &current_block_height,
+            &bitcoin_config,
+            ctx,
+        )
+        .await?;
         let block_breakdown =
-            download_and_parse_block_with_retry(&block_hash, &bitcoin_config, ctx).await?;
+            download_and_parse_block_with_retry(&http_client, &block_hash, &bitcoin_config, ctx)
+                .await?;
         let block = match indexer::bitcoin::standardize_bitcoin_block(
             block_breakdown,
             &event_observer_config.bitcoin_network,
