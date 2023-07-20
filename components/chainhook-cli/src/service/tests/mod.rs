@@ -1,5 +1,6 @@
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
+use std::net::TcpListener;
 use std::sync::mpsc::Receiver;
 use test_case::test_case;
 
@@ -74,13 +75,13 @@ fn build_stacks_payload(
     })
 }
 
-async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
+async fn build_service(port: u16) -> (Receiver<ObserverCommand>, Shutdown) {
     let ctx = Context {
         logger: None,
         tracer: false,
     };
     let api_config = PredicatesApiConfig {
-        http_port: 8675,
+        http_port: port,
         display_logs: true,
         database_uri: DEFAULT_REDIS_URI.to_string(),
     };
@@ -92,10 +93,10 @@ async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
     (rx, shutdown)
 }
 
-async fn call_register_predicate(predicate: &JsonValue) -> Result<JsonValue, String> {
+async fn call_register_predicate(predicate: &JsonValue, port: u16) -> Result<JsonValue, String> {
     let client = reqwest::Client::new();
     let res =client
-            .post(format!("http://localhost:8675/v1/chainhooks"))
+            .post(format!("http://localhost:{port}/v1/chainhooks"))
             .header("Content-Type", "application/json")
             .json(predicate)
             .send()
@@ -118,10 +119,16 @@ async fn call_register_predicate(predicate: &JsonValue) -> Result<JsonValue, Str
 }
 
 async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Shutdown)> {
-    let (rx, shutdown) = build_service().await;
+    // perhaps a little janky, we bind to the port 0 to find an open one, then
+    // drop the listener to free up that port
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to port 0");
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+
+    let (rx, shutdown) = build_service(port).await;
 
     let moved_shutdown = shutdown.clone();
-    let res = call_register_predicate(&predicate)
+    let res = call_register_predicate(&predicate, port)
         .await
         .map_err(|e| (e, moved_shutdown))?;
 
@@ -172,7 +179,6 @@ async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Sh
 #[test_case("mainnet" ; "mainnet")]
 #[test_case("testnet" ; "testnet")]
 #[test_case("regtest" ; "regtest")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_bitcoin_predicates_with_network(network: &str) {
     let predicate = build_bitcoin_payload(Some(network), None, None, None);
@@ -204,7 +210,6 @@ async fn it_handles_bitcoin_predicates_with_network(network: &str) {
 #[test_case(json!({"scope": "stacks_protocol","operation": "stx_transferred"}) ; "with scope stacks_protocol operation stx_transferred")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "stx_locked"}) ; "with scope stacks_protocol operation stx_locked")]
 #[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed"}) ; "with scope ordinals_protocol operation inscription_feed")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_bitcoin_if_this_predicates(if_this: JsonValue) {
     let predicate = build_bitcoin_payload(None, Some(if_this), None, None);
@@ -220,7 +225,6 @@ async fn it_handles_bitcoin_if_this_predicates(if_this: JsonValue) {
 #[test_case(json!("noop") ; "with noop action")]
 #[test_case(json!({"http_post": {"url": "http://localhost:1234", "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"}}) ; "with http_post action")]
 #[test_case(json!({"file_append": {"path": "./path"}}) ; "with file_append action")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_bitcoin_then_that_predicates(then_that: JsonValue) {
     let predicate = build_bitcoin_payload(None, None, Some(then_that), None);
@@ -242,7 +246,6 @@ async fn it_handles_bitcoin_then_that_predicates(then_that: JsonValue) {
 #[test_case(json!({"include_inputs": true}) ; "include_inputs filter")]
 #[test_case(json!({"include_outputs": true}) ; "include_outputs filter")]
 #[test_case(json!({"include_witness": true}) ; "include_witness filter")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_bitcoin_predicates_with_filters(filters: JsonValue) {
     let predicate = build_bitcoin_payload(None, None, None, Some(filters));
@@ -259,7 +262,6 @@ async fn it_handles_bitcoin_predicates_with_filters(filters: JsonValue) {
 #[test_case("testnet" ; "testnet")]
 #[test_case("devnet" ; "devnet")]
 #[test_case("simnet" ; "simnet")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_stacks_predicates_with_network(network: &str) {
     let predicate = build_stacks_payload(Some(network), None, None, None);
@@ -285,7 +287,6 @@ async fn it_handles_stacks_predicates_with_network(network: &str) {
 #[test_case(json!({"scope":"nft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys","actions": ["mint", "transfer", "burn"]}); "with scope nft_event")]
 #[test_case(json!({"scope":"stx_event","actions": ["transfer", "lock"]}); "with scope stx_event")]
 #[test_case(json!({"scope":"txid","equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"}); "with scope txid")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_stacks_if_this_predicates(if_this: JsonValue) {
     let predicate = build_stacks_payload(None, Some(if_this), None, None);
@@ -301,7 +302,6 @@ async fn it_handles_stacks_if_this_predicates(if_this: JsonValue) {
 #[test_case(json!("noop") ; "with noop action")]
 #[test_case(json!({"http_post": {"url": "http://localhost:1234", "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"}}) ; "with http_post action")]
 #[test_case(json!({"file_append": {"path": "./path"}}) ; "with file_append action")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_stacks_then_that_predicates(then_that: JsonValue) {
     let predicate = build_stacks_payload(None, None, Some(then_that), None);
@@ -321,7 +321,6 @@ async fn it_handles_stacks_then_that_predicates(then_that: JsonValue) {
 #[test_case(json!({"expire_after_occurrence": 0}) ; "expire_after_occurrence filter")]
 #[test_case(json!({"capture_all_events": true}) ; "capture_all_events filter")]
 #[test_case(json!({"decode_clarity_values": true}) ; "decode_clarity_values filter")]
-#[serial_test::serial]
 #[tokio::test]
 async fn it_handles_stacks_predicates_with_filters(filters: JsonValue) {
     let predicate = build_stacks_payload(None, None, None, Some(filters));
