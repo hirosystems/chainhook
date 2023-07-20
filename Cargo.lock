@@ -421,7 +421,6 @@ dependencies = [
  "ansi_term",
  "atty",
  "chainhook-sdk",
- "chainhook-types 1.0.8",
  "clap 3.2.23",
  "clap_generate",
  "clarinet-files",
@@ -456,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.7.3"
+version = "0.7.5"
 dependencies = [
  "base58 0.2.0",
  "base64",
@@ -471,6 +470,7 @@ dependencies = [
  "hex",
  "hiro-system-kit",
  "hyper",
+ "lazy_static",
  "rand 0.8.5",
  "reqwest",
  "rocket",

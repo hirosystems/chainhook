@@ -9,13 +9,16 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
+#[macro_use]
+extern crate lazy_static;
+
 pub extern crate bitcoincore_rpc;
 pub extern crate bitcoincore_rpc_json;
 pub extern crate dashmap;
 pub extern crate fxhash;
 pub extern crate stacks_rpc_client;
 
-pub use chainhook_types;
+pub use chainhook_types as types;
 
 pub mod chainhooks;
 pub mod indexer;

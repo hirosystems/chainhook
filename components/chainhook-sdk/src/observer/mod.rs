@@ -13,7 +13,8 @@ use crate::chainhooks::types::{
 };
 
 use crate::indexer::bitcoin::{
-    download_and_parse_block_with_retry, standardize_bitcoin_block, BitcoinBlockFullBreakdown,
+    build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
+    BitcoinBlockFullBreakdown,
 };
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::utils::{send_request, Context};
@@ -658,6 +659,7 @@ pub fn start_zeromq_runloop(
             let bitcoind_zmq_url = bitcoind_zmq_url.clone();
             let ctx_moved = ctx.clone();
             let bitcoin_config = config.get_bitcoin_config();
+            let http_client = build_http_client();
 
             hiro_system_kit::thread_named("Bitcoind zmq listener")
                 .spawn(move || {
@@ -706,6 +708,7 @@ pub fn start_zeromq_runloop(
                                                 hex::encode(message.get(1).unwrap().to_vec());
 
                                             let block = match download_and_parse_block_with_retry(
+                                    			&http_client,
                                                 &block_hash,
                                                 &bitcoin_config,
                                                 &ctx_moved,
@@ -832,6 +835,7 @@ pub async fn start_observer_commands_handler(
     let event_handlers = config.event_handlers.clone();
     let networks = (&config.bitcoin_network, &config.stacks_network);
     let mut bitcoin_block_store: HashMap<BlockIdentifier, BitcoinBlockData> = HashMap::new();
+    let http_client = build_http_client();
 
     loop {
         let command = match observer_commands_rx.recv() {
@@ -870,6 +874,7 @@ pub async fn start_observer_commands_handler(
                             });
                             if retry {
                                 block_data = match download_and_parse_block_with_retry(
+                                    &http_client,
                                     &block_hash,
                                     &config.get_bitcoin_config(),
                                     &ctx,

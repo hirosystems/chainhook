@@ -9,7 +9,7 @@ Chainhook is a transaction indexing engine for Stacks and Bitcoin. It can extrac
 Chainhook can extract data from the Bitcoin and the Stacks blockchains using predicates (sometimes called `chainhooks`). A predicate specifies a rule applied as a filtering function on every block transaction.
 
 - **Chainhook as a development tool** has a few convenient features designed to make developers as productive as possible by allowing them to iterate quickly in their local environments.
-- **Chainhook as a service** can be used to evaluate new Bitcoin and/or Stacks blocks against your predicates. You can also dynamically register new predicates by [enabling predicates registration API](../docs/overview.md#then-that-predicate-design)
+- **Chainhook as a service** can be used to evaluate new Bitcoin and/or Stacks blocks against your predicates. You can also dynamically register new predicates by [enabling predicates registration API](./overview.md#then-that-predicate-design)
 
 ## Install Chainhook from the Source
 
@@ -35,5 +35,5 @@ Chainhook can be installed from the source by following the steps below:
 
 If you want to start using Chainhook for extracting data from Bitcoin or Stacks, you can design your predicates using the following guides:
 
-- [how to use chainhook with bitcoin](../docs/how-to-guides/how-to-use-chainhook-with-bitcoin.md)
-- [how to use chainhook with stacks](../docs/how-to-guides/how-to-use-chainhook-with-stacks.md)
+- [How to use chainhook with bitcoin](./how-to-guides/how-to-use-chainhook-with-bitcoin.md)
+- [How to use chainhook with stacks](./how-to-guides/how-to-use-chainhook-with-stacks.md)

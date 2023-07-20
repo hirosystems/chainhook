@@ -1,4 +1,6 @@
-use crate::indexer::bitcoin::{download_and_parse_block_with_retry, NewBitcoinBlock};
+use crate::indexer::bitcoin::{
+    build_http_client, download_and_parse_block_with_retry, NewBitcoinBlock,
+};
 use crate::indexer::{self, Indexer};
 use crate::utils::Context;
 use hiro_system_kit::slog;
@@ -47,23 +49,27 @@ pub async fn handle_new_bitcoin_block(
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
 
+    let http_client = build_http_client();
     let block_hash = bitcoin_block.burn_block_hash.strip_prefix("0x").unwrap();
-    let block = match download_and_parse_block_with_retry(block_hash, bitcoin_config, ctx).await {
-        Ok(block) => block,
-        Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable to download_and_parse_block: {}",
-                    e.to_string()
-                )
-            });
-            return Json(json!({
-                "status": 500,
-                "result": "unable to retrieve_full_block",
-            }));
-        }
-    };
+    let block =
+        match download_and_parse_block_with_retry(&http_client, block_hash, bitcoin_config, ctx)
+            .await
+        {
+            Ok(block) => block,
+            Err(e) => {
+                ctx.try_log(|logger| {
+                    slog::warn!(
+                        logger,
+                        "unable to download_and_parse_block: {}",
+                        e.to_string()
+                    )
+                });
+                return Json(json!({
+                    "status": 500,
+                    "result": "unable to retrieve_full_block",
+                }));
+            }
+        };
 
     let header = block.get_block_header();
     match background_job_tx.lock() {

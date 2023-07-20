@@ -13,6 +13,7 @@ use crate::{
         open_readwrite_stacks_db_conn,
     },
 };
+use chainhook_sdk::types::BlockIdentifier;
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
@@ -25,7 +26,6 @@ use chainhook_sdk::{
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };
-use chainhook_types::BlockIdentifier;
 use rocksdb::DB;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -421,11 +421,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         "Building local chainstate from Stacks archive file"
     );
 
-    let new_archive_to_process = download_stacks_dataset_if_required(config, ctx).await;
-    // Nothing to do - early return
-    if !new_archive_to_process {
-        return Ok(());
-    }
+    let _ = download_stacks_dataset_if_required(config, ctx).await;
 
     let mut canonical_fork = get_canonical_fork_from_tsv(config, ctx).await?;
 

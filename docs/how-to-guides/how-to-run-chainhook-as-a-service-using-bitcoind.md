@@ -102,7 +102,7 @@ In the `Chainhook.toml` file that gets generated, you'll need to match the netwo
 
 The Bitcoin node is exposing the rpc endpoints. To protect the endpoints, we are using rpc username and password fields. To run Chainhook as a service using Bitcoin, you must match the rpc endpoints username, password, and network ports.
 
-As such, some configurations will need to match between Chainhook and the bitcoind node. In the `Chainhook.toml`, update the following network parameters to match the `bitcoin.conf`:
+As such, some configurations must match Chainhook and the bitcoind node. In the `Chainhook.toml`, update the following network parameters to match the `bitcoin.conf`:
 
 | bitcoin.conf      | Chainhook.toml                |
 | -----------       | -----------                   |
@@ -305,5 +305,5 @@ Understand the output of the above JSON file with the following details.
 
 ## References
 
-- To learn more about Ordinals, refer to [Introducing Ordinals Explorer and Ordinals API](https://www.hiro.so/blog/introducing-the-ordinals-explorer-and-ordinals-api)
+- To learn more about Ordinals, refer to [Introducing Ordinals Explorer and Ordinals API](https://www.hiro.so/blog/introducing-the-ordinals-explorer-and-ordinals-api).
 - The [OpenAPI specification for chainhook](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) is available to understand the scope of chainhook.

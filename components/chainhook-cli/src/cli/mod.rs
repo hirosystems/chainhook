@@ -1,8 +1,7 @@
-use crate::archive::download_stacks_dataset_if_required;
 use crate::config::generator::generate_config;
 use crate::config::{Config, PredicatesApi};
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
-use crate::scan::stacks::scan_stacks_chainstate_via_csv_using_predicate;
+use crate::scan::stacks::{scan_stacks_chainstate_via_csv_using_predicate, consolidate_local_stacks_chainstate_using_csv};
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
@@ -16,13 +15,8 @@ use chainhook_sdk::chainhooks::types::{
     StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
     StacksPrintEventBasedPredicate,
 };
-use chainhook_sdk::indexer;
-use chainhook_sdk::indexer::bitcoin::{
-    download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
-};
-use chainhook_sdk::observer::BitcoinConfig;
+use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::Context;
-use chainhook_types::{BitcoinBlockData, BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use clap::{Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
@@ -552,7 +546,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             }
             StacksCommand::Db(StacksDbCommand::Update(cmd)) => {
                 let mut config = Config::default(false, false, false, &cmd.config_path)?;
-                download_stacks_dataset_if_required(&mut config, &ctx).await;
+                consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx).await?;
             }
             StacksCommand::Db(StacksDbCommand::Check(cmd)) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
@@ -628,17 +622,4 @@ pub fn load_predicate_from_path(
     let predicate: ChainhookFullSpecification = serde_json::from_slice(&file_buffer)
         .map_err(|e| format!("unable to parse json file {}\n{:?}", predicate_path, e))?;
     Ok(predicate)
-}
-
-pub async fn fetch_and_standardize_block(
-    block_height: u64,
-    bitcoin_config: &BitcoinConfig,
-    ctx: &Context,
-) -> Result<BitcoinBlockData, String> {
-    let block_hash = retrieve_block_hash_with_retry(&block_height, &bitcoin_config, &ctx).await?;
-    let block_breakdown =
-        download_and_parse_block_with_retry(&block_hash, &bitcoin_config, &ctx).await?;
-
-    indexer::bitcoin::standardize_bitcoin_block(block_breakdown, &bitcoin_config.network, &ctx)
-        .map_err(|(e, _)| e)
 }
