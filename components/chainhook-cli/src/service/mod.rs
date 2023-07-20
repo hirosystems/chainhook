@@ -448,7 +448,6 @@ pub fn open_readwrite_predicates_db_conn_or_panic(
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use rocket::serde::json::Value as JsonValue;
     use rocket::Shutdown;
     use std::sync::mpsc::Receiver;
@@ -463,187 +462,43 @@ mod tests {
     use super::http_api::start_predicate_api_server;
     use super::Context;
 
-    #[derive(Serialize, Deserialize)]
-    struct RegisterPredicateResponse {
-        status: u64,
-        result: String,
-    }
+    const UUID: &str = "4ecc-4ecc-435b-9948-d5eeca1c3ce6";
 
-    fn _get_bitcoin_if_this_options() -> Vec<JsonValue> {
-        vec![
-            // Block scope
-            json!({"scope": "block"}),
-            // Txid scope
-            json!({
-                "scope": "txid",
-                "equals": "{txid}"
-            }),
-            // Inputs scope
-            json!({
-                "scope": "inputs",
-                "txid": {
-                    "txid": "{txid}",
-                    "vout": 0
-                }
-            }),
-            json!({
-                "scope": "inputs",
-                "witness_script": {
-                    "equals": "test"
-                }
-            }),
-            // Outputs scope
-            json!({
-                "scope": "outputs",
-                "p2pkh": {
-                    "equals": "{p2pkh_address}"
-                }
-            }),
-            json!({
-                "scope": "outputs",
-                "p2sh": {
-                    "equals": "{p2sh_address}"
-                }
-            }),
-            json!({
-                "scope": "outputs",
-                "p2wpkh": {
-                    "equals": "{p2wpkh_address}"
-                }
-            }),
-            json!({
-                "scope": "outputs",
-                "p2wsh": {
-                    "equals": "{p2wsh_address}"
-                }
-            }),
-            // StacksProtocol scope
-            json!({
-                "scope": "stacks_protocol",
-                "operation": "stacker_rewarded"
-            }),
-            json!({
-                "scope": "stacks_protocol",
-                "operation": "block_committed"
-            }
-            ),
-            json!({
-                "scope": "stacks_protocol",
-                "operation": "leader_registered"
-            }),
-            json!({
-                "scope": "stacks_protocol",
-                "operation": "stx_transferred"
-            }),
-            json!({
-                "scope": "stacks_protocol",
-                "operation": "stx_locked"
-            }),
-            // OrdinalsProtocol scope
-            json!({
-                "scope": "ordinals_protocol",
-                "operation": "inscription_feed"
-            }),
-        ]
-    }
+    fn build_bitcoin_payload(
+        network: Option<&str>,
+        if_this: Option<JsonValue>,
+        then_that: Option<JsonValue>,
+        filter: Option<JsonValue>,
+    ) -> JsonValue {
+        let network = network.unwrap_or("mainnet");
+        let if_this = if_this.unwrap_or(json!({"scope":"block"}));
+        let then_that = then_that.unwrap_or(json!("noop"));
+        let filter = filter.unwrap_or(json!({}));
 
-    fn get_bitcoin_then_that_options() -> Vec<JsonValue> {
-        vec![
-            json!("noop"),
-            json!({
-                "http_post": {
-                    "url": "http://localhost:1234",
-                    "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"
-                }
-            }),
-            json!({
-                "file_append": {
-                    "path": "./path"
-                }
-            }),
-        ]
-    }
-
-    fn get_combintations(items: JsonValue) -> Vec<JsonValue> {
-        let obj = items.as_object().unwrap();
-        let mut all_combinations = vec![];
-        let keys = obj.keys();
-        for (i, _) in keys.enumerate() {
-            let combinations = obj.into_iter().combinations(i);
-            for entries in combinations {
-                let mut joined_entry = json!({});
-                for (k, v) in entries {
-                    joined_entry[k] = v.to_owned();
-                }
-                all_combinations.push(joined_entry);
-            }
-        }
-        all_combinations
-    }
-
-    fn get_bitcoin_filter_combinations() -> Vec<JsonValue> {
-        let things = json!({
-            "start_block": 0,
-            "end_block": 0,
-            "expire_after_occurrence": 0,
-            "include_proof": true,
-            "include_inputs": true,
-            "include_outputs": true,
-            "include_witness": true,
+        let filter = filter.as_object().unwrap();
+        let mut network_val = json!({
+            "if_this": if_this,
+            "then_that": then_that
         });
-        get_combintations(things)
-    }
-
-    fn build_bitcoin_payloads(network: &str, if_this: JsonValue, uuid: &str) -> Vec<JsonValue> {
-        let mut payloads = vec![];
-
-        for then_that in get_bitcoin_then_that_options() {
-            for filter in get_bitcoin_filter_combinations() {
-                let filter = filter.as_object().unwrap();
-                let mut network_val = json!({
-                    "if_this": if_this,
-                    "then_that": then_that
-                });
-                for (k, v) in filter.iter() {
-                    network_val[k] = v.to_owned();
-                }
-                payloads.push(json!({
-                    "chain": "bitcoin",
-                    "uuid": uuid,
-                    "name": "test",
-                    "version": 1,
-                    "networks": {
-                        network: network_val
-                    }
-                }));
-                payloads.push(json!({
-                    "chain": "bitcoin",
-                    "uuid": uuid,
-                    "owner_uuid": "owner-uuid",
-                    "name": "test",
-                    "version": 1,
-                    "networks": {
-                        network: network_val
-                    }
-                }));
-            }
+        for (k, v) in filter.iter() {
+            network_val[k] = v.to_owned();
         }
-
-        payloads
+        json!({
+            "chain": "bitcoin",
+            "uuid": UUID,
+            "name": "test",
+            "version": 1,
+            "networks": {
+                network: network_val
+            }
+        })
     }
 
-    pub fn build_ctx() -> Context {
-        let logger = hiro_system_kit::log::setup_logger();
-        let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+    async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
         let ctx = Context {
             logger: None,
             tracer: false,
         };
-        ctx
-    }
-
-    async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
-        let ctx = build_ctx();
         let api_config = PredicatesApiConfig {
             http_port: 8675,
             display_logs: true,
@@ -657,75 +512,165 @@ mod tests {
         (rx, shutdown)
     }
 
-    async fn call_register_predicate(predicate: &JsonValue) -> JsonValue {
+    async fn call_register_predicate(predicate: &JsonValue) -> Result<JsonValue, String> {
         let client = reqwest::Client::new();
-        client
+        let res =client
             .post(format!("http://localhost:8675/v1/chainhooks"))
             .header("Content-Type", "application/json")
             .json(predicate)
             .send()
             .await
-            .expect("Failed to make POST request to localhost:8765/v1/chainhooks")
+            .map_err(|e| {
+                format!(
+                    "Failed to make POST request to localhost:8765/v1/chainhooks: {}",
+                    e
+                )
+            })?
             .json::<JsonValue>()
             .await
-            .expect(
-                "Failed to deserialize response of POST request to localhost:8765/v1/chainhooks",
-            )
+            .map_err(|e| {
+                format!(
+                    "Failed to deserialize response of POST request to localhost:8765/v1/chainhooks: {}",
+                    e
+                )
+            })?;
+        Ok(res)
     }
 
-    #[test_case("mainnet", json!({"scope":"block"}); "for mainnet if_this block predicates")]
-    #[test_case("mainnet", json!({"scope":"txid", "equals": ""}) ; "for mainnet if_this txid predicates")]
-    #[test_case("mainnet", json!({"scope": "inputs","txid": {"txid": "","vout": 0}}) ; "for mainnet if_this txid input predicates")]
-    #[test_case("mainnet", json!({"scope": "inputs","witness_script": {"equals": "test"}}) ; "for mainnet if_this witness_script input predicates")]
-    #[test_case("mainnet", json!({"scope": "outputs","p2pkh": {"equals": "test"}}) ; "for mainnet if_this p2pkh output predicates")]
-    #[test_case("mainnet", json!({ "scope": "outputs","p2sh": {"equals": "test"}}) ; "for mainnet if_this p2sh output predicates")]
-    #[test_case("mainnet", json!({"scope": "outputs","p2wpkh": {"equals": "test"}}) ; "for mainnet if_this p2wpkh output predicates")]
-    #[test_case("mainnet", json!({"scope": "outputs","p2wsh": {"equals": "test"}}) ; "for mainnet if_this p2wsh output predicates")]
+    async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Shutdown)> {
+        let (rx, shutdown) = build_service().await;
+
+        let moved_shutdown = shutdown.clone();
+        let res = call_register_predicate(&predicate)
+            .await
+            .map_err(|e| (e, moved_shutdown))?;
+
+        let moved_shutdown = shutdown.clone();
+        let (status, result) = match res {
+            JsonValue::Object(obj) => {
+                if let Some(err) = obj.get("error") {
+                    shutdown.notify();
+                    panic!("Register predicate result contained error: {}", err);
+                }
+                let status = obj.get("status").unwrap().to_string();
+                let result = obj.get("result").unwrap().to_string();
+                Ok((status, result))
+            }
+            _ => Err(format!("Register predicate result is not correct type")),
+        }
+        .map_err(|e| (e, moved_shutdown))?;
+
+        let moved_shutdown = shutdown.clone();
+        let command = rx.recv().map_err(|e| {
+            (
+                format!("Channel error for predicate registration: {}", e),
+                moved_shutdown,
+            )
+        })?;
+
+        let moved_shutdown = shutdown.clone();
+        let registered_predicate = match command {
+            ObserverCommand::RegisterPredicate(registered_predicate) => {
+                let registered_predicate: JsonValue =
+                    serde_json::from_str(&serde_json::to_string(&registered_predicate).unwrap())
+                        .unwrap();
+                Ok(registered_predicate)
+            }
+            _ => Err(format!(
+                "Received wrong observer command for predicate registration"
+            )),
+        }
+        .map_err(|e| (e, moved_shutdown))?;
+
+        shutdown.notify();
+        assert_eq!(registered_predicate, predicate);
+        assert_eq!(status, String::from("200"));
+        assert_eq!(result, format!("\"{UUID}\""));
+        Ok(())
+    }
+
+    #[test_case("mainnet" ; "mainnet")]
+    #[test_case("testnet" ; "testnet")]
+    #[test_case("regtest" ; "regtest")]
     #[serial_test::serial]
     #[tokio::test]
-    async fn it_registers_all_bitcoin_predicates(network: &str, if_this: JsonValue) {
-        let uuid = "4ecc-4ecc-435b-9948-d5eeca1c3ce6";
-        let payloads = build_bitcoin_payloads(network, if_this, uuid);
-        let (rx, shutdown) = build_service().await;
-        println!("checking {} predicates", payloads.len());
-        let mut i = 0;
-        for predicate in payloads {
-            let predicate_moved = predicate.clone();
-            let res = call_register_predicate(&predicate.clone()).await;
-
-            let (status, result) = match res {
-                JsonValue::Object(obj) => {
-                    if let Some(err) = obj.get("error") {
-                        panic!("Register predicate result contained error: {}", err);
-                    }
-                    let status = obj.get("status").unwrap().to_string();
-                    let result = obj.get("result").unwrap().to_string();
-                    (status, result)
-                }
-                _ => panic!("Register predicate result is not correct type"),
-            };
-            assert_eq!(status, String::from("200"));
-            assert_eq!(result, format!("\"{uuid}\""));
-
-            let command = match rx.recv() {
-                Ok(cmd) => cmd,
-                Err(e) => panic!("Channel error for predicate registration: {}", e),
-            };
-
-            match command {
-                ObserverCommand::RegisterPredicate(registered_predicate) => {
-                    let registered_predicate: JsonValue = serde_json::from_str(
-                        &serde_json::to_string(&registered_predicate).unwrap(),
-                    )
-                    .unwrap();
-                    assert_eq!(registered_predicate, predicate_moved);
-                    i = i + 1;
-                }
-                _ => panic!("Received wrong observer command for predicate registration"),
+    async fn it_handles_bitcoin_predicates_with_network(network: &str) {
+        let predicate = build_bitcoin_payload(Some(network), None, None, None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
             }
         }
+    }
 
-        println!("checked {i} predicates");
-        shutdown.notify();
+    #[test_case(json!({"scope":"block"}); "with scope block")]
+    #[test_case(json!({"scope":"txid", "equals": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f"}) ; "with scope txid")]
+    #[test_case(json!({"scope": "inputs","txid": {"txid": "0xfaaac1833dc4883e7ec28f61e35b41f896c395f8d288b1a177155de2abd6052f","vout": 0}}) ; "with scope inputs type txid")]
+    #[test_case(json!({"scope": "inputs","witness_script": {"equals": "test"}}) ; "with scope inputs type witness_script equal match")]
+    #[test_case(json!({"scope": "inputs","witness_script": {"starts_with": "test"}}) ; "with scope inputs type witness_script starts with match")]
+    #[test_case(json!({"scope": "inputs","witness_script": {"ends_with": "test"}}) ; "with scope inputs type witness_script ends with match")]
+    #[test_case(json!({"scope": "outputs","op_return": {"equals": "0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012"}}) ; "with scope outputs type op_return equal match")]
+    #[test_case(json!({"scope": "outputs","op_return": {"starts_with": "X2["}}) ; "with scope outputs type op_return starts with match")]
+    #[test_case(json!({"scope": "outputs","op_return": {"ends_with": "0x76a914000000000000000000000000000000000000000088ac"}}) ; "with scope outputs type op_return ends with match")]
+    #[test_case(json!({"scope": "outputs","p2pkh": {"equals": "mr1iPkD9N3RJZZxXRk7xF9d36gffa6exNC"}}) ; "with scope outputs type p2pkh")]
+    #[test_case(json!({ "scope": "outputs","p2sh": {"equals": "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"}}) ; "with scope outputs type p2sh")]
+    #[test_case(json!({"scope": "outputs","p2wpkh": {"equals": "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"}}) ; "with scope outputs type p2wpkh")]
+    #[test_case(json!({"scope": "outputs","p2wsh": {"equals": "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"}}) ; "with scope outputs type p2wsh")]
+    #[test_case(json!({"scope": "stacks_protocol","operation": "stacker_rewarded"}) ; "with scope stacks_protocol operation stacker_rewarded")]
+    #[test_case(json!({"scope": "stacks_protocol","operation": "block_committed"}) ; "with scope stacks_protocol operation block_committed")]
+    #[test_case(json!({"scope": "stacks_protocol","operation": "leader_registered"}) ; "with scope stacks_protocol operation leader_registered")]
+    #[test_case(json!({"scope": "stacks_protocol","operation": "stx_transferred"}) ; "with scope stacks_protocol operation stx_transferred")]
+    #[test_case(json!({"scope": "stacks_protocol","operation": "stx_locked"}) ; "with scope stacks_protocol operation stx_locked")]
+    #[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed"}) ; "with scope ordinals_protocol operation inscription_feed")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_bitcoin_if_this_predicates(if_this: JsonValue) {
+        let predicate = build_bitcoin_payload(None, Some(if_this), None, None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case(json!("noop") ; "with noop action")]
+    #[test_case(json!({"http_post": {"url": "http://localhost:1234", "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"}}) ; "with http_post action")]
+    #[test_case(json!({"file_append": {"path": "./path"}}) ; "with file_append action")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_bitcoin_then_that_predicates(then_that: JsonValue) {
+        let predicate = build_bitcoin_payload(None, None, Some(then_that), None);
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
+    }
+
+    #[test_case(json!({"start_block": 0,"end_block": 0,"expire_after_occurrence": 0,"include_proof": true,"include_inputs": true,"include_outputs": true,"include_witness": true}) ; "all filters")]
+    #[test_case(json!({"start_block": 0}) ; "start_block filter")]
+    #[test_case(json!({"end_block": 0}) ; "end_block filter")]
+    #[test_case(json!({"expire_after_occurrence": 0}) ; "expire_after_occurrence filter")]
+    #[test_case(json!({"include_proof": true}) ; "include_proof filter")]
+    #[test_case(json!({"include_inputs": true}) ; "include_inputs filter")]
+    #[test_case(json!({"include_outputs": true}) ; "include_outputs filter")]
+    #[test_case(json!({"include_witness": true}) ; "include_witness filter")]
+    #[serial_test::serial]
+    #[tokio::test]
+    async fn it_handles_bitcoin_predicates_with_filters(filters: JsonValue) {
+        let predicate = build_bitcoin_payload(None, None, None, Some(filters));
+        match test_register_predicate(predicate).await {
+            Ok(_) => {}
+            Err((e, shutdown)) => {
+                shutdown.notify();
+                panic!("{e}");
+            }
+        }
     }
 }
