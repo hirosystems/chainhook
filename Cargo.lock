@@ -416,12 +416,11 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chainhook"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "ansi_term",
  "atty",
  "chainhook-sdk",
- "chainhook-types 1.0.7",
  "clap 3.2.23",
  "clap_generate",
  "clarinet-files",
@@ -456,25 +455,22 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.6.0"
+version = "0.7.5"
 dependencies = [
  "base58 0.2.0",
  "base64",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
- "chainhook-types 1.0.7",
- "clap 3.2.23",
- "clap_generate",
- "clarinet-files",
+ "chainhook-types 1.0.8",
  "clarinet-utils",
  "crossbeam-channel 0.5.8",
- "ctrlc",
  "dashmap 5.4.0",
  "futures",
  "fxhash",
  "hex",
  "hiro-system-kit",
  "hyper",
+ "lazy_static",
  "rand 0.8.5",
  "reqwest",
  "rocket",
@@ -486,7 +482,6 @@ dependencies = [
  "stacks-rpc-client",
  "threadpool",
  "tokio",
- "toml",
  "zeromq",
 ]
 
@@ -506,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "hex",
  "schemars 0.8.12",

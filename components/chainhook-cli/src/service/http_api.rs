@@ -65,7 +65,7 @@ pub async fn start_predicate_api_server(
     Ok(())
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Health Check")]
 #[get("/ping")]
 fn handle_ping(ctx: &State<Context>) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP GET /ping"));
@@ -75,7 +75,7 @@ fn handle_ping(ctx: &State<Context>) -> Json<JsonValue> {
     }))
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Managing Predicates")]
 #[get("/v1/chainhooks", format = "application/json")]
 fn handle_get_predicates(
     api_config: &State<PredicatesApiConfig>,
@@ -112,7 +112,7 @@ fn handle_get_predicates(
     }
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Managing Predicates")]
 #[post("/v1/chainhooks", format = "application/json", data = "<predicate>")]
 fn handle_create_predicate(
     predicate: Result<Json<ChainhookFullSpecification>, rocket::serde::json::Error>,
@@ -172,7 +172,7 @@ fn handle_create_predicate(
     }))
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Managing Predicates")]
 #[get("/v1/chainhooks/<predicate_uuid>", format = "application/json")]
 fn handle_get_predicate(
     predicate_uuid: String,
@@ -228,7 +228,7 @@ fn handle_get_predicate(
     }
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Managing Predicates")]
 #[delete("/v1/chainhooks/stacks/<predicate_uuid>", format = "application/json")]
 fn handle_delete_stacks_predicate(
     predicate_uuid: String,
@@ -257,7 +257,7 @@ fn handle_delete_stacks_predicate(
     }))
 }
 
-#[openapi(tag = "Chainhooks")]
+#[openapi(tag = "Managing Predicates")]
 #[delete("/v1/chainhooks/bitcoin/<predicate_uuid>", format = "application/json")]
 fn handle_delete_bitcoin_predicate(
     predicate_uuid: String,

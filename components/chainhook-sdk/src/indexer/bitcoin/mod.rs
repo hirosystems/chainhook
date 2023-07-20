@@ -23,6 +23,7 @@ use chainhook_types::{
     StacksBlockCommitmentData, TransactionIdentifier, TransferSTXData,
 };
 use hiro_system_kit::slog;
+use reqwest::Client as HttpClient;
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -143,24 +144,34 @@ pub struct RewardParticipant {
     amt: u64,
 }
 
+pub fn build_http_client() -> HttpClient {
+    HttpClient::builder()
+        .timeout(Duration::from_secs(20))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("Unable to build http client")
+}
+
 pub async fn download_and_parse_block_with_retry(
+    http_client: &HttpClient,
     block_hash: &str,
     bitcoin_config: &BitcoinConfig,
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
     let block = loop {
-        match download_and_parse_block(block_hash, bitcoin_config, ctx).await {
+        match download_and_parse_block(http_client, block_hash, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(e) => {
+            Err(_e) => {
                 errors_count += 1;
-                ctx.try_log(|logger| {
-                    slog::warn!(
-                        logger,
-                        "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                        e.to_string()
-                    )
-                });
+                if errors_count > 3 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
@@ -168,7 +179,65 @@ pub async fn download_and_parse_block_with_retry(
     Ok(block)
 }
 
+pub async fn retrieve_block_hash_with_retry(
+    http_client: &HttpClient,
+    block_height: &u64,
+    bitcoin_config: &BitcoinConfig,
+    ctx: &Context,
+) -> Result<String, String> {
+    let mut errors_count = 0;
+    let block_hash = loop {
+        match retrieve_block_hash(http_client, block_height, bitcoin_config, ctx).await {
+            Ok(result) => break result,
+            Err(_e) => {
+                errors_count += 1;
+                if errors_count > 3 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            }
+        }
+    };
+    Ok(block_hash)
+}
+
+pub async fn retrieve_block_hash(
+    http_client: &HttpClient,
+    block_height: &u64,
+    bitcoin_config: &BitcoinConfig,
+    _ctx: &Context,
+) -> Result<String, String> {
+    let body = json!({
+        "jsonrpc": "1.0",
+        "id": "chainhook-cli",
+        "method": "getblockhash",
+        "params": [block_height]
+    });
+    let block_hash = http_client
+        .post(&bitcoin_config.rpc_url)
+        .basic_auth(&bitcoin_config.username, Some(&bitcoin_config.password))
+        .header("Content-Type", "application/json")
+        .header("Host", &bitcoin_config.rpc_url[7..])
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("unable to send request ({})", e))?
+        .json::<bitcoincore_rpc::jsonrpc::Response>()
+        .await
+        .map_err(|e| format!("unable to parse response ({})", e))?
+        .result::<String>()
+        .map_err(|e| format!("unable to parse response ({})", e))?;
+
+    Ok(block_hash)
+}
+
 pub async fn download_block_with_retry(
+    http_client: &HttpClient,
     block_hash: &str,
     bitcoin_config: &BitcoinConfig,
     ctx: &Context,
@@ -176,15 +245,14 @@ pub async fn download_block_with_retry(
     let mut errors_count = 0;
     let block = loop {
         let response = {
-            match download_block(block_hash, bitcoin_config, ctx).await {
+            match download_block(http_client, block_hash, bitcoin_config, ctx).await {
                 Ok(result) => result,
-                Err(e) => {
+                Err(_e) => {
                     errors_count += 1;
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                            e.to_string()
+                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
                         )
                     });
                     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -200,8 +268,7 @@ pub async fn download_block_with_retry(
                 ctx.try_log(|logger| {
                     slog::warn!(
                         logger,
-                        "unable to retrieve block #{block_hash} (attempt #{errors_count}): {}",
-                        e.to_string()
+                        "unable to parse fetched block #{block_hash}: will retry in a few seconds (attempt #{errors_count}) ({e})",
                     )
                 });
                 std::thread::sleep(std::time::Duration::from_millis(500));
@@ -212,47 +279,18 @@ pub async fn download_block_with_retry(
     Ok(block)
 }
 
-pub async fn retrieve_block_hash_with_retry(
-    block_height: &u64,
-    bitcoin_config: &BitcoinConfig,
-    ctx: &Context,
-) -> Result<String, String> {
-    let mut errors_count = 0;
-    let block_hash = loop {
-        match retrieve_block_hash(block_height, bitcoin_config, ctx).await {
-            Ok(result) => break result,
-            Err(e) => {
-                errors_count += 1;
-                ctx.try_log(|logger| {
-                    slog::error!(
-                        logger,
-                        "unable to retrieve #{block_height} (attempt #{errors_count}): {}",
-                        e.to_string()
-                    )
-                });
-                std::thread::sleep(std::time::Duration::from_secs(1));
-            }
-        }
-    };
-    Ok(block_hash)
-}
-
 pub async fn download_block(
+    http_client: &HttpClient,
     block_hash: &str,
     bitcoin_config: &BitcoinConfig,
     _ctx: &Context,
 ) -> Result<Vec<u8>, String> {
-    use reqwest::Client as HttpClient;
     let body = json!({
         "jsonrpc": "1.0",
         "id": "chainhook-cli",
         "method": "getblock",
         "params": [block_hash, 3]
     });
-    let http_client = HttpClient::builder()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .expect("Unable to build http client");
     let block = http_client
         .post(&bitcoin_config.rpc_url)
         .basic_auth(&bitcoin_config.username, Some(&bitcoin_config.password))
@@ -280,46 +318,13 @@ pub fn parse_downloaded_block(
 }
 
 pub async fn download_and_parse_block(
+    http_client: &HttpClient,
     block_hash: &str,
     bitcoin_config: &BitcoinConfig,
     _ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
-    let response = download_block(block_hash, bitcoin_config, _ctx).await?;
+    let response = download_block(http_client, block_hash, bitcoin_config, _ctx).await?;
     parse_downloaded_block(response)
-}
-
-pub async fn retrieve_block_hash(
-    block_height: &u64,
-    bitcoin_config: &BitcoinConfig,
-    _ctx: &Context,
-) -> Result<String, String> {
-    use reqwest::Client as HttpClient;
-    let body = json!({
-        "jsonrpc": "1.0",
-        "id": "chainhook-cli",
-        "method": "getblockhash",
-        "params": [block_height]
-    });
-    let http_client = HttpClient::builder()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .expect("Unable to build http client");
-    let block_hash = http_client
-        .post(&bitcoin_config.rpc_url)
-        .basic_auth(&bitcoin_config.username, Some(&bitcoin_config.password))
-        .header("Content-Type", "application/json")
-        .header("Host", &bitcoin_config.rpc_url[7..])
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("unable to send request ({})", e))?
-        .json::<bitcoincore_rpc::jsonrpc::Response>()
-        .await
-        .map_err(|e| format!("unable to parse response ({})", e))?
-        .result::<String>()
-        .map_err(|e| format!("unable to parse response ({})", e))?;
-
-    Ok(block_hash)
 }
 
 pub fn standardize_bitcoin_block(

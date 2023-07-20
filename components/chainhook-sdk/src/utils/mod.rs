@@ -1,4 +1,9 @@
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    fs::{self, OpenOptions},
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use chainhook_types::{
     BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData,
@@ -251,5 +256,93 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), ()
         return Err(());
     }
 
+    Ok(())
+}
+
+pub enum BlockHeights {
+    BlockRange(u64, u64),
+    Blocks(Vec<u64>),
+}
+
+impl BlockHeights {
+    pub fn get_sorted_entries(&self) -> VecDeque<u64> {
+        let mut entries = VecDeque::new();
+        match &self {
+            BlockHeights::BlockRange(start, end) => {
+                let min = *start.min(end);
+                let max = *start.max(end);
+                for i in min..=max {
+                    entries.push_back(i);
+                }
+            }
+            BlockHeights::Blocks(heights) => {
+                let mut sorted_entries = heights.clone();
+                sorted_entries.sort();
+                let mut unique_sorted_entries = BTreeSet::new();
+                for entry in sorted_entries.into_iter() {
+                    unique_sorted_entries.insert(entry);
+                }
+                for entry in unique_sorted_entries.into_iter() {
+                    entries.push_back(entry)
+                }
+            }
+        }
+        entries
+    }
+}
+
+#[test]
+fn test_block_heights_range_construct() {
+    let range = BlockHeights::BlockRange(0, 10);
+    let mut entries = range.get_sorted_entries();
+
+    let mut cursor = 0;
+    while let Some(entry) = entries.pop_front() {
+        assert_eq!(entry, cursor);
+        cursor += 1;
+    }
+    assert_eq!(11, cursor);
+}
+
+#[test]
+fn test_block_heights_blocks_construct() {
+    let range = BlockHeights::Blocks(vec![0, 3, 5, 6, 6, 10, 9]);
+    let expected = vec![0, 3, 5, 6, 9, 10];
+    let entries = range.get_sorted_entries();
+
+    for (entry, expectation) in entries.iter().zip(expected) {
+        assert_eq!(*entry, expectation);
+    }
+}
+
+pub fn read_file_content_at_path(file_path: &PathBuf) -> Result<Vec<u8>, String> {
+    use std::fs::File;
+    use std::io::BufReader;
+
+    let file = File::open(file_path.clone())
+        .map_err(|e| format!("unable to read file {}\n{:?}", file_path.display(), e))?;
+    let mut file_reader = BufReader::new(file);
+    let mut file_buffer = vec![];
+    file_reader
+        .read_to_end(&mut file_buffer)
+        .map_err(|e| format!("unable to read file {}\n{:?}", file_path.display(), e))?;
+    Ok(file_buffer)
+}
+
+pub fn write_file_content_at_path(file_path: &PathBuf, content: &[u8]) -> Result<(), String> {
+    use std::fs::File;
+    let mut parent_directory = file_path.clone();
+    parent_directory.pop();
+    fs::create_dir_all(&parent_directory).map_err(|e| {
+        format!(
+            "unable to create parent directory {}\n{}",
+            parent_directory.display(),
+            e
+        )
+    })?;
+    let mut file = File::create(&file_path)
+        .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
+    file.write_all(content)
+        .map_err(|e| format!("unable to write file {}\n{}", file_path.display(), e))?;
     Ok(())
 }

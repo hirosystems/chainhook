@@ -1,7 +1,6 @@
 use crate::config::Config;
-use chainhook_sdk::utils::Context;
-use chainhook_types::StacksNetwork;
-use clarinet_files::FileLocation;
+use chainhook_sdk::types::StacksNetwork;
+use chainhook_sdk::utils::{read_file_content_at_path, write_file_content_at_path, Context};
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use std::fs;
@@ -33,8 +32,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
     let mut local_sha_file_path = destination_path.clone();
     local_sha_file_path.push(default_tsv_sha_file_path(&config.network.stacks_network));
 
-    let local_sha_file = FileLocation::from_path(local_sha_file_path);
-    let _ = local_sha_file.write_content(&res.to_vec());
+    write_file_content_at_path(&local_sha_file_path, &res.to_vec())?;
 
     let file_url = config.expected_remote_stacks_tsv_url();
     let res = reqwest::get(&file_url)
@@ -118,7 +116,7 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
 
             // Download archive if not already present in cache
             // Load the local
-            let local_sha_file = FileLocation::from_path(tsv_sha_file_path).read_content();
+            let local_sha_file = read_file_content_at_path(&tsv_sha_file_path);
             let sha_url = config.expected_remote_stacks_tsv_sha256();
 
             let remote_sha_file = match reqwest::get(&sha_url).await {
