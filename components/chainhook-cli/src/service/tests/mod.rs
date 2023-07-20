@@ -299,8 +299,6 @@ async fn it_handles_stacks_predicates_with_network(network: &str) {
 #[test_case(json!({"scope":"block_height", "lower_than": 100}); "with scope block_height lower_than match")]
 #[test_case(json!({"scope":"block_height", "between": [100,102]}); "with scope block_height between match")]
 #[test_case(json!({"scope":"contract_deployment", "deployer": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"}); "with scope contract_deployment type deployer")]
-// #[test_case(json!({"scope":"contract_deployment", "implement_sip09": 100}); "with scope contract_deployment type implement_sip09")]
-// #[test_case(json!({"scope":"contract_deployment", "implement_sip10": 0}); "with scope contract_deployment type implement_sip10")]
 #[test_case(json!({"scope":"contract_call","contract_identifier": "SP000000000000000000002Q6VF78.pox","method": "stack-stx"}); "with scope contract_call")]
 #[test_case(json!({"scope":"print_event","contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09","contains": "vault"}); "with scope print_event")]
 #[test_case(json!({"scope":"ft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-token::cbtc","actions": ["burn"]}); "with scope ft_event")]
