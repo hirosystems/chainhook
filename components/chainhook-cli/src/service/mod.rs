@@ -450,6 +450,7 @@ pub fn open_readwrite_predicates_db_conn_or_panic(
 mod tests {
     use itertools::Itertools;
     use rocket::serde::json::Value as JsonValue;
+    use rocket::Shutdown;
     use std::sync::mpsc::Receiver;
     use test_case::test_case;
 
@@ -468,267 +469,163 @@ mod tests {
         result: String,
     }
 
-    fn get_bitcoin_if_this_options(
-        txid: &str,
-        p2pkh_address: &str,
-        p2sh_address: &str,
-        p2wpkh_address: &str,
-        p2wsh_address: &str,
-    ) -> Vec<String> {
+    fn _get_bitcoin_if_this_options() -> Vec<JsonValue> {
         vec![
             // Block scope
-            format!(
-                r#"
-            "if_this": {{
-                "scope": "block"
-            }}"#
-            ),
+            json!({"scope": "block"}),
             // Txid scope
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "txid",
                 "equals": "{txid}"
-            }}"#
-            ),
+            }),
             // Inputs scope
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "inputs",
-                "txid": {{
+                "txid": {
                     "txid": "{txid}",
                     "vout": 0
-                }}
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+                }
+            }),
+            json!({
                 "scope": "inputs",
-                "witness_script": {{
+                "witness_script": {
                     "equals": "test"
-                }}
-            }}"#
-            ),
+                }
+            }),
             // Outputs scope
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "outputs",
-                "p2pkh": {{
+                "p2pkh": {
                     "equals": "{p2pkh_address}"
-                }}
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+                }
+            }),
+            json!({
                 "scope": "outputs",
-                "p2sh": {{
+                "p2sh": {
                     "equals": "{p2sh_address}"
-                }}
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+                }
+            }),
+            json!({
                 "scope": "outputs",
-                "p2wpkh": {{
+                "p2wpkh": {
                     "equals": "{p2wpkh_address}"
-                }}
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+                }
+            }),
+            json!({
                 "scope": "outputs",
-                "p2wsh": {{
+                "p2wsh": {
                     "equals": "{p2wsh_address}"
-                }}
-            }}"#
-            ),
+                }
+            }),
             // StacksProtocol scope
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "stacks_protocol",
                 "operation": "stacker_rewarded"
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+            }),
+            json!({
                 "scope": "stacks_protocol",
                 "operation": "block_committed"
-            }}"#
+            }
             ),
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "stacks_protocol",
                 "operation": "leader_registered"
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+            }),
+            json!({
                 "scope": "stacks_protocol",
                 "operation": "stx_transferred"
-            }}"#
-            ),
-            format!(
-                r#"
-            "if_this": {{
+            }),
+            json!({
                 "scope": "stacks_protocol",
                 "operation": "stx_locked"
-            }}"#
-            ),
+            }),
             // OrdinalsProtocol scope
-            format!(
-                r#"
-            "if_this": {{
+            json!({
                 "scope": "ordinals_protocol",
                 "operation": "inscription_feed"
-            }}"#
-            ),
+            }),
         ]
     }
 
-    fn get_bitcoin_then_that_options(http_post_url: &str) -> Vec<String> {
+    fn get_bitcoin_then_that_options() -> Vec<JsonValue> {
         vec![
-            format!(r#""then_that": "noop""#),
-            format!(
-                r#"
-            "then_that": {{
-                "http_post": {{
-                    "url": "{http_post_url}",
+            json!("noop"),
+            json!({
+                "http_post": {
+                    "url": "http://localhost:1234",
                     "authorization_header": "Bearer FYRPnz2KHj6HueFmaJ8GGD3YMbirEFfh"
-                }}
-            }}"#
-            ),
-            format!(
-                r#"
-            "then_that": {{
-                "file_append": {{
+                }
+            }),
+            json!({
+                "file_append": {
                     "path": "./path"
-                }}
-            }}"#
-            ),
+                }
+            }),
         ]
     }
 
-    fn get_combinations(items: Vec<String>) -> Vec<String> {
-        // add all combintations of our options,
-        // from one option per entry to all options per entry
-        let mut combinations = vec![];
-        for (i, _) in items.iter().enumerate() {
-            combinations.append(
-                &mut items
-                    .iter()
-                    .combinations(i)
-                    .map(|e| e.iter().join(","))
-                    .collect_vec(),
-            )
-        }
-        // the above doesn't include an entry of all options or an entry of no options
-        combinations.push(items.clone().join(","));
-        combinations.push(String::new());
-        combinations
-    }
-
-    fn get_bitcoin_filter_combinations() -> Vec<String> {
-        let options = vec![
-            format!(
-                r#"
-            "start_block": 0"#
-            ),
-            format!(
-                r#"
-            "end_block": 0"#
-            ),
-            format!(
-                r#"
-            "expire_after_occurrence": 0"#
-            ),
-            format!(
-                r#"
-            "include_proof": true"#
-            ),
-            format!(
-                r#"
-            "include_inputs": true"#
-            ),
-            format!(
-                r#"
-            "include_outputs": true"#
-            ),
-            format!(
-                r#"
-            "include_witness": true"#
-            ),
-        ];
-        get_combinations(options)
-    }
-
-    fn build_bitcoin_payloads(
-        network: &str,
-        uuid: &str,
-        txid: &str,
-        p2pkh_address: &str,
-        p2sh_address: &str,
-        p2wpkh_address: &str,
-        p2wsh_address: &str,
-        http_post_url: &str,
-    ) -> Vec<String> {
-        let mut payloads = vec![];
-        for if_this in get_bitcoin_if_this_options(
-            txid,
-            p2pkh_address,
-            p2sh_address,
-            p2wpkh_address,
-            p2wsh_address,
-        ) {
-            for then_that in get_bitcoin_then_that_options(http_post_url) {
-                for mut filter in get_bitcoin_filter_combinations() {
-                    let filter_str = {
-                        if filter == String::new() {
-                            filter
-                        } else {
-                            filter.push_str(",");
-                            filter
-                        }
-                    };
-                    payloads.push(format!(
-                        r#"
-{{
-    "chain": "bitcoin",
-    "uuid": "{uuid}",
-    "name": "test",
-    "version": 1,
-    "networks": {{
-        "{network}": {{{filter_str}{if_this},
-            {then_that}
-        }}
-    }}
-}}"#
-                    ));
-                    payloads.push(format!(
-                        r#"
-{{
-    "chain": "bitcoin",
-    "uuid": "{uuid}",
-    "owner_uuid": "owner-uuid",
-    "name": "test",
-    "version": 1,
-    "networks": {{
-        "{network}": {{{filter_str}{if_this},
-            {then_that}
-        }}
-    }}
-}}"#
-                    ));
+    fn get_combintations(items: JsonValue) -> Vec<JsonValue> {
+        let obj = items.as_object().unwrap();
+        let mut all_combinations = vec![];
+        let keys = obj.keys();
+        for (i, _) in keys.enumerate() {
+            let combinations = obj.into_iter().combinations(i);
+            for entries in combinations {
+                let mut joined_entry = json!({});
+                for (k, v) in entries {
+                    joined_entry[k] = v.to_owned();
                 }
+                all_combinations.push(joined_entry);
+            }
+        }
+        all_combinations
+    }
+
+    fn get_bitcoin_filter_combinations() -> Vec<JsonValue> {
+        let things = json!({
+            "start_block": 0,
+            "end_block": 0,
+            "expire_after_occurrence": 0,
+            "include_proof": true,
+            "include_inputs": true,
+            "include_outputs": true,
+            "include_witness": true,
+        });
+        get_combintations(things)
+    }
+
+    fn build_bitcoin_payloads(network: &str, if_this: JsonValue, uuid: &str) -> Vec<JsonValue> {
+        let mut payloads = vec![];
+
+        for then_that in get_bitcoin_then_that_options() {
+            for filter in get_bitcoin_filter_combinations() {
+                let filter = filter.as_object().unwrap();
+                let mut network_val = json!({
+                    "if_this": if_this,
+                    "then_that": then_that
+                });
+                for (k, v) in filter.iter() {
+                    network_val[k] = v.to_owned();
+                }
+                payloads.push(json!({
+                    "chain": "bitcoin",
+                    "uuid": uuid,
+                    "name": "test",
+                    "version": 1,
+                    "networks": {
+                        network: network_val
+                    }
+                }));
+                payloads.push(json!({
+                    "chain": "bitcoin",
+                    "uuid": uuid,
+                    "owner_uuid": "owner-uuid",
+                    "name": "test",
+                    "version": 1,
+                    "networks": {
+                        network: network_val
+                    }
+                }));
             }
         }
 
@@ -745,27 +642,27 @@ mod tests {
         ctx
     }
 
-    async fn build_service() -> Receiver<ObserverCommand> {
+    async fn build_service() -> (Receiver<ObserverCommand>, Shutdown) {
         let ctx = build_ctx();
         let api_config = PredicatesApiConfig {
-            http_port: 8765,
+            http_port: 8675,
             display_logs: true,
             database_uri: DEFAULT_REDIS_URI.to_string(),
         };
 
         let (tx, rx) = channel();
-        start_predicate_api_server(api_config, tx, ctx)
+        let shutdown = start_predicate_api_server(api_config, tx, ctx)
             .await
             .unwrap();
-        rx
+        (rx, shutdown)
     }
 
-    async fn call_register_predicate(predicate: String) -> JsonValue {
+    async fn call_register_predicate(predicate: &JsonValue) -> JsonValue {
         let client = reqwest::Client::new();
         client
-            .post("http://localhost:8765/v1/chainhooks")
+            .post(format!("http://localhost:8675/v1/chainhooks"))
             .header("Content-Type", "application/json")
-            .body(predicate)
+            .json(predicate)
             .send()
             .await
             .expect("Failed to make POST request to localhost:8765/v1/chainhooks")
@@ -776,35 +673,25 @@ mod tests {
             )
     }
 
-    #[test_case("mainnet" ; "for mainnet predicates")]
-    #[test_case("testnet" ; "for testnet predicates")]
-    #[test_case("regtest" ; "for regtest predicates")]
+    #[test_case("mainnet", json!({"scope":"block"}); "for mainnet if_this block predicates")]
+    #[test_case("mainnet", json!({"scope":"txid", "equals": ""}) ; "for mainnet if_this txid predicates")]
+    #[test_case("mainnet", json!({"scope": "inputs","txid": {"txid": "","vout": 0}}) ; "for mainnet if_this txid input predicates")]
+    #[test_case("mainnet", json!({"scope": "inputs","witness_script": {"equals": "test"}}) ; "for mainnet if_this witness_script input predicates")]
+    #[test_case("mainnet", json!({"scope": "outputs","p2pkh": {"equals": "test"}}) ; "for mainnet if_this p2pkh output predicates")]
+    #[test_case("mainnet", json!({ "scope": "outputs","p2sh": {"equals": "test"}}) ; "for mainnet if_this p2sh output predicates")]
+    #[test_case("mainnet", json!({"scope": "outputs","p2wpkh": {"equals": "test"}}) ; "for mainnet if_this p2wpkh output predicates")]
+    #[test_case("mainnet", json!({"scope": "outputs","p2wsh": {"equals": "test"}}) ; "for mainnet if_this p2wsh output predicates")]
+    #[serial_test::serial]
     #[tokio::test]
-    async fn it_registers_all_bitcoin_predicates(network: &str) {
+    async fn it_registers_all_bitcoin_predicates(network: &str, if_this: JsonValue) {
         let uuid = "4ecc-4ecc-435b-9948-d5eeca1c3ce6";
-        let txid = "";
-        let p2pkh_address = "";
-        let p2sh_address = "";
-        let p2wpkh_address = "";
-        let p2wsh_address = "";
-        let http_post_url = "http://localhost:1234";
-        let payloads = build_bitcoin_payloads(
-            network,
-            uuid,
-            txid,
-            p2pkh_address,
-            p2sh_address,
-            p2wpkh_address,
-            p2wsh_address,
-            http_post_url,
-        );
-
-        let rx = build_service().await;
+        let payloads = build_bitcoin_payloads(network, if_this, uuid);
+        let (rx, shutdown) = build_service().await;
         println!("checking {} predicates", payloads.len());
         let mut i = 0;
         for predicate in payloads {
             let predicate_moved = predicate.clone();
-            let res = call_register_predicate(predicate.clone()).await;
+            let res = call_register_predicate(&predicate.clone()).await;
 
             let (status, result) = match res {
                 JsonValue::Object(obj) => {
@@ -827,13 +714,11 @@ mod tests {
 
             match command {
                 ObserverCommand::RegisterPredicate(registered_predicate) => {
-                    let original_predicate: JsonValue =
-                        serde_json::from_str(&predicate_moved).unwrap();
                     let registered_predicate: JsonValue = serde_json::from_str(
                         &serde_json::to_string(&registered_predicate).unwrap(),
                     )
                     .unwrap();
-                    assert_eq!(registered_predicate, original_predicate);
+                    assert_eq!(registered_predicate, predicate_moved);
                     i = i + 1;
                 }
                 _ => panic!("Received wrong observer command for predicate registration"),
@@ -841,5 +726,6 @@ mod tests {
         }
 
         println!("checked {i} predicates");
+        shutdown.notify();
     }
 }
