@@ -421,11 +421,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         "Building local chainstate from Stacks archive file"
     );
 
-    let new_archive_to_process = download_stacks_dataset_if_required(config, ctx).await;
-    // Nothing to do - early return
-    if !new_archive_to_process {
-        return Ok(());
-    }
+    let _ = download_stacks_dataset_if_required(config, ctx).await;
 
     let mut canonical_fork = get_canonical_fork_from_tsv(config, ctx).await?;
 
