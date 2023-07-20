@@ -52,6 +52,8 @@ clarity-repl = "=1.7.0"
 clarity-vm = "=2.1.1"
 hex = "0.4.3"
 itertools = "0.8.2"
+test-case = "3.1.0"
+serial_test = "2.0.0"
 
 
 [features]
