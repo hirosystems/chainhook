@@ -275,8 +275,11 @@ The following additional configurations can be used to improve the performance o
 
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount, occurring after block height 10200.
 
-> [!NOTE]
-> The start_block is mandatory to post events using `http_post` `then-that` predicate.
+:::note
+
+The start_block is mandatory to post events using `http_post` `then-that` predicate.
+
+:::
 
 ```json
 {
