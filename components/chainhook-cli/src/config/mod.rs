@@ -12,13 +12,13 @@ use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
 const DEFAULT_MAINNET_STACKS_TSV_ARCHIVE: &str =
-    "https://archive.dev.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest";
+    "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest";
 const DEFAULT_TESTNET_STACKS_TSV_ARCHIVE: &str =
 <<<<<<< HEAD
     "https://archive.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
 pub const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
 =======
-    "https://archive.dev.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
+    "https://archive.hiro.so/testnet/stacks-blockchain-api/testnet-stacks-blockchain-api-latest";
 const DEFAULT_REDIS_URI: &str = "redis://localhost:6379/";
 >>>>>>> 1b5b2cb (chore: test archive)
 

@@ -1,0 +1,21 @@
+{
+  "chain": "stacks",
+  "uuid": "6cdd033e-3d89-43eb-99eb-97d233afab6b",
+  "name": "Contract Deployment file",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 0,
+      "end_block": 311800,
+      "if_this": {
+        "scope": "contract_deployment",
+        "deployer": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+      },
+      "then_that": {
+        "file_append": {
+          "path": "script/stacks-predicates/contract-deployment/contract-deployment-file.result.json"
+        }
+      }
+    }
+  }
+}

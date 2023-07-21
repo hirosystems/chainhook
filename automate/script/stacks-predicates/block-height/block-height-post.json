@@ -1,0 +1,1 @@
+{"chain":"stacks","uuid":"fa95ed2c-6d0b-49eb-90cd-71875122f71d","name":"Block Height Post","version":1,"networks":{"testnet":{"start_block":111785,"end_block":111795,"if_this":{"scope":"block_height","equals":111790},"then_that":{"http_post":{"url":"https://webhook.site/db639532-0288-44e3-9add-1584af436d6d","authorization_header":""}}}}}

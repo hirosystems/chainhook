@@ -37,7 +37,7 @@ max_number_of_networking_threads = 16
 max_caching_memory_size_mb = 32000
 
 [[event_source]]
-tsv_file_url = "https://archive.dev.hiro.so/{network}/stacks-blockchain-api/{network}-stacks-blockchain-api-latest"
+tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network}-stacks-blockchain-api-latest"
 "#,
         network = network.to_lowercase(),
     );
