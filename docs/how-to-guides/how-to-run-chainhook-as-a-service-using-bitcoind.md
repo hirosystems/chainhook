@@ -180,7 +180,7 @@ Now, use the following command to scan the blocks based on the predicates define
 
 The output of the above command will be a text file `inscription_feed.txt` generated based on the predicate definition.
 
-
+> :bulb: **Tip:**
 > To optimize your experience with scanning, the following are a few knobs you can play with:
 > - Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
 > - Reducing the number of network hops between the Chainhook and the bitcoind processes can also help, so your network setup can play a major role in performance.
