@@ -8,12 +8,9 @@ use crate::chainhooks::types::{
 
 use crate::observer::BitcoinConfig;
 use crate::utils::Context;
-use bitcoincore_rpc::bitcoin::hashes::hex::FromHex;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};
-use bitcoincore_rpc_json::{
-    GetRawTransactionResultVinScriptSig, GetRawTransactionResultVoutScriptPubKey,
-};
+use bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
 pub use blocks_pool::BitcoinBlockPool;
 use chainhook_types::bitcoin::{OutPoint, TxIn, TxOut};
 use chainhook_types::{
@@ -29,13 +26,12 @@ use serde::Deserialize;
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinBlockFullBreakdown {
-    pub hash: bitcoin::BlockHash,
+    pub hash: String,
     pub height: usize,
-    pub merkleroot: bitcoin::TxMerkleNode,
     pub tx: Vec<BitcoinTransactionFullBreakdown>,
     pub time: usize,
     pub nonce: u32,
-    pub previousblockhash: Option<bitcoin::BlockHash>,
+    pub previousblockhash: Option<String>,
 }
 
 impl BitcoinBlockFullBreakdown {
@@ -47,10 +43,13 @@ impl BitcoinBlockFullBreakdown {
             hash: hash,
         };
         // Parent block id
-        let hash = format!("0x{}", self.previousblockhash.unwrap().to_string());
+        let parent_block_hash = match self.previousblockhash {
+            Some(ref value) => format!("0x{}", value),
+            None => format!("0x{}", BlockHash::all_zeros().to_string()),
+        };
         let parent_block_identifier = BlockIdentifier {
             index: (self.height - 1) as u64,
-            hash,
+            hash: parent_block_hash,
         };
         BlockHeader {
             block_identifier,
@@ -62,7 +61,7 @@ impl BitcoinBlockFullBreakdown {
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinTransactionFullBreakdown {
-    pub txid: bitcoin::Txid,
+    pub txid: String,
     pub vin: Vec<BitcoinTransactionInputFullBreakdown>,
     pub vout: Vec<BitcoinTransactionOutputFullBreakdown>,
 }
@@ -72,18 +71,23 @@ pub struct BitcoinTransactionFullBreakdown {
 pub struct BitcoinTransactionInputFullBreakdown {
     pub sequence: u32,
     /// The raw scriptSig in case of a coinbase tx.
-    #[serde(default, with = "bitcoincore_rpc_json::serde_hex::opt")]
-    pub coinbase: Option<Vec<u8>>,
+    // #[serde(default, with = "bitcoincore_rpc_json::serde_hex::opt")]
+    // pub coinbase: Option<Vec<u8>>,
     /// Not provided for coinbase txs.
-    pub txid: Option<bitcoin::Txid>,
+    pub txid: Option<String>,
     /// Not provided for coinbase txs.
     pub vout: Option<u32>,
     /// The scriptSig in case of a non-coinbase tx.
     pub script_sig: Option<GetRawTransactionResultVinScriptSig>,
     /// Not provided for coinbase txs.
-    #[serde(default, deserialize_with = "deserialize_hex_array_opt")]
-    pub txinwitness: Option<Vec<Vec<u8>>>,
+    pub txinwitness: Option<Vec<String>>,
     pub prevout: Option<BitcoinTransactionInputPrevoutFullBreakdown>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetRawTransactionResultVinScriptSig {
+    pub hex: String,
 }
 
 impl BitcoinTransactionInputFullBreakdown {
@@ -91,24 +95,8 @@ impl BitcoinTransactionInputFullBreakdown {
     /// The [txid], [vout] and [script_sig] fields are not provided
     /// for coinbase transactions.
     pub fn is_coinbase(&self) -> bool {
-        self.coinbase.is_some()
+        self.txid.is_none()
     }
-}
-
-fn deserialize_hex_array_opt<'de, D>(deserializer: D) -> Result<Option<Vec<Vec<u8>>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use crate::serde::de::Error;
-
-    //TODO(stevenroose) Revisit when issue is fixed:
-    // https://github.com/serde-rs/serde/issues/723
-    let v: Vec<String> = Vec::deserialize(deserializer)?;
-    let mut res = Vec::new();
-    for h in v.into_iter() {
-        res.push(FromHex::from_hex(&h).map_err(D::Error::custom)?);
-    }
-    Ok(Some(res))
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -395,6 +383,7 @@ pub fn standardize_bitcoin_block(
             ))?;
 
             sats_in += prevout.value.to_sat();
+
             inputs.push(TxIn {
                 previous_output: OutPoint {
                     txid: TransactionIdentifier::new(&txid.to_string()),
@@ -402,16 +391,16 @@ pub fn standardize_bitcoin_block(
                     block_height: prevout.height,
                     value: prevout.value.to_sat(),
                 },
-                script_sig: format!("0x{}", hex::encode(&script_sig.hex)),
+                script_sig: format!("0x{}", script_sig.hex),
                 sequence: input.sequence,
                 witness: input
                     .txinwitness
                     .unwrap_or(vec![])
                     .to_vec()
                     .iter()
-                    .map(|w| format!("0x{}", hex::encode(w)))
+                    .map(|w| format!("0x{}", w))
                     .collect::<Vec<_>>(),
-            })
+            });
         }
 
         let mut outputs = vec![];
@@ -450,7 +439,9 @@ pub fn standardize_bitcoin_block(
         parent_block_identifier: BlockIdentifier {
             hash: format!(
                 "0x{}",
-                block.previousblockhash.unwrap_or(BlockHash::all_zeros())
+                block
+                    .previousblockhash
+                    .unwrap_or(BlockHash::all_zeros().to_string())
             ),
             index: block_height - 1,
         },
