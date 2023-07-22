@@ -135,7 +135,12 @@ pub struct RewardParticipant {
 
 pub fn build_http_client() -> HttpClient {
     HttpClient::builder()
-        .timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(15))
+        .http1_only()
+        .no_trust_dns()
+        .connect_timeout(Duration::from_secs(15))
+        .tcp_keepalive(Some(Duration::from_secs(15)))
+        .no_proxy()
         .danger_accept_invalid_certs(true)
         .build()
         .expect("Unable to build http client")
@@ -225,6 +230,46 @@ pub async fn retrieve_block_hash(
     Ok(block_hash)
 }
 
+
+pub async fn try_fetch_block_bytes_with_retry(
+    http_client: HttpClient,
+    block_height: u64,
+    bitcoin_config: BitcoinConfig,
+    ctx: Context,
+) -> Result<Vec<u8>, String> {
+    let block_hash = retrieve_block_hash_with_retry(
+        &http_client,
+        &block_height,
+        &bitcoin_config,
+        &ctx,
+    ).await.unwrap();
+
+    let mut errors_count = 0;
+    let mut backoff: f64 = 1.0;
+
+    let response = loop {
+        match fetch_block(&http_client, &block_hash, &bitcoin_config, &ctx).await {
+            Ok(result) => break result,
+            Err(_e) => {
+                errors_count += 1;
+                backoff = 2.0 * backoff;
+                let duration = std::time::Duration::from_millis((backoff * 1_000.0) as u64);
+                if errors_count > 1 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
+                std::thread::sleep(duration);
+                continue;
+            }
+        }
+    };
+    Ok(response)
+}
+
 pub async fn download_block_with_retry(
     http_client: &HttpClient,
     block_hash: &str,
@@ -312,6 +357,35 @@ pub fn parse_downloaded_block(
         .map_err(|e| format!("unable to parse block ({})", e))?;
     Ok(block)
 }
+
+pub async fn fetch_block(
+    http_client: &HttpClient,
+    block_hash: &str,
+    bitcoin_config: &BitcoinConfig,
+    _ctx: &Context,
+) -> Result<Vec<u8>, String> {
+    let block = http_client
+        .get(format!("{}/rest/block/{}.json", bitcoin_config.rpc_url, block_hash))
+        .header("Content-Type", "application/json")
+        .header("Host", &bitcoin_config.rpc_url[7..])
+        .send()
+        .await
+        .map_err(|e| format!("unable to send request ({})", e))?
+        .bytes()
+        .await
+        .map_err(|e| format!("unable to get bytes ({})", e))?
+        .to_vec();
+    Ok(block)
+}
+
+pub fn parse_fetched_block(
+    downloaded_block: Vec<u8>,
+) -> Result<BitcoinBlockFullBreakdown, String> {
+    let block = serde_json::from_slice::<BitcoinBlockFullBreakdown>(&downloaded_block[..])
+        .map_err(|e: serde_json::Error| format!("unable to parse block ({})", e))?;
+    Ok(block)
+}
+
 
 pub async fn download_and_parse_block(
     http_client: &HttpClient,
