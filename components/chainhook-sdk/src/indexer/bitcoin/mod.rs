@@ -20,6 +20,7 @@ use chainhook_types::{
     StacksBlockCommitmentData, TransactionIdentifier, TransferSTXData,
 };
 use hiro_system_kit::slog;
+use rand::{thread_rng, Rng};
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 
@@ -231,19 +232,26 @@ pub async fn download_block_with_retry(
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
+    let mut backoff: f64 = 1.0;
+    let mut rng = thread_rng();
+
     let block = loop {
         let response = {
             match download_block(http_client, block_hash, bitcoin_config, ctx).await {
                 Ok(result) => result,
                 Err(_e) => {
                     errors_count += 1;
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
-                        )
-                    });
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    backoff = 2.0 * backoff + (backoff * rng.gen_range(0.0..1.0));
+                    let duration = std::time::Duration::from_millis((backoff * 1_000.0) as u64);
+                    if errors_count > 1 {
+                        ctx.try_log(|logger| {
+                            slog::warn!(
+                                logger,
+                                "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                            )
+                        });
+                    }
+                    std::thread::sleep(duration);
                     continue;
                 }
             }
