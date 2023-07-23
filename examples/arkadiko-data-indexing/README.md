@@ -5,16 +5,16 @@ In a console, we will launch `vault-monitor`. `vault-monitor` is a program that 
 
 ```bash
 # Navigate to vault monitor directory
-$ cd vault-monitor
+cd vault-monitor
 
 # Install dependencies
-$ bundle install
+bundle install
 
 # Create database and run db migrations (will use sqlite in development mode)
-$ rails db:migrate
+rails db:migrate
 
 # Run program
-$ rails server
+rails server
 ```
 
 `vault-monitor` exposes an admin readonly user interface at this address `http://localhost:3000/admin`.
@@ -22,5 +22,5 @@ $ rails server
 In another console, start replaying events using the command:
 
 ```bash
-$ chainhook predicates scan ./arkadiko.json --mainnet
+chainhook predicates scan ./arkadiko.json --mainnet
 ```
