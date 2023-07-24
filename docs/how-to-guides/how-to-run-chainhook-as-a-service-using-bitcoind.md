@@ -51,7 +51,7 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 > [!NOTE]
 > The below command is a startup process that might take a few hours to run.
 
-```bash
+```console
 ./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf
 ```
 
@@ -63,7 +63,7 @@ In this section, you will configure chainhook to match the network configuration
 
 Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file and use the following command in your terminal:
 
-```bash
+```console
 chainhook config generate --testnet
 ```
 
@@ -137,7 +137,7 @@ You can choose between the following examples to scan the predicates.
 
 Run the following command in your terminal to generate a sample JSON file with predicates.
 
-```bash
+```console
 chainhook predicates new ordinals.json --bitcoin
 ```
 
@@ -173,7 +173,7 @@ A JSON file `ordinals.json` is generated.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals.json` file.
 
-```bash
+```console
 chainhook predicates scan ordinals.json --config-path=./Chainhook.toml
 ```
 
@@ -188,7 +188,7 @@ The output of the above command will be a text file `inscription_feed.txt` gener
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-```bash
+```console
 chainhook predicates new ordinals_protocol.json --bitcoin
 ```
 
@@ -224,7 +224,7 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals_protocol.json` file.
 
-```bash
+```console
 chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.toml
 ```
 
@@ -236,7 +236,7 @@ In this section, you'll learn how to initiate the chainhook service using the fo
 
 - Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-  ```bash
+  ```console
   chainhook service start --predicate-path=ordinals_protocol.json --config-path=Chainhook.toml
   ```
 

@@ -46,7 +46,7 @@ events_keys = ["*"]
 
 In this section, you will configure a chainhook to communicate with the network. Run the following command in your terminal and generate the `Chainhook.toml` file.
 
-```bash
+```console
 chainhook config generate --testnet
 ```
 
@@ -116,7 +116,7 @@ You can choose between the following examples to scan the predicates.
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-```bash
+```console
 chainhook predicates new print_event_1.json --stacks
 ```
 
@@ -172,7 +172,7 @@ The sample `arkadiko.txt` should look like this:
 
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_1.json` file.
 
-```bash
+```console
 chainhook predicates scan print_event_1.json --testnet
 ```
 
@@ -193,7 +193,7 @@ The sample output file, `arkadiko.txt,` looks like this:
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-```bash
+```console
 chainhook predicates new print_event_2.json --stacks
 ```
 
@@ -230,7 +230,7 @@ A JSON file `print_event_2.json` is generated.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_2.json` file.
 
-```bash
+```console
 chainhook predicates scan print_event_2.json --testnet
 ```
 
@@ -242,7 +242,7 @@ In this section, you'll learn how to initiate the chainhook service using the fo
 
 - Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-  ```bash
+  ```console
   chainhook service start --predicate-path=print_event_1.json --config-path=Chainhook.toml
   ```
 
