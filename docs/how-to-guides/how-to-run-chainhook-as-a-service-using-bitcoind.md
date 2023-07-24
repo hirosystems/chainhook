@@ -51,7 +51,9 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 > [!NOTE]
 > The below command is a startup process that might take a few hours to run.
 
-`./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf`
+```bash
+./bitcoind -conf=<path-to-bitcoin.config>/bitcoin.conf
+```
 
 Once the above command runs, you will see `zmq_url` entries in the output, enabling zeromq.
 
@@ -61,7 +63,9 @@ In this section, you will configure chainhook to match the network configuration
 
 Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file and use the following command in your terminal:
 
-`chainhook config generate --testnet`
+```bash
+chainhook config generate --testnet
+```
 
 The following `Chainhook.toml` file should be generated:
 
@@ -133,7 +137,9 @@ You can choose between the following examples to scan the predicates.
 
 Run the following command in your terminal to generate a sample JSON file with predicates.
 
-`chainhook predicates new ordinals.json --bitcoin`
+```bash
+chainhook predicates new ordinals.json --bitcoin
+```
 
 A JSON file `ordinals.json` is generated.
 
@@ -167,7 +173,9 @@ A JSON file `ordinals.json` is generated.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals.json` file.
 
-`chainhook predicates scan ordinals.json --config-path=./Chainhook.toml`
+```bash
+chainhook predicates scan ordinals.json --config-path=./Chainhook.toml
+```
 
 The output of the above command will be a text file `inscription_feed.txt` generated based on the predicate definition.
 
@@ -180,7 +188,9 @@ The output of the above command will be a text file `inscription_feed.txt` gener
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-`chainhook predicates new ordinals_protocol.json --bitcoin`
+```bash
+chainhook predicates new ordinals_protocol.json --bitcoin
+```
 
 A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON based on the available predicates for Bitcoin. To understand the available predicates, refer to [how to use chainhook with bitcoin](how-to-use-chainhook-with-bitcoin.md).
 
@@ -214,7 +224,9 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals_protocol.json` file.
 
-`chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.toml`
+```bash
+chainhook predicates scan ordinals_protocol.json --config-path=./Chainhook.toml
+```
 
 The above command posts events to the URL, `http://localhost:3000/events` mentioned in the JSON file.
 
@@ -224,18 +236,20 @@ In this section, you'll learn how to initiate the chainhook service using the fo
 
 - Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-  `chainhook service start --predicate-path=ordinals_protocol.json --config-path=Chainhook.toml`
+  ```bash
+  chainhook service start --predicate-path=ordinals_protocol.json --config-path=Chainhook.toml
+  ```
 
   The above command registers the predicates based on the predicate definition in the `ordinals_protocol.json` file.
   
 - You can also dynamically register predicates via the predicate registration server. To do this:
   - Uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
-      ```
+    ```
     [http_api]
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-  - Start the Chainhook service by running `chainhook service start --config-path=Chainhook.toml`.
+  - Start the Chainhook service by running ```chainhook service start --config-path=Chainhook.toml```.
   - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For complete documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
   - ![Example post request](../images/chainhook-post-request.jpeg)
 
@@ -301,7 +315,7 @@ Understand the output of the above JSON file with the following details.
 
 > [!TIP]
 > You can also run chainhook service by passing multiple predicates.
-> Example:  `chainhook service start --predicate-path=predicate_1.json  --predicate-path=predicate_2.json --config-path=Chainhook.toml`
+> Example:  ```chainhook service start --predicate-path=predicate_1.json  --predicate-path=predicate_2.json --config-path=Chainhook.toml```
 
 ## References
 
