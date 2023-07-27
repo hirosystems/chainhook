@@ -390,12 +390,24 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                             if &actual.contract_identifier == contract_identifier {
                                 let value =
                                     format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                                if value.contains(&expected_event.contains) {
+                                if let Some(contains) = &expected_event.contains {
+                                    if value.contains(contains) {
+                                        return true;
+                                    }
+                                } else {
                                     return true;
                                 }
                             }
                         } else {
-                            return true;
+                            let value =
+                                format!("{}", expect_decoded_clarity_value(&actual.hex_value));
+                            if let Some(contains) = &expected_event.contains {
+                                if value.contains(contains) {
+                                    return true;
+                                }
+                            } else {
+                                return true;
+                            }
                         }
                     }
                     _ => {}
