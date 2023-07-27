@@ -340,7 +340,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             end_block: Some(50000),
                             blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-                                contract_identifier: "ST1SVA0SST0EDT4MFYGWGP6GNSXMMQJDVP1G8QTTC.arkadiko-freddie-v1-1".into(),
+                                contract_identifier: Some("ST1SVA0SST0EDT4MFYGWGP6GNSXMMQJDVP1G8QTTC.arkadiko-freddie-v1-1".into()),
                                 contains: "vault".into(),
                             }),
                             expire_after_occurrence: None,
@@ -356,7 +356,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             end_block: Some(50000),
                             blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-                                contract_identifier: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1".into(),
+                                contract_identifier: Some("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1".into()),
                                 contains: "vault".into(),
                             }),
                             expire_after_occurrence: None,
