@@ -38,7 +38,7 @@ fn test_stacks_predicate_print_event() {
             contract_identifier: Some(
                 "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
             ),
-            contains: "set-loan".to_string(),
+            contains: Some("set-loan".to_string()),
         }),
         action: HookAction::Noop,
         enabled: true,
