@@ -771,7 +771,7 @@ pub enum StacksContractDeploymentPredicate {
 #[serde(rename_all = "snake_case")]
 pub struct StacksPrintEventBasedPredicate {
     pub contract_identifier: Option<String>,
-    pub contains: String,
+    pub contains: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
