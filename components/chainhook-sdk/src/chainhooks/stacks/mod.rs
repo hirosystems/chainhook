@@ -386,12 +386,16 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             for event in transaction.metadata.receipt.events.iter() {
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
-                        if actual.contract_identifier == expected_event.contract_identifier {
-                            let value =
-                                format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                            if value.contains(&expected_event.contains) {
-                                return true;
+                        if let Some(contract_identifier) = &expected_event.contract_identifier {
+                            if &actual.contract_identifier == contract_identifier {
+                                let value =
+                                    format!("{}", expect_decoded_clarity_value(&actual.hex_value));
+                                if value.contains(&expected_event.contains) {
+                                    return true;
+                                }
                             }
+                        } else {
+                            return true;
                         }
                     }
                     _ => {}
