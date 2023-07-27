@@ -410,8 +410,6 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                             } else {
                                 return true;
                             }
-                        } else {
-                            return true;
                         }
                     }
                     _ => {}
