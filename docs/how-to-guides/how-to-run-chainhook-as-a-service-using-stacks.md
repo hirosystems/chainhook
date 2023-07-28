@@ -46,7 +46,9 @@ events_keys = ["*"]
 
 In this section, you will configure a chainhook to communicate with the network. Run the following command in your terminal and generate the `Chainhook.toml` file.
 
-`$ chainhook config generate --testnet`
+```console
+chainhook config generate --testnet
+```
 
 Ensure that the `bitcoind_rpc_url`, `bitcoind_rpc_username`, `bitcoind_rpc_password` match with the `rpcport`, `rpcuser` and `rpcpassword` in the `bitcoin.conf` file and the port of the `stacks_node_rpc_url` matches the `rpc_bind` in the `Stacks.toml` file.
 
@@ -114,7 +116,9 @@ You can choose between the following examples to scan the predicates.
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-`$ chainhook predicates new print_event_1.json --stacks`
+```console
+chainhook predicates new print_event_1.json --stacks
+```
 
 A JSON file `print_event_1.json` is generated.
 
@@ -168,7 +172,9 @@ The sample `arkadiko.txt` should look like this:
 
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_1.json` file.
 
-`$ chainhook predicates scan print_event_1.json --testnet`
+```console
+chainhook predicates scan print_event_1.json --testnet
+```
 
 The output of the above command will be a text file `arkadiko.txt` generated based on the predicate definition.
 
@@ -187,7 +193,9 @@ The sample output file, `arkadiko.txt,` looks like this:
 
 Run the following command to generate a sample JSON file with predicates in your terminal.
 
-`$ chainhook predicates new print_event_2.json --stacks`
+```console
+chainhook predicates new print_event_2.json --stacks
+```
 
 A JSON file `print_event_2.json` is generated.
 
@@ -222,7 +230,9 @@ A JSON file `print_event_2.json` is generated.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_2.json` file.
 
-`$ chainhook predicates scan print_event_2.json --testnet`
+```console
+chainhook predicates scan print_event_2.json --testnet
+```
 
 The above command posts events to the URL `http://localhost:3000/api/v1/vaults` mentioned in the `Chainhook.toml` file.
 
@@ -232,7 +242,9 @@ In this section, you'll learn how to initiate the chainhook service using the fo
 
 - Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-  `$ chainhook service start --predicate-path=print_event_1.json --config-path=Chainhook.toml`
+  ```console
+  chainhook service start --predicate-path=print_event_1.json --config-path=Chainhook.toml
+  ```
 
   The above command registers the predicates based on the predicate definition in the `print_event_1.json` file.
   
@@ -243,10 +255,10 @@ In this section, you'll learn how to initiate the chainhook service using the fo
     http_port = 20456
     database_uri = "redis://localhost:6379/"
     ```
-  - Start the Chainhook service by running `$ chainhook service start --config-path=Chainhook.toml`.
+  - Start the Chainhook service by running ```chainhook service start --config-path=Chainhook.toml```.
   - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For complete documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
   - ![Example post request](../images/chainhook-post-request.jpeg)
 
 > [!TIP]
 > You can also run chainhook service by passing multiple predicates.
-> Example:  `$ chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
+> Example:  ```chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml```
