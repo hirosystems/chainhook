@@ -18,6 +18,7 @@ Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx6
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below.
 
 > _**Note**
+> 
 > Make a note of the `rpcuser`, `rpcpassword` and `rpcport` values to use them later in the chainhook configuration._
 
 ```conf
