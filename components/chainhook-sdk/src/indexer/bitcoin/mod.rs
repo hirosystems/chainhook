@@ -425,6 +425,13 @@ pub fn standardize_bitcoin_block(
             });
         }
 
+        // only coinbase transaction have no inputs
+        let fee = if sats_in < sats_out {
+            0
+        } else {
+            sats_in - sats_out
+        };
+
         let tx = BitcoinTransactionData {
             transaction_identifier: TransactionIdentifier {
                 hash: format!("0x{}", txid),
@@ -436,7 +443,7 @@ pub fn standardize_bitcoin_block(
                 stacks_operations,
                 ordinal_operations: vec![],
                 proof: None,
-                fee: sats_in - sats_out,
+                fee,
             },
         };
         transactions.push(tx);
