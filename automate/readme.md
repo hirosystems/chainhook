@@ -1,20 +1,21 @@
 # automate-chainhooks
-automate-chainhooks is a node script for running the chainhooks predicate.
+automate-chainhooks is a npm script for automation testing of [chainhook](https://github.com/hirosystems/chainhook/blob/5791379655fba786abf6e265311c0d789a8722e5/docs/getting-started.md)
 
 ### Prerequisites
-
 - npm installed and Node v16.*
 - [ngrok](https://dev.to/ibrarturi/how-to-test-webhooks-on-your-localhost-3b4f)
 - [chainhook](https://github.com/hirosystems/chainhook/blob/5791379655fba786abf6e265311c0d789a8722e5/docs/getting-started.md)
+- [zeromq] (https://zeromq.org/download/)
+
 
 ### Run script
 1. Go to the root of the project and do `npm install`. Make sure you have satisfied the above Prerequisites.
-2. Start ngrok using the command `ngrok http 127.0.0.1:3009`. Once it starts, provide the ngrok URL in the `.env` file for `DOMAIN_URL`. This is required to post the result for the http predicates. You can check the ngrok requests at `localhost:4040`
+2. Start ngrok using the command `ngrok http 3006`. Once it starts, provide the ngrok URL in the `.env` file for `DOMAIN_URL`. This is required to post the result for the http predicates. You can check the ngrok requests at `localhost:4040`
 3. Run all the predicates:
     ```sh
     $ npm run predicates
 4. Run all the file result predicates:
-    ```sh
+    ```sh   
     $ npm run file-predicates
 5. Run all the POST URL predicates:
     ```sh
@@ -46,3 +47,7 @@ automate-chainhooks is a node script for running the chainhooks predicate.
 14. Run stx-event predicate for file append and POST
     ```sh
     $ predicate=stx-event npm run predicates
+
+
+### Bitcoin
+Run the bitcoind with `./bitcoind -rpcuser=root -rpcpassword=root`. Set this user and root in `Chainhook.toml` file and run the command as `chainhook predicates scan /home/user/tests/stacks-predicates/transaction/transaction-bitcoin-file.json --config-path=./Chainhook.toml`

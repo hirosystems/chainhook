@@ -1,1 +1,0 @@
-{"chain":"stacks","uuid":"0cc86353-7883-4fde-a1e6-42df78f0f6d6","name":"Stx event post","version":1,"networks":{"testnet":{"start_block":111750,"end_block":211800,"if_this":{"scope":"stx_event","actions":["transfer","lock"]},"then_that":{"http_post":{"url":"https://webhook.site/db639532-0288-44e3-9add-1584af436d6d","authorization_header":""}}}}}

@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2019",
+    "noEmit": true,
+    "rootDir": "../",
+    "esModuleInterop": true
+  },
+  "include": [
+    "./**/*",
+    "../node_modules/@types/node/globals.d.ts"
+  ]
+}
