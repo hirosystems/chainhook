@@ -43,6 +43,9 @@ dashmap = "5.4.0"
 fxhash = "0.2.1"
 lazy_static = "1.4.0"
 
+[dev-dependencies]
+test-case = "3.1.0"
+
 [replace]
 "jsonrpc:0.13.0" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
 

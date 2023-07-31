@@ -482,6 +482,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "stacks-rpc-client",
+ "test-case",
  "threadpool",
  "tokio",
  "zeromq",
