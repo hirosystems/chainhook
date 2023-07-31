@@ -23,12 +23,12 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         ),
         contains: Some("set-loan".to_string()),
-    },
+    }),
     1;
     "matches contract_identifier and contains"
 )]
@@ -42,12 +42,12 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         ),
         contains: Some("set-loan".to_string()),
-    }, 
+    }), 
     0;
     "rejects non matching contract_identifier"
 )]
@@ -61,12 +61,12 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         ),
         contains: Some("set-loan".to_string()),
-    }, 
+    }), 
     0;
     "rejects non matching contains value"
 )]
@@ -80,10 +80,10 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: None,
         contains: Some("set-loan".to_string()),
-    }, 
+    }), 
     1;
     "ommitting contract_identifier checks all print events for match"
 )]
@@ -104,12 +104,12 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         ),
         contains: None,
-    }, 
+    }), 
     1;
     "ommitting contains matches all values for matching events"
 )]
@@ -130,15 +130,15 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
             }
         ]
     ], 
-    StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: None,
         contains: None,
-    }, 
+    }), 
     2;
     "ommitting contract_identifier and contains matches all values on all print events"
 )]
 
-fn test_stacks_predicate_print_event(blocks_with_events: Vec<Vec<SmartContractEventData>>, predicate_event: StacksPrintEventBasedPredicate, expected_applies: u64) {
+fn test_stacks_predicate_smart_contract_event(blocks_with_events: Vec<Vec<SmartContractEventData>>, predicate_event: StacksPredicate, expected_applies: u64) {
     // Prepare block
     let new_blocks = blocks_with_events.iter().map(|events| StacksBlockUpdate {
         block: fixtures::build_stacks_testnet_block_from_smart_contract_event_data(events),
@@ -162,7 +162,7 @@ fn test_stacks_predicate_print_event(blocks_with_events: Vec<Vec<SmartContractEv
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        predicate: StacksPredicate::PrintEvent(predicate_event),
+        predicate: predicate_event,
         action: HookAction::Noop,
         enabled: true,
     };
