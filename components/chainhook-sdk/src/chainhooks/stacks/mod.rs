@@ -344,9 +344,21 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
 
             for event in transaction.metadata.receipt.events.iter() {
                 match (event, expecting_mint, expecting_transfer, expecting_burn) {
-                    (StacksTransactionEvent::FTMintEvent(_), true, _, _) => return true,
-                    (StacksTransactionEvent::FTTransferEvent(_), _, true, _) => return true,
-                    (StacksTransactionEvent::FTBurnEvent(_), _, _, true) => return true,
+                    (StacksTransactionEvent::FTMintEvent(ft_event), true, _, _) => {
+                        return ft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
+                    (StacksTransactionEvent::FTTransferEvent(ft_event), _, true, _) => {
+                        return ft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
+                    (StacksTransactionEvent::FTBurnEvent(ft_event), _, _, true) => {
+                        return ft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
                     _ => continue,
                 }
             }
@@ -356,12 +368,23 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_mint = expected_event.actions.contains(&"mint".to_string());
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
             let expecting_burn = expected_event.actions.contains(&"burn".to_string());
-
             for event in transaction.metadata.receipt.events.iter() {
                 match (event, expecting_mint, expecting_transfer, expecting_burn) {
-                    (StacksTransactionEvent::NFTMintEvent(_), true, _, _) => return true,
-                    (StacksTransactionEvent::NFTTransferEvent(_), _, true, _) => return true,
-                    (StacksTransactionEvent::NFTBurnEvent(_), _, _, true) => return true,
+                    (StacksTransactionEvent::NFTMintEvent(nft_event), true, _, _) => {
+                        return nft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
+                    (StacksTransactionEvent::NFTTransferEvent(nft_event), _, true, _) => {
+                        return nft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
+                    (StacksTransactionEvent::NFTBurnEvent(nft_event), _, _, true) => {
+                        return nft_event
+                            .asset_class_identifier
+                            .eq(&expected_event.asset_identifier)
+                    }
                     _ => continue,
                 }
             }
