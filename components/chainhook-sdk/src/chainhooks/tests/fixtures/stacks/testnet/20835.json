@@ -1,0 +1,462 @@
+{
+    "block_identifier": {
+        "hash": "0xe8c841160ad05a6e25dafc37315a0bdd4576724908cde2d7cc03b986d9d3f1e9",
+        "index": 20835
+    },
+    "metadata": {
+        "bitcoin_anchor_block_identifier": {
+            "hash": "0x00000000000000032c90c87bf9c3c5edd726eba5da1ae63b7ab303949133a736",
+            "index": 2105043
+        },
+        "confirm_microblock_identifier": {
+            "hash": "0x9b14710615dd5a9892f62a4d3b2d24cb4b93c39a78ca0e5e7f38d0effe56da6e",
+            "index": 2
+        },
+        "pox_cycle_index": 100,
+        "pox_cycle_length": 1050,
+        "pox_cycle_position": 42,
+        "stacks_block_hash": "0x33cb414022202f42fa7ec0cd6e090f9613957ef1cf657e02688ece5e9ea12259"
+    },
+    "parent_block_identifier": {
+        "hash": "0xcbbae1d39c707ce732e95878cc4482af539afa4997530208827d24d25eb658ce",
+        "index": 20834
+    },
+    "timestamp": 1637609654,
+    "transactions": [
+        {
+            "metadata": {
+                "description": "coinbase",
+                "execution_cost": {
+                    "read_count": 0,
+                    "read_length": 0,
+                    "runtime": 0,
+                    "write_count": 0,
+                    "write_length": 0
+                },
+                "fee": 0,
+                "kind": {
+                    "type": "Coinbase"
+                },
+                "nonce": 18989,
+                "position": {
+                    "index": 0
+                },
+                "proof": null,
+                "raw_tx": "0x80800000000400ba27f99e007c7f605a8305e318c1abde3cd220ac0000000000004a2d00000000000000000000fb05a5fe58ee59ed0be792020ccf48d1d0046f5e1808a79ce352bc0f42b932fa3824aa3dab2b173bf27b038d806a9155068991a856d9997be27967caa1e28953010200000000040000000000000000000000000000000000000000000000000000000000000000",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [],
+                    "mutated_assets_radius": [],
+                    "mutated_contracts_radius": []
+                },
+                "result": "(ok true)",
+                "sender": "ST2X2FYCY01Y7YR2TGC2Y6661NFF3SMH0NGXPWTV5",
+                "success": true
+            },
+            "operations": [],
+            "transaction_identifier": {
+                "hash": "0xf413f4ebd2616feea0973b7aad8a86d1ee93df5fafd0228b0709bf196f5cdddc"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::create-collection(u16)",
+                "execution_cost": {
+                    "read_count": 6,
+                    "read_length": 8830,
+                    "runtime": 18874,
+                    "write_count": 2,
+                    "write_length": 127
+                },
+                "fee": 223,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u16"
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "create-collection"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 70,
+                "position": {
+                    "index": 1
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce000000000000004600000000000000df000055fe24740e191e89f9570e5cd88cce4a27628d53dc939d14805a4d56e24726956f89050f0268eda0a163f918b4dd600da52d3aaf5bf652597378e97c4431f98503020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630116372656174652d636f6c6c656374696f6e000000010100000000000000000000000000000010",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [],
+                    "mutated_assets_radius": [],
+                    "mutated_contracts_radius": []
+                },
+                "result": "(ok u2)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [],
+            "transaction_identifier": {
+                "hash": "0x268cb60eedb327294e0dc06160b536815e513c927c599fd93c05d10893dc81b9"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::create-collection(u10)",
+                "execution_cost": {
+                    "read_count": 6,
+                    "read_length": 8830,
+                    "runtime": 18874,
+                    "write_count": 2,
+                    "write_length": 127
+                },
+                "fee": 223,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u10"
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "create-collection"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 71,
+                "position": {
+                    "index": 2
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce000000000000004700000000000000df000118980d826dff24e32862e62894c8908de20bd61d9faa2686e0611d1a0fd625b912b2ac64f66feff6904993888a63bf221be8063eb9caab69a4672604b36b3e1003020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630116372656174652d636f6c6c656374696f6e00000001010000000000000000000000000000000a",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [],
+                    "mutated_assets_radius": [],
+                    "mutated_contracts_radius": []
+                },
+                "result": "(ok u3)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [],
+            "transaction_identifier": {
+                "hash": "0xab0dea3a3d9e2cb4062184c3990f5a5957c6bd5a39e19f4f62d3e676d723fe1d"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::mint(u1, \"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/facd7468b9e92e2ca98688ed6b7d65d7_17.json\")",
+                "execution_cost": {
+                    "read_count": 11,
+                    "read_length": 9067,
+                    "runtime": 53483,
+                    "write_count": 4,
+                    "write_length": 294
+                },
+                "fee": 317,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u1",
+                            "\"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/facd7468b9e92e2ca98688ed6b7d65d7_17.json\""
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "mint"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 72,
+                "position": {
+                    "index": 3
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0000000000000048000000000000013d0001fbec8db8441d677c7796c5d59e52c59075f474166033a788395e010e465b144a6dcde9fc6e9b5236b4572cfe726b3ef1265f8c35defe15943429a2552f22807f03020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630046d696e740000000201000000000000000000000000000000010d0000006668747470733a2f2f7265646565656d2d63646e2e73666f322e6469676974616c6f6365616e7370616365732e636f6d2f6e6674732f6d657461646174612f66616364373436386239653932653263613938363838656436623764363564375f31372e6a736f6e",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [
+                        {
+                            "data": {
+                                "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "raw_value": "0x0100000000000000000000000000000001",
+                                "recipient": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                            },
+                            "type": "NFTMintEvent"
+                        }
+                    ],
+                    "mutated_assets_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                    ],
+                    "mutated_contracts_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0"
+                    ]
+                },
+                "result": "(ok u1)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [
+                {
+                    "account": {
+                        "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 0,
+                            "metadata": {
+                                "asset_class_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "asset_identifier": "0x0100000000000000000000000000000001",
+                                "standard": "SIP09"
+                            },
+                            "symbol": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                        },
+                        "value": 1
+                    },
+                    "operation_identifier": {
+                        "index": 0
+                    },
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                }
+            ],
+            "transaction_identifier": {
+                "hash": "0xf3fd7d7278a104ddafaf4517d371bdbf3d75b8ecdbb4cc4ac51488f4240f76de"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::mint(u1, \"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/6bf29f73884df80f0d37bb551c94d0e3_18.json\")",
+                "execution_cost": {
+                    "read_count": 11,
+                    "read_length": 9067,
+                    "runtime": 53483,
+                    "write_count": 4,
+                    "write_length": 294
+                },
+                "fee": 317,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u1",
+                            "\"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/6bf29f73884df80f0d37bb551c94d0e3_18.json\""
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "mint"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 73,
+                "position": {
+                    "index": 4
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0000000000000049000000000000013d0001b268086d9702e50333e982d79fd0aaac1518f0af4d2b1c1cd972d324377710bd4a30a8d03297200c59b368603ee4a138dc9822d4529ac0c8d02d072df991249b03020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630046d696e740000000201000000000000000000000000000000010d0000006668747470733a2f2f7265646565656d2d63646e2e73666f322e6469676974616c6f6365616e7370616365732e636f6d2f6e6674732f6d657461646174612f36626632396637333838346466383066306433376262353531633934643065335f31382e6a736f6e",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [
+                        {
+                            "data": {
+                                "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "raw_value": "0x0100000000000000000000000000000002",
+                                "recipient": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                            },
+                            "type": "NFTMintEvent"
+                        }
+                    ],
+                    "mutated_assets_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                    ],
+                    "mutated_contracts_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0"
+                    ]
+                },
+                "result": "(ok u2)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [
+                {
+                    "account": {
+                        "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 0,
+                            "metadata": {
+                                "asset_class_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "asset_identifier": "0x0100000000000000000000000000000002",
+                                "standard": "SIP09"
+                            },
+                            "symbol": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                        },
+                        "value": 1
+                    },
+                    "operation_identifier": {
+                        "index": 0
+                    },
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                }
+            ],
+            "transaction_identifier": {
+                "hash": "0xed2a8fb4865242fdcc1f4fbd182d9c13ab871528c043f986b19086b388c1d919"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::mint(u1, \"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/ae617ccaa782f5c9a2ac22661f82dcce_19.json\")",
+                "execution_cost": {
+                    "read_count": 11,
+                    "read_length": 9067,
+                    "runtime": 53483,
+                    "write_count": 4,
+                    "write_length": 294
+                },
+                "fee": 317,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u1",
+                            "\"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/ae617ccaa782f5c9a2ac22661f82dcce_19.json\""
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "mint"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 74,
+                "position": {
+                    "index": 5
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce000000000000004a000000000000013d0000f80297db6c9dad89d3ed7952092d71a95ec028b82ada4ed9762d25aa81a09a0b26217199c49058bb337e62337d77c1a7bab10c0e3307b0cdfcfb7e7105b3d24a03020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630046d696e740000000201000000000000000000000000000000010d0000006668747470733a2f2f7265646565656d2d63646e2e73666f322e6469676974616c6f6365616e7370616365732e636f6d2f6e6674732f6d657461646174612f61653631376363616137383266356339613261633232363631663832646363655f31392e6a736f6e",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [
+                        {
+                            "data": {
+                                "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "raw_value": "0x0100000000000000000000000000000003",
+                                "recipient": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                            },
+                            "type": "NFTMintEvent"
+                        }
+                    ],
+                    "mutated_assets_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                    ],
+                    "mutated_contracts_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0"
+                    ]
+                },
+                "result": "(ok u3)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [
+                {
+                    "account": {
+                        "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 0,
+                            "metadata": {
+                                "asset_class_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "asset_identifier": "0x0100000000000000000000000000000003",
+                                "standard": "SIP09"
+                            },
+                            "symbol": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                        },
+                        "value": 1
+                    },
+                    "operation_identifier": {
+                        "index": 0
+                    },
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                }
+            ],
+            "transaction_identifier": {
+                "hash": "0x299b7d3f8b847d3239e49b3150644ceb99d1de4aa122f2010d95a372371610ad"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::mint(u1, \"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/e68ebf179ca660510f3c3a12f814ffce_20.json\")",
+                "execution_cost": {
+                    "read_count": 11,
+                    "read_length": 9067,
+                    "runtime": 53483,
+                    "write_count": 4,
+                    "write_length": 294
+                },
+                "fee": 317,
+                "kind": {
+                    "data": {
+                        "args": [
+                            "u1",
+                            "\"https://redeeem-cdn.sfo2.digitaloceanspaces.com/nfts/metadata/e68ebf179ca660510f3c3a12f814ffce_20.json\""
+                        ],
+                        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0",
+                        "method": "mint"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 75,
+                "position": {
+                    "index": 6
+                },
+                "proof": null,
+                "raw_tx": "0x808000000004006d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce000000000000004b000000000000013d0000ce8dbf5ad0ade322b4bc0606e5aa3f69554645ce4e86acb06badf8d943ea54ef4bfff9bc3ac904904ec2c7abbc5e27b03bebeb3d47b2c091e7ec8111f357a17803020000000100021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0500000000000f4240021a6d78de7b0625dfbfc16c3a8a5735f6dc3dc3f2ce0e7265646565656d2d6e66742d7630046d696e740000000201000000000000000000000000000000010d0000006668747470733a2f2f7265646565656d2d63646e2e73666f322e6469676974616c6f6365616e7370616365732e636f6d2f6e6674732f6d657461646174612f65363865626631373963613636303531306633633361313266383134666663655f32302e6a736f6e",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [
+                        {
+                            "data": {
+                                "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "raw_value": "0x0100000000000000000000000000000004",
+                                "recipient": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                            },
+                            "type": "NFTMintEvent"
+                        }
+                    ],
+                    "mutated_assets_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                    ],
+                    "mutated_contracts_radius": [
+                        "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0"
+                    ]
+                },
+                "result": "(ok u4)",
+                "sender": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+                "success": true
+            },
+            "operations": [
+                {
+                    "account": {
+                        "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 0,
+                            "metadata": {
+                                "asset_class_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0",
+                                "asset_identifier": "0x0100000000000000000000000000000004",
+                                "standard": "SIP09"
+                            },
+                            "symbol": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0"
+                        },
+                        "value": 1
+                    },
+                    "operation_identifier": {
+                        "index": 0
+                    },
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                }
+            ],
+            "transaction_identifier": {
+                "hash": "0xa87f93187104d7a78068085cce4b72e4643dad76e935df739b0c5aa49b84866d"
+            }
+        }
+    ]
+}

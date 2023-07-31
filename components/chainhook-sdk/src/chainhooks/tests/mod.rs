@@ -1,8 +1,14 @@
-use chainhook_types::{StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksBlockUpdate};
+use super::{
+    stacks::evaluate_stacks_chainhooks_on_chain_event,
+    types::{
+        StacksChainhookSpecification, StacksFtEventBasedPredicate, StacksNftEventBasedPredicate,
+        StacksPrintEventBasedPredicate,
+    },
+};
+use crate::chainhooks::types::{HookAction, StacksPredicate};
 use crate::utils::Context;
 use chainhook_types::StacksNetwork;
-use crate::chainhooks::types::{StacksPredicate, HookAction};
-use super::{stacks::evaluate_stacks_chainhooks_on_chain_event, types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate}};
+use chainhook_types::{StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData};
 
 pub mod fixtures;
 
@@ -15,7 +21,7 @@ fn test_stacks_predicate_print_event() {
             parent_microblocks_to_apply: vec![],
             parent_microblocks_to_rollback: vec![],
         }],
-        confirmed_blocks: vec![]
+        confirmed_blocks: vec![],
     });
 
     // Prepare predicate
@@ -40,6 +46,273 @@ fn test_stacks_predicate_print_event() {
     };
 
     let predicates = vec![&print_predicate];
-    let (triggered, _blocks) = evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    let (triggered, _blocks) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 1);
 }
+
+#[test]
+fn test_stacks_predicate_nft_mint_event() {
+
+    // Prepare predicate
+    let nft_mint_predicate = StacksChainhookSpecification {
+        uuid: "".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: Some(107604),
+        end_block: Some(107607),
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        predicate: StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+            asset_identifier: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.redeeem-nft-v0::redeeem-nft-v0".to_string(),
+            actions: vec!["mint".into()],
+        }),
+        action: HookAction::Noop,
+        enabled: true,
+    };
+
+        // Prepare block
+        let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+            new_blocks: vec![StacksBlockUpdate {
+                block: fixtures::get_stacks_testnet_block(20835).clone(),
+                parent_microblocks_to_apply: vec![],
+                parent_microblocks_to_rollback: vec![],
+            }],
+            confirmed_blocks: vec![],
+        });
+        
+        let predicates = vec![&nft_mint_predicate];
+        let (triggered, _blocks) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+        assert_eq!(triggered.len(), 1);
+    
+        // Prepare block
+        let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+            new_blocks: vec![StacksBlockUpdate {
+                block: fixtures::get_stacks_testnet_block(20898).clone(),
+                parent_microblocks_to_apply: vec![],
+                parent_microblocks_to_rollback: vec![],
+            }],
+            confirmed_blocks: vec![],
+        });
+        
+        let predicates = vec![&nft_mint_predicate];
+        let (triggered, _blocks) =
+            evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+        assert_eq!(triggered.len(), 0);
+
+}
+
+// #[test]
+// fn test_stacks_predicate_nft_transfer_event() {
+//     // Prepare predicate
+//     let nft_transfer_predicate = StacksChainhookSpecification {
+//         uuid: "".to_string(),
+//         owner_uuid: None,
+//         name: "".to_string(),
+//         network: StacksNetwork::Testnet,
+//         version: 1,
+//         blocks: None,
+//         start_block: Some(107604),
+//         end_block: Some(107607),
+//         expire_after_occurrence: None,
+//         capture_all_events: None,
+//         decode_clarity_values: None,
+//         predicate: StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+//             asset_identifier: "".to_string(),
+//             actions: vec!["transfer".into()],
+//         }),
+//         action: HookAction::Noop,
+//         enabled: true,
+//     };
+
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(20835).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+    
+//     let predicates = vec![&nft_transfer_predicate];
+//     let (triggered, _blocks) =
+//     evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(20898).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+    
+//     let predicates = vec![&nft_transfer_predicate];
+//     let (triggered, _blocks) =
+//         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+// }
+
+// #[test]
+// fn test_stacks_predicate_nft_burn_event() {
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(107605).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+
+//     // Prepare predicate
+//     let nft_burn_predicate = StacksChainhookSpecification {
+//         uuid: "".to_string(),
+//         owner_uuid: None,
+//         name: "".to_string(),
+//         network: StacksNetwork::Testnet,
+//         version: 1,
+//         blocks: None,
+//         start_block: Some(107604),
+//         end_block: Some(107607),
+//         expire_after_occurrence: None,
+//         capture_all_events: None,
+//         decode_clarity_values: None,
+//         predicate: StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+//             asset_identifier: "".to_string(),
+//             actions: vec!["burn".into()],
+//         }),
+//         action: HookAction::Noop,
+//         enabled: true,
+//     };
+
+//     let predicates = vec![&nft_burn_predicate];
+//     let (triggered, _blocks) =
+//         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+// }
+
+// #[test]
+// fn test_stacks_predicate_ft_mint_event() {
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(107605).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+
+//     // Prepare predicate
+//     let ft_mint_predicate = StacksChainhookSpecification {
+//         uuid: "".to_string(),
+//         owner_uuid: None,
+//         name: "".to_string(),
+//         network: StacksNetwork::Testnet,
+//         version: 1,
+//         blocks: None,
+//         start_block: Some(107604),
+//         end_block: Some(107607),
+//         expire_after_occurrence: None,
+//         capture_all_events: None,
+//         decode_clarity_values: None,
+//         predicate: StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
+//             asset_identifier: "".to_string(),
+//             actions: vec!["mint".into()],
+//         }),
+//         action: HookAction::Noop,
+//         enabled: true,
+//     };
+
+//     let predicates = vec![&ft_mint_predicate];
+//     let (triggered, _blocks) =
+//         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+// }
+
+// #[test]
+// fn test_stacks_predicate_ft_transfer_event() {
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(107605).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+
+//     // Prepare predicate
+//     let ft_transfer_predicate = StacksChainhookSpecification {
+//         uuid: "".to_string(),
+//         owner_uuid: None,
+//         name: "".to_string(),
+//         network: StacksNetwork::Testnet,
+//         version: 1,
+//         blocks: None,
+//         start_block: Some(107604),
+//         end_block: Some(107607),
+//         expire_after_occurrence: None,
+//         capture_all_events: None,
+//         decode_clarity_values: None,
+//         predicate: StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
+//             asset_identifier: "".to_string(),
+//             actions: vec!["transfer".into()],
+//         }),
+//         action: HookAction::Noop,
+//         enabled: true,
+//     };
+
+//     let predicates = vec![&ft_transfer_predicate];
+//     let (triggered, _blocks) =
+//         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+// }
+
+// #[test]
+// fn test_stacks_predicate_ft_burn_event() {
+//     // Prepare block
+//     let event = StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+//         new_blocks: vec![StacksBlockUpdate {
+//             block: fixtures::get_stacks_testnet_block(107605).clone(),
+//             parent_microblocks_to_apply: vec![],
+//             parent_microblocks_to_rollback: vec![],
+//         }],
+//         confirmed_blocks: vec![],
+//     });
+
+//     // Prepare predicate
+//     let ft_burn_predicate = StacksChainhookSpecification {
+//         uuid: "".to_string(),
+//         owner_uuid: None,
+//         name: "".to_string(),
+//         network: StacksNetwork::Testnet,
+//         version: 1,
+//         blocks: None,
+//         start_block: Some(107604),
+//         end_block: Some(107607),
+//         expire_after_occurrence: None,
+//         capture_all_events: None,
+//         decode_clarity_values: None,
+//         predicate: StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
+//             asset_identifier: "".to_string(),
+//             actions: vec!["burn".into()],
+//         }),
+//         action: HookAction::Noop,
+//         enabled: true,
+//     };
+
+//     let predicates = vec![&ft_burn_predicate];
+//     let (triggered, _blocks) =
+//         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+//     assert_eq!(triggered.len(), 1);
+// }

@@ -1,0 +1,239 @@
+{
+    "block_identifier": {
+        "hash": "0xb197db3f2ddaf2b35f687e0876937e89fd88ab35d15336d2df84435f63b18b54",
+        "index": 20898
+    },
+    "metadata": {
+        "bitcoin_anchor_block_identifier": {
+            "hash": "0x00000000308170996b5132ed30c0eacd6a1d210315c6eb7ac4c6f50178808ac0",
+            "index": 2105106
+        },
+        "confirm_microblock_identifier": null,
+        "pox_cycle_index": 100,
+        "pox_cycle_length": 1050,
+        "pox_cycle_position": 105,
+        "stacks_block_hash": "0x942c90b0c0fa8e800f8edcb072747299b7acc57ca0945a329974e3b6299618d8"
+    },
+    "parent_block_identifier": {
+        "hash": "0x55ae8105507b7e422826a59d237e0697ca9f5b5a3519c7ccab5a0f5f23545699",
+        "index": 20897
+    },
+    "timestamp": 1637667002,
+    "transactions": [
+        {
+            "metadata": {
+                "description": "coinbase",
+                "execution_cost": {
+                    "read_count": 0,
+                    "read_length": 0,
+                    "runtime": 0,
+                    "write_count": 0,
+                    "write_length": 0
+                },
+                "fee": 0,
+                "kind": {
+                    "type": "Coinbase"
+                },
+                "nonce": 19052,
+                "position": {
+                    "index": 0
+                },
+                "proof": null,
+                "raw_tx": "0x80800000000400ba27f99e007c7f605a8305e318c1abde3cd220ac0000000000004a6c000000000000000000009e612ea91eec24d547804ac48108fc70f3f0c4a7977bcc3119246bde65dbeea063e2c34fc175a9bdac098b6b78573bd1c152988fadfe7e391c87c53baace6a08010200000000040000000000000000000000000000000000000000000000000000000000000000",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [],
+                    "mutated_assets_radius": [],
+                    "mutated_contracts_radius": []
+                },
+                "result": "(ok true)",
+                "sender": "ST2X2FYCY01Y7YR2TGC2Y6661NFF3SMH0NGXPWTV5",
+                "success": true
+            },
+            "operations": [],
+            "transaction_identifier": {
+                "hash": "0x5568a4ddbb424c3bf19c1d76d505fbf41a35f1eb2f47193c8a5c2f294599da86"
+            }
+        },
+        {
+            "metadata": {
+                "description": "invoked: ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy::claim()",
+                "execution_cost": {
+                    "read_count": 16,
+                    "read_length": 78787,
+                    "runtime": 95184,
+                    "write_count": 5,
+                    "write_length": 39
+                },
+                "fee": 95600,
+                "kind": {
+                    "data": {
+                        "args": [],
+                        "contract_identifier": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy",
+                        "method": "claim"
+                    },
+                    "type": "ContractCall"
+                },
+                "nonce": 34,
+                "position": {
+                    "index": 1
+                },
+                "proof": null,
+                "raw_tx": "0x80800000000400d317cf8343ad6b62e1c14509805c65503091b755000000000000002200000000000175700000db4343be7b47f17cd89b1e05a4f7f35f8d303971f129a998b8a0cedc6be60e062814cd300191e7caf1b11f3519f45d9ef655ca65f27016fc2775a52da5859f4603020000000102021ad317cf8343ad6b62e1c14509805c65503091b7551ad317cf8343ad6b62e1c14509805c65503091b755096269742d776f6c6679096269742d776f6c6679010000000000000000000000000000000211021ad317cf8343ad6b62e1c14509805c65503091b755096269742d776f6c667905636c61696d00000000",
+                "receipt": {
+                    "contract_calls_stack": [],
+                    "events": [
+                        {
+                            "data": {
+                                "amount": "18400000",
+                                "recipient": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE",
+                                "sender": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy"
+                            },
+                            "type": "STXTransferEvent"
+                        },
+                        {
+                            "data": {
+                                "asset_identifier": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy::bit-wolfy",
+                                "raw_value": "0x0100000000000000000000000000000002",
+                                "recipient": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE"
+                            },
+                            "type": "NFTMintEvent"
+                        },
+                        {
+                            "data": {
+                                "amount": "20000000",
+                                "recipient": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy",
+                                "sender": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE"
+                            },
+                            "type": "STXTransferEvent"
+                        }
+                    ],
+                    "mutated_assets_radius": [
+                        "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy::bit-wolfy"
+                    ],
+                    "mutated_contracts_radius": [
+                        "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy"
+                    ]
+                },
+                "result": "(ok u2)",
+                "sender": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE",
+                "success": false
+            },
+            "operations": [
+                {
+                    "account": {
+                        "address": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 6,
+                            "symbol": "STX"
+                        },
+                        "value": 18400000
+                    },
+                    "operation_identifier": {
+                        "index": 0
+                    },
+                    "related_operations": [
+                        {
+                            "index": 1
+                        }
+                    ],
+                    "status": "SUCCESS",
+                    "type": "DEBIT"
+                },
+                {
+                    "account": {
+                        "address": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 6,
+                            "symbol": "STX"
+                        },
+                        "value": 18400000
+                    },
+                    "operation_identifier": {
+                        "index": 1
+                    },
+                    "related_operations": [
+                        {
+                            "index": 0
+                        }
+                    ],
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                },
+                {
+                    "account": {
+                        "address": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 0,
+                            "metadata": {
+                                "asset_class_identifier": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy::bit-wolfy",
+                                "asset_identifier": "0x0100000000000000000000000000000002",
+                                "standard": "SIP09"
+                            },
+                            "symbol": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy::bit-wolfy"
+                        },
+                        "value": 1
+                    },
+                    "operation_identifier": {
+                        "index": 2
+                    },
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                },
+                {
+                    "account": {
+                        "address": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 6,
+                            "symbol": "STX"
+                        },
+                        "value": 20000000
+                    },
+                    "operation_identifier": {
+                        "index": 3
+                    },
+                    "related_operations": [
+                        {
+                            "index": 4
+                        }
+                    ],
+                    "status": "SUCCESS",
+                    "type": "DEBIT"
+                },
+                {
+                    "account": {
+                        "address": "ST39HFKW38EPPPRQ1R52GK02WCN8314DQAP1P6AYE.bit-wolfy"
+                    },
+                    "amount": {
+                        "currency": {
+                            "decimals": 6,
+                            "symbol": "STX"
+                        },
+                        "value": 20000000
+                    },
+                    "operation_identifier": {
+                        "index": 4
+                    },
+                    "related_operations": [
+                        {
+                            "index": 3
+                        }
+                    ],
+                    "status": "SUCCESS",
+                    "type": "CREDIT"
+                }
+            ],
+            "transaction_identifier": {
+                "hash": "0xc48c067a03f0de1b8dce58e8082f493aab79ec8196e11c10e0b47d74ccf7d9b9"
+            }
+        }
+    ]
+}
