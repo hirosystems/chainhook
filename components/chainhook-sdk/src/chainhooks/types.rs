@@ -204,7 +204,7 @@ impl ChainhookSpecification {
 
     pub fn deserialize_specification(spec: &str) -> Result<ChainhookSpecification, String> {
         let spec: ChainhookSpecification = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize Stacks chainhook {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
 
@@ -295,7 +295,7 @@ impl ChainhookFullSpecification {
         _key: &str,
     ) -> Result<ChainhookFullSpecification, String> {
         let spec: ChainhookFullSpecification = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize Stacks chainhook {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
 }
