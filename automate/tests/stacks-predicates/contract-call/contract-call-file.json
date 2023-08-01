@@ -5,8 +5,8 @@
   "version": 1,
   "networks": {
     "testnet": {
-      "start_block": 111779,
-      "end_block": 111781,
+      "start_block": 113505,
+      "end_block": 113509,
       "expire_after_occurrence": 1,
       "if_this": {
         "scope": "contract_call",

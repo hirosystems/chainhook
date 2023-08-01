@@ -10,7 +10,7 @@ automate-chainhooks is a npm script for automation testing of [chainhook](https:
 
 ### Run script
 1. Go to the root of the project and do `npm install`. Make sure you have satisfied the above Prerequisites.
-2. Start ngrok using the command `ngrok http 3006`. Once it starts, provide the ngrok URL in the `.env` file for `DOMAIN_URL`. This is required to post the result for the http predicates. You can check the ngrok requests at `localhost:4040`
+2. Start ngrok using the command `ngrok http 3006`. Once it starts, copy the ngrok URL into the `.env` file for `DOMAIN_URL`. This is required to post the result for the http predicates example of the ngrok URL https://1f67-37-19-198-81.ngrok.io/. You can check the ngrok requests at `localhost:4040`
 3. Run all the predicates:
     ```sh
     $ npm run predicates
