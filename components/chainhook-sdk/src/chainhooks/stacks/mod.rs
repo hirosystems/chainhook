@@ -386,10 +386,24 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             for event in transaction.metadata.receipt.events.iter() {
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
-                        // if the predicate doesn't specify a contract identifier, check every event's values
-                        // if the predicate doesn't specify a contains, match all values
-                        if let Some(contract_identifier) = &expected_event.contract_identifier {
-                            if &actual.contract_identifier == contract_identifier {
+                        if actual.topic == "print" {
+                            // if the predicate doesn't specify a contract identifier, check every event's values
+                            // if the predicate doesn't specify a contains, match all values
+                            if let Some(contract_identifier) = &expected_event.contract_identifier {
+                                if &actual.contract_identifier == contract_identifier {
+                                    let value = format!(
+                                        "{}",
+                                        expect_decoded_clarity_value(&actual.hex_value)
+                                    );
+                                    if let Some(contains) = &expected_event.contains {
+                                        if value.contains(contains) {
+                                            return true;
+                                        }
+                                    } else {
+                                        return true;
+                                    }
+                                }
+                            } else {
                                 let value =
                                     format!("{}", expect_decoded_clarity_value(&actual.hex_value));
                                 if let Some(contains) = &expected_event.contains {
@@ -399,16 +413,6 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                                 } else {
                                     return true;
                                 }
-                            }
-                        } else {
-                            let value =
-                                format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                            if let Some(contains) = &expected_event.contains {
-                                if value.contains(contains) {
-                                    return true;
-                                }
-                            } else {
-                                return true;
                             }
                         }
                     }
