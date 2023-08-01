@@ -288,12 +288,12 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             expected_deployer,
         )) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractDeployment(actual_deployment) => {
-                if expected_deployer.eq("*") {
-                    true
-                } else {
+                if let Some(expected_deployer) = expected_deployer {
                     actual_deployment
                         .contract_identifier
                         .starts_with(expected_deployer)
+                } else {
+                    true
                 }
             }
             _ => false,

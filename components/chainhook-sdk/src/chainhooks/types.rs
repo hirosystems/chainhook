@@ -762,7 +762,7 @@ pub struct StacksContractCallBasedPredicate {
 #[serde(rename_all = "snake_case")]
 // #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
-    Deployer(String),
+    Deployer(Option<String>),
     ImplementSip09,
     ImplementSip10,
 }
