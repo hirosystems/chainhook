@@ -1,30 +1,19 @@
 use super::{
-    stacks::evaluate_stacks_chainhooks_on_chain_event,
-    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule},
+    stacks::{evaluate_stacks_chainhooks_on_chain_event, StacksTriggerChainhook, handle_stacks_hook_action, StacksChainhookOccurrence},
+    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook},
 };
-use crate::chainhooks::types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate,};
+use crate::{chainhooks::{types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate,}, tests::fixtures::{get_expected_occurrence, get_test_event_by_type}}, utils::AbstractStacksBlock};
 use crate::utils::Context;
-use chainhook_types::{StacksNetwork, StacksTransactionEvent,STXTransferEventData,STXMintEventData,STXLockEventData, FTMintEventData,FTTransferEventData,FTBurnEventData,NFTMintEventData,NFTBurnEventData,NFTTransferEventData, STXBurnEventData};
-use chainhook_types::{StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData, SmartContractEventData};
+use chainhook_types::{StacksNetwork, StacksTransactionEvent, StacksTransactionData};
+use chainhook_types::{StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData};
 use test_case::test_case;
+use serde_json::Value as JsonValue;
 
 pub mod fixtures;
 
-static PRINT_EVENT_HEX: &str = "0x0d00000010616263736f6d652d76616c7565616263"; // "abcsome-valueabc"
-
-static EMPTY_EVENT_HEX: &str = "0x0d00000000";
-
 // FtEvent predicate tests
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTMintEvent(FTMintEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_mint")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string()]
@@ -33,16 +22,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "FtEvent predicates match mint event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTTransferEvent(FTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                amount: "".to_string(),
-                recipient: "".to_string() 
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_transfer")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["transfer".to_string()]
@@ -51,15 +31,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "FtEvent predicates match transfer event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-                amount: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_burn")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["burn".to_string()]
@@ -68,82 +40,34 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "FtEvent predicates match burn event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTMintEvent(FTMintEventData {
-                asset_class_identifier: "not-asset-id".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_mint")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
-        asset_identifier: "asset-id".to_string(),
+        asset_identifier: "wrong-id".to_string(),
         actions: vec!["mint".to_string()]
     }),
     0 => ignore;
     "FtEvent predicates reject no-match asset id for mint event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTTransferEvent(FTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "not-asset-id".to_string(),
-                amount: "".to_string(),
-                recipient: "".to_string() 
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_transfer")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
-        asset_identifier: "asset-id".to_string(),
+        asset_identifier: "wrong-id".to_string(),
         actions: vec!["transfer".to_string()]
     }),
     0 => ignore;
     "FtEvent predicates reject no-match asset id for transfer event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
-                asset_class_identifier: "not-asset-id".to_string(),
-                sender: "".to_string(),
-                amount: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_burn")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
-        asset_identifier: "asset-id".to_string(),
+        asset_identifier: "wrong-id".to_string(),
         actions: vec!["burn".to_string()]
     }),
     0 => ignore;
     "FtEvent predicates reject no-match asset id for burn event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTMintEvent(FTMintEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::FTTransferEvent(FTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                amount: "".to_string(),
-                recipient: "".to_string() 
-            })
-        ],
-        vec![
-            StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-                amount: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_mint")],vec![get_test_event_by_type("ft_transfer")],vec![get_test_event_by_type("ft_burn")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string(),"transfer".to_string(), "burn".to_string()]
@@ -152,23 +76,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "FtEvent predicates match multiple events"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::FTTransferEvent(FTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                amount: "".to_string(),
-                recipient: "".to_string() 
-            })
-        ],
-        vec![
-            StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-                amount: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("ft_transfer")],vec![get_test_event_by_type("ft_burn")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string()]
@@ -179,15 +87,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
 
 // NftEvent predicate tests
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                recipient: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("nft_mint")]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string()]
@@ -196,16 +96,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "NftEvent predicates match mint event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                recipient: "".to_string() 
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("nft_transfer")    ]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["transfer".to_string()]
@@ -214,15 +105,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "NftEvent predicates match transfer event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("nft_burn")]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["burn".to_string()]
@@ -231,30 +114,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "NftEvent predicates match burn event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                recipient: "".to_string(),
-            })
-        ],
-        vec![
-            StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                recipient: "".to_string() 
-            })
-        ],
-        vec![
-            StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("nft_mint")],vec![get_test_event_by_type("nft_transfer")],vec![get_test_event_by_type("nft_burn")]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string(),"transfer".to_string(), "burn".to_string()]
@@ -263,23 +123,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "NftEvent predicates match multiple events"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData { 
-                sender: "".to_string(),
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                recipient: "".to_string() 
-            })
-        ],
-        vec![
-            StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
-                asset_class_identifier: "asset-id".to_string(),
-                hex_asset_identifier: "asset-id".to_string(),
-                sender: "".to_string(),
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("nft_transfer")],vec![get_test_event_by_type("nft_burn")]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["mint".to_string()]
@@ -289,14 +133,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
 )]
 // StxEvent predicate tests
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXMintEvent(STXMintEventData {
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_mint")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["mint".to_string()]
     }),
@@ -304,15 +141,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "StxEvent predicates match mint event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
-                sender: "".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_transfer")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["transfer".to_string()]
     }),
@@ -320,15 +149,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "StxEvent predicates match transfer event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXLockEvent(STXLockEventData {
-                locked_amount: "".to_string(),
-                unlock_height: "".to_string(),
-                locked_address: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_lock")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["lock".to_string()]
     }),
@@ -336,14 +157,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "StxEvent predicates match lock event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
-                sender: "".to_string(),
-                amount: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_burn")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["burn".to_string()]
     }),
@@ -351,28 +165,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "StxEvent predicates match burn event"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXMintEvent(STXMintEventData {
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
-                sender: "".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::STXLockEvent(STXLockEventData {
-                locked_amount: "".to_string(),
-                unlock_height: "".to_string(),
-                locked_address: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_mint")],vec![get_test_event_by_type("stx_transfer")],vec![get_test_event_by_type("stx_lock")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["mint".to_string(), "transfer".to_string(), "lock".to_string()]
     }),
@@ -380,22 +173,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "StxEvent predicates match multiple events"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
-                sender: "".to_string(),
-                recipient: "".to_string(),
-                amount: "".to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::STXLockEvent(STXLockEventData {
-                locked_amount: "".to_string(),
-                unlock_height: "".to_string(),
-                locked_address: "".to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("stx_transfer")],vec![get_test_event_by_type("stx_lock")]], 
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["mint".to_string()]
     }),
@@ -405,15 +183,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
 
 // PrintEvent predicate tests
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: PRINT_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
@@ -424,15 +194,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "PrintEvent predicate matches contract_identifier and contains"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "not-print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: PRINT_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_not_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
@@ -443,18 +205,10 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "PrintEvent predicate does not check events with topic other than print"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "no-match".to_string(),
-                hex_value: PRINT_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
-            "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+            "wront-id".to_string(),
         ),
         contains: Some("some-value".to_string()),
     }), 
@@ -462,34 +216,18 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "PrintEvent predicate rejects non matching contract_identifier"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: EMPTY_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         ),
-        contains: Some("some-value".to_string()),
+        contains: Some("wrong-value".to_string()),
     }), 
     0;
     "PrintEvent predicate rejects non matching contains value"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: PRINT_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: None,
         contains: Some("some-value".to_string()),
@@ -498,22 +236,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "PrintEvent predicate ommitting contract_identifier checks all print events for match"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: EMPTY_EVENT_HEX.to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "".to_string(),
-                hex_value: EMPTY_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: Some(
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
@@ -524,22 +247,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     "PrintEvent predicate ommitting contains matches all values for matching events"
 )]
 #[test_case(
-    vec![
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-                hex_value: EMPTY_EVENT_HEX.to_string()
-            })
-        ],
-        vec![
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
-                topic: "print".to_string(),
-                contract_identifier: "".to_string(),
-                hex_value: PRINT_EVENT_HEX.to_string()
-            })
-        ]
-    ], 
+    vec![vec![get_test_event_by_type("smart_contract_print_event")], vec![get_test_event_by_type("smart_contract_print_event_empty")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: None,
         contains: None,
@@ -547,8 +255,7 @@ static EMPTY_EVENT_HEX: &str = "0x0d00000000";
     2;
     "PrintEvent predicate ommitting contract_identifier and contains matches all values on all print events"
 )]
-
-fn test_stacks_predicate_events(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, predicate_event: StacksPredicate, expected_applies: u64) {
+fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
     let new_blocks = blocks_with_events.iter().map(|events| StacksBlockUpdate {
         block: fixtures::build_stacks_testnet_block_from_smart_contract_event_data(events),
@@ -560,7 +267,7 @@ fn test_stacks_predicate_events(blocks_with_events: Vec<Vec<StacksTransactionEve
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let print_predicate = StacksChainhookSpecification {
+    let chainhook = StacksChainhookSpecification {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -572,12 +279,12 @@ fn test_stacks_predicate_events(blocks_with_events: Vec<Vec<StacksTransactionEve
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        predicate: predicate_event,
+        predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
     };
 
-    let predicates = vec![&print_predicate];
+    let predicates = vec![&chainhook];
     let (triggered, _blocks) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
@@ -616,7 +323,7 @@ fn test_stacks_predicate_events(blocks_with_events: Vec<Vec<StacksTransactionEve
     0;
     "ImplementSip10 predicate returns no values"
 )]
-fn test_stacks_predicate_contract_deploy(predicate_event: StacksPredicate, expected_applies: u64) {
+fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
     let new_blocks = vec![StacksBlockUpdate {
         block: fixtures::build_stacks_testnet_block_with_contract_deployment(),
@@ -632,7 +339,7 @@ fn test_stacks_predicate_contract_deploy(predicate_event: StacksPredicate, expec
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let print_predicate = StacksChainhookSpecification {
+    let chainhook = StacksChainhookSpecification {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -644,12 +351,12 @@ fn test_stacks_predicate_contract_deploy(predicate_event: StacksPredicate, expec
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        predicate: predicate_event,
+        predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
     };
 
-    let predicates = vec![&print_predicate];
+    let predicates = vec![&chainhook];
     let (triggered, _blocks) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
@@ -699,7 +406,7 @@ fn test_stacks_predicate_contract_deploy(predicate_event: StacksPredicate, expec
     0;
     "Txid predicate rejects non matching id"
 )]
-fn test_stacks_predicate_contract_call(predicate_event: StacksPredicate, expected_applies: u64) {
+fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
     let new_blocks = vec![StacksBlockUpdate {
         block: fixtures::build_stacks_testnet_block_with_contract_call(),
@@ -715,7 +422,7 @@ fn test_stacks_predicate_contract_call(predicate_event: StacksPredicate, expecte
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let print_predicate = StacksChainhookSpecification {
+    let chainhook = StacksChainhookSpecification {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -727,12 +434,12 @@ fn test_stacks_predicate_contract_call(predicate_event: StacksPredicate, expecte
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        predicate: predicate_event,
+        predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
     };
 
-    let predicates = vec![&print_predicate];
+    let predicates = vec![&chainhook];
     let (triggered, _blocks) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
