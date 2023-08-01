@@ -2,8 +2,7 @@ use chainhook_types::StacksBlockData;
 use chainhook_types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
-    STXTransferEventData, SmartContractEventData, StacksBlockData, StacksTransactionData,
-    StacksTransactionEvent,
+    STXTransferEventData, SmartContractEventData, StacksTransactionData, StacksTransactionEvent,
 };
 use std::collections::HashMap;
 
