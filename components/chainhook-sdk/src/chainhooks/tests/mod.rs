@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use self::fixtures::get_all_event_types;
+
 use super::{
     stacks::{evaluate_stacks_chainhooks_on_chain_event, StacksTriggerChainhook, handle_stacks_hook_action, StacksChainhookOccurrence},
     types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook},
