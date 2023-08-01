@@ -454,3 +454,103 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         assert_eq!(actual_applies, expected_applies);
     }
 }
+
+#[test]
+fn test_stacks_hook_action_noop() {
+    let chainhook = StacksChainhookSpecification {
+        uuid: "".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        predicate: StacksPredicate::Txid(ExactMatchingRule::Equals("0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string())),
+        action: HookAction::Noop,
+        enabled: true,
+    };
+
+
+    let apply_block_data = fixtures::build_stacks_testnet_block_with_contract_call();
+    let apply_transactions = apply_block_data.transactions.iter().map(|t|t).collect();
+    let apply_blocks: &dyn AbstractStacksBlock = &apply_block_data;
+
+    let rollback_block_data = fixtures::build_stacks_testnet_block_with_contract_deployment();
+    let rollback_transactions = rollback_block_data.transactions.iter().map(|t|t).collect();
+    let rollback_blocks: &dyn AbstractStacksBlock = &apply_block_data;
+    let trigger = StacksTriggerChainhook {
+        chainhook: &chainhook,
+        apply: vec![(apply_transactions, apply_blocks)],
+        rollback: vec![(rollback_transactions, rollback_blocks)]
+    };
+
+    let proofs = HashMap::new();
+    let ctx = Context { logger: None, tracer: false };
+    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    if let StacksChainhookOccurrence::Data(data) = occurrence {
+        assert_eq!(data.apply.len(), 1);
+        assert_eq!(data.apply[0].block_identifier.hash, apply_block_data.block_identifier.hash);
+        assert_eq!(data.rollback.len(), 1);
+        assert_eq!(data.rollback[0].block_identifier.hash, rollback_block_data.block_identifier.hash);
+    }
+    else {
+        panic!("wrong occurrence type");
+    }
+}
+
+
+#[test]
+fn test_stacks_hook_action_file_append() {
+    let chainhook = StacksChainhookSpecification {
+        uuid: "".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: Some(true),
+        predicate: StacksPredicate::Txid(ExactMatchingRule::Equals("0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string())),
+        action: HookAction::FileAppend(FileHook {path: "./".to_string()}),
+        enabled: true,
+    };
+    let events = get_all_event_types();
+    let mut apply_blocks = vec![];
+    for event in events.iter() {
+        apply_blocks.push(fixtures::build_stacks_testnet_block_from_smart_contract_event_data(&vec![event.to_owned()]));
+
+    }
+    let apply: Vec<(Vec<&StacksTransactionData>, &dyn AbstractStacksBlock)> = apply_blocks.iter().map(|b| (b.transactions.iter().map(|t| t).collect(), b as &dyn AbstractStacksBlock)).collect();
+
+
+    let rollback_block_data = fixtures::build_stacks_testnet_block_with_contract_deployment();
+    let rollback_transactions = rollback_block_data.transactions.iter().map(|t|t).collect();
+    let rollback_block: &dyn AbstractStacksBlock = &rollback_block_data;
+    let trigger = StacksTriggerChainhook {
+        chainhook: &chainhook,
+        apply: apply,
+        rollback: vec![(rollback_transactions, rollback_block)]
+    };
+
+    let proofs = HashMap::new();
+    let ctx = Context { logger: None, tracer: false };
+    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    if let StacksChainhookOccurrence::File(path, bytes) = occurrence {
+        assert_eq!(path, "./".to_string());
+        let json: JsonValue = serde_json::from_slice(&bytes).unwrap();
+        let obj = json.as_object().unwrap();
+        let actual = serde_json::to_string_pretty(obj).unwrap();
+        let expected = get_expected_occurrence();
+        assert_eq!(expected, actual);
+    }
+    else {
+        panic!("wrong occurence type");
+    }
+}
