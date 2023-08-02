@@ -189,10 +189,8 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: Some(
-            "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        ),
-        contains: Some("some-value".to_string()),
+        contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+        contains: "some-value".to_string()
     }),
     1;
     "PrintEvent predicate matches contract_identifier and contains"
@@ -200,10 +198,8 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_not_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: Some(
-            "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        ),
-        contains: Some("some-value".to_string()),
+        contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+        contains: "some-value".to_string(),
     }),
     0;
     "PrintEvent predicate does not check events with topic other than print"
@@ -211,10 +207,8 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: Some(
-            "wront-id".to_string(),
-        ),
-        contains: Some("some-value".to_string()),
+        contract_identifier: "wront-id".to_string(),
+        contains: "some-value".to_string(),
     }), 
     0;
     "PrintEvent predicate rejects non matching contract_identifier"
@@ -222,10 +216,9 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: Some(
+        contract_identifier: 
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        ),
-        contains: Some("wrong-value".to_string()),
+        contains: "wrong-value".to_string(),
     }), 
     0;
     "PrintEvent predicate rejects non matching contains value"
@@ -233,31 +226,29 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: None,
-        contains: Some("some-value".to_string()),
+        contract_identifier: "*".to_string(),
+        contains: "some-value".to_string(),
     }), 
     1;
-    "PrintEvent predicate ommitting contract_identifier checks all print events for match"
+    "PrintEvent predicate contract_identifier wildcard checks all print events for match"
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: Some(
-            "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        ),
-        contains: None,
+        contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+        contains: "*".to_string(),
     }), 
     1;
-    "PrintEvent predicate ommitting contains matches all values for matching events"
+    "PrintEvent predicate contains wildcard matches all values for matching events"
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")], vec![get_test_event_by_type("smart_contract_print_event_empty")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: None,
-        contains: None,
+        contract_identifier: "*".to_string(),
+        contains: "*".to_string(),
     }), 
     2;
-    "PrintEvent predicate ommitting contract_identifier and contains matches all values on all print events"
+    "PrintEvent predicate contract_identifier wildcard and contains wildcard matches all values on all print events"
 )]
 fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
