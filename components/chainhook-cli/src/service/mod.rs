@@ -157,6 +157,7 @@ impl Service {
             observer_command_tx,
             observer_command_rx,
             Some(observer_event_tx),
+            None,
             self.ctx.clone(),
         );
 

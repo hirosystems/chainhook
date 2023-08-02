@@ -218,6 +218,7 @@ fn test_stacks_chainhook_register_deregister() {
             Some(observer_events_tx),
             None,
             observer_metrics_rw_lock_moved,
+            None,
             Context::empty(),
         ));
     });
@@ -492,6 +493,7 @@ fn test_stacks_chainhook_auto_deregister() {
             Some(observer_events_tx),
             None,
             observer_metrics_rw_lock_moved,
+            None,
             Context::empty(),
         ));
     });
@@ -694,6 +696,7 @@ fn test_bitcoin_chainhook_register_deregister() {
             Some(observer_events_tx),
             None,
             observer_metrics_rw_lock_moved,
+            None,
             Context::empty(),
         ));
     });
@@ -966,6 +969,7 @@ fn test_bitcoin_chainhook_auto_deregister() {
             Some(observer_events_tx),
             None,
             observer_metrics_rw_lock_moved,
+            None,
             Context::empty(),
         ));
     });
