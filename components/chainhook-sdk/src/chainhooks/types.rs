@@ -763,6 +763,15 @@ pub struct StacksContractCallBasedPredicate {
 // #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
     Deployer(String),
+    ImplementTrait(StacksTrait),
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksTrait {
+    Sip09,
+    Sip10,
+    #[serde(rename = "*")]
+    Any,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

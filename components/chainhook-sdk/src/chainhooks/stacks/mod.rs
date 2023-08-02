@@ -298,8 +298,10 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             }
             _ => false,
         },
-        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip09) => {
-            match &transaction.metadata.kind {
+        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(
+            stacks_trait,
+        )) => match stacks_trait {
+            _ => match &transaction.metadata.kind {
                 StacksTransactionKind::ContractDeployment(_actual_deployment) => {
                     ctx.try_log(|logger| {
                         slog::warn!(
@@ -310,22 +312,8 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                     false
                 }
                 _ => false,
-            }
-        }
-        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip10) => {
-            match &transaction.metadata.kind {
-                StacksTransactionKind::ContractDeployment(_actual_deployment) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "StacksContractDeploymentPredicate::Trait uninmplemented"
-                        )
-                    });
-                    false
-                }
-                _ => false,
-            }
-        }
+            },
+        },
         StacksPredicate::ContractCall(expected_contract_call) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractCall(actual_contract_call) => {
                 actual_contract_call
@@ -391,13 +379,13 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                                 || expected_event.contract_identifier == "*"
                             {
                                 if expected_event.contains == "*" {
-                                            return true;
-                                        }
+                                    return true;
+                                }
                                 let value =
                                     format!("{}", expect_decoded_clarity_value(&actual.hex_value));
                                 if value.contains(&expected_event.contains) {
-                                        return true;
-                                    }
+                                    return true;
+                                }
                             }
                         }
                     }

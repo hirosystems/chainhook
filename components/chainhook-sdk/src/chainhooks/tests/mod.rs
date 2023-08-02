@@ -4,7 +4,7 @@ use self::fixtures::get_all_event_types;
 
 use super::{
     stacks::{evaluate_stacks_chainhooks_on_chain_event, StacksTriggerChainhook, handle_stacks_hook_action, StacksChainhookOccurrence},
-    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook},
+    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook, StacksTrait},
 };
 use crate::{chainhooks::{types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate,}, tests::fixtures::{get_expected_occurrence, get_test_event_by_type}}, utils::AbstractStacksBlock};
 use crate::utils::Context;
@@ -309,14 +309,19 @@ fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, 
     "Deployer predicate does not match non-matching deployer"
 )]
 #[test_case(
-    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip09), 
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(StacksTrait::Sip09)), 
     0;
-    "ImplementSip09 predicate returns no values"
+    "ImplementSip predicate returns no values for Sip09"
 )]
 #[test_case(
-    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip10), 
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(StacksTrait::Sip10)), 
     0;
-    "ImplementSip10 predicate returns no values"
+    "ImplementSip predicate returns no values for Sip10"
+)]
+#[test_case(
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(StacksTrait::Any)), 
+    0;
+    "ImplementSip predicate returns no values for Any"
 )]
 fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
