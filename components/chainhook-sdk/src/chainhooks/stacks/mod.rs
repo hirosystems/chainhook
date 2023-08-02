@@ -306,7 +306,7 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "StacksContractDeploymentPredicate::Trait uninmplemented"
+                            "StacksContractDeploymentPredicate::ImplementTrait uninmplemented"
                         )
                     });
                     false
