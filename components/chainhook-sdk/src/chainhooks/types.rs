@@ -762,7 +762,7 @@ pub struct StacksContractCallBasedPredicate {
 #[serde(rename_all = "snake_case")]
 // #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
-    Deployer(String),
+    Deployer(Option<String>),
     ImplementSip09,
     ImplementSip10,
 }
@@ -770,8 +770,10 @@ pub enum StacksContractDeploymentPredicate {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StacksPrintEventBasedPredicate {
-    pub contract_identifier: String,
-    pub contains: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contains: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

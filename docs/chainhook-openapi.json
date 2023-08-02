@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "0.16.0"
+    "version": "0.17.0"
   },
   "paths": {
     "/ping": {
@@ -993,8 +993,6 @@
           {
             "type": "object",
             "required": [
-              "contains",
-              "contract_identifier",
               "scope"
             ],
             "properties": {
@@ -1005,10 +1003,12 @@
                 ]
               },
               "contract_identifier": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               },
               "contains": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             }
           },

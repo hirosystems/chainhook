@@ -288,12 +288,12 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             expected_deployer,
         )) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractDeployment(actual_deployment) => {
-                if expected_deployer.eq("*") {
-                    true
-                } else {
+                if let Some(expected_deployer) = expected_deployer {
                     actual_deployment
                         .contract_identifier
                         .starts_with(expected_deployer)
+                } else {
+                    true
                 }
             }
             _ => false,
@@ -386,10 +386,28 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             for event in transaction.metadata.receipt.events.iter() {
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
-                        if actual.contract_identifier == expected_event.contract_identifier {
+                        // if the predicate doesn't specify a contract identifier, check every event's values
+                        // if the predicate doesn't specify a contains, match all values
+                        if let Some(contract_identifier) = &expected_event.contract_identifier {
+                            if &actual.contract_identifier == contract_identifier {
+                                let value =
+                                    format!("{}", expect_decoded_clarity_value(&actual.hex_value));
+                                if let Some(contains) = &expected_event.contains {
+                                    if value.contains(contains) {
+                                        return true;
+                                    }
+                                } else {
+                                    return true;
+                                }
+                            }
+                        } else {
                             let value =
                                 format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                            if value.contains(&expected_event.contains) {
+                            if let Some(contains) = &expected_event.contains {
+                                if value.contains(contains) {
+                                    return true;
+                                }
+                            } else {
                                 return true;
                             }
                         }
