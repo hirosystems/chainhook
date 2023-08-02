@@ -1,8 +1,11 @@
-use chainhook_types::{StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksBlockUpdate};
+use super::{
+    stacks::evaluate_stacks_chainhooks_on_chain_event,
+    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate},
+};
+use crate::chainhooks::types::{HookAction, StacksPredicate};
 use crate::utils::Context;
 use chainhook_types::StacksNetwork;
-use crate::chainhooks::types::{StacksPredicate, HookAction};
-use super::{stacks::evaluate_stacks_chainhooks_on_chain_event, types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate}};
+use chainhook_types::{StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData};
 
 pub mod fixtures;
 
@@ -15,7 +18,7 @@ fn test_stacks_predicate_print_event() {
             parent_microblocks_to_apply: vec![],
             parent_microblocks_to_rollback: vec![],
         }],
-        confirmed_blocks: vec![]
+        confirmed_blocks: vec![],
     });
 
     // Prepare predicate
@@ -32,14 +35,17 @@ fn test_stacks_predicate_print_event() {
         capture_all_events: None,
         decode_clarity_values: None,
         predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-            contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-            contains: "set-loan".to_string(),
+            contract_identifier: Some(
+                "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+            ),
+            contains: Some("set-loan".to_string()),
         }),
         action: HookAction::Noop,
         enabled: true,
     };
 
     let predicates = vec![&print_predicate];
-    let (triggered, _blocks) = evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    let (triggered, _blocks) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 1);
 }
