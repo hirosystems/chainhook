@@ -48,8 +48,8 @@ export type StacksIfThisStxEvent = Static<typeof StacksIfThisStxEventSchema>;
 
 export const StacksIfThisPrintEventSchema = Type.Object({
   scope: Type.Literal('print_event'),
-  contract_identifier: Type.String(),
-  contains: Type.String(),
+  contract_identifier: Type.Optional(Type.String()),
+  contains: Type.Optional(Type.String()),
 });
 export type StacksIfThisPrintEvent = Static<typeof StacksIfThisPrintEventSchema>;
 
