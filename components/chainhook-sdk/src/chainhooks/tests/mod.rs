@@ -294,17 +294,17 @@ fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, 
 
 
 #[test_case(
-    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer(Some("ST13F481SBR0R7Z6NMMH8YV2FJJYXA5JPA0AD3HP9".to_string()))), 
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer("ST13F481SBR0R7Z6NMMH8YV2FJJYXA5JPA0AD3HP9".to_string())), 
     1;
     "Deployer predicate matches by contract deployer"
 )]
 #[test_case(
-    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer(None)), 
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer("*".to_string())), 
     1;
-    "Deployer predicate ommitting deployer catches all occurences"
+    "Deployer predicate wildcard deployer catches all occurences"
 )]
 #[test_case(
-    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer(Some("deployer".to_string()))), 
+    StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer("wrong-deployer".to_string())), 
     0;
     "Deployer predicate does not match non-matching deployer"
 )]
