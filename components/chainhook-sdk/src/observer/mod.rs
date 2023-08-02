@@ -1517,7 +1517,7 @@ fn handle_blocks_pre_processing(
 ) -> Vec<BitcoinBlockData> {
     if let Some(ref processor) = block_pre_processor {
         ctx.try_log(|logger| {
-            slog::error!(
+            slog::info!(
                 logger,
                 "Sending blocks to pre-processor",
             )
@@ -1529,7 +1529,7 @@ fn handle_blocks_pre_processing(
                 false => HandleBlock::UndoBlocks(blocks.clone()),
             });
         ctx.try_log(|logger| {
-            slog::error!(
+            slog::info!(
                 logger,
                 "Waiting for blocks from pre-processor",
             )
@@ -1538,7 +1538,7 @@ fn handle_blocks_pre_processing(
             blocks = updated_blocks;
         }
         ctx.try_log(|logger| {
-            slog::error!(
+            slog::info!(
                 logger,
                 "Blocks received from pre-processor",
             )
