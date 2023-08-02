@@ -299,6 +299,7 @@ async fn it_handles_stacks_predicates_with_network(network: &str) {
 #[test_case(json!({"scope":"block_height", "lower_than": 100}); "with scope block_height lower_than match")]
 #[test_case(json!({"scope":"block_height", "between": [100,102]}); "with scope block_height between match")]
 #[test_case(json!({"scope":"contract_deployment", "deployer": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"}); "with scope contract_deployment type deployer")]
+#[test_case(json!({"scope":"contract_deployment"}); "with scope contract_deployment type no deployer")]
 #[test_case(json!({"scope":"contract_call","contract_identifier": "SP000000000000000000002Q6VF78.pox","method": "stack-stx"}); "with scope contract_call")]
 #[test_case(json!({"scope":"print_event","contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09","contains": "vault"}); "with scope print_event both fields")]
 #[test_case(json!({"scope":"print_event","contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09"}); "with scope print_event just contract_identifier")]
