@@ -192,7 +192,7 @@ pub mod fixtures;
     StacksPredicate::StxEvent(StacksStxEventBasedPredicate {
         actions: vec!["burn".to_string()]
     }),
-    1 => ignore;
+    1;
     "StxEvent predicates match burn event"
 )]
 #[test_case(
