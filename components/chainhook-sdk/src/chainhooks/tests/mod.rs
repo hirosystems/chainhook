@@ -49,7 +49,7 @@ pub mod fixtures;
         asset_identifier: "wrong-id".to_string(),
         actions: vec!["mint".to_string()]
     }),
-    0 => ignore;
+    0;
     "FtEvent predicates reject no-match asset id for mint event"
 )]
 #[test_case(
@@ -58,7 +58,7 @@ pub mod fixtures;
         asset_identifier: "wrong-id".to_string(),
         actions: vec!["transfer".to_string()]
     }),
-    0 => ignore;
+    0;
     "FtEvent predicates reject no-match asset id for transfer event"
 )]
 #[test_case(
@@ -67,7 +67,7 @@ pub mod fixtures;
         asset_identifier: "wrong-id".to_string(),
         actions: vec!["burn".to_string()]
     }),
-    0 => ignore;
+    0;
     "FtEvent predicates reject no-match asset id for burn event"
 )]
 #[test_case(
@@ -100,7 +100,7 @@ pub mod fixtures;
     "NftEvent predicates match mint event"
 )]
 #[test_case(
-    vec![vec![get_test_event_by_type("nft_transfer")    ]], 
+    vec![vec![get_test_event_by_type("nft_transfer")]], 
     StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
         actions: vec!["transfer".to_string()]
@@ -116,6 +116,33 @@ pub mod fixtures;
     }),
     1;
     "NftEvent predicates match burn event"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("nft_mint")]], 
+    StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+        asset_identifier: "wrong-id".to_string(),
+        actions: vec!["mint".to_string()]
+    }),
+    0;
+    "NftEvent predicates reject no-match asset id for mint event"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("nft_transfer")]], 
+    StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+        asset_identifier: "wrong-id".to_string(),
+        actions: vec!["transfer".to_string()]
+    }),
+    0;
+    "NftEvent predicates reject no-match asset id for transfer event"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("nft_burn")]], 
+    StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+        asset_identifier: "wrong-id".to_string(),
+        actions: vec!["burn".to_string()]
+    }),
+    0;
+    "NftEvent predicates reject no-match asset id for burn event"
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("nft_mint")],vec![get_test_event_by_type("nft_transfer")],vec![get_test_event_by_type("nft_burn")]], 
