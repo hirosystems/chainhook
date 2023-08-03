@@ -254,3 +254,8 @@ fn test_stacks_vector_050() {
 fn test_stacks_vector_051() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_051());
 }
+
+#[test]
+fn test_stacks_vector_052() {
+    process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_052());
+}

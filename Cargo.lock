@@ -416,7 +416,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chainhook"
-version = "0.17.0"
+version = "0.20.0"
 dependencies = [
  "ansi_term",
  "atty",
@@ -457,13 +457,13 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "base58 0.2.0",
  "base64",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
- "chainhook-types 1.0.8",
+ "chainhook-types 1.0.9",
  "clarinet-utils",
  "crossbeam-channel 0.5.8",
  "dashmap 5.4.0",
@@ -504,7 +504,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "hex",
  "schemars 0.8.12",
@@ -642,9 +642,9 @@ dependencies = [
 
 [[package]]
 name = "clarity-repl"
-version = "1.7.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f2d096ff86def33801c5ad13dc222befa42118326a80cfc1cf34d9ee1abc70b"
+checksum = "6fbc2179431d853889075f92b984a56c3c988b944ca6682ff840b2792bb155bf"
 dependencies = [
  "ansi_term",
  "atty",
@@ -3929,9 +3929,9 @@ dependencies = [
 
 [[package]]
 name = "stacks-rpc-client"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "417254594e89666f68c76267a620d3751ae6604e39c97f3abb57a845390bc1a0"
+checksum = "4903f6164688594cb80856abc27d7a76fa7b6ac84c6fc70a45e414d097c191ab"
 dependencies = [
  "clarity-repl",
  "hmac 0.12.1",

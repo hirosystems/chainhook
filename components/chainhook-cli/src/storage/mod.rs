@@ -195,7 +195,7 @@ pub fn get_stacks_block_at_block_height(
                 return Ok(Some({
                     let spec: StacksBlockData =
                         serde_json::from_slice(&entry[..]).map_err(|e| {
-                            format!("unable to deserialize Stacks chainhook {}", e.to_string())
+                            format!("unable to deserialize Stacks block {}", e.to_string())
                         })?;
                     spec
                 }))

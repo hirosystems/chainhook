@@ -397,6 +397,7 @@ pub fn start_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -413,6 +414,7 @@ pub fn start_event_observer(
                     observer_commands_tx_moved,
                     observer_commands_rx,
                     observer_events_tx,
+                    block_pre_processor,
                     context_cloned,
                 );
                 let _ = hiro_system_kit::nestable_block_on(future);
@@ -429,6 +431,7 @@ pub fn start_event_observer(
                     observer_commands_tx_moved,
                     observer_commands_rx,
                     observer_events_tx,
+                    block_pre_processor,
                     context_cloned,
                 );
                 let _ = hiro_system_kit::nestable_block_on(future);
@@ -455,6 +458,7 @@ pub async fn start_bitcoin_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let chainhook_store = ChainhookStore::new();
@@ -481,6 +485,7 @@ pub async fn start_bitcoin_event_observer(
         observer_events_tx,
         None,
         observer_metrics_rw_lock.clone(),
+        block_pre_processor,
         ctx,
     )
     .await
@@ -491,6 +496,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -607,6 +613,7 @@ pub async fn start_stacks_event_observer(
         observer_events_tx,
         ingestion_shutdown,
         observer_metrics_rw_lock.clone(),
+        block_pre_processor,
         ctx,
     )
     .await
@@ -786,6 +793,11 @@ pub fn gather_proofs<'a>(
     }
 }
 
+pub enum HandleBlock {
+    ApplyBlocks(Vec<BitcoinBlockData>),
+    UndoBlocks(Vec<BitcoinBlockData>),
+}
+
 pub async fn start_observer_commands_handler(
     config: EventObserverConfig,
     mut chainhook_store: ChainhookStore,
@@ -793,6 +805,7 @@ pub async fn start_observer_commands_handler(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
     observer_metrics: Arc<RwLock<ObserverMetrics>>,
+    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -909,6 +922,13 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
+                        new_blocks = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            new_blocks,
+                            true,
+                            &ctx,
+                        );
+
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
                                 Some(block) => {
@@ -969,6 +989,13 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
+                        blocks_to_rollback = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            blocks_to_rollback,
+                            false,
+                            &ctx,
+                        );
+
                         for header in data.headers_to_apply.iter() {
                             match bitcoin_block_store.get_mut(&header.block_identifier) {
                                 Some(block) => {
@@ -985,6 +1012,13 @@ pub async fn start_observer_commands_handler(
                                 }
                             }
                         }
+
+                        blocks_to_apply = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            blocks_to_apply,
+                            true,
+                            &ctx,
+                        );
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
@@ -1489,5 +1523,39 @@ pub async fn start_observer_commands_handler(
     }
     Ok(())
 }
+
+fn handle_blocks_pre_processing(
+    block_pre_processor: &Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
+    blocks: Vec<BitcoinBlockData>,
+    apply: bool,
+    ctx: &Context,
+) -> Vec<BitcoinBlockData> {
+    if let Some(ref processor) = block_pre_processor {
+        ctx.try_log(|logger| slog::info!(logger, "Sending blocks to pre-processor",));
+        let _ = processor.0.send(match apply {
+            true => HandleBlock::ApplyBlocks(blocks.clone()),
+            false => HandleBlock::UndoBlocks(blocks.clone()),
+        });
+        ctx.try_log(|logger| slog::info!(logger, "Waiting for blocks from pre-processor",));
+        match processor.1.recv() {
+            Ok(updated_blocks) => {
+                ctx.try_log(|logger| slog::info!(logger, "Blocks received from pre-processor",));
+                return updated_blocks;
+            }
+            Err(e) => {
+                ctx.try_log(|logger| {
+                    slog::error!(
+                        logger,
+                        "Unable to receive block from pre-processor {}",
+                        e.to_string()
+                    )
+                });
+                return blocks;
+            }
+        }
+    }
+    blocks
+}
+
 #[cfg(test)]
 pub mod tests;

@@ -330,6 +330,16 @@ impl StacksBlockPool {
         microblocks: Vec<StacksMicroblockData>,
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
+        if self.block_store.is_empty() {
+            ctx.try_log(|logger| {
+                slog::info!(
+                    logger,
+                    "Ignoring microblock trail, fork tracking will start with the next anchor block"
+                )
+            });
+            return Ok(None);
+        }
+
         ctx.try_log(|logger| {
             slog::info!(logger, "Start processing {} microblocks", microblocks.len())
         });
