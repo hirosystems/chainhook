@@ -8,12 +8,9 @@ use crate::chainhooks::types::{
 
 use crate::observer::BitcoinConfig;
 use crate::utils::Context;
-use bitcoincore_rpc::bitcoin::hashes::hex::FromHex;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};
-use bitcoincore_rpc_json::{
-    GetRawTransactionResultVinScriptSig, GetRawTransactionResultVoutScriptPubKey,
-};
+use bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
 pub use blocks_pool::BitcoinBlockPool;
 use chainhook_types::bitcoin::{OutPoint, TxIn, TxOut};
 use chainhook_types::{
@@ -23,19 +20,19 @@ use chainhook_types::{
     StacksBlockCommitmentData, TransactionIdentifier, TransferSTXData,
 };
 use hiro_system_kit::slog;
+use rand::{thread_rng, Rng};
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinBlockFullBreakdown {
-    pub hash: bitcoin::BlockHash,
+    pub hash: String,
     pub height: usize,
-    pub merkleroot: bitcoin::TxMerkleNode,
     pub tx: Vec<BitcoinTransactionFullBreakdown>,
     pub time: usize,
     pub nonce: u32,
-    pub previousblockhash: Option<bitcoin::BlockHash>,
+    pub previousblockhash: Option<String>,
 }
 
 impl BitcoinBlockFullBreakdown {
@@ -47,10 +44,13 @@ impl BitcoinBlockFullBreakdown {
             hash: hash,
         };
         // Parent block id
-        let hash = format!("0x{}", self.previousblockhash.unwrap().to_string());
+        let parent_block_hash = match self.previousblockhash {
+            Some(ref value) => format!("0x{}", value),
+            None => format!("0x{}", BlockHash::all_zeros().to_string()),
+        };
         let parent_block_identifier = BlockIdentifier {
             index: (self.height - 1) as u64,
-            hash,
+            hash: parent_block_hash,
         };
         BlockHeader {
             block_identifier,
@@ -62,7 +62,7 @@ impl BitcoinBlockFullBreakdown {
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinTransactionFullBreakdown {
-    pub txid: bitcoin::Txid,
+    pub txid: String,
     pub vin: Vec<BitcoinTransactionInputFullBreakdown>,
     pub vout: Vec<BitcoinTransactionOutputFullBreakdown>,
 }
@@ -72,18 +72,23 @@ pub struct BitcoinTransactionFullBreakdown {
 pub struct BitcoinTransactionInputFullBreakdown {
     pub sequence: u32,
     /// The raw scriptSig in case of a coinbase tx.
-    #[serde(default, with = "bitcoincore_rpc_json::serde_hex::opt")]
-    pub coinbase: Option<Vec<u8>>,
+    // #[serde(default, with = "bitcoincore_rpc_json::serde_hex::opt")]
+    // pub coinbase: Option<Vec<u8>>,
     /// Not provided for coinbase txs.
-    pub txid: Option<bitcoin::Txid>,
+    pub txid: Option<String>,
     /// Not provided for coinbase txs.
     pub vout: Option<u32>,
     /// The scriptSig in case of a non-coinbase tx.
     pub script_sig: Option<GetRawTransactionResultVinScriptSig>,
     /// Not provided for coinbase txs.
-    #[serde(default, deserialize_with = "deserialize_hex_array_opt")]
-    pub txinwitness: Option<Vec<Vec<u8>>>,
+    pub txinwitness: Option<Vec<String>>,
     pub prevout: Option<BitcoinTransactionInputPrevoutFullBreakdown>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetRawTransactionResultVinScriptSig {
+    pub hex: String,
 }
 
 impl BitcoinTransactionInputFullBreakdown {
@@ -91,24 +96,8 @@ impl BitcoinTransactionInputFullBreakdown {
     /// The [txid], [vout] and [script_sig] fields are not provided
     /// for coinbase transactions.
     pub fn is_coinbase(&self) -> bool {
-        self.coinbase.is_some()
+        self.txid.is_none()
     }
-}
-
-fn deserialize_hex_array_opt<'de, D>(deserializer: D) -> Result<Option<Vec<Vec<u8>>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use crate::serde::de::Error;
-
-    //TODO(stevenroose) Revisit when issue is fixed:
-    // https://github.com/serde-rs/serde/issues/723
-    let v: Vec<String> = Vec::deserialize(deserializer)?;
-    let mut res = Vec::new();
-    for h in v.into_iter() {
-        res.push(FromHex::from_hex(&h).map_err(D::Error::custom)?);
-    }
-    Ok(Some(res))
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -146,7 +135,12 @@ pub struct RewardParticipant {
 
 pub fn build_http_client() -> HttpClient {
     HttpClient::builder()
-        .timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(15))
+        .http1_only()
+        .no_trust_dns()
+        .connect_timeout(Duration::from_secs(15))
+        .tcp_keepalive(Some(Duration::from_secs(15)))
+        .no_proxy()
         .danger_accept_invalid_certs(true)
         .build()
         .expect("Unable to build http client")
@@ -236,6 +230,74 @@ pub async fn retrieve_block_hash(
     Ok(block_hash)
 }
 
+pub async fn try_fetch_block_bytes_with_retry(
+    http_client: HttpClient,
+    block_height: u64,
+    bitcoin_config: BitcoinConfig,
+    ctx: Context,
+) -> Result<Vec<u8>, String> {
+    let block_hash =
+        retrieve_block_hash_with_retry(&http_client, &block_height, &bitcoin_config, &ctx)
+            .await
+            .unwrap();
+
+    let mut errors_count = 0;
+
+    let response = loop {
+        match fetch_block(&http_client, &block_hash, &bitcoin_config, &ctx).await {
+            Ok(result) => break result,
+            Err(_e) => {
+                errors_count += 1;
+                if errors_count > 1 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+                continue;
+            }
+        }
+    };
+    Ok(response)
+}
+
+pub async fn try_download_block_bytes_with_retry(
+    http_client: HttpClient,
+    block_height: u64,
+    bitcoin_config: BitcoinConfig,
+    ctx: Context,
+) -> Result<Vec<u8>, String> {
+    let block_hash =
+        retrieve_block_hash_with_retry(&http_client, &block_height, &bitcoin_config, &ctx)
+            .await
+            .unwrap();
+
+    let mut errors_count = 0;
+
+    let response = loop {
+        match download_block(&http_client, &block_hash, &bitcoin_config, &ctx).await {
+            Ok(result) => break result,
+            Err(_e) => {
+                errors_count += 1;
+                if errors_count > 1 {
+                    ctx.try_log(|logger| {
+                        slog::warn!(
+                            logger,
+                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                        )
+                    });
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+                continue;
+            }
+        }
+    };
+    Ok(response)
+}
+
 pub async fn download_block_with_retry(
     http_client: &HttpClient,
     block_hash: &str,
@@ -243,19 +305,26 @@ pub async fn download_block_with_retry(
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
+    let mut backoff: f64 = 1.0;
+    let mut rng = thread_rng();
+
     let block = loop {
         let response = {
             match download_block(http_client, block_hash, bitcoin_config, ctx).await {
                 Ok(result) => result,
                 Err(_e) => {
                     errors_count += 1;
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
-                        )
-                    });
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    backoff = 2.0 * backoff + (backoff * rng.gen_range(0.0..1.0));
+                    let duration = std::time::Duration::from_millis((backoff * 1_000.0) as u64);
+                    if errors_count > 1 {
+                        ctx.try_log(|logger| {
+                            slog::warn!(
+                                logger,
+                                "unable to fetch block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                            )
+                        });
+                    }
+                    std::thread::sleep(duration);
                     continue;
                 }
             }
@@ -317,6 +386,35 @@ pub fn parse_downloaded_block(
     Ok(block)
 }
 
+pub async fn fetch_block(
+    http_client: &HttpClient,
+    block_hash: &str,
+    bitcoin_config: &BitcoinConfig,
+    _ctx: &Context,
+) -> Result<Vec<u8>, String> {
+    let block = http_client
+        .get(format!(
+            "{}/rest/block/{}.json",
+            bitcoin_config.rpc_url, block_hash
+        ))
+        .header("Content-Type", "application/json")
+        .header("Host", &bitcoin_config.rpc_url[7..])
+        .send()
+        .await
+        .map_err(|e| format!("unable to send request ({})", e))?
+        .bytes()
+        .await
+        .map_err(|e| format!("unable to get bytes ({})", e))?
+        .to_vec();
+    Ok(block)
+}
+
+pub fn parse_fetched_block(downloaded_block: Vec<u8>) -> Result<BitcoinBlockFullBreakdown, String> {
+    let block = serde_json::from_slice::<BitcoinBlockFullBreakdown>(&downloaded_block[..])
+        .map_err(|e: serde_json::Error| format!("unable to parse block ({})", e))?;
+    Ok(block)
+}
+
 pub async fn download_and_parse_block(
     http_client: &HttpClient,
     block_hash: &str,
@@ -341,8 +439,6 @@ pub fn standardize_bitcoin_block(
 
     for mut tx in block.tx.into_iter() {
         let txid = tx.txid.to_string();
-
-        ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin transaction {txid}"));
 
         let mut stacks_operations = vec![];
         if let Some(op) = try_parse_stacks_operation(
@@ -395,6 +491,7 @@ pub fn standardize_bitcoin_block(
             ))?;
 
             sats_in += prevout.value.to_sat();
+
             inputs.push(TxIn {
                 previous_output: OutPoint {
                     txid: TransactionIdentifier::new(&txid.to_string()),
@@ -402,16 +499,16 @@ pub fn standardize_bitcoin_block(
                     block_height: prevout.height,
                     value: prevout.value.to_sat(),
                 },
-                script_sig: format!("0x{}", hex::encode(&script_sig.hex)),
+                script_sig: format!("0x{}", script_sig.hex),
                 sequence: input.sequence,
                 witness: input
                     .txinwitness
                     .unwrap_or(vec![])
                     .to_vec()
                     .iter()
-                    .map(|w| format!("0x{}", hex::encode(w)))
+                    .map(|w| format!("0x{}", w))
                     .collect::<Vec<_>>(),
-            })
+            });
         }
 
         let mut outputs = vec![];
@@ -436,7 +533,7 @@ pub fn standardize_bitcoin_block(
                 stacks_operations,
                 ordinal_operations: vec![],
                 proof: None,
-                fee: sats_in - sats_out,
+                fee: sats_in.saturating_sub(sats_out),
             },
         };
         transactions.push(tx);
@@ -450,7 +547,9 @@ pub fn standardize_bitcoin_block(
         parent_block_identifier: BlockIdentifier {
             hash: format!(
                 "0x{}",
-                block.previousblockhash.unwrap_or(BlockHash::all_zeros())
+                block
+                    .previousblockhash
+                    .unwrap_or(BlockHash::all_zeros().to_string())
             ),
             index: block_height - 1,
         },

@@ -348,8 +348,13 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
     let mut last_block_scanned = BlockIdentifier::default();
     let mut err_count = 0;
     for (block_identifier, _parent_block_identifier, blob) in canonical_fork.drain(..) {
-        if block_identifier.index <= start_block {
+        if block_identifier.index < start_block {
             continue;
+        }
+        if let Some(end_block) = predicate_spec.end_block {
+            if block_identifier.index > end_block {
+                break;
+            }
         }
 
         last_block_scanned = block_identifier;

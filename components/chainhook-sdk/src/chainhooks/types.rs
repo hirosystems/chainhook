@@ -204,7 +204,7 @@ impl ChainhookSpecification {
 
     pub fn deserialize_specification(spec: &str) -> Result<ChainhookSpecification, String> {
         let spec: ChainhookSpecification = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize Stacks chainhook {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
 
@@ -295,7 +295,7 @@ impl ChainhookFullSpecification {
         _key: &str,
     ) -> Result<ChainhookFullSpecification, String> {
         let spec: ChainhookFullSpecification = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize Stacks chainhook {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
 }
@@ -762,18 +762,23 @@ pub struct StacksContractCallBasedPredicate {
 #[serde(rename_all = "snake_case")]
 // #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
-    Deployer(Option<String>),
-    ImplementSip09,
-    ImplementSip10,
+    Deployer(String),
+    ImplementTrait(StacksTrait),
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksTrait {
+    Sip09,
+    Sip10,
+    #[serde(rename = "*")]
+    Any,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StacksPrintEventBasedPredicate {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contract_identifier: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contains: Option<String>,
+    pub contract_identifier: String,
+    pub contains: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
