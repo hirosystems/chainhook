@@ -762,18 +762,23 @@ pub struct StacksContractCallBasedPredicate {
 #[serde(rename_all = "snake_case")]
 // #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
-    Deployer(Option<String>),
-    ImplementSip09,
-    ImplementSip10,
+    Deployer(String),
+    ImplementTrait(StacksTrait),
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksTrait {
+    Sip09,
+    Sip10,
+    #[serde(rename = "*")]
+    Any,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StacksPrintEventBasedPredicate {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contract_identifier: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contains: Option<String>,
+    pub contract_identifier: String,
+    pub contains: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

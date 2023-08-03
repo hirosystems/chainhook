@@ -288,44 +288,32 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             expected_deployer,
         )) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractDeployment(actual_deployment) => {
-                if let Some(expected_deployer) = expected_deployer {
+                if expected_deployer.eq("*") {
+                    true
+                } else {
                     actual_deployment
                         .contract_identifier
                         .starts_with(expected_deployer)
-                } else {
-                    true
                 }
             }
             _ => false,
         },
-        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip09) => {
-            match &transaction.metadata.kind {
+        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(
+            stacks_trait,
+        )) => match stacks_trait {
+            _ => match &transaction.metadata.kind {
                 StacksTransactionKind::ContractDeployment(_actual_deployment) => {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "StacksContractDeploymentPredicate::Trait uninmplemented"
+                            "StacksContractDeploymentPredicate::ImplementTrait uninmplemented"
                         )
                     });
                     false
                 }
                 _ => false,
-            }
-        }
-        StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementSip10) => {
-            match &transaction.metadata.kind {
-                StacksTransactionKind::ContractDeployment(_actual_deployment) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "StacksContractDeploymentPredicate::Trait uninmplemented"
-                        )
-                    });
-                    false
-                }
-                _ => false,
-            }
-        }
+            },
+        },
         StacksPredicate::ContractCall(expected_contract_call) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractCall(actual_contract_call) => {
                 actual_contract_call
@@ -386,29 +374,18 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             for event in transaction.metadata.receipt.events.iter() {
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
-                        // if the predicate doesn't specify a contract identifier, check every event's values
-                        // if the predicate doesn't specify a contains, match all values
-                        if let Some(contract_identifier) = &expected_event.contract_identifier {
-                            if &actual.contract_identifier == contract_identifier {
+                        if actual.topic == "print" {
+                            if expected_event.contract_identifier == actual.contract_identifier
+                                || expected_event.contract_identifier == "*"
+                            {
+                                if expected_event.contains == "*" {
+                                    return true;
+                                }
                                 let value =
                                     format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                                if let Some(contains) = &expected_event.contains {
-                                    if value.contains(contains) {
-                                        return true;
-                                    }
-                                } else {
+                                if value.contains(&expected_event.contains) {
                                     return true;
                                 }
-                            }
-                        } else {
-                            let value =
-                                format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                            if let Some(contains) = &expected_event.contains {
-                                if value.contains(contains) {
-                                    return true;
-                                }
-                            } else {
-                                return true;
                             }
                         }
                     }

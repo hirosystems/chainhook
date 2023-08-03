@@ -937,13 +937,6 @@
             "type": "object",
             "oneOf": [
               {
-                "type": "string",
-                "enum": [
-                  "implement_sip09",
-                  "implement_sip10"
-                ]
-              },
-              {
                 "type": "object",
                 "required": [
                   "deployer"
@@ -951,6 +944,18 @@
                 "properties": {
                   "deployer": {
                     "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "implement_trait"
+                ],
+                "properties": {
+                  "implement_trait": {
+                    "$ref": "#/components/schemas/StacksTrait"
                   }
                 },
                 "additionalProperties": false
@@ -993,6 +998,8 @@
           {
             "type": "object",
             "required": [
+              "contains",
+              "contract_identifier",
               "scope"
             ],
             "properties": {
@@ -1003,12 +1010,10 @@
                 ]
               },
               "contract_identifier": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               },
               "contains": {
-                "type": "string",
-                "nullable": true
+                "type": "string"
               }
             }
           },
@@ -1111,6 +1116,14 @@
               }
             }
           }
+        ]
+      },
+      "StacksTrait": {
+        "type": "string",
+        "enum": [
+          "sip09",
+          "sip10",
+          "*"
         ]
       }
     }
