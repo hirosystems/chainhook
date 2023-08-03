@@ -922,7 +922,12 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        new_blocks = handle_blocks_pre_processing(&block_pre_processor, new_blocks, true, &ctx);
+                        new_blocks = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            new_blocks,
+                            true,
+                            &ctx,
+                        );
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
@@ -984,7 +989,12 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        blocks_to_rollback = handle_blocks_pre_processing(&block_pre_processor, blocks_to_rollback, false, &ctx);
+                        blocks_to_rollback = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            blocks_to_rollback,
+                            false,
+                            &ctx,
+                        );
 
                         for header in data.headers_to_apply.iter() {
                             match bitcoin_block_store.get_mut(&header.block_identifier) {
@@ -1003,7 +1013,12 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        blocks_to_apply = handle_blocks_pre_processing(&block_pre_processor, blocks_to_apply, true, &ctx);
+                        blocks_to_apply = handle_blocks_pre_processing(
+                            &block_pre_processor,
+                            blocks_to_apply,
+                            true,
+                            &ctx,
+                        );
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
@@ -1511,39 +1526,34 @@ pub async fn start_observer_commands_handler(
 
 fn handle_blocks_pre_processing(
     block_pre_processor: &Option<(Sender<HandleBlock>, Receiver<Vec<BitcoinBlockData>>)>,
-    mut blocks: Vec<BitcoinBlockData>,
+    blocks: Vec<BitcoinBlockData>,
     apply: bool,
     ctx: &Context,
 ) -> Vec<BitcoinBlockData> {
     if let Some(ref processor) = block_pre_processor {
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Sending blocks to pre-processor",
-            )
+        ctx.try_log(|logger| slog::info!(logger, "Sending blocks to pre-processor",));
+        let _ = processor.0.send(match apply {
+            true => HandleBlock::ApplyBlocks(blocks.clone()),
+            false => HandleBlock::UndoBlocks(blocks.clone()),
         });
-        let _ = processor
-            .0
-            .send(match apply {
-                true => HandleBlock::ApplyBlocks(blocks.clone()),
-                false => HandleBlock::UndoBlocks(blocks.clone()),
-            });
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Waiting for blocks from pre-processor",
-            )
-        });
-        if let Ok(updated_blocks) = processor.1.recv() {
-            blocks = updated_blocks;
+        ctx.try_log(|logger| slog::info!(logger, "Waiting for blocks from pre-processor",));
+        match processor.1.recv() {
+            Ok(updated_blocks) => {
+                ctx.try_log(|logger| slog::info!(logger, "Blocks received from pre-processor",));
+                return updated_blocks;
+            }
+            Err(e) => {
+                ctx.try_log(|logger| {
+                    slog::error!(
+                        logger,
+                        "Unable to receive block from pre-processor {}",
+                        e.to_string()
+                    )
+                });
+                return blocks;
+            }
         }
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Blocks received from pre-processor",
-            )
-        });
-    } 
+    }
     blocks
 }
 
