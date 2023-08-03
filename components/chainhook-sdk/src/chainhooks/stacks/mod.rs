@@ -382,12 +382,20 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_mint = expected_event.actions.contains(&"mint".to_string());
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
             let expecting_lock = expected_event.actions.contains(&"lock".to_string());
+            let expecting_burn = expected_event.actions.contains(&"burn".to_string());
 
             for event in transaction.metadata.receipt.events.iter() {
-                match (event, expecting_mint, expecting_transfer, expecting_lock) {
-                    (StacksTransactionEvent::STXMintEvent(_), true, _, _) => return true,
-                    (StacksTransactionEvent::STXTransferEvent(_), _, true, _) => return true,
-                    (StacksTransactionEvent::STXLockEvent(_), _, _, true) => return true,
+                match (
+                    event,
+                    expecting_mint,
+                    expecting_transfer,
+                    expecting_lock,
+                    expecting_burn,
+                ) {
+                    (StacksTransactionEvent::STXMintEvent(_), true, _, _, _) => return true,
+                    (StacksTransactionEvent::STXTransferEvent(_), _, true, _, _) => return true,
+                    (StacksTransactionEvent::STXLockEvent(_), _, _, true, _) => return true,
+                    (StacksTransactionEvent::STXBurnEvent(_), _, _, _, true) => return true,
                     _ => continue,
                 }
             }
