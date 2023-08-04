@@ -423,7 +423,6 @@ impl BitcoinPredicateType {
                 for op in tx.metadata.ordinal_operations.iter() {
                     match op {
                         OrdinalOperation::InscriptionRevealed(_)
-                        | OrdinalOperation::CursedInscriptionRevealed(_)
                         | OrdinalOperation::InscriptionTransferred(_) => return true,
                     }
                 }
