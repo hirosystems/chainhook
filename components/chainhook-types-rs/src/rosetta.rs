@@ -324,6 +324,7 @@ pub enum OrdinalInscriptionCurseType {
     Batch,
     P2wsh,
     Reinscription,
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
