@@ -57,7 +57,7 @@ pub fn start_stacks_scan_runloop(
             let last_block_scanned = match res {
                 Ok(last_block_scanned) => last_block_scanned,
                 Err(e) => {
-                    error!(
+                    warn!(
                         moved_ctx.expect_logger(),
                         "Unable to evaluate predicate on Stacks chainstate: {e}",
                     );
