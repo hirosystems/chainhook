@@ -1,5 +1,5 @@
 ---
-title: Use Chainhook with Bitcoin
+title: Use Chainhooks with Bitcoin
 ---
 
 The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`, `then-that` constructs.
