@@ -38,7 +38,7 @@ Get any stacks block matching constraints:
 }
 ```
 
-Use the below example to understand the `between` operator.
+The `between` operator can be used by providing an array with two values:
 
 ```json
 {
