@@ -38,6 +38,17 @@ Get any stacks block matching constraints:
 }
 ```
 
+The `between` operator can be used by providing an array with two values:
+
+```json
+{
+    "if_this": {
+        "scope": "block_height",
+        "between": [0, 1000]
+    }
+}
+```
+
 Get any transaction related to a given fungible token asset identifier:
 
 - `asset-identifier` mandatory argument admits:
