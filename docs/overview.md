@@ -18,32 +18,32 @@ With Chainhook, developers can build consistent, reorg-proof databases that inde
 
 ## Features
 
-1. **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine in minutes. Chainhook can help developers avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes implies faster query results, which helps minimize end-user response time. The result, a better Developer Experience and a better End-User experience.
+1. **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine them in minutes. Chainhook can help developers avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes imply faster query results, which helps minimize end-user response time. This leads to an enhanced Developer Experience and an improved End-User Experience.
 
-2. **Re-org and Fork Aware:** Chainhook keeps a store of possible chain forks, and checks each new chain event against the forks to maintain the current valid fork. All triggers, also known as **predicates**, are evaluated against the current valid fork. In the event of a reorg, Chainhook computes a list of new blocks to apply and old blocks to rollback and evaluates the registered predicates against those blocks.
-
-3. **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as predicates. Developers can write “if_this / then_that” predicates, that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
+2. **Re-org and Fork Aware:** Chainhook stores possible chain forks and checks each new chain event against the forks to maintain the current valid fork. All triggers, also known as **predicates**, are evaluated against the current valid fork. In the event of a reorg, Chainhook computes a list of new blocks to apply and old blocks to rollback and evaluates the registered predicates against those blocks.
+  
+3. **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as **predicates**. Developers can write “if_this / then_that” **predicates**that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
 
 ## Chainhooks: Trigger IFTTT Logic in your Application
 
-With Chainhook, developers can trigger actions based on predicates that they can define. Chainhooks can be triggered by events such as:
+With Chainhook, developers can trigger actions based on predicates they can define. Chainhooks can be triggered by events such as:
 
-- A certain amount of SIP-10 tokens were transferred.
-- A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain.
-- A particular print event was emitted by a contract.
-- A particular contract was involved in a transaction.
-- A quantity of BTC was received at a Bitcoin address.
-- A POX transfer occurred on the Bitcoin chain.
+- A certain amount of SIP-10 tokens were transferred
+- A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain
+- A particular print event was emitted by a contract
+- A particular contract was involved in a transaction
+- A quantity of BTC was received at a Bitcoin address
+- A POX transfer occurred on the Bitcoin chain
 
 ## Understand the Predicate Design
 
-Predicates are the conditions that you can define to scan the blocks easier and faster on a blockchain.
+Predicates are conditions you can define to scan the blocks easier and faster on a blockchain.
 
 Predicates are defined in the If-this, then-that format. You'll write your condition in the `if-this` condition template and use `then-that` to output the result.
 
 ### `if-this` Predicate Design
 
-The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' parameter is mandatory to use with any of the other parameters.
+The `if-this` predicate design can use the following attributes to define the predicates. The 'scope' parameter is mandatory to use with any other parameters.
 
 - scope (mandatory)
 - equals
