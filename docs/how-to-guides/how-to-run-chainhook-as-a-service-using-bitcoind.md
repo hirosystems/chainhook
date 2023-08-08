@@ -17,7 +17,8 @@ Bitcoind installation will download binaries in a zip format, `bitcoin-22.0-osx6
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below.
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below.
 
->[!NOTE]
+> **_NOTE:_**
+>
 > Make a note of the `rpcuser`, `rpcpassword` and `rpcport` values to use them later in the chainhook configuration.
 
 ```conf
@@ -48,7 +49,8 @@ zmqpubhashblock=tcp://0.0.0.0:18543
 Now that you have `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node.
 In the command below, use the path to your `bitcoin.conf` file from your machine and run the command in the terminal.
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > The below command is a startup process that might take a few hours to run.
 
 ```console
@@ -168,7 +170,8 @@ A JSON file `ordinals.json` is generated.
 }
 ```
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals.json` file.
@@ -179,7 +182,8 @@ chainhook predicates scan ordinals.json --config-path=./Chainhook.toml
 
 The output of the above command will be a text file `inscription_feed.txt` generated based on the predicate definition.
 
-> [!TIP]
+> **_TIP:_**
+>
 > To optimize your experience with scanning, the following are a few knobs you can play with:
 > - Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
 > - Reducing the number of network hops between the Chainhook and the bitcoind processes can also help, so your network setup can play a major role in performance.
@@ -219,7 +223,8 @@ A JSON file `ordinals_protocol.json` is generated. You can now edit the JSON bas
 }
 ```
 
-> [!Note]
+> **_NOTE:_**
+>
 > The `start_block` is the required field to use the `http_post` `then-that` predicate.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `ordinals_protocol.json` file.
@@ -313,7 +318,8 @@ Understand the output of the above JSON file with the following details.
 
 - The `rollback` payload includes the block header and the transactions that triggered the predicate for a past block that is no longer part of the canonical chain and must be reverted.
 
-> [!TIP]
+> **_TIP:_**
+>
 > You can also run chainhook service by passing multiple predicates.
 > Example:  ```chainhook service start --predicate-path=predicate_1.json  --predicate-path=predicate_2.json --config-path=Chainhook.toml```
 
