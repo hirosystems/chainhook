@@ -4,27 +4,29 @@ title: Overview
 
 # Chainhook Overview
 
-Chainhook is a fork-aware transaction indexing engine aiming at helping developers focus on the information they need by helping with the on-chain data extraction. By focusing on the data they care about, developers work with much lighter datasets.
+Chainhook is a reorg-aware transaction indexing engine that helps developers get reliable blockchain data, regardless of forks and reorgs. By focusing only on the data devs care about, Chainhook helps developers work with much lighter datasets and build IFTTT logic into their applications.
 
 Chainhook can be used as a tool in your local development environment and as a service in the cloud environment.
 
 ## What problem does it solve?
 
-Crypto applications can improve customer experiences by promptly delivering business outcomes in response to blockchain events. However, developers face significant time, energy, and operational overhead costs when running blockchain indexers and writing additional code to crawl through real-time blockchain events.
+Today, Bitcoin and web3 developers struggle to get reliable blockchain data to power their applications due to forks and reorgs. 
 
-To address this issue, Chainhook takes away all that burden from developers, so they can focus on automating the trigger of predefined operations whenever blockchain events occur.
+Developers who build applications and services often need to build their own index of the blockchain chainstate. For accurate data, they have to re-index each time there is a reorg of the chainstate, which happens often. Re-indexing is a massive pain point impacting developers building on Bitcoin. 
+
+With Chainhook, developers can build consistent, reorg-proof databases that index only the information they want and trigger actions in response to on-chain events using IFTTT (if_this, then_that) logic.
 
 ## Features
 
-1. **Improved Developer Experience**: instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine in minutes.
+1. **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine in minutes. Chainhook can help developers avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes implies faster query results, which helps minimize end-user response time. The result, a better Developer Experience and a better End-User experience.
 
-2. **Cost Optimization**: developers avoid massive storage management and unnecessary storage scaling issues by avoiding full chain indexation. Also, chainhook helps developers create elegant event-based architectures. Developers write if_this / then_that predicates, being evaluated on transactions and blocks. When the evaluation of these predicates appears to be true, the related transactions are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
+2. **Re-org and Fork Aware:** Chainhook keeps a store of possible chain forks, and checks each new chain event against the forks to maintain the current valid fork. All triggers, also known as **predicates**, are evaluated against the current valid fork. In the event of a reorg, Chainhook computes a list of new blocks to apply and old blocks to rollback and evaluates the registered predicates against those blocks.
 
-3. **Optimized User Experience**: lighter indexes implies faster query results, which helps minimize end-user response time.
+3. **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as predicates. Developers can write “if_this / then_that” predicates, that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
 
-## Chainhook Triggers
+## Chainhooks: Trigger IFTTT Logic in your Application
 
-With Chainhook, developers can trigger actions based on predicates they can write. Chainhooks support the following predicates non-exhaustively:
+With Chainhook, developers can trigger actions based on predicates that they can define. Chainhooks can be triggered by events such as:
 
 - A certain amount of SIP-10 tokens were transferred.
 - A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain.
