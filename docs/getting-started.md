@@ -35,5 +35,5 @@ Chainhook can be installed from the source by following the steps below:
 
 If you want to start using Chainhook for extracting data from Bitcoin or Stacks, you can design your predicates using the following guides:
 
-- [How to use chainhook with bitcoin](./how-to-guides/how-to-use-chainhook-with-bitcoin.md)
-- [How to use chainhook with stacks](./how-to-guides/how-to-use-chainhook-with-stacks.md)
+- [How to use chainhooks with bitcoin](./how-to-guides/how-to-use-chainhooks-with-bitcoin.md)
+- [How to use chainhooks with stacks](./how-to-guides/how-to-use-chainhooks-with-stacks.md)
