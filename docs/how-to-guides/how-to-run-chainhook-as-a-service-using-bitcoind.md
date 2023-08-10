@@ -30,9 +30,9 @@ This guide is written to work with the latest Bitcoin Core software containing b
 
 datadir=</path/to/bitcoin/directory/> # Path to existing Bitcoin folder. New data directory will be created here otherwise
 server=1
-rpcuser=devnet  # You can set the username here
-rpcpassword=devnet  #  You can set the password here
-rpcport=8332   # You can set your localhost port number here
+rpcuser=devnet
+rpcpassword=devnet
+rpcport=8332
 rpcallowip=0.0.0.0/0
 rpcallowip=::/0
 txindex=1
@@ -81,20 +81,26 @@ The following `Chainhook.toml` file should be generated:
 [storage]
 working_dir = "cache"
 
-# The Http Api allows you to register/deregister
+# The Http Api allows you to register / deregister
 # dynamically predicates.
 # Disable by default.
 #
-[http_api]
-http_port = 20456
-database_uri = "redis://localhost:6379/"
+# [http_api]
+# http_port = 20456
+# database_uri = "redis://localhost:6379/"
 
 [network]
-mode = "testnet"
-bitcoind_rpc_url = "http://localhost:8332" # Must match the rpcport in the bitcoin.conf
-bitcoind_rpc_username = "<bitcoind_username>" # Must match the rpcuser in the bitcoin.conf
-bitcoind_rpc_password = "<bitcoind_password>" # Must match the rpcpassword in the bitcoin.conf
-stacks_node_rpc_url = "http://localhost:20443"
+mode = "mainnet"
+bitcoind_rpc_url = "http://localhost:8332"
+bitcoind_rpc_username = "devnet"
+bitcoind_rpc_password = "devnet"
+# Bitcoin block events can be received by Chainhook
+# either through a Bitcoin node's ZeroMQ interface,
+# or through the Stacks node. The Stacks node is
+# used by default:
+# stacks_node_rpc_url = "http://localhost:20443"
+# but zmq can be used instead:
+bitcoind_zmq_url = "tcp://0.0.0.0:18543"
 
 [limits]
 max_number_of_bitcoin_predicates = 100
@@ -107,7 +113,6 @@ max_caching_memory_size_mb = 32000
 
 [[event_source]]
 tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest"
-
 ```
 
 Several of the network parameters in the generated `Chainhook.toml` configuration file need to match the network parameters contained in the `bitcoin.conf` that was created earlier in the [Setting up a Bitcoin Node](#setting-up-a-bitcoin-node) section:
@@ -115,7 +120,8 @@ Several of the network parameters in the generated `Chainhook.toml` configuratio
 - Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
 - Update the `bitcoind_rpc_password` to use the password set for `rpcpassword` earlier.
 - Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
-- Next, update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
+- Make sure this line is commented out (and therefore inactive): `stacks_node_rpc_url = "http://localhost:20443"`
+- Next, uncomment and update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
 
 | bitcoin.conf    | Chainhook.toml        |
 | --------------- | --------------------- |
@@ -123,7 +129,6 @@ Several of the network parameters in the generated `Chainhook.toml` configuratio
 | rpcpassword     | bitcoind_rpc_password |
 | rpcport         | bitcoind_rpc_url      |
 | zmqpubhashblock | bitcoind_zmq_url      |
-
 
 
 ## Scan blockchain based on predicates
