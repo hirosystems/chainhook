@@ -1,6 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::events::*;
 use schemars::JsonSchema;
+use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -219,6 +220,7 @@ pub struct StacksTransactionMetadata {
     pub execution_cost: Option<StacksTransactionExecutionCost>,
     pub position: StacksTransactionPosition,
     pub proof: Option<String>,
+    pub contract_abi: Option<Value>,
 }
 
 /// TODO
