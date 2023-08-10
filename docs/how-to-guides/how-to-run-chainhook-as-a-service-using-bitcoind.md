@@ -14,11 +14,10 @@ This guide is written to work with the latest Bitcoin Core software containing b
 
 > **_NOTE:_**
 >
-> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for [bitcoind](https://en.bitcoin.it/wiki/Bitcoind), ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin), or bitcoin.org's [Running A Full Node guide](https://bitcoin.org/en/full-node).
+> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org's [Running A Full Node guide](https://bitcoin.org/en/full-node).
 
 - Navigate to your project folder, create a new file, and rename it to `bitcoin.conf` on your local machine. Copy the below configuration to the `bitcoin.conf` file.
-- a) if you already have a bitcoin node, or b) you are syncing and starting a node from scratch.
-- The Chainhook will scan against bitcoin blockchain data. Copy the path of your Bitcoin directory to the `bitcoin.conf`'s `datadir` option. See the Bitcoin wiki for the [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)
+- The Chainhook will scan against bitcoin blockchain data. Copy the path of your Bitcoin directory to the `bitcoin.conf`'s `datadir` field. See the Bitcoin wiki for the [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below.
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below.
 
@@ -29,10 +28,10 @@ This guide is written to work with the latest Bitcoin Core software containing b
 ```conf
 # Bitcoin Core Configuration
 
-datadir=</path/to/bitcoin/directory/> # Path to your Bitcoin folder
+datadir=</path/to/bitcoin/directory/> # Path to existing Bitcoin folder. New data directory will be created here otherwise
 server=1
-rpcuser=bitcoind_username  # You can set the username here
-rpcpassword=bitcoind_password  #  You can set the password here
+rpcuser=devnet  # You can set the username here
+rpcpassword=devnet  #  You can set the password here
 rpcport=8332   # You can set your localhost port number here
 rpcallowip=0.0.0.0/0
 rpcallowip=::/0
@@ -58,7 +57,7 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 
 > **_NOTE:_**
 >
-> The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run.
+> The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run. Alternatively, if the directory pointed to in the `datadir` field above contains bitcoin blockchain data, syncing will resume.
 
 ```console
 ./bitcoind -conf=<path-to-bitcoin.conf>
@@ -73,7 +72,7 @@ In this section, you will configure chainhook to match the network configuration
 Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file and use the following command in your terminal:
 
 ```console
-chainhook config generate --testnet
+chainhook config generate --mainnet
 ```
 
 The following `Chainhook.toml` file should be generated:
@@ -111,11 +110,12 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 ```
 
-In the `Chainhook.toml` file that gets generated, you'll need to match the network parameters to the `bitcoin.config` that was generated earlier in [this](#setting-up-a-bitcoin-node) section to allow Chainhook to connect to the bitcoin layer.
+Several of the network parameters in the generated `Chainhook.toml` configuration file need to match the network parameters contained in the `bitcoin.conf` that was created earlier in the [Setting up a Bitcoin Node](#setting-up-a-bitcoin-node) section:
 
-The Bitcoin node is exposing the RPC endpoints. To protect the endpoints, we are using RPC username and password fields. To run Chainhook as a service using Bitcoin, you must match the RPC endpoints username, password, and network ports.
-
-As such, some configurations must match Chainhook and the bitcoind node. In the `Chainhook.toml`, update the following network parameters to match the `bitcoin.conf`:
+- Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
+- Update the `bitcoind_rpc_password` to use the password set for `rpcpassword` earlier.
+- Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
+- Next, update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
 
 | bitcoin.conf    | Chainhook.toml        |
 | --------------- | --------------------- |
@@ -124,20 +124,15 @@ As such, some configurations must match Chainhook and the bitcoind node. In the 
 | rpcport         | bitcoind_rpc_url      |
 | zmqpubhashblock | bitcoind_zmq_url      |
 
-In the `Chainhook.toml` file,
 
-- Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
-- Update the `bitcoind_rpc_password` to use the password set for `rpcpassword` earlier.
-- Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
-- Next, update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
 
 ## Scan blockchain based on predicates
 
-Now that your bitcoind and Chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
+Now that your bitcoind and Chainhook configurations are complete, you can define the [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks [predicates](../overview.md#if-this-predicate-design). These predicates are where the user specifies the kinds of blockchain events they want their Chainhook to trigger an action. This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
 
 The following is an example to walk you through `file_append` `then-that` predicate design.
 
-The example collects bitcoin transactions from a particular address, specifically the bitcoin address associated with a Stacking pool, [Friedgar Pool](https://pool.friedger.de/). This address has been collecting payouts from Stacks miners since cycle 55. We are scanning a portion of the bitcoin blockchain to capture the last few of these payouts (to shorten predicate scanning example).
+The example collects bitcoin transactions from a particular address, specifically the bitcoin address associated with a Stacking pool, [Friedgar Pool](https://pool.friedger.de/). This address has been collecting payouts from Stacks miners since cycle 55. We are scanning a portion of the bitcoin blockchain to capture the last few of these payouts (to shorten predicate scanning for example purposes).
 
 ### Example 1
 
