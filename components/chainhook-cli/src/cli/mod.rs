@@ -339,7 +339,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             start_block: Some(34239),
                             end_block: Some(50000),
                             blocks: None,
-                            predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+                            predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
                                 contract_identifier: "ST1SVA0SST0EDT4MFYGWGP6GNSXMMQJDVP1G8QTTC.arkadiko-freddie-v1-1".into(),
                                 contains: "vault".into(),
                             }),
@@ -355,7 +355,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             start_block: Some(34239),
                             end_block: Some(50000),
                             blocks: None,
-                            predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+                            predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
                                 contract_identifier: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1".into(),
                                 contains: "vault".into(),
                             }),
