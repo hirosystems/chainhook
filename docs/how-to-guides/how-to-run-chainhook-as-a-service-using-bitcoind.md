@@ -2,7 +2,7 @@
 title: Run Chainhook as a Service using Bitcoind
 ---
 
-You can run Chainhook as a service to evaluate Bitcoin against your predicates. You can also dynamically register new predicates by enabling predicates registration API.
+You can run Chainhook as a service to evaluate your `if_this / then_that` predicates against the Bitcoin blockchain, delivering results—either file appendations or HTTP POST requests to a server you designate—for your application's use case. You can also dynamically register new predicates as the service is running by enabling the predicates registration API.
 
 ## Prerequisites
 
@@ -16,8 +16,8 @@ This guide is written to work with the latest Bitcoin Core software containing b
 >
 > While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
 
-- Navigate to your project folder, create a new file, and rename it to `bitcoin.conf` on your local machine. Copy the below configuration to the `bitcoin.conf` file.
-- The Chainhook will scan against bitcoin blockchain data. Copy the path of your Bitcoin directory to the `bitcoin.conf`'s `datadir` field. See the Bitcoin wiki for the [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)
+- Navigate to your project folder, create a new file, and rename it to `bitcoin.conf` on your local machine. Copy the configuration below to the `bitcoin.conf` file. 
+- Copy the path of your Bitcoin directory to the `bitcoin.conf`'s `datadir` field. See the Bitcoin wiki for the [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below.
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below.
 
@@ -60,14 +60,14 @@ In the command below, use the path to your `bitcoin.conf` file from your machine
 > The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run. Alternatively, if the directory pointed to in the `datadir` field above contains bitcoin blockchain data, syncing will resume.
 
 ```console
-./bitcoind -conf=<path-to-bitcoin.conf>
+./bitcoind -conf=</path/to/bitcoin/directory/>
 ```
 
-Once the above command runs, you will see `zmq_url` entries in the output, enabling ZeroMQ.
+Once the above command runs, you will see `zmq_url` entries in the console's stdout, displaying ZeroMQ.
 
 ### Configure Chainhook
 
-In this section, you will configure chainhook to match the network configurations with the bitcoin config file. First, [install the latest version of chainhook](../getting-started.md#install-chainhook-from-source).
+In this section, you will configure Chainhook to match the network configurations with the bitcoin config file. First, [install the latest version of Chainhook](../getting-started.md#install-chainhook-from-source).
 
 Next, you will generate a `Chainhook.toml` file to connect Chainhook with your bitcoind node. Navigate to the directory where you want to generate the `Chainhook.toml` file and use the following command in your terminal:
 
@@ -121,6 +121,8 @@ max_caching_memory_size_mb = 32000
 tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest"
 ```
 
+Here is a table of the relevant parameters this guide changes in our configuration files.
+
 | bitcoin.conf    | Chainhook.toml        |
 | --------------- | --------------------- |
 | rpcuser         | bitcoind_rpc_username |
@@ -130,7 +132,7 @@ tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-st
 
 ## Scan blockchain based on predicates
 
-Now that your bitcoind and Chainhook configurations are complete, you can define the [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks [predicates](../overview.md#if-this-predicate-design). These predicates are where the user specifies the kinds of blockchain events they want their Chainhook to trigger an action. This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
+Now that your bitcoind and Chainhook configurations are complete, you can define the [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks [predicates](../overview.md#if-this-predicate-design). These predicates are where the user specifies the kinds of blockchain events they want their Chainhook to trigger to the deliver a result (either a file appendation or an HTTP POST result). This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
 
 The following is an example to walk you through an `if_this / then_that` predicate design that appends event payloads to the configured file destination.
 
@@ -222,7 +224,7 @@ Replace the contents of the `stacking-pool-api.json` file with the following:
 
 > **_NOTE:_**
 >
-> The `start_block` is a required field when using the `http_post` `then-that` predicate.
+> The `start_block` is a required field when using the `http_post` `then_that` predicate.
 
 Once you are finished setting up your endpoint, use the following command to scan the blocks based on the predicates defined in the `stacking-pool-api.json` file.
 
@@ -234,11 +236,13 @@ The above command posts events to the URL, http://localhost:3000/events mentione
 
 ## Initiate Chainhook Service
 
-In this section, you'll learn how to initiate the chainhook service using the following two ways and use the REST API call to post the events onto a server.
+In the examples above, our Chainhook scanned historical blockchain data against the user's predicates and delivered results. In this next section, let's learn how to set up a Chainhook that acts as an ongoing observer and event-streaming service.
+
+We can start a Chainhook service with an existing predicate. We will also see how we can dynamically register new predicates by making an API call to our Chainhook. In both of these instances, our predicates will be delivering their results to a server set up to recieve results. 
 
 - Initiate the chainhook service by passing the predicate path to the command as shown below.
 
-```
+```console
 chainhook service start --predicate-path=stacking-pool-api.json --config-path=Chainhook.toml
 ```
 
@@ -362,8 +366,7 @@ The sample response should look like this:
 Understand the output of the above JSON file with the following details.
 
 - The `apply` payload includes the block header and the transactions that triggered the predicate.
-
-- The `rollback` payload includes the block header and the transactions that triggered the predicate for a past block that is no longer part of the canonical chain and must be reverted.
+- The `rollback` payload includes the block header and the transactions that triggered the predicate for a past block that is no longer part of the canonical chain and must be reverted. (Note: This is a chief component of Chainhook's reorg aware functionality, maintaining rollback data for blocks near the chaintip.)
 
 > **_TIP:_**
 >
