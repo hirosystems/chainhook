@@ -14,7 +14,7 @@ This guide is written to work with the latest Bitcoin Core software containing b
 
 > **_NOTE:_**
 >
-> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org's [Running A Full Node guide](https://bitcoin.org/en/full-node).
+> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
 
 - Navigate to your project folder, create a new file, and rename it to `bitcoin.conf` on your local machine. Copy the below configuration to the `bitcoin.conf` file.
 - The Chainhook will scan against bitcoin blockchain data. Copy the path of your Bitcoin directory to the `bitcoin.conf`'s `datadir` field. See the Bitcoin wiki for the [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)
@@ -75,7 +75,13 @@ Next, you will generate a `Chainhook.toml` file to connect Chainhook with your b
 chainhook config generate --mainnet
 ```
 
-The following `Chainhook.toml` file should be generated:
+Several network parameters in the generated `Chainhook.toml` configuration file need to match those in the `bitcoin.conf` file created earlier in the [Setting up a Bitcoin Node](#setting-up-a-bitcoin-node) section. Please update the following parameters accordingly:
+
+1. Update `bitcoind_rpc_username` with the username set for `rpcuser` in `bitcoin.conf`.
+2. Update `bitcoind_rpc_password` with the password set for `rpcpassword` in `bitcoin.conf`.
+3. Update `bitcoind_rpc_url` with the same host and port used for `rpcport` in `bitcoin.conf`.
+
+Additionally, if you want to receive events from the configured Bitcoin node, substitute `stacks_node_rpc_url` with `bitcoind_zmq_url`, as follows:
 
 ```toml
 [storage]
@@ -115,14 +121,6 @@ max_caching_memory_size_mb = 32000
 tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest"
 ```
 
-Several of the network parameters in the generated `Chainhook.toml` configuration file need to match the network parameters contained in the `bitcoin.conf` that was created earlier in the [Setting up a Bitcoin Node](#setting-up-a-bitcoin-node) section:
-
-- Update the `bitcoind_rpc_username` to use the username set for `rpcuser` earlier.
-- Update the `bitcoind_rpc_password` to use the password set for `rpcpassword` earlier.
-- Update the `bitcoind_rpc_url` to use the same host and port for the `rpcport` earlier.
-- Make sure this line is commented out (and therefore inactive): `stacks_node_rpc_url = "http://localhost:20443"`
-- Next, uncomment and update the `bitcoind_zmq_url` to use the same host and port for the `zmqpubhashblock` that was set earlier.
-
 | bitcoin.conf    | Chainhook.toml        |
 | --------------- | --------------------- |
 | rpcuser         | bitcoind_rpc_username |
@@ -130,44 +128,91 @@ Several of the network parameters in the generated `Chainhook.toml` configuratio
 | rpcport         | bitcoind_rpc_url      |
 | zmqpubhashblock | bitcoind_zmq_url      |
 
-
 ## Scan blockchain based on predicates
 
 Now that your bitcoind and Chainhook configurations are complete, you can define the [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks [predicates](../overview.md#if-this-predicate-design). These predicates are where the user specifies the kinds of blockchain events they want their Chainhook to trigger an action. This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
 
-The following is an example to walk you through `file_append` `then-that` predicate design.
+The following is an example to walk you through an `if_this / then_that` predicate design that appends event payloads to the configured file destination.
 
-The example collects bitcoin transactions from a particular address, specifically the bitcoin address associated with a Stacking pool, [Friedgar Pool](https://pool.friedger.de/). This address has been collecting payouts from Stacks miners since cycle 55. We are scanning a portion of the bitcoin blockchain to capture the last few of these payouts (to shorten predicate scanning for example purposes).
+### Example 1 - `file_append`
 
-### Example 1
-
-Run the following command in your terminal to generate a sample JSON file with predicates.
+To generate a sample JSON file with predicates, execute the following command in your terminal:
 
 ```console
-touch stacking.json
+chainhook predicates new stacking-pool.json --bitcoin
 ```
 
-Paste the following contents into the `stacking.json` file. 
+Replace the contents of the `stacking-pool.json` file with the following:
 
 ```json
 {
   "chain": "bitcoin",
-  "uuid": "13b3fce6-eace-4552-a2f6-7672cd94cf7e",
-  "name": "Friedgar's Stacking Pool",
+  "uuid": "1",
+  "name": "Stacking Pool",
   "version": 1,
   "networks": {
     "mainnet": {
-      "start_block": 800000,
+      "start_block": 801500,
       "end_block": 802000,
       "if_this": {
         "scope": "outputs",
         "p2wpkh": {
           "equals": "bc1qs0kkdpsrzh3ngqgth7mkavlwlzr7lms2zv3wxe"
-      }
-    },
+        }
+      },
       "then_that": {
         "file_append": {
-          "path": "btc-transactions.txt"
+          "path": "bitcoin-transactions.txt"
+        }
+      }
+    }
+  }
+}
+```
+
+This example demonstrates scanning a portion of the Bitcoin blockchain to capture specific outputs from a Bitcoin address associated with a Stacking pool, [Friedgar Pool](https://pool.friedger.de/).
+
+> **_NOTE:_**
+>
+> You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
+
+Now, use the following command to scan the blocks based on the predicates defined in the `stacking-pool.json` file.
+
+```console
+chainhook predicates scan stacking-pool.json --config-path=./Chainhook.toml
+```
+
+The output of the above command will be a text file `bitcoin-transactions.txt` generated based on the predicate definition.
+
+### Example 2 - `http_post`
+
+Let's generate another sample predicate, this time we are going to send the payload to an API endpoint:
+
+```console
+chainhook predicates new stacking-pool-api.json --bitcoin
+```
+
+Replace the contents of the `stacking-pool-api.json` file with the following:
+
+```json
+{
+  "chain": "bitcoin",
+  "uuid": "2",
+  "name": "Stacking Pool (API)",
+  "version": 1,
+  "networks": {
+    "mainnet": {
+      "start_block": 801500,
+      "if_this": {
+        "scope": "outputs",
+        "p2wpkh": {
+          "equals": "bc1qs0kkdpsrzh3ngqgth7mkavlwlzr7lms2zv3wxe"
+        }
+      },
+      "then_that": {
+        "http_post": {
+          "url": "http://localhost:3000/events",
+          "authorization_header": "12345"
         }
       }
     }
@@ -177,23 +222,153 @@ Paste the following contents into the `stacking.json` file.
 
 > **_NOTE:_**
 >
-> You can get blockchain height and current block by referring to https://explorer.hiro.so/blocks?chain=mainnet
+> The `start_block` is a required field when using the `http_post` `then-that` predicate.
 
-Now, use the following command to scan the blocks based on the predicates defined in the `stacking.json` file.
+Once you are finished setting up your endpoint, use the following command to scan the blocks based on the predicates defined in the `stacking-pool-api.json` file.
 
 ```console
-chainhook predicates scan stacking.json --config-path=./Chainhook.toml
+chainhook predicates scan stacking-pool-api.json --config-path=./Chainhook.toml
 ```
 
-The output of the above command will be a text file `btc-transactions.txt` generated based on the predicate definition.
+The above command posts events to the URL, http://localhost:3000/events mentioned in the JSON file.
+
+## Initiate Chainhook Service
+
+In this section, you'll learn how to initiate the chainhook service using the following two ways and use the REST API call to post the events onto a server.
+
+- Initiate the chainhook service by passing the predicate path to the command as shown below.
+
+```
+chainhook service start --predicate-path=stacking-pool-api.json --config-path=Chainhook.toml
+```
+
+The above command registers the predicate based on the predicate definition in the `stacking-pool-api.json` file.
+
+## Dynamically Register Predicates
+
+You can also dynamically register new predicates with your Chainhook service.
+
+First, we need to uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
+
+```toml
+# ...
+
+[http_api]
+http_port = 20456
+database_uri = "redis://localhost:6379/"
+
+# ...
+```
+
+> **_NOTE:_**
+>
+> This assumes you have a local instance of [Redis](https://redis.io/docs/getting-started/) running.
+
+Start the Chainhook service by running the following command:
+
+```
+chainhook service start --config-path=Chainhook.toml
+```
+
+To dynamically register a new predicate, send a POST request to the running predicate registration server at `localhost:20456/v1/chainhooks`. Include the new predicate in JSON format within the request body. Use the following `curl` command as an example:
+
+```console
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain": "bitcoin",
+    "uuid": "3",
+    "name": "Ordinals",
+    "version": 1,
+    "networks": {
+      "mainnet": {
+        "start_block": 777534,
+        "if_this": {
+          "scope": "ordinals_protocol",
+          "operation": "inscription_feed"
+        },
+        "then_that": {
+          "http_post": {
+            "url": "http://localhost:3000/events",
+            "authorization_header": "12345"
+          }
+        }
+      }
+    }
+  }' \
+  http://localhost:20456/v1/chainhooks
+```
+
+The sample response should look like this:
+
+```jsonc
+{
+  "chainhook": {
+    "predicate": {
+      "operation": "inscription_feed",
+      "scope": "ordinals_protocol"
+    },
+    "uuid": "1"
+  },
+  "apply": [
+    {
+      "block_identifier": {
+        "hash": "0x00000000000000000003e3e2ffd3baaff2cddda7d12e84ed0ffe6f7778e988d4",
+        "index": 777534
+      },
+      "metadata": {},
+      "parent_block_identifier": {
+        "hash": "0x0000000000000000000463a1034c59e6dc94c7e52855582af11882743b86e2a7",
+        "index": 777533
+      },
+      "timestamp": 1676923039,
+      "transactions": [
+        {
+          "transaction_identifier": {
+            "hash": "0xca20efe5e4d71c16cd9b8dfe4d969efdd225ef0a26136a6a4409cb3afb2e013e"
+          },
+          "metadata": {
+            "ordinal_operations": [
+              {
+                "inscription_revealed": {
+                  "content_bytes": "<INSCRIPTION_BYTES>",
+                  "content_length": 12293,
+                  "content_type": "image/jpeg",
+                  "inscriber_address": "bc1punnjva5ayg84kf5tmvx265uwvp8py3ux24skz43aycj5rzdgzjfq0jxsuc",
+                  "inscription_fee": 64520,
+                  "inscription_id": "ca20efe5e4d71c16cd9b8dfe4d969efdd225ef0a26136a6a4409cb3afb2e013ei0",
+                  "inscription_number": 0,
+                  "inscription_output_value": 10000,
+                  "ordinal_block_height": 543164,
+                  "ordinal_number": 1728956147664701,
+                  "ordinal_offset": 1147664701,
+                  "satpoint_post_inscription": "ca20efe5e4d71c16cd9b8dfe4d969efdd225ef0a26136a6a4409cb3afb2e013e:0:0",
+                  "transfers_pre_inscription": 0
+                }
+              }
+            ],
+            "proof": null
+          },
+          "operations": []
+          // Other transactions
+        }
+      ]
+    }
+  ],
+  "rollback": []
+}
+```
+
+Understand the output of the above JSON file with the following details.
+
+- The `apply` payload includes the block header and the transactions that triggered the predicate.
+
+- The `rollback` payload includes the block header and the transactions that triggered the predicate for a past block that is no longer part of the canonical chain and must be reverted.
 
 > **_TIP:_**
 >
-> To optimize your experience with scanning, the following are a few knobs you can play with:
->
-> - Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
-> - Reducing the number of network hops between the Chainhook and the bitcoind processes can also help, so your network setup can play a major role in performance.
-
+> You can also run chainhook service by passing multiple predicates.
+> Example: `chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml`
 
 ## References
 
