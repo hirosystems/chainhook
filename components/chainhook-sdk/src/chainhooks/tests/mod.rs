@@ -227,7 +227,7 @@ pub mod fixtures;
 // PrintEvent predicate tests
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         contains: "some-value".to_string()
     }),
@@ -236,7 +236,7 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_not_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         contains: "some-value".to_string(),
     }),
@@ -245,7 +245,7 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "wront-id".to_string(),
         contains: "some-value".to_string(),
     }),
@@ -254,7 +254,7 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier:
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         contains: "wrong-value".to_string(),
@@ -264,7 +264,7 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "*".to_string(),
         contains: "some-value".to_string(),
     }),
@@ -273,7 +273,7 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
         contains: "*".to_string(),
     }),
@@ -282,12 +282,40 @@ pub mod fixtures;
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")], vec![get_test_event_by_type("smart_contract_print_event_empty")]], 
-    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::Contains {
         contract_identifier: "*".to_string(),
         contains: "*".to_string(),
     }),
     2;
     "PrintEvent predicate contract_identifier wildcard and contains wildcard matches all values on all print events"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
+        contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+        regex: "(some)|(value)".to_string(),
+    }),
+    1;
+    "PrintEvent predicate matches contract_identifier and regex"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
+        contract_identifier: "*".to_string(),
+        regex: "(some)|(value)".to_string(),
+    }),
+    1;
+    "PrintEvent predicate contract_identifier wildcard checks all print events for match with regex"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
+        contract_identifier: "*".to_string(),
+        regex: "[".to_string(),
+    }),
+    0
+    ;
+    "PrintEvent predicate does not match invalid regex"
 )]
 fn test_stacks_predicates(
     blocks_with_events: Vec<Vec<StacksTransactionEvent>>,
