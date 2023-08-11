@@ -4,7 +4,7 @@ use self::fixtures::get_all_event_types;
 
 use super::{
     stacks::{evaluate_stacks_chainhooks_on_chain_event, StacksTriggerChainhook, handle_stacks_hook_action, StacksChainhookOccurrence},
-    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook, StacksTrait},
+    types::{StacksChainhookSpecification, StacksPrintEventBasedPredicate, StacksNftEventBasedPredicate, StacksFtEventBasedPredicate,StacksContractCallBasedPredicate,StacksContractDeploymentPredicate, ExactMatchingRule, FileHook, StacksTrait, StringMatchingRule},
 };
 use crate::{chainhooks::{types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate,}, tests::fixtures::{get_expected_occurrence, get_test_event_by_type}}, utils::AbstractStacksBlock};
 use crate::utils::Context;
@@ -217,7 +217,7 @@ pub mod fixtures;
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        contains: "some-value".to_string()
+        matching_rule: StringMatchingRule::Contains("some-value".to_string()),
     }),
     1;
     "PrintEvent predicate matches contract_identifier and contains"
@@ -226,7 +226,7 @@ pub mod fixtures;
     vec![vec![get_test_event_by_type("smart_contract_not_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        contains: "some-value".to_string(),
+        matching_rule: StringMatchingRule::Contains("some-value".to_string()),
     }),
     0;
     "PrintEvent predicate does not check events with topic other than print"
@@ -234,8 +234,8 @@ pub mod fixtures;
 #[test_case(
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
-        contract_identifier: "wront-id".to_string(),
-        contains: "some-value".to_string(),
+        contract_identifier: "wrong-id".to_string(),
+        matching_rule: StringMatchingRule::Contains("some-value".to_string()),
     }), 
     0;
     "PrintEvent predicate rejects non matching contract_identifier"
@@ -245,7 +245,7 @@ pub mod fixtures;
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: 
             "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        contains: "wrong-value".to_string(),
+            matching_rule: StringMatchingRule::Contains("wrong-value".to_string()),
     }), 
     0;
     "PrintEvent predicate rejects non matching contains value"
@@ -254,7 +254,7 @@ pub mod fixtures;
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: "*".to_string(),
-        contains: "some-value".to_string(),
+        matching_rule: StringMatchingRule::Contains("some-value".to_string()),
     }), 
     1;
     "PrintEvent predicate contract_identifier wildcard checks all print events for match"
@@ -263,7 +263,7 @@ pub mod fixtures;
     vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        contains: "*".to_string(),
+        matching_rule: StringMatchingRule::Contains("*".to_string()),
     }), 
     1;
     "PrintEvent predicate contains wildcard matches all values for matching events"
@@ -272,10 +272,39 @@ pub mod fixtures;
     vec![vec![get_test_event_by_type("smart_contract_print_event")], vec![get_test_event_by_type("smart_contract_print_event_empty")]], 
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
         contract_identifier: "*".to_string(),
-        contains: "*".to_string(),
+        matching_rule: StringMatchingRule::Contains("*".to_string()),
     }), 
     2;
     "PrintEvent predicate contract_identifier wildcard and contains wildcard matches all values on all print events"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+        contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
+        matching_rule: StringMatchingRule::Regex("(some)|(value)".to_string()),
+    }),
+    1;
+    "PrintEvent predicate matches contract_identifier and regex"
+)]
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+        contract_identifier: "*".to_string(),
+        matching_rule: StringMatchingRule::Regex("(some)|(value)".to_string()),
+    }), 
+    1;
+    "PrintEvent predicate contract_identifier wildcard checks all print events for match with regex"
+)]
+
+#[test_case(
+    vec![vec![get_test_event_by_type("smart_contract_print_event")]], 
+    StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
+        contract_identifier: "*".to_string(),
+        matching_rule: StringMatchingRule::Regex("[".to_string()),
+    }),
+    0
+    ;
+    "PrintEvent predicate does not match invalid regex"
 )]
 fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, predicate: StacksPredicate, expected_applies: u64) {
     // Prepare block
@@ -318,6 +347,7 @@ fn test_stacks_predicates(blocks_with_events: Vec<Vec<StacksTransactionEvent>>, 
         assert_eq!(actual_applies, expected_applies);
     }
 }
+
 
 
 #[test_case(
