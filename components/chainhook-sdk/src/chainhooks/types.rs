@@ -677,6 +677,13 @@ pub enum Scope {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum StringMatchingRule {
+    Contains(String),
+    Regex(String),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum MatchingRule {
     Equals(String),
     StartsWith(String),
@@ -778,7 +785,7 @@ pub enum StacksTrait {
 #[serde(rename_all = "snake_case")]
 pub struct StacksPrintEventBasedPredicate {
     pub contract_identifier: String,
-    pub contains: String,
+    pub matching_rule: StringMatchingRule,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

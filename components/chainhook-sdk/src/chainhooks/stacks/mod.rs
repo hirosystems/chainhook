@@ -2,13 +2,14 @@ use crate::utils::{AbstractStacksBlock, Context};
 
 use super::types::{
     BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
-    StacksContractDeploymentPredicate, StacksPredicate,
+    StacksContractDeploymentPredicate, StacksPredicate, StringMatchingRule,
 };
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
     StacksTransactionKind, TransactionIdentifier,
 };
 use hiro_system_kit::slog;
+use regex::Regex;
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
 use stacks_rpc_client::clarity::stacks_common::codec::StacksMessageCodec;
@@ -409,13 +410,34 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                             if expected_event.contract_identifier == actual.contract_identifier
                                 || expected_event.contract_identifier == "*"
                             {
-                                if expected_event.contains == "*" {
-                                    return true;
-                                }
-                                let value =
-                                    format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                                if value.contains(&expected_event.contains) {
-                                    return true;
+                                match &expected_event.matching_rule {
+                                    StringMatchingRule::Contains(contains) => {
+                                        if contains == "*" {
+                                            return true;
+                                        }
+                                        let value = format!(
+                                            "{}",
+                                            expect_decoded_clarity_value(&actual.hex_value)
+                                        );
+                                        if value.contains(contains) {
+                                            return true;
+                                        }
+                                    }
+                                    StringMatchingRule::Regex(regex_str) => {
+                                        if let Ok(regex) = Regex::new(regex_str) {
+                                            let value = format!(
+                                                "{}",
+                                                expect_decoded_clarity_value(&actual.hex_value)
+                                            );
+                                            if regex.is_match(&value) {
+                                                return true;
+                                            }
+                                        } else {
+                                            ctx.try_log(|logger| {
+                                                slog::error!(logger, "unable to parse print_event matching rule as regex")
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }

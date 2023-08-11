@@ -15,7 +15,7 @@ use chainhook_sdk::chainhooks::types::{
     BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification, BitcoinPredicateType,
     ChainhookFullSpecification, FileHook, HookAction, OrdinalOperations,
     StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
-    StacksPrintEventBasedPredicate,
+    StacksPrintEventBasedPredicate, StringMatchingRule,
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::Context;
@@ -341,7 +341,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
                                 contract_identifier: "ST1SVA0SST0EDT4MFYGWGP6GNSXMMQJDVP1G8QTTC.arkadiko-freddie-v1-1".into(),
-                                contains: "vault".into(),
+                                matching_rule: StringMatchingRule::Contains("vault".into()),
                             }),
                             expire_after_occurrence: None,
                             capture_all_events: None,
@@ -357,7 +357,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             blocks: None,
                             predicate: StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate {
                                 contract_identifier: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-freddie-v1-1".into(),
-                                contains: "vault".into(),
+                                matching_rule: StringMatchingRule::Contains("vault".into()),
                             }),
                             expire_after_occurrence: None,
                             capture_all_events: None,

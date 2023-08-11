@@ -41,6 +41,7 @@ zeromq = { version = "0.3.3", default-features = false, features = ["tokio-runti
 dashmap = "5.4.0"
 fxhash = "0.2.1"
 lazy_static = "1.4.0"
+regex = "1.9.3"
 
 [dev-dependencies]
 test-case = "3.1.0"
