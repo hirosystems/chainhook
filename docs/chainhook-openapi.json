@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "0.17.0"
+    "version": "1.0.0"
   },
   "paths": {
     "/ping": {
@@ -998,8 +998,8 @@
           {
             "type": "object",
             "required": [
-              "contains",
               "contract_identifier",
+              "matching_rule",
               "scope"
             ],
             "properties": {
@@ -1012,8 +1012,8 @@
               "contract_identifier": {
                 "type": "string"
               },
-              "contains": {
-                "type": "string"
+              "matching_rule": {
+                "$ref": "#/components/schemas/StringMatchingRule"
               }
             }
           },
@@ -1124,6 +1124,34 @@
           "sip09",
           "sip10",
           "*"
+        ]
+      },
+      "StringMatchingRule": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "contains"
+            ],
+            "properties": {
+              "contains": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "regex"
+            ],
+            "properties": {
+              "regex": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
         ]
       }
     }
