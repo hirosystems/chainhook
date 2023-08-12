@@ -23,7 +23,7 @@ bitcoind_rpc_password = "devnet"
 # Chainhook must be able to receive Bitcoin block events.
 # These events can originate from either a Stacks node or a Bitcoin node's ZeroMQ interface.
 
-# By default, the service is set to receive Bitcoin block events from the Stacks node (via burnchain):
+# By default, the service is set to receive Bitcoin block events from the Stacks node:
 stacks_node_rpc_url = "http://localhost:20443"
 
 # However, events can also be received directly from a Bitcoin node.
