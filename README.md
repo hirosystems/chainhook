@@ -2,11 +2,18 @@
 
 ## Introduction
 
-Blockchains are pieces of infrastructure that unblock new use cases and introduce a new generation of decentralized applications by relying on a public ledger.
-`chainhook` is a fork-aware transaction indexing engine aiming at helping developers focus on the information they need, by helping with the on-chain data extraction. By focusing on the data they care about, developers are working with much lighter datasets. Benefits are plurals: 
-- Improved Developer Experience: instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine them in minutes. 
-- Cost Optimization: by avoiding full chain indexation, developers avoid massive storage management and unnecessary storage scaling issues. Also, `chainhook` helps developers create elegant event-based architectures. Developers write `if_this` / `then_that` **predicates**, being evaluated on transactions and blocks. When the evaluation of these **predicates** appears to be true, the related transactions are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
-- Optimized User Experience: lighter indexes implies faster query results, which helps minimize end-user response time. 
+Blockchains serve as foundational infrastructure that unblocks new use cases and introduces a new generation of decentralized applications by relying on a public ledger.
+`chainhook` is a reorg-aware transaction indexing engine that helps developers get reliable blockchain data, regardless of forks and reorgs. By focusing only on the data devs care about, Chainhook helps developers work with much lighter datasets and build IFTTT logic into their applications.
+Chainhook can be used as a tool in your local development environment and as a service in the cloud environment.
+
+Key Features:
+- **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine them in minutes. Chainhook can help developers avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes imply faster query results, which helps minimize end-user response time. This leads to an enhanced Developer Experience and an improved End-User Experience.
+- **Re-org and Fork Aware:** Chainhook keeps a store of possible chain forks and checks each new chain event against the forks to maintain the current valid fork. All triggers, also known as **predicates**, are evaluated against the current valid fork. In the event of a reorg, Chainhook computes a list of new blocks to apply and old blocks to rollback and evaluates the registered predicates against those blocks.
+- **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as **predicates**. Developers can write “if_this / then_that” **predicates**that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
+
+Benefits are plurals: 
+- Improved Developer + End User Experience 
+- Cost Optimization for data storage management and scaling.
 
 ---
 ## Install chainhook

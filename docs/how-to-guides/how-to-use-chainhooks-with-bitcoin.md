@@ -1,5 +1,5 @@
 ---
-title: Use Chainhook with Bitcoin
+title: Use Chainhooks with Bitcoin
 ---
 
 The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`, `then-that` constructs.
@@ -275,7 +275,8 @@ The following additional configurations can be used to improve the performance o
 
 Retrieve and HTTP Post to `http://localhost:3000/api/v1/wrapBtc` the five first transfers to the p2wpkh `bcrt1qnxk...yt6ed99jg` address of any amount, occurring after block height 10200.
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > The start_block is mandatory to post events using `http_post` `then-that` predicate.
 
 ```json

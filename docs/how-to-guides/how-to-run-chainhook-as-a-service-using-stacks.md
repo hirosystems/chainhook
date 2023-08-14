@@ -39,7 +39,8 @@ events_keys = ["*"]
 
 ```
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > Ensure that the `username`, `password`, and `rpc_port` values in the `Stacks.toml` file match the values in the `bitcoin.conf` file. Also, note the `rpc_bind` port to use in the `Chainhook.toml` configuration in the next section of this article.
 
 ### Configure Chainhook
@@ -98,12 +99,13 @@ Ensure the following configurations are matched to allow chainhook to communicat
 |                   | rpc_bind               | stacks_node_rpc_url          |
 |                   | endpoint               | stacks_events_ingestion_port |
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > The `bitcoind_zmq_url` is optional when running chainhook as a service using stacks because stacks will pull the blocks from Stacks and the Bitcoin chain.
 
 ## Scan blockchain based on predicates
 
-Now that the stacks and chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with sample JSON files to scan the blocks in the blockchain and render the results. To understand the supported predicates for Stacks, refer to [how to use chainhook with stacks](how-to-use-chainhook-with-stacks.md).
+Now that the stacks and chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with sample JSON files to scan the blocks in the blockchain and render the results. To understand the supported predicates for Stacks, refer to [how to use chainhook with stacks](how-to-use-chainhooks-with-stacks.md).
 
 The following are the two examples to walk you through `file_append` and `http_post` `then-that` predicate designs.
 
@@ -161,7 +163,8 @@ A JSON file `print_event_1.json` is generated.
 }
 ```
 
-> [!NOTE]
+> **_NOTE:_**
+>
 > You can get blockchain height and current block in the [Explorer](https://explorer.hiro.so/blocks?chain=mainnet).
 
 The sample `arkadiko.txt` should look like this:
@@ -178,7 +181,7 @@ chainhook predicates scan print_event_1.json --testnet
 
 The output of the above command will be a text file `arkadiko.txt` generated based on the predicate definition.
 
-> [!TIP]
+> **_TIP:_**
 > To optimize your experience with scanning, the following are a few knobs you can play with:
 > Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
 > Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
@@ -225,7 +228,8 @@ A JSON file `print_event_2.json` is generated.
 }
 ```
 
-> [!Note]
+> **_NOTE:_**
+>
 > The `start_block` is the required field to use the `http_post` `then-that` predicate.
 
 Now, use the following command to scan the blocks based on the predicates defined in the `print_event_2.json` file.
@@ -259,6 +263,7 @@ In this section, you'll learn how to initiate the chainhook service using the fo
   - Now, the predicate registration server is running at `localhost:20456`. To dynamically register a new predicate, send a POST request to `localhost:20456/v1/chainhooks` with the new predicate, in JSON format, included in the request body. For complete documentation on the API endpoints available, see the [OpenAPI](https://raw.githubusercontent.com/hirosystems/chainhook/develop/docs/chainhook-openapi.json) specification.
   - ![Example post request](../images/chainhook-post-request.jpeg)
 
-> [!TIP]
+> **_TIP:_**
+>
 > You can also run chainhook service by passing multiple predicates.
 > Example:  ```chainhook service start --predicate-path=predicate_1.json --predicate-path=predicate_2.json --config-path=Chainhook.toml```

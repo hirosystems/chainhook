@@ -1,5 +1,5 @@
 ---
-title: Use Chainhook with Stacks
+title: Use Chainhooks with Stacks
 ---
 
 This guide helps you define predicates to use Chainhook with Stacks. The predicates are specified based on `if-this`, and `then-that` constructs.
@@ -34,6 +34,17 @@ Get any stacks block matching constraints:
     "if_this": {
         "scope": "block_height",
         "higher_than": 10000
+    }
+}
+```
+
+The `between` operator can be used by providing an array with two values:
+
+```json
+{
+    "if_this": {
+        "scope": "block_height",
+        "between": [0, 1000]
     }
 }
 ```
