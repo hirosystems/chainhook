@@ -8,21 +8,18 @@ You can run Chainhook as a service to evaluate your `if_this / then_that` predic
 
 ### Setting up a Bitcoin Node
 
-The Bitcoin Core daemon (bitcoind) is a program that implements the Bitcoin protocol for remote procedure call (RPC) use. Chainhook can be set up to interact with the Bitcoin chainstate through bitcoind's ZeroMQ interface, its embedded networking library.
+The Bitcoin Core daemon (bitcoind) is a program that implements the Bitcoin protocol for remote procedure call (RPC) use. Chainhook can be set up to interact with the Bitcoin chainstate through bitcoind's ZeroMQ interface, its embedded networking library, passing raw blockchain data to be evaluated for relevant events.
 
-This guide is written to work with the latest Bitcoin Core software containing bitcoind, [Bitcoin Core 25.0](https://bitcoincore.org/bin/bitcoin-core-25.0/).
+This guide is written to work with the latest Bitcoin Core software containing bitcoind, [Bitcoin Core 25.0](https://bitcoincore.org/bin/bitcoin-core-25.0/). While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
 
 > **_NOTE:_**
 >
 > The OS X .tar.gz file that includes bitcoind can be downloaded directly in terminal with the following command:
+> 
 > `curl -O https://bitcoincore.org/bin/bitcoin-core-25.0/bitcoin-25.0-x86_64-apple-darwin.tar.gz`
 
-> **_NOTE:_**
->
-> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
-
 - Make note of the path of your `bitcoind` executable (located within the `bin` directory of the `bitcoin-25.0` folder you downloaded above)
-- Navigate to your project folder where your Chainhook will reside, create a new file, and rename it to `bitcoin.conf` on your local machine. Copy the configuration below to this `bitcoin.conf` file. 
+- Navigate to your project folder where your Chainhook will reside, create a new file, and rename it to `bitcoin.conf`. Copy the configuration below to this `bitcoin.conf` file. 
 - Find and copy your Bitcoin data directory and paste to the `datadir` field in the `bitcoin.conf` file below. Either copy the default path (see [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)) or copy the custom path you set for your Bitcoin data
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below (`devnet` is a default).
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below (`devnet` is a default).
@@ -54,11 +51,11 @@ dbcache=4096
 zmqpubhashblock=tcp://0.0.0.0:18543
 ```
 
-Now that you have `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `<path/to/bitcoind> -conf=<path/to/bitcoin.conf>`
-
 > **_NOTE:_**
 >
 > The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run. Alternatively, if the directory pointed to in the `datadir` field above contains bitcoin blockchain data, syncing will resume.
+
+Now that you have `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `<path/to/bitcoind> -conf=<path/to/bitcoin.conf>`, for example:
 
 ```console
 /Volumes/SSD/bitcoin-25.0/bin/bitcoind -conf=</Volumes/SSD/project/Chainhook/bitcoin.conf>
