@@ -305,7 +305,6 @@ pub struct BitcoinTransactionMetadata {
 #[serde(rename_all = "snake_case")]
 pub enum OrdinalOperation {
     InscriptionRevealed(OrdinalInscriptionRevealData),
-    CursedInscriptionRevealed(OrdinalInscriptionRevealData),
     InscriptionTransferred(OrdinalInscriptionTransferData),
 }
 
@@ -325,6 +324,7 @@ pub enum OrdinalInscriptionCurseType {
     Batch,
     P2wsh,
     Reinscription,
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

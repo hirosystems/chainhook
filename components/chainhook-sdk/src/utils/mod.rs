@@ -185,7 +185,7 @@ pub async fn send_request(
         }
         if retry >= attempts_max {
             ctx.try_log(|logger| {
-                slog::error!(logger, "unable to send request after several retries")
+                slog::warn!(logger, "unable to send request after several retries")
             });
             return Err(());
         }
