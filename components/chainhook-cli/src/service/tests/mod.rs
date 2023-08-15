@@ -308,6 +308,7 @@ async fn it_handles_stacks_predicates_with_network(network: &str) {
 #[test_case(json!({"scope":"print_event","contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09", "contains": "*"}); "with scope print_event wildcard conatins")]
 #[test_case(json!({"scope":"print_event","contract_identifier": "*", "contains": "vault"}); "with scope print_event wildcard contract_identifier")]
 #[test_case(json!({"scope":"print_event", "contract_identifier": "*", "contains": "*"}); "with scope print_event wildcard both fields")]
+#[test_case(json!({"scope":"print_event", "contract_identifier": "*", "matches_regex": "(some)|(value)"}); "with scope print_event and matching_rule regex")]
 #[test_case(json!({"scope":"ft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.cbtc-token::cbtc","actions": ["burn"]}); "with scope ft_event")]
 #[test_case(json!({"scope":"nft_event","asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09::monkeys","actions": ["mint", "transfer", "burn"]}); "with scope nft_event")]
 #[test_case(json!({"scope":"stx_event","actions": ["transfer", "lock"]}); "with scope stx_event")]
