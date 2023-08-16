@@ -342,6 +342,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             expire_after_occurrence: None,
                             capture_all_events: None,
                             decode_clarity_values: None,
+                            include_contract_abi: None,
                             action:  HookAction::FileAppend(FileHook {
                                 path: "arkadiko.txt".into()
                             })
@@ -358,6 +359,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             expire_after_occurrence: None,
                             capture_all_events: None,
                             decode_clarity_values: None,
+                            include_contract_abi: None,
                             action:  HookAction::FileAppend(FileHook {
                                 path: "arkadiko.txt".into()
                             })

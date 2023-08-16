@@ -512,7 +512,7 @@ fn encode_transaction_including_with_clarity_decoding(
     transaction: &StacksTransactionData,
     ctx: &Context,
 ) -> serde_json::Value {
-    json!({
+    let mut json = json!({
         "transaction_identifier": transaction.transaction_identifier,
         "operations": transaction.operations,
         "metadata": {
@@ -533,9 +533,13 @@ fn encode_transaction_including_with_clarity_decoding(
             "description": transaction.metadata.description,
             "sponsor": transaction.metadata.sponsor,
             "execution_cost": transaction.metadata.execution_cost,
-            "position": transaction.metadata.position,
+            "position": transaction.metadata.position
         },
-    })
+    });
+    if let Some(abi) = &transaction.metadata.contract_abi {
+        json["contract_abi"] = abi.to_owned();
+    }
+    json
 }
 
 pub fn serialized_event_with_decoded_clarity_value(
@@ -770,9 +774,13 @@ pub fn serialize_stacks_payload_to_json<'a>(
                 "block_identifier": block.get_identifier(),
                 "parent_block_identifier": block.get_parent_identifier(),
                 "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
+                "transactions": transactions.into_iter().map(|transaction| {
+                    let mut transaction = transaction.clone();
+                    if transaction.metadata.contract_abi.is_some() && !trigger.chainhook.include_contract_abi {
+                        transaction.metadata.contract_abi = None;
+                    }
                     if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
+                        encode_transaction_including_with_clarity_decoding(&transaction, ctx)
                     } else {
                         json!(transaction)
                     }
@@ -785,9 +793,13 @@ pub fn serialize_stacks_payload_to_json<'a>(
                 "block_identifier": block.get_identifier(),
                 "parent_block_identifier": block.get_parent_identifier(),
                 "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
+                "transactions": transactions.into_iter().map(|transaction| {
+                    let mut transaction = transaction.clone();
+                    if transaction.metadata.contract_abi.is_some() && !trigger.chainhook.include_contract_abi {
+                        transaction.metadata.contract_abi = None;
+                    }
                     if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
+                        encode_transaction_including_with_clarity_decoding(&transaction, ctx)
                     } else {
                         json!(transaction)
                     }

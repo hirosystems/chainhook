@@ -410,6 +410,7 @@ impl StacksChainhookFullSpecification {
             capture_all_events: spec.capture_all_events,
             decode_clarity_values: spec.decode_clarity_values,
             expire_after_occurrence: spec.expire_after_occurrence,
+            include_contract_abi: spec.include_contract_abi.unwrap_or(false),
             predicate: spec.predicate,
             action: spec.action,
             enabled: false,
@@ -432,6 +433,8 @@ pub struct StacksChainhookNetworkSpecification {
     pub capture_all_events: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decode_clarity_values: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_contract_abi: Option<bool>,
     #[serde(rename = "if_this")]
     pub predicate: StacksPredicate,
     #[serde(rename = "then_that")]
@@ -732,6 +735,7 @@ pub struct StacksChainhookSpecification {
     pub capture_all_events: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decode_clarity_values: Option<bool>,
+    pub include_contract_abi: bool,
     #[serde(rename = "predicate")]
     pub predicate: StacksPredicate,
     pub action: HookAction,
