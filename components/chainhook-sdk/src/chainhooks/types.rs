@@ -776,9 +776,17 @@ pub enum StacksTrait {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct StacksPrintEventBasedPredicate {
-    pub contract_identifier: String,
-    pub contains: String,
+#[serde(untagged)]
+pub enum StacksPrintEventBasedPredicate {
+    Contains {
+        contract_identifier: String,
+        contains: String,
+    },
+    MatchesRegex {
+        contract_identifier: String,
+        #[serde(rename = "matches_regex")]
+        regex: String,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

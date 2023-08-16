@@ -2,13 +2,14 @@ use crate::utils::{AbstractStacksBlock, Context};
 
 use super::types::{
     BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
-    StacksContractDeploymentPredicate, StacksPredicate,
+    StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
 };
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
     StacksTransactionKind, TransactionIdentifier,
 };
 use hiro_system_kit::slog;
+use regex::Regex;
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
 use stacks_rpc_client::clarity::stacks_common::codec::StacksMessageCodec;
@@ -406,16 +407,47 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
                         if actual.topic == "print" {
-                            if expected_event.contract_identifier == actual.contract_identifier
-                                || expected_event.contract_identifier == "*"
-                            {
-                                if expected_event.contains == "*" {
-                                    return true;
+                            match expected_event {
+                                StacksPrintEventBasedPredicate::Contains {
+                                    contract_identifier,
+                                    contains,
+                                } => {
+                                    if contract_identifier == &actual.contract_identifier
+                                        || contract_identifier == "*"
+                                    {
+                                        if contains == "*" {
+                                            return true;
+                                        }
+                                        let value = format!(
+                                            "{}",
+                                            expect_decoded_clarity_value(&actual.hex_value)
+                                        );
+                                        if value.contains(contains) {
+                                            return true;
+                                        }
+                                    }
                                 }
-                                let value =
-                                    format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                                if value.contains(&expected_event.contains) {
-                                    return true;
+                                StacksPrintEventBasedPredicate::MatchesRegex {
+                                    contract_identifier,
+                                    regex,
+                                } => {
+                                    if contract_identifier == &actual.contract_identifier
+                                        || contract_identifier == "*"
+                                    {
+                                        if let Ok(regex) = Regex::new(regex) {
+                                            let value = format!(
+                                                "{}",
+                                                expect_decoded_clarity_value(&actual.hex_value)
+                                            );
+                                            if regex.is_match(&value) {
+                                                return true;
+                                            }
+                                        } else {
+                                            ctx.try_log(|logger| {
+                                                slog::error!(logger, "unable to parse print_event matching rule as regex")
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }

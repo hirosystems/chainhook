@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "0.17.0"
+    "version": "1.0.0"
   },
   "paths": {
     "/ping": {
@@ -997,9 +997,39 @@
           },
           {
             "type": "object",
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "contains",
+                  "contract_identifier"
+                ],
+                "properties": {
+                  "contract_identifier": {
+                    "type": "string"
+                  },
+                  "contains": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "contract_identifier",
+                  "matches_regex"
+                ],
+                "properties": {
+                  "contract_identifier": {
+                    "type": "string"
+                  },
+                  "matches_regex": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
             "required": [
-              "contains",
-              "contract_identifier",
               "scope"
             ],
             "properties": {
@@ -1008,12 +1038,6 @@
                 "enum": [
                   "print_event"
                 ]
-              },
-              "contract_identifier": {
-                "type": "string"
-              },
-              "contains": {
-                "type": "string"
               }
             }
           },
