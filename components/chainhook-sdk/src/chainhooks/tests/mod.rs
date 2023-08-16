@@ -14,7 +14,7 @@ use super::{
         StacksTrait,
     },
 };
-use crate::utils::Context;
+use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_by_type},
@@ -446,6 +446,108 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
     } else {
         let actual_applies: u64 = triggered[0].apply.len().try_into().unwrap();
         assert_eq!(actual_applies, expected_applies);
+    }
+}
+
+#[test]
+fn verify_optional_addition_of_contract_abi() {
+    // "mine" two blocks
+    //  - one contract deploy (which should have a contract abi) and
+    //  - one contract call (which should not)
+    let new_blocks = vec![
+        StacksBlockUpdate {
+            block: fixtures::build_stacks_testnet_block_with_contract_deployment(),
+            parent_microblocks_to_apply: vec![],
+            parent_microblocks_to_rollback: vec![],
+        },
+        StacksBlockUpdate {
+            block: fixtures::build_stacks_testnet_block_with_contract_call(),
+            parent_microblocks_to_apply: vec![],
+            parent_microblocks_to_rollback: vec![],
+        },
+    ];
+    let event: StacksChainEvent =
+        StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+            new_blocks,
+            confirmed_blocks: vec![],
+        });
+    let mut contract_deploy_chainhook = StacksChainhookSpecification {
+        uuid: "contract-deploy".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        include_contract_abi: false,
+        predicate: StacksPredicate::ContractDeployment(
+            StacksContractDeploymentPredicate::Deployer("*".to_string()),
+        ),
+        action: HookAction::Noop,
+        enabled: true,
+    };
+    let contract_call_chainhook = StacksChainhookSpecification {
+        uuid: "contract-call".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        include_contract_abi: true,
+        predicate: StacksPredicate::ContractCall(StacksContractCallBasedPredicate {
+            contract_identifier: "ST13F481SBR0R7Z6NMMH8YV2FJJYXA5JPA0AD3HP9.subnet-v1".to_string(),
+            method: "commit-block".to_string(),
+        }),
+        action: HookAction::Noop,
+        enabled: true,
+    };
+    let combinations = vec![
+        (false, None),
+        (true, None),
+        (false, Some(true)),
+        (true, Some(true)),
+    ];
+    // assert that for any combination of `include_contract_abi` and `decode_clarity_values`
+    // fields on the contract deployment chainhook, we only include the abi if the
+    // `include_contract_abi` field is `true`.
+    // Also assert that contract call transactions _never_ include an abi
+    for (include_abi, decode_cv) in combinations {
+        contract_deploy_chainhook.include_contract_abi = include_abi;
+        contract_deploy_chainhook.decode_clarity_values = decode_cv;
+
+        let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+        let (triggered, _blocks) =
+            evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+        assert_eq!(triggered.len(), 2);
+
+        for t in triggered.into_iter() {
+            let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
+            let result = result.as_object().unwrap();
+            let uuid = result.get("chainhook").unwrap().get("uuid").unwrap();
+            let apply_blocks = result.get("apply").unwrap();
+            for block in apply_blocks.as_array().unwrap() {
+                let transactions = block.get("transactions").unwrap();
+                for transaction in transactions.as_array().unwrap() {
+                    let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
+                    if uuid == "contract-call" || (uuid == "contract-deploy" && !include_abi) {
+                        assert_eq!(contract_abi, None);
+                    } else if uuid == "contract-deploy" && include_abi {
+                        assert!(contract_abi.is_some())
+                    } else {
+                        unreachable!()
+                    }
+                }
+            }
+        }
     }
 }
 

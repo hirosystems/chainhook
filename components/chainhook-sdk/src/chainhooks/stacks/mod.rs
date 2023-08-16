@@ -537,7 +537,7 @@ fn encode_transaction_including_with_clarity_decoding(
         },
     });
     if let Some(abi) = &transaction.metadata.contract_abi {
-        json["contract_abi"] = abi.to_owned();
+        json["metadata"]["contract_abi"] = abi.to_owned();
     }
     json
 }
