@@ -220,6 +220,7 @@ pub struct StacksTransactionMetadata {
     pub execution_cost: Option<StacksTransactionExecutionCost>,
     pub position: StacksTransactionPosition,
     pub proof: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub contract_abi: Option<Value>,
 }
 
