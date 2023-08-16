@@ -10,16 +10,14 @@ You can run Chainhook as a service to evaluate your `if_this / then_that` predic
 
 The Bitcoin Core daemon (bitcoind) is a program that implements the Bitcoin protocol for remote procedure call (RPC) use. Chainhook can be set up to interact with the Bitcoin chainstate through bitcoind's ZeroMQ interface, its embedded networking library, passing raw blockchain data to be evaluated for relevant events.
 
-This guide is written to work with the latest Bitcoin Core software containing bitcoind, [Bitcoin Core 25.0](https://bitcoincore.org/bin/bitcoin-core-25.0/). While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
+This guide is written to work with the latest Bitcoin Core software containing bitcoind, [Bitcoin Core 25.0](https://bitcoincore.org/bin/bitcoin-core-25.0/). 
 
 > **_NOTE:_**
 >
-> The OS X .tar.gz file that includes bitcoind can be downloaded directly in terminal with the following command:
-> 
-> `curl -O https://bitcoincore.org/bin/bitcoin-core-25.0/bitcoin-25.0-x86_64-apple-darwin.tar.gz`
+> While bitcoind can and will start syncing a Bitcoin node, customizing this node to your use cases beyond supporting a Chainhook is out of scope for this guide. See the Bitcoin wiki for ["Running Bitcoin"](https://en.bitcoin.it/wiki/Running_Bitcoin) or bitcoin.org [Running A Full Node guide](https://bitcoin.org/en/full-node).
 
-- Make note of the path of your `bitcoind` executable (located within the `bin` directory of the `bitcoin-25.0` folder you downloaded above)
-- Navigate to your project folder where your Chainhook will reside, create a new file, and rename it to `bitcoin.conf`. Copy the configuration below to this `bitcoin.conf` file. 
+- Make note of the path of your `bitcoind` executable (located within the `bin` directory of the `bitcoin-25.0` folder you downloaded above appropriate to your operating system)
+- Navigate to your project folder where your Chainhook node will reside, create a new file, and rename it to `bitcoin.conf`. Copy the configuration below to this `bitcoin.conf` file. 
 - Find and copy your Bitcoin data directory and paste to the `datadir` field in the `bitcoin.conf` file below. Either copy the default path (see [list of default directories by operating system](https://en.bitcoin.it/wiki/Data_directory)) or copy the custom path you set for your Bitcoin data
 - Set a username of your choice for bitcoind and use it in the `rpcuser` configuration below (`devnet` is a default).
 - Set a password of your choice for bitcoind and use it in the `rpcpassword` configuration below (`devnet` is a default).
@@ -55,10 +53,10 @@ zmqpubhashblock=tcp://0.0.0.0:18543
 >
 > The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run. Alternatively, if the directory pointed to in the `datadir` field above contains bitcoin blockchain data, syncing will resume.
 
-Now that you have `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `<path/to/bitcoind> -conf=<path/to/bitcoin.conf>`, for example:
+Now that you have the `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `<path/to/bitcoind> -conf=<path/to/bitcoin.conf>`, for example:
 
 ```console
-/Volumes/SSD/bitcoin-25.0/bin/bitcoind -conf=</Volumes/SSD/project/Chainhook/bitcoin.conf>
+/Volumes/SSD/bitcoin-25.0/bin/bitcoind -conf=/Volumes/SSD/project/Chainhook/bitcoin.conf
 ```
 
 Once the above command runs, you will see `zmq_url` entries in the console's stdout, displaying ZeroMQ logs of your bitcoin node.
@@ -87,8 +85,8 @@ working_dir = "cache"
 
 # The Http Api allows you to register / deregister
 # dynamically predicates.
-# Disable by default.
-#
+# This is disabled by default.
+
 # [http_api]
 # http_port = 20456
 # database_uri = "redis://localhost:6379/"
@@ -130,7 +128,7 @@ Here is a table of the relevant parameters this guide changes in our configurati
 
 ## Scan blockchain based on predicates
 
-Now that your bitcoind and Chainhook configurations are complete, you can define the Chainhook [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks. These predicates are where the user specifies the kinds of blockchain events that trigger a Chainhook to the deliver a result (either a file appendation or an HTTP POST request). This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
+Now that your bitcoind and Chainhook configurations are complete, you can define the Chainhook [predicates](../overview.md#if-this-predicate-design) you would like to scan against bitcoin blocks. These predicates are where the user specifies the kinds of blockchain events that trigger Chainhook to deliver a result (either a file appendation or an HTTP POST request). This section helps you with an example JSON file to scan a range of blocks in the blockchain to trigger results. To understand the supported predicates for Bitcoin, refer to [how to use chainhooks with bitcoin](how-to-use-chainhooks-with-bitcoin.md).
 
 The following is an example to walk you through an `if_this / then_that` predicate design that appends event payloads to the configured file destination.
 
