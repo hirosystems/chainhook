@@ -6,9 +6,9 @@ pub fn generate_config(network: &BitcoinNetwork) -> String {
         r#"[storage]
 working_dir = "cache"
 
-# The Http Api allows you to register / deregister
-# dynamically predicates.
-# Disable by default.
+# The HTTP API allows you to register / deregister
+# predicates dynamically.
+# This is disabled by default.
 #
 # [http_api]
 # http_port = 20456
