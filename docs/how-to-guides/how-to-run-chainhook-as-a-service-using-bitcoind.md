@@ -25,7 +25,7 @@ This guide is written to work with the latest Bitcoin Core software containing b
 ```conf
 # Bitcoin Core Configuration
 
-datadir=</path/to/bitcoin/directory/> # Path to Bitcoin directory
+datadir=/path/to/bitcoin/directory/ # Path to Bitcoin directory
 server=1
 rpcuser=devnet
 rpcpassword=devnet
@@ -53,7 +53,7 @@ zmqpubhashblock=tcp://0.0.0.0:18543
 >
 > The below command is a startup process that, if this is your first time syncing a node, might take a few hours to a few days to run. Alternatively, if the directory pointed to in the `datadir` field above contains bitcoin blockchain data, syncing will resume.
 
-Now that you have the `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `<path/to/bitcoind> -conf=<path/to/bitcoin.conf>`, for example:
+Now that you have the `bitcoin.conf` file ready with the bitcoind configurations, you can run the bitcoind node. The command takes the form `path/to/bitcoind -conf=path/to/bitcoin.conf`, for example:
 
 ```console
 /Volumes/SSD/bitcoin-25.0/bin/bitcoind -conf=/Volumes/SSD/project/Chainhook/bitcoin.conf
@@ -84,7 +84,7 @@ Additionally, if you want to receive events from the configured Bitcoin node, su
 working_dir = "cache"
 
 # The Http Api allows you to register / deregister
-# dynamically predicates.
+# predicates dynamically.
 # This is disabled by default.
 
 # [http_api]
