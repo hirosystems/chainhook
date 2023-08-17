@@ -96,7 +96,7 @@ impl BitcoinTransactionInputFullBreakdown {
     /// The [txid], [vout] and [script_sig] fields are not provided
     /// for coinbase transactions.
     pub fn is_coinbase(&self) -> bool {
-        self.txid.is_none()
+        self.prevout.is_none()
     }
 }
 
