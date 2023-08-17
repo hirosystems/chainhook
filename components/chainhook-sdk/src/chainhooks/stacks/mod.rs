@@ -775,7 +775,7 @@ pub fn serialize_stacks_payload_to_json<'a>(
                 "parent_block_identifier": block.get_parent_identifier(),
                 "timestamp": block.get_timestamp(),
                 "transactions": transactions.into_iter().map(|transaction| {
-                    let mut transaction = transaction.clone();
+                    let mut transaction = transaction.clone(); // todo: this clone is pretty expensive, maybe there's a more performant way to do this
                     if transaction.metadata.contract_abi.is_some() && !trigger.chainhook.include_contract_abi {
                         transaction.metadata.contract_abi = None;
                     }
