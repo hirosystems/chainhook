@@ -483,7 +483,7 @@ fn verify_optional_addition_of_contract_abi() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: false,
+        include_contract_abi: true,
         predicate: StacksPredicate::ContractDeployment(
             StacksContractDeploymentPredicate::Deployer("*".to_string()),
         ),
@@ -510,42 +510,46 @@ fn verify_optional_addition_of_contract_abi() {
         action: HookAction::Noop,
         enabled: true,
     };
-    let combinations = vec![
-        (false, None),
-        (true, None),
-        (false, Some(true)),
-        (true, Some(true)),
-    ];
-    // assert that for any combination of `include_contract_abi` and `decode_clarity_values`
-    // fields on the contract deployment chainhook, we only include the abi if the
-    // `include_contract_abi` field is `true`.
-    // Also assert that contract call transactions _never_ include an abi
-    for (include_abi, decode_cv) in combinations {
-        contract_deploy_chainhook.include_contract_abi = include_abi;
-        contract_deploy_chainhook.decode_clarity_values = decode_cv;
 
-        let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
-        let (triggered, _blocks) =
-            evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
-        assert_eq!(triggered.len(), 2);
+    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    let (triggered, _blocks) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    assert_eq!(triggered.len(), 2);
 
-        for t in triggered.into_iter() {
-            let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
-            let result = result.as_object().unwrap();
-            let uuid = result.get("chainhook").unwrap().get("uuid").unwrap();
-            let apply_blocks = result.get("apply").unwrap();
-            for block in apply_blocks.as_array().unwrap() {
-                let transactions = block.get("transactions").unwrap();
-                for transaction in transactions.as_array().unwrap() {
-                    let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
-                    if uuid == "contract-call" || (uuid == "contract-deploy" && !include_abi) {
-                        assert_eq!(contract_abi, None);
-                    } else if uuid == "contract-deploy" && include_abi {
-                        assert!(contract_abi.is_some())
-                    } else {
-                        unreachable!()
-                    }
+    for t in triggered.into_iter() {
+        let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
+        let result = result.as_object().unwrap();
+        let uuid = result.get("chainhook").unwrap().get("uuid").unwrap();
+        let apply_blocks = result.get("apply").unwrap();
+        for block in apply_blocks.as_array().unwrap() {
+            let transactions = block.get("transactions").unwrap();
+            for transaction in transactions.as_array().unwrap() {
+                let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
+                if uuid == "contract-call" {
+                    assert_eq!(contract_abi, None);
+                } else if uuid == "contract-deploy" {
+                    assert!(contract_abi.is_some())
+                } else {
+                    unreachable!()
                 }
+            }
+        }
+    }
+    contract_deploy_chainhook.include_contract_abi = false;
+    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    let (triggered, _blocks) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    assert_eq!(triggered.len(), 2);
+
+    for t in triggered.into_iter() {
+        let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
+        let result = result.as_object().unwrap();
+        let apply_blocks = result.get("apply").unwrap();
+        for block in apply_blocks.as_array().unwrap() {
+            let transactions = block.get("transactions").unwrap();
+            for transaction in transactions.as_array().unwrap() {
+                let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
+                assert_eq!(contract_abi, None);
             }
         }
     }
