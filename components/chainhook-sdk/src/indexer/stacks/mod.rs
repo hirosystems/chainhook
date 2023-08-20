@@ -1,6 +1,7 @@
 mod blocks_pool;
 
 pub use blocks_pool::StacksBlockPool;
+use stacks_rpc_client::clarity::vm::analysis::contract_interface_builder::ContractInterface;
 
 use crate::chainhooks::stacks::try_decode_clarity_value;
 use crate::indexer::AssetClassCache;
@@ -76,7 +77,7 @@ pub struct NewTransaction {
     pub raw_result: String,
     pub raw_tx: String,
     pub execution_cost: Option<StacksTransactionExecutionCost>,
-    pub contract_abi: Option<JsonValue>,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -90,7 +91,7 @@ pub struct NewMicroblockTransaction {
     pub microblock_sequence: usize,
     pub microblock_hash: String,
     pub microblock_parent_hash: String,
-    pub contract_abi: Option<JsonValue>,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -489,6 +489,7 @@ dependencies = [
 name = "chainhook-types"
 version = "1.0.12"
 dependencies = [
+ "clarity-vm",
  "hex",
  "schemars 0.8.12",
  "serde",

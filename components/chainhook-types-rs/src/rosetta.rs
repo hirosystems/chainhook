@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::events::*;
+use clarity::vm::analysis::contract_interface_builder::ContractInterface;
 use schemars::JsonSchema;
-use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -221,7 +221,7 @@ pub struct StacksTransactionMetadata {
     pub position: StacksTransactionPosition,
     pub proof: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub contract_abi: Option<Value>,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 /// TODO

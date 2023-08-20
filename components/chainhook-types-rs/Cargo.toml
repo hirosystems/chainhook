@@ -14,3 +14,4 @@ serde_derive = "1"
 strum = { version = "0.23.0", features = ["derive"] }
 schemars = { version = "0.8.10", git = "https://github.com/hirosystems/schemars.git", branch = "feat-chainhook-fixes" }
 hex = "0.4.3"
+clarity-vm = "2.1.1"
