@@ -697,45 +697,85 @@ pub fn start_zeromq_runloop(
                                     }
                                 };
                                 let block_hash = hex::encode(message.get(1).unwrap().to_vec());
+                                let mut block_hashes: VecDeque<String> = VecDeque::new();
+                                block_hashes.push_front(block_hash);
 
-                                let block = match download_and_parse_block_with_retry(
-                                    &http_client,
-                                    &block_hash,
-                                    &bitcoin_config,
-                                    &ctx_moved,
-                                )
-                                .await
-                                {
-                                    Ok(block) => block,
-                                    Err(e) => {
+                                while let Some(block_hash) = block_hashes.pop_front() {
+
+                                    let block = match download_and_parse_block_with_retry(
+                                        &http_client,
+                                        &block_hash,
+                                        &bitcoin_config,
+                                        &ctx_moved,
+                                    )
+                                    .await
+                                    {
+                                        Ok(block) => block,
+                                        Err(e) => {
+                                            ctx_moved.try_log(|logger| {
+                                                slog::warn!(
+                                                    logger,
+                                                    "unable to download_and_parse_block: {}",
+                                                    e.to_string()
+                                                )
+                                            });
+                                            continue;
+                                        }
+                                    };
+
+                                    let header = block.get_block_header();
+                                    ctx_moved.try_log(|logger| {
+                                        slog::info!(
+                                            logger,
+                                            "Bitcoin block #{} dispatched for processing",
+                                            block.height
+                                        )
+                                    });
+
+                                    let _ = observer_commands_tx
+                                        .send(ObserverCommand::ProcessBitcoinBlock(block));
+
+                                    if bitcoin_blocks_pool.can_process_header(&header) {
+                                        match bitcoin_blocks_pool.process_header(header, &ctx_moved) {
+                                            Ok(Some(event)) => {
+                                                let _ = observer_commands_tx
+                                                    .send(ObserverCommand::PropagateBitcoinChainEvent(event));
+                                            },
+                                            Err(e) => {
+                                                ctx_moved.try_log(|logger| {
+                                                    slog::warn!(
+                                                        logger,
+                                                        "Unable to append block: {:?}", e
+                                                    )
+                                                });
+                                            }
+                                            Ok(None) => {
+                                                ctx_moved.try_log(|logger| {
+                                                    slog::warn!(
+                                                        logger,
+                                                        "Unable to append block"
+                                                    )
+                                                });
+                                            }
+                                        }
+                                    } else {
+                                        // Handle a behaviour specific to ZMQ usage in bitcoind.
+                                        // Considering a simple re-org:
+                                        // A (1) - B1 (2) - C1 (3)
+                                        //       \ B2 (4) - C2 (5) - D2 (6)
+                                        // When D2 is being discovered (making A -> B2 -> C2 -> D2 the new canonical fork)
+                                        // it looks like ZMQ is only publishing D2.
+                                        // Without additional operation, we end up with a block that with a block that we
+                                        // can't handle.
+                                        let parent_block_hash = header.parent_block_identifier.get_hash_bytes_str().to_string();
                                         ctx_moved.try_log(|logger| {
-                                            slog::warn!(
+                                            slog::info!(
                                                 logger,
-                                                "unable to download_and_parse_block: {}",
-                                                e.to_string()
+                                                "Possible re-org detected, retrieving parent block {parent_block_hash}"
                                             )
                                         });
-                                        continue;
+                                        block_hashes.push_front(parent_block_hash);
                                     }
-                                };
-
-                                ctx_moved.try_log(|logger| {
-                                    slog::info!(
-                                        logger,
-                                        "Bitcoin block #{} dispatched for processing",
-                                        block.height
-                                    )
-                                });
-
-                                let header = block.get_block_header();
-                                let _ = observer_commands_tx
-                                    .send(ObserverCommand::ProcessBitcoinBlock(block));
-
-                                if let Ok(Some(event)) =
-                                    bitcoin_blocks_pool.process_header(header, &ctx_moved)
-                                {
-                                    let _ = observer_commands_tx
-                                        .send(ObserverCommand::PropagateBitcoinChainEvent(event));
                                 }
                             }
                         });
