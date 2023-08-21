@@ -14,6 +14,16 @@ pub struct BlockIdentifier {
     pub hash: String,
 }
 
+impl BlockIdentifier {
+    pub fn get_hash_bytes_str(&self) -> &str {
+        &self.hash[2..]
+    }
+
+    pub fn get_hash_bytes(&self) -> Vec<u8> {
+        hex::decode(&self.get_hash_bytes_str()).unwrap()
+    }
+}
+
 impl Display for BlockIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
