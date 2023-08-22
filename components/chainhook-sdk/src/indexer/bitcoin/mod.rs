@@ -1,5 +1,3 @@
-mod blocks_pool;
-
 use std::time::Duration;
 
 use crate::chainhooks::types::{
@@ -11,7 +9,6 @@ use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};
 use bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
-pub use blocks_pool::BitcoinBlockPool;
 use chainhook_types::bitcoin::{OutPoint, TxIn, TxOut};
 use chainhook_types::{
     BitcoinBlockData, BitcoinBlockMetadata, BitcoinNetwork, BitcoinTransactionData,
