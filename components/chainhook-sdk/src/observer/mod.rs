@@ -28,7 +28,6 @@ use chainhook_types::{
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
-use reqwest::Client as HttpClient;
 use rocket::config::{self, Config, LogLevel};
 use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
@@ -41,7 +40,7 @@ use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(feature = "zeromq")]
 use zeromq::{Socket, SocketRecv};
 
@@ -61,64 +60,10 @@ pub enum Event {
     StacksChainEvent(StacksChainEvent),
 }
 
-// TODO(lgalabru): Support for GRPC?
-#[derive(Deserialize, Debug, Clone)]
-pub enum EventHandler {
-    WebHook(String),
-}
-
-impl EventHandler {
-    async fn propagate_stacks_event(&self, stacks_event: &StacksChainEvent) {
-        match self {
-            EventHandler::WebHook(host) => {
-                let path = "chain-events/stacks";
-                let url = format!("{}/{}", host, path);
-                let body = rocket::serde::json::serde_json::to_vec(&stacks_event).unwrap_or(vec![]);
-                let http_client = HttpClient::builder()
-                    .timeout(Duration::from_secs(20))
-                    .build()
-                    .expect("Unable to build http client");
-                let _ = http_client
-                    .post(url)
-                    .header("Content-Type", "application/json")
-                    .body(body)
-                    .send()
-                    .await;
-                // TODO(lgalabru): handle response errors
-            }
-        }
-    }
-
-    async fn propagate_bitcoin_event(&self, bitcoin_event: &BitcoinChainEvent) {
-        match self {
-            EventHandler::WebHook(host) => {
-                let path = "chain-events/bitcoin";
-                let url = format!("{}/{}", host, path);
-                let body =
-                    rocket::serde::json::serde_json::to_vec(&bitcoin_event).unwrap_or(vec![]);
-                let http_client = HttpClient::builder()
-                    .timeout(Duration::from_secs(20))
-                    .build()
-                    .expect("Unable to build http client");
-                let _res = http_client
-                    .post(url)
-                    .header("Content-Type", "application/json")
-                    .body(body)
-                    .send()
-                    .await;
-                // TODO(lgalabru): handle response errors
-            }
-        }
-    }
-
-    async fn notify_bitcoin_transaction_proxied(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
     pub chainhook_config: Option<ChainhookConfig>,
     pub bitcoin_rpc_proxy_enabled: bool,
-    pub event_handlers: Vec<EventHandler>,
     pub ingestion_port: u16,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
@@ -188,7 +133,6 @@ impl EventObserverConfig {
 
         let config = EventObserverConfig {
             bitcoin_rpc_proxy_enabled: false,
-            event_handlers: vec![],
             chainhook_config: None,
             ingestion_port: overrides
                 .and_then(|c| c.ingestion_port)
@@ -392,12 +336,69 @@ pub struct ObserverMetrics {
     pub stacks: ChainMetrics,
 }
 
+pub struct ObserverSidecar {
+    bitcoin_block_mutator: Option<(Sender<BitcoinBlockData>, Receiver<BitcoinBlockData>)>,
+    bitcoin_chain_event_notifier: Option<Sender<HandleBlock>>,
+}
+
+impl ObserverSidecar {
+    fn perform_bitcoin_sidecar_mutation(
+        &self,
+        block: BitcoinBlockData,
+        ctx: &Context,
+    ) -> (bool, BitcoinBlockData) {
+        if let Some(ref block_mutator) = self.bitcoin_block_mutator {
+            ctx.try_log(|logger| slog::info!(logger, "Sending blocks to pre-processor",));
+            let _ = block_mutator.0.send(block.clone());
+            ctx.try_log(|logger| slog::info!(logger, "Waiting for blocks from pre-processor",));
+            match block_mutator.1.recv() {
+                Ok(updated_block) => {
+                    ctx.try_log(|logger| slog::info!(logger, "Block received from pre-processor",));
+                    (true, updated_block)
+                }
+                Err(e) => {
+                    ctx.try_log(|logger| {
+                        slog::error!(
+                            logger,
+                            "Unable to receive block from pre-processor {}",
+                            e.to_string()
+                        )
+                    });
+                    (false, block)
+                }
+            }
+        } else {
+            (false, block)
+        }
+    }
+
+    fn notify_chain_event(&self, chain_event: &BitcoinChainEvent, _ctx: &Context) {
+        if let Some(ref notifier) = self.bitcoin_chain_event_notifier {
+            match chain_event {
+                BitcoinChainEvent::ChainUpdatedWithBlocks(data) => {
+                    for block in data.new_blocks.iter() {
+                        let _ = notifier.send(HandleBlock::ApplyBlock(block.clone()));
+                    }
+                }
+                BitcoinChainEvent::ChainUpdatedWithReorg(data) => {
+                    for block in data.blocks_to_rollback.iter() {
+                        let _ = notifier.send(HandleBlock::UndoBlock(block.clone()));
+                    }
+                    for block in data.blocks_to_apply.iter() {
+                        let _ = notifier.send(HandleBlock::ApplyBlock(block.clone()));
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn start_event_observer(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
-    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<BitcoinBlockData>)>,
+    observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -414,7 +415,7 @@ pub fn start_event_observer(
                     observer_commands_tx_moved,
                     observer_commands_rx,
                     observer_events_tx,
-                    block_pre_processor,
+                    observer_sidecar,
                     context_cloned,
                 );
                 let _ = hiro_system_kit::nestable_block_on(future);
@@ -431,7 +432,7 @@ pub fn start_event_observer(
                     observer_commands_tx_moved,
                     observer_commands_rx,
                     observer_events_tx,
-                    block_pre_processor,
+                    observer_sidecar,
                     context_cloned,
                 );
                 let _ = hiro_system_kit::nestable_block_on(future);
@@ -458,7 +459,7 @@ pub async fn start_bitcoin_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
-    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<BitcoinBlockData>)>,
+    observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let chainhook_store = ChainhookStore::new();
@@ -485,7 +486,7 @@ pub async fn start_bitcoin_event_observer(
         observer_events_tx,
         None,
         observer_metrics_rw_lock.clone(),
-        block_pre_processor,
+        observer_sidecar,
         ctx,
     )
     .await
@@ -496,7 +497,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
-    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<BitcoinBlockData>)>,
+    observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -613,7 +614,7 @@ pub async fn start_stacks_event_observer(
         observer_events_tx,
         ingestion_shutdown,
         observer_metrics_rw_lock.clone(),
-        block_pre_processor,
+        observer_sidecar,
         ctx,
     )
     .await
@@ -765,8 +766,7 @@ pub fn start_zeromq_runloop(
                                         //       \ B2 (4) - C2 (5) - D2 (6)
                                         // When D2 is being discovered (making A -> B2 -> C2 -> D2 the new canonical fork)
                                         // it looks like ZMQ is only publishing D2.
-                                        // Without additional operation, we end up with a block that with a block that we
-                                        // can't handle.
+                                        // Without additional operation, we end up with a block that we can't append.
                                         let parent_block_hash = header.parent_block_identifier.get_hash_bytes_str().to_string();
                                         ctx_moved.try_log(|logger| {
                                             slog::info!(
@@ -784,12 +784,6 @@ pub fn start_zeromq_runloop(
         }
     }
 }
-
-pub fn pre_process_bitcoin_block() {}
-
-pub fn apply_bitcoin_block() {}
-
-pub fn rollback_bitcoin_block() {}
 
 pub fn gather_proofs<'a>(
     trigger: &BitcoinTriggerChainhook<'a>,
@@ -834,8 +828,8 @@ pub fn gather_proofs<'a>(
 }
 
 pub enum HandleBlock {
-    ApplyBlocks(BitcoinBlockData),
-    UndoBlocks(BitcoinBlockData),
+    ApplyBlock(BitcoinBlockData),
+    UndoBlock(BitcoinBlockData),
 }
 
 pub async fn start_observer_commands_handler(
@@ -845,13 +839,13 @@ pub async fn start_observer_commands_handler(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
     observer_metrics: Arc<RwLock<ObserverMetrics>>,
-    block_pre_processor: Option<(Sender<HandleBlock>, Receiver<BitcoinBlockData>)>,
+    observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
-    let event_handlers = config.event_handlers.clone();
     let networks = (&config.bitcoin_network, &config.stacks_network);
-    let mut bitcoin_block_store: HashMap<BlockIdentifier, BitcoinBlockData> = HashMap::new();
+    let mut bitcoin_block_store: HashMap<BlockIdentifier, (BitcoinBlockData, bool)> =
+        HashMap::new();
     let http_client = build_http_client();
 
     loop {
@@ -929,10 +923,10 @@ pub async fn start_observer_commands_handler(
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
                 };
-                bitcoin_block_store.insert(new_block.block_identifier.clone(), new_block);
+                bitcoin_block_store.insert(new_block.block_identifier.clone(), (new_block, false));
             }
             ObserverCommand::CacheBitcoinBlock(block) => {
-                bitcoin_block_store.insert(block.block_identifier.clone(), block);
+                bitcoin_block_store.insert(block.block_identifier.clone(), (block, false));
             }
             ObserverCommand::PropagateBitcoinChainEvent(blockchain_event) => {
                 ctx.try_log(|logger| {
@@ -946,23 +940,28 @@ pub async fn start_observer_commands_handler(
                         let mut new_blocks = vec![];
 
                         for header in data.new_headers.iter() {
-                            match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some(block) => {
+                            match (
+                                bitcoin_block_store.remove(&header.block_identifier),
+                                &observer_sidecar,
+                            ) {
+                                (Some((block, false)), Some(sidecar)) => {
                                     // Time for pre-processing
-                                    let (_updated, updated_block) = handle_block_pre_processing(
-                                        &block_pre_processor,
-                                        block,
-                                        true,
-                                        &ctx,
-                                    );
-                                    // Keep a copy of the pre-processed version
+                                    let (updated, updated_block) =
+                                        sidecar.perform_bitcoin_sidecar_mutation(block, &ctx);
                                     bitcoin_block_store.insert(
                                         updated_block.block_identifier.clone(),
-                                        updated_block.clone(),
+                                        (updated_block.clone(), updated),
                                     );
                                     new_blocks.push(updated_block);
                                 }
-                                None => {
+                                (Some((block, _)), _) => {
+                                    bitcoin_block_store.insert(
+                                        block.block_identifier.clone(),
+                                        (block.clone(), true),
+                                    );
+                                    new_blocks.push(block);
+                                }
+                                (None, _) => {
                                     ctx.try_log(|logger| {
                                         slog::error!(
                                             logger,
@@ -976,7 +975,7 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some(block) => {
+                                Some((block, _)) => {
                                     confirmed_blocks.push(block);
                                 }
                                 None => {
@@ -1018,21 +1017,9 @@ pub async fn start_observer_commands_handler(
                         });
 
                         for header in data.headers_to_rollback.iter() {
-                            match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some(block) => {
-                                    // Time for pre-processing
-                                    let (_updated, updated_block) = handle_block_pre_processing(
-                                        &block_pre_processor,
-                                        block,
-                                        false,
-                                        &ctx,
-                                    );
-                                    // Keep a copy of the pre-processed version
-                                    bitcoin_block_store.insert(
-                                        updated_block.block_identifier.clone(),
-                                        updated_block.clone(),
-                                    );
-                                    blocks_to_rollback.push(updated_block);
+                            match bitcoin_block_store.get(&header.block_identifier) {
+                                Some((block, _)) => {
+                                    blocks_to_rollback.push(block.clone());
                                 }
                                 None => {
                                     ctx.try_log(|logger| {
@@ -1047,23 +1034,28 @@ pub async fn start_observer_commands_handler(
                         }
 
                         for header in data.headers_to_apply.iter() {
-                            match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some(block) => {
+                            match (
+                                bitcoin_block_store.remove(&header.block_identifier),
+                                &observer_sidecar,
+                            ) {
+                                (Some((block, false)), Some(sidecar)) => {
                                     // Time for pre-processing
-                                    let (_updated, updated_block) = handle_block_pre_processing(
-                                        &block_pre_processor,
-                                        block,
-                                        true,
-                                        &ctx,
-                                    );
-                                    // Keep a copy of the pre-processed version
+                                    let (updated, updated_block) =
+                                        sidecar.perform_bitcoin_sidecar_mutation(block, &ctx);
                                     bitcoin_block_store.insert(
                                         updated_block.block_identifier.clone(),
-                                        updated_block.clone(),
+                                        (updated_block.clone(), updated),
                                     );
                                     blocks_to_apply.push(updated_block);
                                 }
-                                None => {
+                                (Some((block, _)), _) => {
+                                    bitcoin_block_store.insert(
+                                        block.block_identifier.clone(),
+                                        (block.clone(), true),
+                                    );
+                                    blocks_to_apply.push(block);
+                                }
+                                (None, _) => {
                                     ctx.try_log(|logger| {
                                         slog::error!(
                                             logger,
@@ -1077,7 +1069,7 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some(block) => {
+                                Some((block, _)) => {
                                     confirmed_blocks.push(block);
                                 }
                                 None => {
@@ -1123,6 +1115,8 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
+                if let Some(ref sidecar) = observer_sidecar {
+                    sidecar.notify_chain_event(&chain_event, &ctx)
                 }
                 // process hooks
                 let mut hooks_ids_to_deregister = vec![];
@@ -1569,39 +1563,6 @@ pub async fn start_observer_commands_handler(
         }
     }
     Ok(())
-}
-
-fn handle_block_pre_processing(
-    block_pre_processor: &Option<(Sender<HandleBlock>, Receiver<BitcoinBlockData>)>,
-    block: BitcoinBlockData,
-    apply: bool,
-    ctx: &Context,
-) -> (bool, BitcoinBlockData) {
-    if let Some(ref processor) = block_pre_processor {
-        ctx.try_log(|logger| slog::info!(logger, "Sending blocks to pre-processor",));
-        let _ = processor.0.send(match apply {
-            true => HandleBlock::ApplyBlocks(block.clone()),
-            false => HandleBlock::UndoBlocks(block.clone()),
-        });
-        ctx.try_log(|logger| slog::info!(logger, "Waiting for blocks from pre-processor",));
-        match processor.1.recv() {
-            Ok(updated_block) => {
-                ctx.try_log(|logger| slog::info!(logger, "Block received from pre-processor",));
-                return (true, updated_block);
-            }
-            Err(e) => {
-                ctx.try_log(|logger| {
-                    slog::error!(
-                        logger,
-                        "Unable to receive block from pre-processor {}",
-                        e.to_string()
-                    )
-                });
-                return (false, block);
-            }
-        }
-    }
-    return (false, block);
 }
 
 #[cfg(test)]
