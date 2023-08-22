@@ -30,7 +30,6 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {
         chainhook_config: Some(ChainhookConfig::new()),
         bitcoin_rpc_proxy_enabled: false,
-        event_handlers: vec![],
         ingestion_port: 0,
         bitcoind_rpc_username: "user".into(),
         bitcoind_rpc_password: "user".into(),

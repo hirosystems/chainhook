@@ -1123,8 +1123,6 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
-                for event_handler in event_handlers.iter() {
-                    event_handler.propagate_bitcoin_event(&chain_event).await;
                 }
                 // process hooks
                 let mut hooks_ids_to_deregister = vec![];
@@ -1275,9 +1273,6 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling PropagateStacksChainEvent command")
                 });
-                for event_handler in event_handlers.iter() {
-                    event_handler.propagate_stacks_event(&chain_event).await;
-                }
                 let mut hooks_ids_to_deregister = vec![];
                 let mut requests = vec![];
                 let mut report = PredicateEvaluationReport::new();
@@ -1481,9 +1476,6 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling NotifyBitcoinTransactionProxied command")
                 });
-                for event_handler in event_handlers.iter() {
-                    event_handler.notify_bitcoin_transaction_proxied().await;
-                }
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::NotifyBitcoinTransactionProxied);
                 }
