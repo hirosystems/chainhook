@@ -17,9 +17,10 @@ use crate::observer::{
 };
 use crate::utils::{AbstractBlock, Context};
 use chainhook_types::{
-    BitcoinBlockSignaling, BitcoinNetwork, BlockchainEvent, BlockchainUpdatedWithHeaders,
-    OrdinalInscriptionRevealData, OrdinalOperation, StacksBlockUpdate, StacksChainEvent,
-    StacksChainUpdatedWithBlocksData, StacksNetwork, StacksNodeConfig, BitcoinChainEvent,
+    BitcoinBlockSignaling, BitcoinChainEvent, BitcoinNetwork, BlockchainEvent,
+    BlockchainUpdatedWithHeaders, OrdinalInscriptionRevealData, OrdinalOperation,
+    StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksNetwork,
+    StacksNodeConfig,
 };
 use hiro_system_kit;
 use std::collections::BTreeMap;
@@ -1233,7 +1234,7 @@ fn test_bitcoin_chainhook_through_reorg() {
     let empty_ctx = Context::empty();
 
     let observer_sidecar = ObserverSidecar {
-        bitcoin_block_mutator: Some((block_pre_processor_in_tx, block_pre_processor_out_rx)),
+        bitcoin_blocks_mutator: Some((block_pre_processor_in_tx, block_pre_processor_out_rx)),
         bitcoin_chain_event_notifier: None,
     };
 
@@ -1255,33 +1256,35 @@ fn test_bitcoin_chainhook_through_reorg() {
     // registered predicates
     let block_pre_processor_handle = std::thread::spawn(move || {
         let mut cursor: u64 = 0;
-        while let Ok(mut block) = block_pre_processor_in_rx.recv() {
-            for (tx_index, tx) in block.transactions.iter_mut().enumerate() {
-                cursor += 1;
-                tx.metadata
-                    .ordinal_operations
-                    .push(OrdinalOperation::InscriptionRevealed(
-                        OrdinalInscriptionRevealData {
-                            content_bytes: format!("{cursor}"),
-                            content_type: "".to_string(),
-                            content_length: cursor as usize,
-                            inscription_number: cursor as i64,
-                            inscription_fee: cursor,
-                            inscription_output_value: cursor,
-                            inscription_id: format!("{cursor}"),
-                            inscription_input_index: 0,
-                            inscriber_address: None,
-                            ordinal_number: cursor,
-                            ordinal_block_height: block.block_identifier.index,
-                            ordinal_offset: 0,
-                            tx_index,
-                            transfers_pre_inscription: cursor as u32,
-                            satpoint_post_inscription: format!("{cursor}"),
-                            curse_type: None,
-                        },
-                    ))
+        while let Ok((mut blocks, _)) = block_pre_processor_in_rx.recv() {
+            for b in blocks.iter_mut() {
+                for (tx_index, tx) in b.block.transactions.iter_mut().enumerate() {
+                    cursor += 1;
+                    tx.metadata
+                        .ordinal_operations
+                        .push(OrdinalOperation::InscriptionRevealed(
+                            OrdinalInscriptionRevealData {
+                                content_bytes: format!("{cursor}"),
+                                content_type: "".to_string(),
+                                content_length: cursor as usize,
+                                inscription_number: cursor as i64,
+                                inscription_fee: cursor,
+                                inscription_output_value: cursor,
+                                inscription_id: format!("{cursor}"),
+                                inscription_input_index: 0,
+                                inscriber_address: None,
+                                ordinal_number: cursor,
+                                ordinal_block_height: b.block.block_identifier.index,
+                                ordinal_offset: 0,
+                                tx_index,
+                                transfers_pre_inscription: cursor as u32,
+                                satpoint_post_inscription: format!("{cursor}"),
+                                curse_type: None,
+                            },
+                        ))
+                }
             }
-            let _ = block_pre_processor_out_tx.send(block);
+            let _ = block_pre_processor_out_tx.send(blocks);
         }
     });
 

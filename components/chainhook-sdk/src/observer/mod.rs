@@ -336,25 +336,37 @@ pub struct ObserverMetrics {
     pub stacks: ChainMetrics,
 }
 
+#[derive(Debug, Clone)]
+pub struct BitcoinBlockDataCached {
+    pub block: BitcoinBlockData,
+    pub processed_by_sidecar: bool,
+}
+
 pub struct ObserverSidecar {
-    bitcoin_block_mutator: Option<(Sender<BitcoinBlockData>, Receiver<BitcoinBlockData>)>,
-    bitcoin_chain_event_notifier: Option<Sender<HandleBlock>>,
+    pub bitcoin_blocks_mutator: Option<(
+        Sender<(Vec<BitcoinBlockDataCached>, Vec<BlockIdentifier>)>,
+        Receiver<Vec<BitcoinBlockDataCached>>,
+    )>,
+    pub bitcoin_chain_event_notifier: Option<Sender<HandleBlock>>,
 }
 
 impl ObserverSidecar {
-    fn perform_bitcoin_sidecar_mutation(
+    fn perform_bitcoin_sidecar_mutations(
         &self,
-        block: BitcoinBlockData,
+        blocks: Vec<BitcoinBlockDataCached>,
+        blocks_ids_to_rollback: Vec<BlockIdentifier>,
         ctx: &Context,
-    ) -> (bool, BitcoinBlockData) {
-        if let Some(ref block_mutator) = self.bitcoin_block_mutator {
+    ) -> Vec<BitcoinBlockDataCached> {
+        if let Some(ref block_mutator) = self.bitcoin_blocks_mutator {
             ctx.try_log(|logger| slog::info!(logger, "Sending blocks to pre-processor",));
-            let _ = block_mutator.0.send(block.clone());
+            let _ = block_mutator
+                .0
+                .send((blocks.clone(), blocks_ids_to_rollback));
             ctx.try_log(|logger| slog::info!(logger, "Waiting for blocks from pre-processor",));
             match block_mutator.1.recv() {
-                Ok(updated_block) => {
+                Ok(updated_blocks) => {
                     ctx.try_log(|logger| slog::info!(logger, "Block received from pre-processor",));
-                    (true, updated_block)
+                    updated_blocks
                 }
                 Err(e) => {
                     ctx.try_log(|logger| {
@@ -364,11 +376,11 @@ impl ObserverSidecar {
                             e.to_string()
                         )
                     });
-                    (false, block)
+                    blocks
                 }
             }
         } else {
-            (false, block)
+            blocks
         }
     }
 
@@ -844,9 +856,12 @@ pub async fn start_observer_commands_handler(
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
     let networks = (&config.bitcoin_network, &config.stacks_network);
-    let mut bitcoin_block_store: HashMap<BlockIdentifier, (BitcoinBlockData, bool)> =
-        HashMap::new();
+    let mut bitcoin_block_store: HashMap<BlockIdentifier, BitcoinBlockDataCached> = HashMap::new();
     let http_client = build_http_client();
+    let store_update_required = observer_sidecar
+        .as_ref()
+        .and_then(|s| s.bitcoin_blocks_mutator.as_ref())
+        .is_some();
 
     loop {
         let command = match observer_commands_rx.recv() {
@@ -872,7 +887,7 @@ pub async fn start_observer_commands_handler(
             }
             ObserverCommand::ProcessBitcoinBlock(mut block_data) => {
                 let block_hash = block_data.hash.to_string();
-                let new_block = loop {
+                let block = loop {
                     match standardize_bitcoin_block(
                         block_data.clone(),
                         &config.bitcoin_network,
@@ -910,8 +925,8 @@ pub async fn start_observer_commands_handler(
                 };
                 match observer_metrics.write() {
                     Ok(mut metrics) => {
-                        if new_block.block_identifier.index > metrics.bitcoin.tip_height {
-                            metrics.bitcoin.tip_height = new_block.block_identifier.index;
+                        if block.block_identifier.index > metrics.bitcoin.tip_height {
+                            metrics.bitcoin.tip_height = block.block_identifier.index;
                         }
                         metrics.bitcoin.last_block_ingestion_at = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
@@ -923,10 +938,22 @@ pub async fn start_observer_commands_handler(
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
                 };
-                bitcoin_block_store.insert(new_block.block_identifier.clone(), (new_block, false));
+                bitcoin_block_store.insert(
+                    block.block_identifier.clone(),
+                    BitcoinBlockDataCached {
+                        block,
+                        processed_by_sidecar: false,
+                    },
+                );
             }
             ObserverCommand::CacheBitcoinBlock(block) => {
-                bitcoin_block_store.insert(block.block_identifier.clone(), (block, false));
+                bitcoin_block_store.insert(
+                    block.block_identifier.clone(),
+                    BitcoinBlockDataCached {
+                        block,
+                        processed_by_sidecar: false,
+                    },
+                );
             }
             ObserverCommand::PropagateBitcoinChainEvent(blockchain_event) => {
                 ctx.try_log(|logger| {
@@ -937,46 +964,40 @@ pub async fn start_observer_commands_handler(
                 // Update Chain event before propagation
                 let chain_event = match blockchain_event {
                     BlockchainEvent::BlockchainUpdatedWithHeaders(data) => {
+                        let mut blocks_to_mutate = vec![];
                         let mut new_blocks = vec![];
 
                         for header in data.new_headers.iter() {
-                            match (
-                                bitcoin_block_store.remove(&header.block_identifier),
-                                &observer_sidecar,
-                            ) {
-                                (Some((block, false)), Some(sidecar)) => {
-                                    // Time for pre-processing
-                                    let (updated, updated_block) =
-                                        sidecar.perform_bitcoin_sidecar_mutation(block, &ctx);
-                                    bitcoin_block_store.insert(
-                                        updated_block.block_identifier.clone(),
-                                        (updated_block.clone(), updated),
-                                    );
-                                    new_blocks.push(updated_block);
-                                }
-                                (Some((block, _)), _) => {
-                                    bitcoin_block_store.insert(
-                                        block.block_identifier.clone(),
-                                        (block.clone(), true),
-                                    );
-                                    new_blocks.push(block);
-                                }
-                                (None, _) => {
-                                    ctx.try_log(|logger| {
-                                        slog::error!(
-                                            logger,
-                                            "Unable to retrieve bitcoin block {}",
-                                            header.block_identifier
-                                        )
-                                    });
-                                }
+                            if store_update_required {
+                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                    continue;
+                                };
+                                blocks_to_mutate.push(block);
+                            } else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                    continue;
+                                };
+                                new_blocks.push(cache.block.clone());
+                            };
+                        }
+
+                        if let Some(ref sidecar) = observer_sidecar {
+                            let updated_blocks = sidecar.perform_bitcoin_sidecar_mutations(
+                                blocks_to_mutate,
+                                vec![],
+                                &ctx,
+                            );
+                            for cache in updated_blocks.into_iter() {
+                                bitcoin_block_store
+                                    .insert(cache.block.block_identifier.clone(), cache.clone());
+                                new_blocks.push(cache.block);
                             }
                         }
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some((block, _)) => {
-                                    confirmed_blocks.push(block);
+                                Some(res) => {
+                                    confirmed_blocks.push(res.block);
                                 }
                                 None => {
                                     ctx.try_log(|logger| {
@@ -998,28 +1019,32 @@ pub async fn start_observer_commands_handler(
                         )
                     }
                     BlockchainEvent::BlockchainUpdatedWithReorg(data) => {
-                        let mut blocks_to_apply = vec![];
                         let mut blocks_to_rollback = vec![];
 
-                        let blocks_ids_to_rollback = data
-                            .headers_to_rollback
-                            .iter()
-                            .map(|b| b.block_identifier.index.to_string())
-                            .collect::<Vec<String>>();
-                        let blocks_ids_to_apply = data
-                            .headers_to_apply
-                            .iter()
-                            .map(|b| b.block_identifier.index.to_string())
-                            .collect::<Vec<String>>();
+                        let mut blocks_to_mutate = vec![];
+                        let mut blocks_to_apply = vec![];
 
-                        ctx.try_log(|logger| {
-                            slog::info!(logger, "Bitcoin reorg detected, will rollback blocks {} and apply blocks {}", blocks_ids_to_rollback.join(", "), blocks_ids_to_apply.join(", "))
-                        });
+                        for header in data.headers_to_apply.iter() {
+                            if store_update_required {
+                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                    continue;
+                                };
+                                blocks_to_mutate.push(block);
+                            } else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                    continue;
+                                };
+                                blocks_to_apply.push(cache.block.clone());
+                            };
+                        }
+
+                        let mut blocks_ids_to_rollback: Vec<BlockIdentifier> = vec![];
 
                         for header in data.headers_to_rollback.iter() {
                             match bitcoin_block_store.get(&header.block_identifier) {
-                                Some((block, _)) => {
-                                    blocks_to_rollback.push(block.clone());
+                                Some(cache) => {
+                                    blocks_ids_to_rollback.push(header.block_identifier.clone());
+                                    blocks_to_rollback.push(cache.block.clone());
                                 }
                                 None => {
                                     ctx.try_log(|logger| {
@@ -1033,44 +1058,23 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        for header in data.headers_to_apply.iter() {
-                            match (
-                                bitcoin_block_store.remove(&header.block_identifier),
-                                &observer_sidecar,
-                            ) {
-                                (Some((block, false)), Some(sidecar)) => {
-                                    // Time for pre-processing
-                                    let (updated, updated_block) =
-                                        sidecar.perform_bitcoin_sidecar_mutation(block, &ctx);
-                                    bitcoin_block_store.insert(
-                                        updated_block.block_identifier.clone(),
-                                        (updated_block.clone(), updated),
-                                    );
-                                    blocks_to_apply.push(updated_block);
-                                }
-                                (Some((block, _)), _) => {
-                                    bitcoin_block_store.insert(
-                                        block.block_identifier.clone(),
-                                        (block.clone(), true),
-                                    );
-                                    blocks_to_apply.push(block);
-                                }
-                                (None, _) => {
-                                    ctx.try_log(|logger| {
-                                        slog::error!(
-                                            logger,
-                                            "Unable to retrieve bitcoin block {}",
-                                            header.block_identifier
-                                        )
-                                    });
-                                }
+                        if let Some(ref sidecar) = observer_sidecar {
+                            let updated_blocks = sidecar.perform_bitcoin_sidecar_mutations(
+                                blocks_to_mutate,
+                                blocks_ids_to_rollback,
+                                &ctx,
+                            );
+                            for cache in updated_blocks.into_iter() {
+                                bitcoin_block_store
+                                    .insert(cache.block.block_identifier.clone(), cache.clone());
+                                blocks_to_apply.push(cache.block);
                             }
                         }
 
                         for header in data.confirmed_headers.iter() {
                             match bitcoin_block_store.remove(&header.block_identifier) {
-                                Some((block, _)) => {
-                                    confirmed_blocks.push(block);
+                                Some(res) => {
+                                    confirmed_blocks.push(res.block);
                                 }
                                 None => {
                                     ctx.try_log(|logger| {
