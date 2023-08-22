@@ -101,6 +101,7 @@ Get any transaction emitting given print events predicate
 
 - `contract-identifier` mandatory argument admits:
   - string type, fully qualifying the contract to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
+ - Either the `contains` or `matches_regex` argument:
   - `contains` argument admits string type, used for matching an event containing the specified string. Example: `vault`
   - `matches_regex` argument admits string type that should be valid regex, used for matching an event that regex matches with the specified string. Example: `(?:^|\\W)vault(?:$|\\W)`
 
