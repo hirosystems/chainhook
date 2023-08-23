@@ -373,7 +373,7 @@ fn test_stacks_predicates(
 #[test_case(
     StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer("*".to_string())),
     1;
-    "Deployer predicate wildcard deployer catches all occurences"
+    "Deployer predicate wildcard deployer catches all occurrences"
 )]
 #[test_case(
     StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::Deployer("wrong-deployer".to_string())),
@@ -649,6 +649,6 @@ fn test_stacks_hook_action_file_append() {
         let expected = get_expected_occurrence();
         assert_eq!(expected, actual);
     } else {
-        panic!("wrong occurence type");
+        panic!("wrong occurrence type");
     }
 }
