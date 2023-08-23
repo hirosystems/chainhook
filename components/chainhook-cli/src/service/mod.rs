@@ -137,7 +137,8 @@ impl Service {
             .expect("unable to spawn thread");
 
         // Enable HTTP Predicates API, if required
-        if let PredicatesApi::On(ref api_config) = self.config.http_api {
+        let config = self.config.clone();
+        if let PredicatesApi::On(ref api_config) = config.http_api {
             info!(
                 self.ctx.expect_logger(),
                 "Listening on port {} for chainhook predicate registrations", api_config.http_port
@@ -162,6 +163,15 @@ impl Service {
         );
 
         let mut stacks_event = 0;
+
+        let ctx = self.ctx.clone();
+        let mut predicates_db_conn = match self.config.http_api {
+            PredicatesApi::On(ref api_config) => {
+                Some(open_readwrite_predicates_db_conn_or_panic(api_config, &ctx))
+            }
+            PredicatesApi::Off => None,
+        };
+
         loop {
             let event = match observer_event_rx.recv() {
                 Ok(cmd) => cmd,
@@ -315,10 +325,25 @@ impl Service {
                         StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                         | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                     };
+                    if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+                        for (predicate_uuid, _blocks_ids) in report.predicates_evaluated.iter() {
+                            set_predicate_streaming_status(
+                                StreamingDataType::Evaluation,
+                                &predicate_uuid,
+                                predicates_db_conn,
+                                &ctx,
+                            );
+                        }
 
-                    for (_predicate_uuid, _blocks_ids) in report.predicates_evaluated.iter() {}
-
-                    for (_predicate_uuid, _blocks_ids) in report.predicates_triggered.iter() {}
+                        for (predicate_uuid, _blocks_ids) in report.predicates_triggered.iter() {
+                            set_predicate_streaming_status(
+                                StreamingDataType::Occurrence,
+                                &predicate_uuid,
+                                predicates_db_conn,
+                                &ctx,
+                            );
+                        }
+                    }
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
                         stacks_event = 0;
@@ -360,8 +385,58 @@ pub struct ScanningData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamingData {
-    pub last_occurence: u64,
-    pub last_evaluation: u64,
+    pub last_occurrence: u128,
+    pub last_evaluation: u128,
+}
+
+enum StreamingDataType {
+    Occurrence,
+    Evaluation,
+}
+
+/// Updates a predicates status to `Streaming` if `Scanning` is complete.
+///
+/// If `StreamingStatusType` is `Occurrence`, sets the `last_occurrence` field to the current time while leaving the `last_evaluation` field as it was.
+///
+/// If `StreamingStatusType` is `Evaluation`, sets the `last_evaluation` field to the current time while leaving the `last_occurrence` field as it was.
+fn set_predicate_streaming_status(
+    streaming_data_type: StreamingDataType,
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Could not get current time in ms")
+        .as_millis();
+    let last_occurrence = match streaming_data_type {
+        StreamingDataType::Occurrence => now_ms,
+        StreamingDataType::Evaluation => {
+            let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+            match current_status {
+                Some(status) => match status {
+                    PredicateStatus::Streaming(streaming_data) => streaming_data.last_occurrence,
+                    // here, if we have a status of "interrupted", we assume that the scan has completed.
+                    // the downside of this assumption is that _if_ scanning actually completed, we're
+                    // going to write an incorrect status of "streaming". However, since scanning is likely
+                    // to once again overwrite this status soon when another block is scanned, it's really nbd
+                    PredicateStatus::Interrupted(_) | PredicateStatus::InitialScanCompleted => 0,
+                    PredicateStatus::Scanning(_) | PredicateStatus::Disabled => unreachable!(),
+                },
+                None => 0,
+            }
+        }
+    };
+
+    update_predicate_status(
+        predicate_key,
+        PredicateStatus::Streaming(StreamingData {
+            last_occurrence,
+            last_evaluation: now_ms,
+        }),
+        predicates_db_conn,
+        &ctx,
+    );
 }
 
 pub fn update_predicate_status(
