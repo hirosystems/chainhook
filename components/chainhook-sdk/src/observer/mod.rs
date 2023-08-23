@@ -32,7 +32,7 @@ use rocket::config::{self, Config, LogLevel};
 use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
 use rocket::Shutdown;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
@@ -344,10 +344,10 @@ pub struct BitcoinBlockDataCached {
 
 pub struct ObserverSidecar {
     pub bitcoin_blocks_mutator: Option<(
-        Sender<(Vec<BitcoinBlockDataCached>, Vec<BlockIdentifier>)>,
-        Receiver<Vec<BitcoinBlockDataCached>>,
+        crossbeam_channel::Sender<(Vec<BitcoinBlockDataCached>, Vec<BlockIdentifier>)>,
+        crossbeam_channel::Receiver<Vec<BitcoinBlockDataCached>>,
     )>,
-    pub bitcoin_chain_event_notifier: Option<Sender<HandleBlock>>,
+    pub bitcoin_chain_event_notifier: Option<crossbeam_channel::Sender<HandleBlock>>,
 }
 
 impl ObserverSidecar {
@@ -662,6 +662,7 @@ pub fn start_zeromq_runloop(
     #[cfg(feature = "zeromq")]
     {
         use crate::indexer::fork_scratch_pad::ForkScratchPad;
+        use std::collections::VecDeque;
 
         if let BitcoinBlockSignaling::ZeroMQ(ref bitcoind_zmq_url) = config.bitcoin_block_signaling
         {

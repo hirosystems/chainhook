@@ -1224,8 +1224,8 @@ fn test_bitcoin_chainhook_auto_deregister() {
 #[test]
 fn test_bitcoin_chainhook_through_reorg() {
     let (observer_commands_tx, observer_commands_rx) = channel();
-    let (block_pre_processor_in_tx, block_pre_processor_in_rx) = channel();
-    let (block_pre_processor_out_tx, block_pre_processor_out_rx) = channel();
+    let (block_pre_processor_in_tx, block_pre_processor_in_rx) = crossbeam_channel::unbounded();
+    let (block_pre_processor_out_tx, block_pre_processor_out_rx) = crossbeam_channel::unbounded();
 
     let (observer_events_tx, observer_events_rx) = crossbeam_channel::unbounded();
     let observer_metrics_rw_lock = Arc::new(RwLock::new(ObserverMetrics::default()));
