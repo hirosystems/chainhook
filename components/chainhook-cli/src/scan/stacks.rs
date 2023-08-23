@@ -201,7 +201,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut err_count = 0;
     let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
     let mut number_of_blocks_scanned = 0;
-    let mut number_of_blocks_sent = 0u64;
+    let mut number_of_times_triggered = 0u64;
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         number_of_blocks_scanned += 1;
@@ -250,7 +250,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
             }
             Ok(action) => {
-                number_of_blocks_sent += 1;
+                number_of_times_triggered += 1;
                 let res = match action {
                     StacksChainhookOccurrence::Http(request) => {
                         send_request(request, 3, 1, &ctx).await
@@ -275,7 +275,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 let status = PredicateStatus::Scanning(ScanningData {
                     number_of_blocks_to_scan,
                     number_of_blocks_scanned,
-                    number_of_blocks_sent,
+                    number_of_times_triggered,
                     current_block_height,
                 });
                 update_predicate_status(&predicate_spec.key(), status, predicates_db_conn, &ctx)
@@ -308,7 +308,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         let status = PredicateStatus::Scanning(ScanningData {
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
-            number_of_blocks_sent,
+            number_of_times_triggered,
             current_block_height: 0,
         });
         update_predicate_status(&predicate_spec.key(), status, predicates_db_conn, &ctx)

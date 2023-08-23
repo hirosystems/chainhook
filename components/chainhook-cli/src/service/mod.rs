@@ -354,7 +354,7 @@ pub enum PredicateStatus {
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_scanned: u64,
-    pub number_of_blocks_sent: u64,
+    pub number_of_times_triggered: u64,
     pub current_block_height: u64,
 }
 

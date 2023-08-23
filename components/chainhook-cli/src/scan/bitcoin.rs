@@ -79,7 +79,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let bitcoin_config = event_observer_config.get_bitcoin_config();
     let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
     let mut number_of_blocks_scanned = 0;
-    let mut number_of_blocks_sent = 0u64;
+    let mut number_of_times_triggered = 0u64;
     let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
@@ -120,7 +120,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         {
             Ok(actions) => {
                 if actions > 0 {
-                    number_of_blocks_sent += 1;
+                    number_of_times_triggered += 1;
                 }
                 actions_triggered += actions
             }
@@ -136,7 +136,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 let status = PredicateStatus::Scanning(ScanningData {
                     number_of_blocks_to_scan,
                     number_of_blocks_scanned,
-                    number_of_blocks_sent,
+                    number_of_times_triggered,
                     current_block_height,
                 });
                 let mut predicates_db_conn =
@@ -172,7 +172,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         let status = PredicateStatus::Scanning(ScanningData {
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
-            number_of_blocks_sent,
+            number_of_times_triggered,
             current_block_height: 0,
         });
         let mut predicates_db_conn = open_readwrite_predicates_db_conn_or_panic(api_config, &ctx);
