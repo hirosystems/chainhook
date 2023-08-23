@@ -132,7 +132,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         }
 
         if let PredicatesApi::On(ref api_config) = config.http_api {
-            if number_of_blocks_scanned % 50 == 0 {
+            if number_of_blocks_scanned % 50 == 0 || number_of_blocks_scanned == 1 {
                 let status = PredicateStatus::Scanning(ScanningData {
                     number_of_blocks_to_scan,
                     number_of_blocks_scanned,
