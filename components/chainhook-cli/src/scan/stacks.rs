@@ -301,7 +301,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     }
     info!(
         ctx.expect_logger(),
-        "{blocks_scanned} blocks scanned, {number_of_blocks_sent} blocks triggering predicate"
+        "{blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate"
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
