@@ -409,9 +409,9 @@ pub enum StreamingDataType {
     Evaluation,
 }
 
-/// Updates a predicates status to `Streaming` if `Scanning` is complete.
+/// Updates a predicate's status to `Streaming` if `Scanning` is complete.
 ///
-/// If `StreamingStatusType` is `Occurrence`, sets the `last_occurrence` field to the current time while leaving the `last_evaluation` field as it was.
+/// If `StreamingStatusType` is `Occurrence`, sets the `last_occurrence` & `last_evaluation` fields to the current time.
 ///
 /// If `StreamingStatusType` is `Evaluation`, sets the `last_evaluation` field to the current time while leaving the `last_occurrence` field as it was.
 fn set_predicate_streaming_status(
@@ -465,6 +465,9 @@ fn set_predicate_streaming_status(
     );
 }
 
+/// Updates a predicate's status to `Scanning`.
+///
+/// Sets the `last_occurrence` time to the current time if a new trigger has occurred since the last status update.
 pub fn set_predicate_scanning_status(
     predicate_key: &str,
     number_of_blocks_to_scan: u64,
@@ -517,6 +520,9 @@ pub fn set_predicate_scanning_status(
     );
 }
 
+/// Updates a predicate's status to `InitialScanCompleted`.
+///
+/// Preserves the scanning metrics from the predicate's previous status
 fn set_initial_scan_complete_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
