@@ -100,8 +100,12 @@ Get any transaction moving STX tokens:
 Get any transaction emitting given print events predicate
 
 - `contract-identifier` mandatory argument admits:
-  - string type, fully qualifying the contract to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09` `contains` mandatory argument admits:
-  - string type, used for matching event
+  - string type, fully qualifying the contract to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
+ - Either the `contains` or `matches_regex` argument:
+    - `contains` argument admits string type, used for matching an event containing the specified string. Example: `vault`
+    - `matches_regex` argument admits string type that should be valid regex, used for matching an event that regex matches with the specified string. Example: `(?:^|\\W)vault(?:$|\\W)`
+
+The following example uses `contains` argument:
 
 ```json
 {
@@ -113,13 +117,27 @@ Get any transaction emitting given print events predicate
 }
 ```
 
+The following example uses `matches_regex` argument:
+
+```json
+{
+    "if_this": {
+        "scope": "print_event",
+        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09",
+        "matches_regex": "(?:^|\\W)vault(?:$|\\W)"
+    },
+}
+```
+
 Get any transaction calling a specific method for a given contract **directly**.
 
 > [!Warning]
 > If the observed method is being called by another contract, this predicate won't detect it.
 
 - `contract-identifier` mandatory argument admits:
-  - string type, fully qualifying the contract to observe. Example: `SP000000000000000000002Q6VF78.pox` `method` mandatory argument admits: - string type, used for specifying the method to observe. Example: `stack-stx`.
+  - string type, fully qualifying the contract to observe.Example: `SP000000000000000000002Q6VF78.pox`
+- `method` mandatory argument admits:
+  - string type, used for specifying the method to observe. Example: `stack-stx`
 
 ```json
 {
@@ -149,7 +167,6 @@ Get any transaction, including a contract deployment implementing a given trait
 // coming soon
 
 - `implement-trait` mandatory argument admits:
-
   - string type, fully qualifying the trait's shape to observe. Example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sip09-protocol`
 
 ```json
