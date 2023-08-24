@@ -3,10 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
-    service::{
-        open_readwrite_predicates_db_conn_or_panic, update_predicate_status, PredicateStatus,
-        ScanningData,
-    },
+    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status},
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
@@ -204,7 +201,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut number_of_times_triggered = 0u64;
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
-        number_of_blocks_scanned += 1;
+        number_of_blocks_scanned += 1; // todo: can we remove this and just use `blocks_scanned`?
         let block_data =
             match get_stacks_block_at_block_height(current_block_height, true, 3, stacks_db_conn) {
                 Ok(Some(block)) => block,
@@ -272,13 +269,15 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
             if blocks_scanned % 5000 == 0 || blocks_scanned == 1 {
-                let status = PredicateStatus::Scanning(ScanningData {
+                set_predicate_scanning_status(
+                    &predicate_spec.key(),
                     number_of_blocks_to_scan,
                     number_of_blocks_scanned,
                     number_of_times_triggered,
                     current_block_height,
-                });
-                update_predicate_status(&predicate_spec.key(), status, predicates_db_conn, &ctx)
+                    predicates_db_conn,
+                    ctx,
+                );
             }
         }
 
@@ -305,13 +304,15 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-        let status = PredicateStatus::Scanning(ScanningData {
+        set_predicate_scanning_status(
+            &predicate_spec.key(),
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
             number_of_times_triggered,
-            current_block_height: 0,
-        });
-        update_predicate_status(&predicate_spec.key(), status, predicates_db_conn, &ctx)
+            number_of_blocks_to_scan,
+            predicates_db_conn,
+            ctx,
+        );
     }
     Ok(last_block_scanned)
 }

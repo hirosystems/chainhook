@@ -1,8 +1,5 @@
 use crate::config::{Config, PredicatesApi};
-use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, update_predicate_status, PredicateStatus,
-    ScanningData,
-};
+use crate::service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status};
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
 use chainhook_sdk::chainhooks::bitcoin::{
@@ -65,6 +62,13 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         };
         floating_end_block = update_end_block;
         BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
+    };
+
+    let mut predicates_db_conn = match config.http_api {
+        PredicatesApi::On(ref api_config) => {
+            Some(open_readwrite_predicates_db_conn_or_panic(api_config, ctx))
+        }
+        PredicatesApi::Off => None,
     };
 
     info!(
@@ -131,22 +135,17 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             return Err(format!("Scan aborted (consecutive action errors >= 3)"));
         }
 
-        if let PredicatesApi::On(ref api_config) = config.http_api {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
             if number_of_blocks_scanned % 50 == 0 || number_of_blocks_scanned == 1 {
-                let status = PredicateStatus::Scanning(ScanningData {
+                set_predicate_scanning_status(
+                    &predicate_spec.key(),
                     number_of_blocks_to_scan,
                     number_of_blocks_scanned,
                     number_of_times_triggered,
                     current_block_height,
-                });
-                let mut predicates_db_conn =
-                    open_readwrite_predicates_db_conn_or_panic(api_config, &ctx);
-                update_predicate_status(
-                    &predicate_spec.key(),
-                    status,
-                    &mut predicates_db_conn,
-                    &ctx,
-                )
+                    predicates_db_conn,
+                    ctx,
+                );
             }
         }
 
@@ -168,15 +167,16 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         "{number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
     );
 
-    if let PredicatesApi::On(ref api_config) = config.http_api {
-        let status = PredicateStatus::Scanning(ScanningData {
+    if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+        set_predicate_scanning_status(
+            &predicate_spec.key(),
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
             number_of_times_triggered,
-            current_block_height: 0,
-        });
-        let mut predicates_db_conn = open_readwrite_predicates_db_conn_or_panic(api_config, &ctx);
-        update_predicate_status(&predicate_spec.key(), status, &mut predicates_db_conn, &ctx)
+            number_of_blocks_to_scan,
+            predicates_db_conn,
+            ctx,
+        );
     }
 
     Ok(())

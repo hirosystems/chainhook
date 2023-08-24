@@ -18,6 +18,7 @@ use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
 use std::sync::mpsc::channel;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Service {
     config: Config,
@@ -244,12 +245,7 @@ impl Service {
                             &mut predicates_db_conn,
                             &self.ctx,
                         );
-                        update_predicate_status(
-                            &spec.key(),
-                            PredicateStatus::InitialScanCompleted,
-                            &mut predicates_db_conn,
-                            &self.ctx,
-                        );
+                        set_initial_scan_complete_status(&spec.key(), &mut predicates_db_conn, &ctx)
                     }
                 }
                 ObserverEvent::PredicateDeregistered(spec) => {
@@ -329,7 +325,7 @@ impl Service {
                         for (predicate_uuid, _blocks_ids) in report.predicates_evaluated.iter() {
                             set_predicate_streaming_status(
                                 StreamingDataType::Evaluation,
-                                &predicate_uuid,
+                                &(ChainhookSpecification::stacks_key(predicate_uuid)),
                                 predicates_db_conn,
                                 &ctx,
                             );
@@ -338,7 +334,7 @@ impl Service {
                         for (predicate_uuid, _blocks_ids) in report.predicates_triggered.iter() {
                             set_predicate_streaming_status(
                                 StreamingDataType::Occurrence,
-                                &predicate_uuid,
+                                &(ChainhookSpecification::stacks_key(predicate_uuid)),
                                 predicates_db_conn,
                                 &ctx,
                             );
@@ -370,16 +366,17 @@ impl Service {
 pub enum PredicateStatus {
     Scanning(ScanningData),
     Streaming(StreamingData),
-    InitialScanCompleted,
+    InitialScanCompleted(CompletedScanData),
     Interrupted(String),
     Disabled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_scanned: u64,
     pub number_of_times_triggered: u64,
+    pub last_occurrence: u128,
     pub current_block_height: u64,
 }
 
@@ -387,9 +384,27 @@ pub struct ScanningData {
 pub struct StreamingData {
     pub last_occurrence: u128,
     pub last_evaluation: u128,
+    pub number_of_times_triggered: u64,
 }
 
-enum StreamingDataType {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletedScanData {
+    pub number_of_blocks_scanned: u64,
+    pub number_of_times_triggered: u64,
+    pub last_occurrence: u128,
+    pub final_block_height_scanned: u64,
+}
+
+// todo: consider using this so we can maintain number of times triggered after an interruption.
+// what i don't know is - can we continue after an interruption to get further status updates?
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InterruptedData {
+    error: String,
+    pub number_of_times_triggered: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StreamingDataType {
     Occurrence,
     Evaluation,
 }
@@ -405,35 +420,147 @@ fn set_predicate_streaming_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
         .as_millis();
-    let last_occurrence = match streaming_data_type {
-        StreamingDataType::Occurrence => now_ms,
-        StreamingDataType::Evaluation => {
-            let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
-            match current_status {
-                Some(status) => match status {
-                    PredicateStatus::Streaming(streaming_data) => streaming_data.last_occurrence,
-                    // here, if we have a status of "interrupted", we assume that the scan has completed.
-                    // the downside of this assumption is that _if_ scanning actually completed, we're
-                    // going to write an incorrect status of "streaming". However, since scanning is likely
-                    // to once again overwrite this status soon when another block is scanned, it's really nbd
-                    PredicateStatus::Interrupted(_) | PredicateStatus::InitialScanCompleted => 0,
-                    PredicateStatus::Scanning(_) | PredicateStatus::Disabled => unreachable!(),
-                },
-                None => 0,
-            }
+    let (mut last_occurrence, number_of_times_triggered) = {
+        let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+        match current_status {
+            Some(status) => match status {
+                PredicateStatus::Streaming(streaming_data) => (
+                    streaming_data.last_occurrence,
+                    streaming_data.number_of_times_triggered,
+                ),
+                PredicateStatus::InitialScanCompleted(completed_data) => (
+                    completed_data.last_occurrence,
+                    completed_data.number_of_times_triggered,
+                ),
+                // here, if we have a status of "interrupted", we assume that the scan has completed.
+                // the downside of this assumption is that _if_ scanning actually completed, we're
+                // going to write an incorrect status of "streaming". However, since scanning is likely
+                // to once again overwrite this status soon when another block is scanned, it's really nbd
+                PredicateStatus::Interrupted(_) => (0, 0),
+                PredicateStatus::Scanning(_) | PredicateStatus::Disabled => {
+                    unreachable!("unreachable predicate status: {:?}", status)
+                }
+            },
+            None => (0, 0),
         }
     };
+    match streaming_data_type {
+        StreamingDataType::Occurrence => last_occurrence = now_ms,
+        _ => {}
+    }
 
     update_predicate_status(
         predicate_key,
         PredicateStatus::Streaming(StreamingData {
             last_occurrence,
             last_evaluation: now_ms,
+            number_of_times_triggered,
         }),
+        predicates_db_conn,
+        &ctx,
+    );
+}
+
+pub fn set_predicate_scanning_status(
+    predicate_key: &str,
+    number_of_blocks_to_scan: u64,
+    number_of_blocks_scanned: u64,
+    number_of_times_triggered: u64,
+    current_block_height: u64,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    info!(ctx.expect_logger(), "Setting scan status");
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Could not get current time in ms")
+        .as_millis();
+    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let last_occurrence = match current_status {
+        Some(status) => match status {
+            PredicateStatus::Scanning(scanning_data) => {
+                if number_of_times_triggered > scanning_data.number_of_times_triggered {
+                    now_ms
+                } else {
+                    scanning_data.last_occurrence
+                }
+            }
+            PredicateStatus::Interrupted(_) | PredicateStatus::Disabled => {
+                if number_of_times_triggered > 0 {
+                    now_ms
+                } else {
+                    0
+                }
+            }
+            PredicateStatus::Streaming(_) | PredicateStatus::InitialScanCompleted(_) => {
+                unreachable!("unreachable predicate status: {:?}", status)
+            }
+        },
+        None => 0,
+    };
+
+    update_predicate_status(
+        predicate_key,
+        PredicateStatus::Scanning(ScanningData {
+            number_of_blocks_to_scan,
+            number_of_blocks_scanned,
+            number_of_times_triggered,
+            last_occurrence,
+            current_block_height,
+        }),
+        predicates_db_conn,
+        &ctx,
+    );
+}
+
+fn set_initial_scan_complete_status(
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let scan_data = match current_status {
+        Some(status) => match status {
+            PredicateStatus::Scanning(scanning_data) => scanning_data,
+            PredicateStatus::Interrupted(_) | PredicateStatus::Disabled => ScanningData {
+                ..Default::default()
+            },
+            PredicateStatus::Streaming(_) | PredicateStatus::InitialScanCompleted(_) => {
+                unreachable!("unreachable predicate status: {:?}", status)
+            }
+        },
+        None => ScanningData {
+            ..Default::default()
+        },
+    };
+    update_predicate_status(
+        predicate_key,
+        PredicateStatus::InitialScanCompleted(CompletedScanData {
+            number_of_blocks_scanned: scan_data.number_of_blocks_scanned,
+            number_of_times_triggered: scan_data.number_of_times_triggered,
+            last_occurrence: scan_data.last_occurrence,
+            final_block_height_scanned: scan_data.current_block_height,
+        }),
+        predicates_db_conn,
+        &ctx,
+    );
+}
+
+// todo: consider using this so we can maintain number of times triggered after an interruption.
+// what i don't know is - can we continue after an interruption to get further status updates?
+pub fn set_predicate_interrupted_status(
+    predicate_key: &str,
+    error: String,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    update_predicate_status(
+        &predicate_key,
+        PredicateStatus::Interrupted(error),
         predicates_db_conn,
         &ctx,
     );
