@@ -242,9 +242,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        match handle_stacks_hook_action(trigger, &proofs, &ctx) {
+        let res = match handle_stacks_hook_action(trigger, &proofs, &ctx) {
             Err(e) => {
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
+                Ok(()) // todo: should this error increment our err_count?
             }
             Ok(action) => {
                 number_of_times_triggered += 1;
@@ -255,16 +256,28 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, &ctx),
                     StacksChainhookOccurrence::Data(_payload) => unreachable!(),
                 };
-                if res.is_err() {
-                    err_count += 1;
-                } else {
-                    err_count = 0;
+                match res {
+                    Err(e) => {
+                        err_count += 1;
+                        Err(e)
+                    }
+                    Ok(_) => {
+                        err_count = 0;
+                        Ok(())
+                    }
                 }
             }
-        }
+        };
         // We abort after 3 consecutive errors
         if err_count >= 3 {
-            return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+            if res.is_err() {
+                return Err(format!(
+                    "Scan aborted (consecutive action errors >= 3): {}",
+                    res.unwrap_err()
+                ));
+            } else {
+                return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+            }
         }
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {

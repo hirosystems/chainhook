@@ -114,7 +114,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             }
         };
 
-        match process_block_with_predicates(
+        let res = match process_block_with_predicates(
             block,
             &vec![&predicate_spec],
             &event_observer_config,
@@ -126,13 +126,24 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 if actions > 0 {
                     number_of_times_triggered += 1;
                 }
-                actions_triggered += actions
+                actions_triggered += actions;
+                Ok(())
             }
-            Err(_) => err_count += 1,
-        }
+            Err(e) => {
+                err_count += 1;
+                Err(e)
+            }
+        };
 
         if err_count >= 3 {
-            return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+            if res.is_err() {
+                return Err(format!(
+                    "Scan aborted (consecutive action errors >= 3): {}",
+                    res.unwrap_err()
+                ));
+            } else {
+                return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+            }
         }
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -187,7 +198,7 @@ pub async fn process_block_with_predicates(
     predicates: &Vec<&BitcoinChainhookSpecification>,
     event_observer_config: &EventObserverConfig,
     ctx: &Context,
-) -> Result<u32, ()> {
+) -> Result<u32, String> {
     let chain_event =
         BitcoinChainEvent::ChainUpdatedWithBlocks(BitcoinChainUpdatedWithBlocksData {
             new_blocks: vec![block],
@@ -204,7 +215,7 @@ pub async fn execute_predicates_action<'a>(
     hits: Vec<BitcoinTriggerChainhook<'a>>,
     config: &EventObserverConfig,
     ctx: &Context,
-) -> Result<u32, ()> {
+) -> Result<u32, String> {
     let mut actions_triggered = 0;
     let mut proofs = HashMap::new();
     for trigger in hits.into_iter() {
