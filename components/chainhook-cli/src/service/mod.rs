@@ -395,14 +395,6 @@ pub struct CompletedScanData {
     pub final_block_height_scanned: u64,
 }
 
-// todo: consider using this so we can maintain number of times triggered after an interruption.
-// what i don't know is - can we continue after an interruption to get further status updates?
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InterruptedData {
-    error: String,
-    pub number_of_times_triggered: u64,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StreamingDataType {
     Occurrence,
@@ -436,12 +428,9 @@ fn set_predicate_streaming_status(
                     completed_data.last_occurrence,
                     completed_data.number_of_times_triggered,
                 ),
-                // here, if we have a status of "interrupted", we assume that the scan has completed.
-                // the downside of this assumption is that _if_ scanning actually completed, we're
-                // going to write an incorrect status of "streaming". However, since scanning is likely
-                // to once again overwrite this status soon when another block is scanned, it's really nbd
-                PredicateStatus::Interrupted(_) => (0, 0),
-                PredicateStatus::Scanning(_) | PredicateStatus::Disabled => {
+                PredicateStatus::Scanning(_)
+                | PredicateStatus::Disabled
+                | PredicateStatus::Interrupted(_) => {
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
@@ -492,14 +481,16 @@ pub fn set_predicate_scanning_status(
                     scanning_data.last_occurrence
                 }
             }
-            PredicateStatus::Interrupted(_) | PredicateStatus::Disabled => {
+            PredicateStatus::Disabled => {
                 if number_of_times_triggered > 0 {
                     now_ms
                 } else {
                     0
                 }
             }
-            PredicateStatus::Streaming(_) | PredicateStatus::InitialScanCompleted(_) => {
+            PredicateStatus::Streaming(_)
+            | PredicateStatus::InitialScanCompleted(_)
+            | PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
@@ -532,10 +523,12 @@ fn set_initial_scan_complete_status(
     let scan_data = match current_status {
         Some(status) => match status {
             PredicateStatus::Scanning(scanning_data) => scanning_data,
-            PredicateStatus::Interrupted(_) | PredicateStatus::Disabled => ScanningData {
+            PredicateStatus::Disabled => ScanningData {
                 ..Default::default()
             },
-            PredicateStatus::Streaming(_) | PredicateStatus::InitialScanCompleted(_) => {
+            PredicateStatus::Streaming(_)
+            | PredicateStatus::InitialScanCompleted(_)
+            | PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
@@ -551,22 +544,6 @@ fn set_initial_scan_complete_status(
             last_occurrence: scan_data.last_occurrence,
             final_block_height_scanned: scan_data.current_block_height,
         }),
-        predicates_db_conn,
-        &ctx,
-    );
-}
-
-// todo: consider using this so we can maintain number of times triggered after an interruption.
-// what i don't know is - can we continue after an interruption to get further status updates?
-pub fn set_predicate_interrupted_status(
-    predicate_key: &str,
-    error: String,
-    predicates_db_conn: &mut Connection,
-    ctx: &Context,
-) {
-    update_predicate_status(
-        &predicate_key,
-        PredicateStatus::Interrupted(error),
         predicates_db_conn,
         &ctx,
     );
