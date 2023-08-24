@@ -4,7 +4,6 @@ use chainhook_types::{BitcoinNetwork, StacksNetwork};
 use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 
 use schemars::JsonSchema;
 
@@ -176,23 +175,6 @@ impl ChainhookSpecification {
 
     pub fn bitcoin_key(uuid: &str) -> String {
         format!("predicate:{}", uuid)
-    }
-
-    pub fn into_serialized_json(&self) -> JsonValue {
-        match &self {
-            Self::Stacks(data) => json!({
-                "chain": "stacks",
-                "uuid": data.uuid,
-                "network": data.network,
-                "predicate": data.predicate,
-            }),
-            Self::Bitcoin(data) => json!({
-                "chain": "bitcoin",
-                "uuid": data.uuid,
-                "network": data.network,
-                "predicate": data.predicate,
-            }),
-        }
     }
 
     pub fn key(&self) -> String {
