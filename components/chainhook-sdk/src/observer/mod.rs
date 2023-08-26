@@ -107,6 +107,23 @@ impl EventObserverConfig {
         bitcoin_config
     }
 
+    pub fn get_chainhook_store(&self) -> ChainhookStore {
+        let mut chainhook_store = ChainhookStore::new();
+        // If authorization not required, we create a default ChainhookConfig
+        if let Some(ref chainhook_config) = self.chainhook_config {
+            let mut chainhook_config = chainhook_config.clone();
+            chainhook_store
+                .predicates
+                .stacks_chainhooks
+                .append(&mut chainhook_config.stacks_chainhooks);
+            chainhook_store
+                .predicates
+                .bitcoin_chainhooks
+                .append(&mut chainhook_config.bitcoin_chainhooks);
+        }
+        chainhook_store
+    }
+
     pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
         match self.bitcoin_block_signaling {
             BitcoinBlockSignaling::Stacks(ref config) => config,
@@ -474,7 +491,7 @@ pub async fn start_bitcoin_event_observer(
     observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
-    let chainhook_store = ChainhookStore::new();
+    let chainhook_store = config.get_chainhook_store();
 
     let observer_metrics = ObserverMetrics {
         bitcoin: ChainMetrics {
@@ -505,7 +522,7 @@ pub async fn start_bitcoin_event_observer(
 }
 
 pub async fn start_stacks_event_observer(
-    mut config: EventObserverConfig,
+    config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
@@ -537,18 +554,7 @@ pub async fn start_stacks_event_observer(
     let bitcoin_rpc_proxy_enabled = config.bitcoin_rpc_proxy_enabled;
     let bitcoin_config = config.get_bitcoin_config();
 
-    let mut chainhook_store = ChainhookStore::new();
-    // If authorization not required, we create a default ChainhookConfig
-    if let Some(ref mut initial_chainhook_config) = config.chainhook_config {
-        chainhook_store
-            .predicates
-            .stacks_chainhooks
-            .append(&mut initial_chainhook_config.stacks_chainhooks);
-        chainhook_store
-            .predicates
-            .bitcoin_chainhooks
-            .append(&mut initial_chainhook_config.bitcoin_chainhooks);
-    }
+    let chainhook_store = config.get_chainhook_store();
 
     let indexer_rw_lock = Arc::new(RwLock::new(indexer));
 
