@@ -73,6 +73,7 @@ pub struct EventObserverConfig {
     pub cache_path: String,
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
+    pub data_handler_tx: Option<crossbeam_channel::Sender<BitcoinChainhookOccurrencePayload>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -187,6 +188,7 @@ impl EventObserverConfig {
                 .unwrap_or("cache".to_string()),
             bitcoin_network,
             stacks_network,
+            data_handler_tx: None,
         };
         Ok(config)
     }
