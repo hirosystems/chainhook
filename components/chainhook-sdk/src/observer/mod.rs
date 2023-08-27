@@ -1,4 +1,6 @@
 mod http;
+#[cfg(feature = "zeromq")]
+mod zmq;
 
 use crate::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
@@ -41,8 +43,6 @@ use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-#[cfg(feature = "zeromq")]
-use zeromq::{Socket, SocketRecv};
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
 
@@ -507,7 +507,15 @@ pub async fn start_bitcoin_event_observer(
     };
     let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
 
-    start_zeromq_runloop(&config, observer_commands_tx, &ctx);
+    #[cfg(feature = "zeromq")]
+    {
+        let ctx_moved = ctx.clone();
+        let config_moved = config.clone();
+        let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
+            let future = zmq::start_zeromq_runloop(&config_moved, observer_commands_tx, &ctx_moved);
+            let _ = hiro_system_kit::nestable_block_on(future);
+        });
+    }
 
     // This loop is used for handling background jobs, emitted by HTTP calls.
     start_observer_commands_handler(
@@ -658,151 +666,6 @@ pub fn get_bitcoin_proof(
             transaction_identifier.hash,
             e.to_string()
         )),
-    }
-}
-
-#[allow(unused_variables, unused_imports)]
-pub fn start_zeromq_runloop(
-    config: &EventObserverConfig,
-    observer_commands_tx: Sender<ObserverCommand>,
-    ctx: &Context,
-) {
-    #[cfg(feature = "zeromq")]
-    {
-        use crate::indexer::fork_scratch_pad::ForkScratchPad;
-        use std::collections::VecDeque;
-
-        if let BitcoinBlockSignaling::ZeroMQ(ref bitcoind_zmq_url) = config.bitcoin_block_signaling
-        {
-            let bitcoind_zmq_url = bitcoind_zmq_url.clone();
-            let ctx_moved = ctx.clone();
-            let bitcoin_config = config.get_bitcoin_config();
-            let http_client = build_http_client();
-
-            hiro_system_kit::thread_named("Bitcoind zmq listener")
-                .spawn(move || {
-                    ctx_moved.try_log(|logger| {
-                        slog::info!(
-                            logger,
-                            "Waiting for ZMQ connection acknowledgment from bitcoind"
-                        )
-                    });
-
-                    let _: Result<(), Box<dyn Error>> =
-                        hiro_system_kit::nestable_block_on(async move {
-                            let mut socket = zeromq::SubSocket::new();
-
-                            socket
-                                .connect(&bitcoind_zmq_url)
-                                .await
-                                .expect("Failed to connect");
-
-                            socket.subscribe("").await?;
-                            ctx_moved.try_log(|logger| {
-                                slog::info!(logger, "Waiting for ZMQ messages from bitcoind")
-                            });
-
-                            let mut bitcoin_blocks_pool = ForkScratchPad::new();
-
-                            loop {
-                                let message = match socket.recv().await {
-                                    Ok(message) => message,
-                                    Err(e) => {
-                                        ctx_moved.try_log(|logger| {
-                                            slog::error!(
-                                                logger,
-                                                "Unable to receive ZMQ message: {}",
-                                                e.to_string()
-                                            )
-                                        });
-                                        continue;
-                                    }
-                                };
-                                let block_hash = hex::encode(message.get(1).unwrap().to_vec());
-                                let mut block_hashes: VecDeque<String> = VecDeque::new();
-                                block_hashes.push_front(block_hash);
-
-                                while let Some(block_hash) = block_hashes.pop_front() {
-
-                                    let block = match download_and_parse_block_with_retry(
-                                        &http_client,
-                                        &block_hash,
-                                        &bitcoin_config,
-                                        &ctx_moved,
-                                    )
-                                    .await
-                                    {
-                                        Ok(block) => block,
-                                        Err(e) => {
-                                            ctx_moved.try_log(|logger| {
-                                                slog::warn!(
-                                                    logger,
-                                                    "unable to download_and_parse_block: {}",
-                                                    e.to_string()
-                                                )
-                                            });
-                                            continue;
-                                        }
-                                    };
-
-                                    let header = block.get_block_header();
-                                    ctx_moved.try_log(|logger| {
-                                        slog::info!(
-                                            logger,
-                                            "Bitcoin block #{} dispatched for processing",
-                                            block.height
-                                        )
-                                    });
-
-                                    let _ = observer_commands_tx
-                                        .send(ObserverCommand::ProcessBitcoinBlock(block));
-
-                                    if bitcoin_blocks_pool.can_process_header(&header) {
-                                        match bitcoin_blocks_pool.process_header(header, &ctx_moved) {
-                                            Ok(Some(event)) => {
-                                                let _ = observer_commands_tx
-                                                    .send(ObserverCommand::PropagateBitcoinChainEvent(event));
-                                            },
-                                            Err(e) => {
-                                                ctx_moved.try_log(|logger| {
-                                                    slog::warn!(
-                                                        logger,
-                                                        "Unable to append block: {:?}", e
-                                                    )
-                                                });
-                                            }
-                                            Ok(None) => {
-                                                ctx_moved.try_log(|logger| {
-                                                    slog::warn!(
-                                                        logger,
-                                                        "Unable to append block"
-                                                    )
-                                                });
-                                            }
-                                        }
-                                    } else {
-                                        // Handle a behaviour specific to ZMQ usage in bitcoind.
-                                        // Considering a simple re-org:
-                                        // A (1) - B1 (2) - C1 (3)
-                                        //       \ B2 (4) - C2 (5) - D2 (6)
-                                        // When D2 is being discovered (making A -> B2 -> C2 -> D2 the new canonical fork)
-                                        // it looks like ZMQ is only publishing D2.
-                                        // Without additional operation, we end up with a block that we can't append.
-                                        let parent_block_hash = header.parent_block_identifier.get_hash_bytes_str().to_string();
-                                        ctx_moved.try_log(|logger| {
-                                            slog::info!(
-                                                logger,
-                                                "Possible re-org detected, retrieving parent block {parent_block_hash}"
-                                            )
-                                        });
-                                        block_hashes.push_front(parent_block_hash);
-                                    }
-                                }
-                            }
-                        });
-                })
-                .expect("unable to spawn thread");
-        }
     }
 }
 
