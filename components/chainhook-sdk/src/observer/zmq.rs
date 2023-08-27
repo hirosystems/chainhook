@@ -57,8 +57,6 @@ pub async fn start_zeromq_runloop(
     let mut bitcoin_blocks_pool = ForkScratchPad::new();
 
     loop {
-        ctx.try_log(|logger| slog::info!(logger, "Loop"));
-
         let msg = match socket.recv_multipart(0) {
             Ok(msg) => msg,
             Err(e) => {
