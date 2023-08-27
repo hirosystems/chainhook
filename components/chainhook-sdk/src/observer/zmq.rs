@@ -21,12 +21,12 @@ fn new_zmq_socket() -> Socket {
     assert!(socket.set_rcvhwm(0).is_ok());
     // We override the OS default behavior:
     assert!(socket.set_tcp_keepalive(1).is_ok());
-    // The keepalive routine will wait for 10 minutes
+    // The keepalive routine will wait for 5 minutes
     assert!(socket.set_tcp_keepalive_idle(300).is_ok());
-    // And then resend it every 30 seconds
-    assert!(socket.set_tcp_keepalive_intvl(30).is_ok());
-    // 100 times
-    assert!(socket.set_tcp_keepalive_cnt(100).is_ok());
+    // And then resend it every 60 seconds
+    assert!(socket.set_tcp_keepalive_intvl(60).is_ok());
+    // 120 times
+    assert!(socket.set_tcp_keepalive_cnt(120).is_ok());
     socket
 }
 
