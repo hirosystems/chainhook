@@ -29,6 +29,15 @@ impl ForkScratchPad {
         }
     }
 
+    pub fn can_process_header(&self, header: &BlockHeader) -> bool {
+        if self.headers_store.is_empty() {
+            return true;
+        }
+
+        self.headers_store
+            .contains_key(&header.parent_block_identifier)
+    }
+
     pub fn process_header(
         &mut self,
         header: BlockHeader,

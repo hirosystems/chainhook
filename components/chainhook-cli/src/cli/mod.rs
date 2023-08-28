@@ -273,14 +273,14 @@ pub fn main() {
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
-            println!("{}", e);
+            error!(ctx.expect_logger(), "{e}");
             process::exit(1);
         }
     };
 
-    match hiro_system_kit::nestable_block_on(handle_command(opts, ctx)) {
+    match hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
         Err(e) => {
-            println!("{e}");
+            error!(ctx.expect_logger(), "{e}");
             process::exit(1);
         }
         Ok(_) => {}

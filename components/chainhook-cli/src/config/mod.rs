@@ -109,7 +109,6 @@ impl Config {
     pub fn get_event_observer_config(&self) -> EventObserverConfig {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
-            event_handlers: vec![],
             chainhook_config: None,
             ingestion_port: DEFAULT_INGESTION_PORT,
             bitcoind_rpc_username: self.network.bitcoind_rpc_username.clone(),
@@ -120,6 +119,7 @@ impl Config {
             cache_path: self.storage.working_dir.clone(),
             bitcoin_network: self.network.bitcoin_network.clone(),
             stacks_network: self.network.stacks_network.clone(),
+            data_handler_tx: None,
         }
     }
 
