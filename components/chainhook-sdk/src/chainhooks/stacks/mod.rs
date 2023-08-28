@@ -231,21 +231,26 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     ctx: &Context,
 ) -> Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)> {
     let mut occurrences = vec![];
+    let end_block = chainhook.end_block.unwrap_or(u64::MAX);
     for block in blocks {
-        let mut hits = vec![];
-        if chainhook.is_predicate_targeting_block_header() {
-            for tx in block.get_transactions().iter() {
-                hits.push(tx);
-            }
-        } else {
-            for tx in block.get_transactions().iter() {
-                if evaluate_stacks_predicate_on_transaction(tx, chainhook, ctx) {
+        if end_block > block.get_identifier().index {
+            let mut hits = vec![];
+            if chainhook.is_predicate_targeting_block_header()
+                && evaluate_stacks_predicate_on_block(block, chainhook, ctx)
+            {
+                for tx in block.get_transactions().iter() {
                     hits.push(tx);
                 }
+            } else {
+                for tx in block.get_transactions().iter() {
+                    if evaluate_stacks_predicate_on_transaction(tx, chainhook, ctx) {
+                        hits.push(tx);
+                    }
+                }
             }
-        }
-        if hits.len() > 0 {
-            occurrences.push((hits, block));
+            if hits.len() > 0 {
+                occurrences.push((hits, block));
+            }
         }
     }
     occurrences
