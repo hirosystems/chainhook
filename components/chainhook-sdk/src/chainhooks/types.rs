@@ -208,6 +208,13 @@ impl ChainhookSpecification {
         }
         Ok(())
     }
+
+    pub fn start_block(&self) -> Option<u64> {
+        match &self {
+            Self::Bitcoin(data) => data.start_block,
+            Self::Stacks(data) => data.start_block,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

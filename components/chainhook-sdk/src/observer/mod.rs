@@ -308,19 +308,17 @@ impl PredicateEvaluationReport {
         }
     }
 
-    pub fn track_expiration(&mut self, uuid: &str, blocks: &Vec<&BlockIdentifier>) {
-        for block_id in blocks.into_iter() {
-            self.predicates_expired
-                .entry(uuid.to_string())
-                .and_modify(|e| {
-                    e.insert((*block_id).clone());
-                })
-                .or_insert_with(|| {
-                    let mut set = BTreeSet::new();
-                    set.insert((*block_id).clone());
-                    set
-                });
-        }
+    pub fn track_expiration(&mut self, uuid: &str, block_identifier: &BlockIdentifier) {
+        self.predicates_expired
+            .entry(uuid.to_string())
+            .and_modify(|e| {
+                e.insert(block_identifier.clone());
+            })
+            .or_insert_with(|| {
+                let mut set = BTreeSet::new();
+                set.insert(block_identifier.clone());
+                set
+            });
     }
 }
 
@@ -1113,11 +1111,12 @@ pub async fn start_observer_commands_handler(
                         &bitcoin_chainhooks,
                         &ctx,
                     );
+                println!("expired predicates {}", predicates_expired.len());
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
                 }
                 for (uuid, block_identifier) in predicates_expired.into_iter() {
-                    report.track_evaluation(uuid, block_identifier);
+                    report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
                     let blocks_ids = entry
@@ -1337,7 +1336,7 @@ pub async fn start_observer_commands_handler(
                     report.track_evaluation(uuid, block_identifier);
                 }
                 for (uuid, block_identifier) in predicates_expired.into_iter() {
-                    report.track_evaluation(uuid, block_identifier);
+                    report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
                     let blocks_ids = entry

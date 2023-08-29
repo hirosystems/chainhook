@@ -3,7 +3,9 @@ use std::collections::{HashMap, VecDeque};
 use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
-    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status},
+    service::{
+        open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status, ScanningData,
+    },
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
@@ -142,6 +144,7 @@ pub async fn get_canonical_fork_from_tsv(
 
 pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     predicate_spec: &StacksChainhookSpecification,
+    unfinished_scan_data: Option<ScanningData>,
     stacks_db_conn: &DB,
     config: &Config,
     ctx: &Context,
@@ -152,7 +155,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
     } else {
         let start_block = match predicate_spec.start_block {
-            Some(start_block) => start_block,
+            Some(start_block) => match &unfinished_scan_data {
+                Some(scan_data) => scan_data.last_evaluated_block_height,
+                None => start_block,
+            },
             None => {
                 return Err(
                     "Chainhook specification must include fields 'start_block' when using the scan command"
@@ -162,7 +168,31 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         };
 
         let (end_block, update_end_block) = match predicate_spec.end_block {
-            Some(end_block) => (end_block, false),
+            Some(end_block) => {
+                // if the user provided an end block that is above the chain tip, we'll
+                // only scan up to the chain tip, then go to streaming mode
+                match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
+                    Some(chain_tip) => {
+                        if end_block > chain_tip {
+                            (chain_tip, true)
+                        } else {
+                            (end_block, false)
+                        }
+                    }
+                    None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
+                        Some(chain_tip) => {
+                            if end_block > chain_tip {
+                                (chain_tip, true)
+                            } else {
+                                (end_block, false)
+                            }
+                        }
+                        None => {
+                            return Err("Chainhook specification must include fields 'end_block' when using the scan command".into());
+                        }
+                    },
+                }
+            }
             None => match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
                 Some(end_block) => (end_block, true),
                 None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
@@ -196,10 +226,18 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     );
     let mut last_block_scanned = BlockIdentifier::default();
     let mut err_count = 0;
-    let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
-    let mut number_of_blocks_scanned = 0;
-    let mut number_of_times_triggered = 0u64;
-    let mut block_height_after_scan: u64 = block_heights_to_scan.len().try_into().unwrap();
+
+    let (number_of_blocks_to_scan, mut number_of_blocks_scanned, mut number_of_times_triggered) = {
+        let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
+        match &unfinished_scan_data {
+            Some(scan_data) => (
+                scan_data.number_of_blocks_to_scan,
+                scan_data.number_of_blocks_evaluated,
+                scan_data.number_of_times_triggered,
+            ),
+            None => (number_of_blocks_to_scan, 0, 0u64),
+        }
+    };
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         number_of_blocks_scanned += 1; // todo: can we remove this and just use `blocks_scanned`?
@@ -299,7 +337,27 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         // Update end_block, in case a new block was discovered during the scan
         if block_heights_to_scan.is_empty() && floating_end_block {
             let new_tip = match predicate_spec.end_block {
-                Some(end_block) => end_block,
+                Some(end_block) => {
+                    match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
+                        Some(chain_tip) => {
+                            if end_block > chain_tip {
+                                chain_tip
+                            } else {
+                                end_block
+                            }
+                        }
+                        None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
+                            Some(chain_tip) => {
+                                if end_block > chain_tip {
+                                    chain_tip
+                                } else {
+                                    end_block
+                                }
+                            }
+                            None => current_block_height,
+                        },
+                    }
+                }
                 None => match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
                     Some(end_block) => end_block,
                     None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
