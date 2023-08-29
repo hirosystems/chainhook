@@ -85,6 +85,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut number_of_blocks_scanned = 0;
     let mut number_of_times_triggered = 0u64;
     let http_client = build_http_client();
+    let mut block_height_after_scan: u64 = block_heights_to_scan.len().try_into().unwrap();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         number_of_blocks_scanned += 1;
@@ -161,17 +162,18 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         }
 
         if block_heights_to_scan.is_empty() && floating_end_block {
-            match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => {
-                    for entry in (current_block_height + 1)..result.blocks {
-                        block_heights_to_scan.push_back(entry);
-                    }
-                }
+            let new_tip = match bitcoin_rpc.get_blockchain_info() {
+                Ok(result) => result.blocks,
                 Err(_e) => {
                     continue;
                 }
             };
+            block_height_after_scan = new_tip;
+
+            for entry in (current_block_height + 1)..new_tip {
+                block_heights_to_scan.push_back(entry);
         }
+    }
     }
     info!(
         ctx.expect_logger(),
@@ -184,7 +186,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
             number_of_times_triggered,
-            number_of_blocks_to_scan,
+            block_height_after_scan,
             predicates_db_conn,
             ctx,
         );
