@@ -308,7 +308,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     },
                 },
             };
-            block_height_after_scan = new_tip;
             for entry in (current_block_height + 1)..=new_tip {
                 block_heights_to_scan.push_back(entry);
             }
@@ -325,7 +324,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
             number_of_times_triggered,
-            block_height_after_scan,
+            last_block_scanned.index,
             predicates_db_conn,
             ctx,
         );

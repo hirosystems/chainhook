@@ -76,6 +76,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         "Starting predicate evaluation on Bitcoin blocks",
     );
 
+    let mut last_block_scanned = BlockIdentifier::default();
     let mut actions_triggered = 0;
     let mut err_count = 0;
 
@@ -114,6 +115,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 continue;
             }
         };
+        last_block_scanned = block.block_identifier.clone();
 
         let res = match process_block_with_predicates(
             block,
@@ -163,12 +165,15 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
         if block_heights_to_scan.is_empty() && floating_end_block {
             let new_tip = match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => result.blocks,
+                Ok(result) => {
+                    for entry in (current_block_height + 1)..result.blocks {
+                        block_heights_to_scan.push_back(entry);
+                    }
+                }
                 Err(_e) => {
                     continue;
                 }
             };
-            block_height_after_scan = new_tip;
 
             for entry in (current_block_height + 1)..new_tip {
                 block_heights_to_scan.push_back(entry);
@@ -186,7 +191,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             number_of_blocks_to_scan,
             number_of_blocks_scanned,
             number_of_times_triggered,
-            block_height_after_scan,
+            last_block_scanned.index,
             predicates_db_conn,
             ctx,
         );
