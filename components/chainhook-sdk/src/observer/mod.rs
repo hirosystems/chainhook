@@ -268,6 +268,7 @@ pub struct MempoolAdmissionData {
 pub struct PredicateEvaluationReport {
     pub predicates_evaluated: BTreeMap<String, BTreeSet<BlockIdentifier>>,
     pub predicates_triggered: BTreeMap<String, BTreeSet<BlockIdentifier>>,
+    pub predicates_expired: BTreeMap<String, BTreeSet<BlockIdentifier>>,
 }
 
 impl PredicateEvaluationReport {
@@ -275,6 +276,7 @@ impl PredicateEvaluationReport {
         PredicateEvaluationReport {
             predicates_evaluated: BTreeMap::new(),
             predicates_triggered: BTreeMap::new(),
+            predicates_expired: BTreeMap::new(),
         }
     }
 
@@ -294,6 +296,21 @@ impl PredicateEvaluationReport {
     pub fn track_trigger(&mut self, uuid: &str, blocks: &Vec<&BlockIdentifier>) {
         for block_id in blocks.into_iter() {
             self.predicates_triggered
+                .entry(uuid.to_string())
+                .and_modify(|e| {
+                    e.insert((*block_id).clone());
+                })
+                .or_insert_with(|| {
+                    let mut set = BTreeSet::new();
+                    set.insert((*block_id).clone());
+                    set
+                });
+        }
+    }
+
+    pub fn track_expiration(&mut self, uuid: &str, blocks: &Vec<&BlockIdentifier>) {
+        for block_id in blocks.into_iter() {
+            self.predicates_expired
                 .entry(uuid.to_string())
                 .and_modify(|e| {
                     e.insert((*block_id).clone());
@@ -1090,13 +1107,16 @@ pub async fn start_observer_commands_handler(
                     )
                 });
 
-                let (predicates_triggered, predicates_evaluated) =
+                let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_bitcoin_chainhooks_on_chain_event(
                         &chain_event,
                         &bitcoin_chainhooks,
                         &ctx,
                     );
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
+                    report.track_evaluation(uuid, block_identifier);
+                }
+                for (uuid, block_identifier) in predicates_expired.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
@@ -1122,6 +1142,11 @@ pub async fn start_observer_commands_handler(
                     let mut total_occurrences: u64 = *chainhooks_occurrences_tracker
                         .get(&trigger.chainhook.uuid)
                         .unwrap_or(&0);
+                    // todo: this currently is only additive, and an occurrence means we match a chain event,
+                    // rather than the number of blocks. Should we instead add to the total occurrences for
+                    // every apply block, and subtract for every rollback? If we did this, we could set the
+                    // status to `Expired` when we go above `expire_after_occurrence` occurrences, rather than
+                    // deregistering
                     total_occurrences += 1;
 
                     let limit = trigger.chainhook.expire_after_occurrence.unwrap_or(0);
@@ -1302,13 +1327,16 @@ pub async fn start_observer_commands_handler(
                 }
 
                 // process hooks
-                let (predicates_triggered, predicates_evaluated) =
+                let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_stacks_chainhooks_on_chain_event(
                         &chain_event,
                         stacks_chainhooks,
                         &ctx,
                     );
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
+                    report.track_evaluation(uuid, block_identifier);
+                }
+                for (uuid, block_identifier) in predicates_expired.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {

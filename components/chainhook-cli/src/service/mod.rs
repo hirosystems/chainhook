@@ -432,6 +432,19 @@ fn update_streaming_status_from_report(
             );
         }
     }
+
+    for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
+        if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
+            let evaluated_count = blocks_ids.len().try_into().unwrap();
+            set_expired_status(
+                evaluated_count,
+                last_evaluated_height,
+                &(ChainhookSpecification::either_stx_or_btc_key(predicate_uuid)),
+                predicates_db_conn,
+                &ctx,
+            );
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -609,46 +622,56 @@ pub fn set_predicate_scanning_status(
 /// Updates a predicate's status to `InitialScanCompleted`.
 ///
 /// Preserves the scanning metrics from the predicate's previous status
-fn set_expired_status(predicate_key: &str, predicates_db_conn: &mut Connection, ctx: &Context) {
+fn set_expired_status(
+    number_of_new_blocks_evaluated: u64,
+    last_evaluated_block_height: u64,
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
-    let (
-        number_of_blocks_evaluated,
-        number_of_times_triggered,
-        last_occurrence,
-        last_evaluated_block_height,
-    ) = match current_status {
-        Some(status) => match status {
-            PredicateStatus::Scanning(ScanningData {
-                number_of_blocks_to_scan: _,
-                number_of_blocks_evaluated,
-                number_of_times_triggered,
-                last_occurrence,
-                last_evaluated_block_height,
-            }) => (
-                number_of_blocks_evaluated,
-                number_of_times_triggered,
-                last_occurrence,
-                last_evaluated_block_height,
-            ),
-            PredicateStatus::New => (0, 0, 0, 0),
-            PredicateStatus::Streaming(StreamingData {
-                last_occurrence,
-                last_evaluation: _,
-                number_of_times_triggered,
-                number_of_blocks_evaluated,
-                last_evaluated_block_height,
-            }) => (
-                number_of_blocks_evaluated,
-                number_of_times_triggered,
-                last_occurrence,
-                last_evaluated_block_height,
-            ),
-            PredicateStatus::Expired(_) | PredicateStatus::Interrupted(_) => {
-                unreachable!("unreachable predicate status: {:?}", status)
-            }
-        },
-        None => (0, 0, 0, 0),
-    };
+    let (number_of_blocks_evaluated, number_of_times_triggered, last_occurrence) =
+        match current_status {
+            Some(status) => match status {
+                PredicateStatus::Scanning(ScanningData {
+                    number_of_blocks_to_scan: _,
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    last_evaluated_block_height: _,
+                }) => (
+                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                ),
+                PredicateStatus::New => (0, 0, 0),
+                PredicateStatus::Streaming(StreamingData {
+                    last_occurrence,
+                    last_evaluation: _,
+                    number_of_times_triggered,
+                    number_of_blocks_evaluated,
+                    last_evaluated_block_height: _,
+                }) => (
+                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                ),
+                PredicateStatus::Expired(ExpiredData {
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    last_evaluated_block_height: _,
+                }) => (
+                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                ),
+                PredicateStatus::Interrupted(_) => {
+                    unreachable!("unreachable predicate status: {:?}", status)
+                }
+            },
+            None => (0, 0, 0),
+        };
     update_predicate_status(
         predicate_key,
         PredicateStatus::Expired(ExpiredData {

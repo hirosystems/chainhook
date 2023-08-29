@@ -67,9 +67,11 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
 ) -> (
     Vec<StacksTriggerChainhook<'a>>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
     let mut triggered_predicates = vec![];
     let mut evaluated_predicates = BTreeMap::new();
+    let mut expired_predicates = BTreeMap::new();
     match chain_event {
         StacksChainEvent::ChainUpdatedWithBlocks(update) => {
             for chainhook in active_chainhooks.iter() {
@@ -84,26 +86,35 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                     for parents_microblock_to_apply in
                         block_update.parent_microblocks_to_apply.iter()
                     {
-                        apply.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_apply],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_apply],
+                                chainhook,
+                                ctx,
+                            );
+                        apply.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
                     for parents_microblock_to_rolllback in
                         block_update.parent_microblocks_to_rollback.iter()
                     {
-                        rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_rolllback],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_rolllback],
+                                chainhook,
+                                ctx,
+                            );
+                        rollback.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -124,11 +135,14 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook.uuid.as_str(),
                         &microblock_to_apply.metadata.anchor_block_identifier,
                     );
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_apply],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -149,18 +163,22 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook.uuid.as_str(),
                         &microblock_to_apply.metadata.anchor_block_identifier,
                     );
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_apply],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 for microblock_to_rollback in update.microblocks_to_rollback.iter() {
-                    rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_rollback],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    rollback.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -184,33 +202,44 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                     for parents_microblock_to_apply in
                         block_update.parent_microblocks_to_apply.iter()
                     {
-                        apply.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_apply],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_apply],
+                                chainhook,
+                                ctx,
+                            );
+                        apply.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 for block_update in update.blocks_to_rollback.iter() {
                     for parents_microblock_to_rollback in
                         block_update.parent_microblocks_to_rollback.iter()
                     {
-                        rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_rollback],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_rollback],
+                                chainhook,
+                                ctx,
+                            );
+                        rollback.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    rollback.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -222,15 +251,23 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
             }
         }
     }
-    (triggered_predicates, evaluated_predicates)
+    (
+        triggered_predicates,
+        evaluated_predicates,
+        expired_predicates,
+    )
 }
 
 pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     blocks: Vec<&'a dyn AbstractStacksBlock>,
     chainhook: &'a StacksChainhookSpecification,
     ctx: &Context,
-) -> Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)> {
+) -> (
+    Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
+) {
     let mut occurrences = vec![];
+    let mut expired_predicates = BTreeMap::new();
     let end_block = chainhook.end_block.unwrap_or(u64::MAX);
     for block in blocks {
         if end_block > block.get_identifier().index {
@@ -251,9 +288,11 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
             if hits.len() > 0 {
                 occurrences.push((hits, block));
             }
+        } else {
+            expired_predicates.insert(chainhook.uuid.as_str(), block.get_identifier());
         }
     }
-    occurrences
+    (occurrences, expired_predicates)
 }
 
 pub fn evaluate_stacks_predicate_on_block<'a>(
