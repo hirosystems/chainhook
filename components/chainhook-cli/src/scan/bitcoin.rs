@@ -205,7 +205,7 @@ pub async fn process_block_with_predicates(
             confirmed_blocks: vec![],
         });
 
-    let (predicates_triggered, _predicates_evaluated) =
+    let (predicates_triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_bitcoin_chainhooks_on_chain_event(&chain_event, predicates, ctx);
 
     execute_predicates_action(predicates_triggered, &event_observer_config, &ctx).await

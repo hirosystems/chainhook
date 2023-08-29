@@ -354,7 +354,7 @@ fn test_stacks_predicates(
     };
 
     let predicates = vec![&chainhook];
-    let (triggered, _blocks) =
+    let (triggered, _predicates_evaluated, _expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
     if expected_applies == 0 {
@@ -432,7 +432,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
     };
 
     let predicates = vec![&chainhook];
-    let (triggered, _blocks) =
+    let (triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
     if expected_applies == 0 {
@@ -516,7 +516,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
     };
 
     let predicates = vec![&chainhook];
-    let (triggered, _blocks) =
+    let (triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
     if expected_applies == 0 {

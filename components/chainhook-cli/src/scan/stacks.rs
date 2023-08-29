@@ -232,7 +232,8 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
 
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
 
-        let hits_per_blocks = evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
+        let (hits_per_blocks, _predicates_expired) =
+            evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
         if hits_per_blocks.is_empty() {
             continue;
         }
@@ -388,7 +389,8 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
 
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
 
-        let hits_per_blocks = evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
+        let (hits_per_blocks, _predicates_expired) =
+            evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
         if hits_per_blocks.is_empty() {
             continue;
         }
