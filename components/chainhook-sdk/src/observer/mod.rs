@@ -60,6 +60,11 @@ pub enum Event {
     StacksChainEvent(StacksChainEvent),
 }
 
+pub enum DataHandlerEvent {
+    Process(BitcoinChainhookOccurrencePayload),
+    Terminate,
+}
+
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
     pub chainhook_config: Option<ChainhookConfig>,
@@ -73,7 +78,7 @@ pub struct EventObserverConfig {
     pub cache_path: String,
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
-    pub data_handler_tx: Option<crossbeam_channel::Sender<BitcoinChainhookOccurrencePayload>>,
+    pub data_handler_tx: Option<crossbeam_channel::Sender<DataHandlerEvent>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -512,7 +517,8 @@ pub async fn start_bitcoin_event_observer(
         let ctx_moved = ctx.clone();
         let config_moved = config.clone();
         let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
-            let future = zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
+            let future =
+                zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
             let _ = hiro_system_kit::nestable_block_on(future);
         });
     }
