@@ -508,9 +508,18 @@ fn set_predicate_streaming_status(
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::Expired(_)
-                | PredicateStatus::New
-                | PredicateStatus::Interrupted(_) => {
+                PredicateStatus::Expired(ExpiredData {
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    last_evaluated_block_height,
+                }) => (
+                    last_occurrence,
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_evaluated_block_height,
+                ),
+                PredicateStatus::New | PredicateStatus::Interrupted(_) => {
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
@@ -589,6 +598,13 @@ pub fn set_predicate_scanning_status(
                     scanning_data.last_occurrence
                 }
             }
+            PredicateStatus::Expired(expired_data) => {
+                if number_of_times_triggered > expired_data.number_of_times_triggered {
+                    now_ms
+                } else {
+                    expired_data.last_occurrence
+                }
+            }
             PredicateStatus::New => {
                 if number_of_times_triggered > 0 {
                     now_ms
@@ -596,9 +612,7 @@ pub fn set_predicate_scanning_status(
                     0
                 }
             }
-            PredicateStatus::Streaming(_)
-            | PredicateStatus::Expired(_)
-            | PredicateStatus::Interrupted(_) => {
+            PredicateStatus::Streaming(_) | PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
