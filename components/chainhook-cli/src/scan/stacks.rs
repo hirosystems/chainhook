@@ -227,7 +227,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut last_block_scanned = BlockIdentifier::default();
     let mut err_count = 0;
 
-    let (number_of_blocks_to_scan, mut number_of_blocks_scanned, mut number_of_times_triggered) = {
+    let (mut number_of_blocks_to_scan, mut number_of_blocks_scanned, mut number_of_times_triggered) = {
         let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
         match &unfinished_scan_data {
             Some(scan_data) => (
@@ -369,6 +369,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             for entry in (current_block_height + 1)..=new_tip {
                 block_heights_to_scan.push_back(entry);
             }
+            number_of_blocks_to_scan += block_heights_to_scan.len() as u64;
         }
     }
     info!(
