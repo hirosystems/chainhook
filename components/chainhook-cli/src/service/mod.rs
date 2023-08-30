@@ -355,6 +355,7 @@ impl Service {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
     Scanning(ScanningData),
     Streaming(StreamingData),
