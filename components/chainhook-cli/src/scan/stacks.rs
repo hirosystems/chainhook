@@ -321,7 +321,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         }
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if blocks_scanned % 5000 == 0 || blocks_scanned == 1 {
+            if blocks_scanned % 10 == 0 || blocks_scanned == 1 {
                 set_predicate_scanning_status(
                     &predicate_spec.key(),
                     number_of_blocks_to_scan,

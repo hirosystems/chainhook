@@ -171,7 +171,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         }
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if number_of_blocks_scanned % 50 == 0 || number_of_blocks_scanned == 1 {
+            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 1 {
                 set_predicate_scanning_status(
                     &predicate_spec.key(),
                     number_of_blocks_to_scan,
