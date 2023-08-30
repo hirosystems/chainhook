@@ -86,7 +86,6 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut number_of_blocks_scanned = 0;
     let mut number_of_times_triggered = 0u64;
     let http_client = build_http_client();
-    let mut block_height_after_scan: u64 = block_heights_to_scan.len().try_into().unwrap();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         number_of_blocks_scanned += 1;
