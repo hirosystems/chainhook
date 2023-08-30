@@ -63,6 +63,18 @@ impl Service {
                     PredicateStatus::New => {
                         leftover_scans.push((predicate.clone(), None));
                     }
+                    // predicates that were previously in a streaming state probably
+                    // need to catch up on blocks
+                    PredicateStatus::Streaming(streaming_data) => {
+                        let scanning_data = ScanningData {
+                            number_of_blocks_to_scan: 0, // this is the only data we don't know when converting from streaming => scanning
+                            number_of_blocks_evaluated: streaming_data.number_of_blocks_evaluated,
+                            number_of_times_triggered: streaming_data.number_of_times_triggered,
+                            last_occurrence: streaming_data.last_occurrence,
+                            last_evaluated_block_height: streaming_data.last_evaluated_block_height,
+                        };
+                        leftover_scans.push((predicate.clone(), Some(scanning_data)));
+                    }
                     _ => {}
                 }
                 match chainhook_config.register_specification(predicate) {
@@ -568,9 +580,18 @@ fn set_predicate_streaming_status(
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::Expired(_)
-                | PredicateStatus::New
-                | PredicateStatus::Interrupted(_) => {
+                PredicateStatus::Expired(ExpiredData {
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    last_evaluated_block_height,
+                }) => (
+                    last_occurrence,
+                    number_of_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_evaluated_block_height,
+                ),
+                PredicateStatus::New | PredicateStatus::Interrupted(_) => {
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
@@ -649,6 +670,20 @@ pub fn set_predicate_scanning_status(
                     scanning_data.last_occurrence
                 }
             }
+            PredicateStatus::Streaming(streaming_data) => {
+                if number_of_times_triggered > streaming_data.number_of_times_triggered {
+                    now_ms
+                } else {
+                    streaming_data.last_occurrence
+                }
+            }
+            PredicateStatus::Expired(expired_data) => {
+                if number_of_times_triggered > expired_data.number_of_times_triggered {
+                    now_ms
+                } else {
+                    expired_data.last_occurrence
+                }
+            }
             PredicateStatus::New => {
                 if number_of_times_triggered > 0 {
                     now_ms
@@ -656,9 +691,7 @@ pub fn set_predicate_scanning_status(
                     0
                 }
             }
-            PredicateStatus::Streaming(_)
-            | PredicateStatus::Expired(_)
-            | PredicateStatus::Interrupted(_) => {
+            PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
