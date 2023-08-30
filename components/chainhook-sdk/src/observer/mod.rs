@@ -1111,7 +1111,7 @@ pub async fn start_observer_commands_handler(
                         &bitcoin_chainhooks,
                         &ctx,
                     );
-                println!("expired predicates {}", predicates_expired.len());
+
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
                 }
