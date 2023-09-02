@@ -1,6 +1,6 @@
 use super::types::{
-    BitcoinChainhookSpecification, BitcoinPredicateType, ExactMatchingRule, HookAction,
-    InputPredicate, MatchingRule, OrdinalOperations, OutputPredicate, StacksOperations,
+    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
+    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OutputPredicate, StacksOperations,
 };
 use crate::utils::Context;
 
@@ -10,6 +10,11 @@ use chainhook_types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinTransactionData, BlockIdentifier, OrdinalOperation,
     StacksBaseChainOperation, TransactionIdentifier,
 };
+
+use hiro_system_kit::slog;
+
+use miniscript::bitcoin::secp256k1::Secp256k1;
+use miniscript::Descriptor;
 
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
@@ -326,7 +331,7 @@ impl BitcoinPredicateType {
     pub fn evaluate_transaction_predicate(
         &self,
         tx: &BitcoinTransactionData,
-        _ctx: &Context,
+        ctx: &Context,
     ) -> bool {
         // TODO(lgalabru): follow-up on this implementation
         match &self {
@@ -420,6 +425,50 @@ impl BitcoinPredicateType {
                         return true;
                     }
                 }
+                false
+            }
+            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(
+                DescriptorMatchingRule { expression, range },
+            )) => {
+                // To derive from descriptors, we need to provide a secp context.
+                let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
+                let (desc, _) = Descriptor::parse_descriptor(&sig, expression).unwrap();
+
+                // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
+                // defined by the predicate OR fallback to a default range of [0,5] when not set.
+                // When the descriptor is not derivable we force to create a unique iteration by
+                // ranging over [0,1].
+                let range = if desc.has_wildcard() {
+                    range.unwrap_or([0, 5])
+                } else {
+                    [0, 1]
+                };
+
+                // Derive the addresses and try to match them against the outputs.
+                for i in range[0]..range[1] {
+                    let derived = desc.derived_descriptor(&ver, i).unwrap();
+
+                    // Extract and encode the derived pubkey.
+                    let script_pubkey = hex::encode(derived.script_pubkey().as_bytes());
+
+                    // Match that script against the tx outputs.
+                    for (index, output) in tx.metadata.outputs.iter().enumerate() {
+                        if output.script_pubkey[2..] == script_pubkey {
+                            ctx.try_log(|logger| {
+                                slog::debug!(
+                                    logger,
+                                    "Descriptor: Matched pubkey {:?} on tx {:?} output {}",
+                                    script_pubkey,
+                                    tx.transaction_identifier.get_hash_bytes_str(),
+                                    index,
+                                )
+                            });
+
+                            return true;
+                        }
+                    }
+                }
+
                 false
             }
             BitcoinPredicateType::Inputs(InputPredicate::Txid(predicate)) => {
