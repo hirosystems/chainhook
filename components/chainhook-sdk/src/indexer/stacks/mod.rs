@@ -1,7 +1,6 @@
 mod blocks_pool;
 
 pub use blocks_pool::StacksBlockPool;
-use stacks_rpc_client::clarity::vm::analysis::contract_interface_builder::ContractInterface;
 
 use crate::chainhooks::stacks::try_decode_clarity_value;
 use crate::indexer::AssetClassCache;

@@ -1,6 +1,6 @@
 use super::bitcoin::{TxIn, TxOut};
+use crate::contract_interface::ContractInterface;
 use crate::events::*;
-use clarity::vm::analysis::contract_interface_builder::ContractInterface;
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
