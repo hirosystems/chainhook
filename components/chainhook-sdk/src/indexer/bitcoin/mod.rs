@@ -548,7 +548,10 @@ pub fn standardize_bitcoin_block(
                     .previousblockhash
                     .unwrap_or(BlockHash::all_zeros().to_string())
             ),
-            index: block_height - 1,
+            index: match block_height {
+                0 => 0,
+                _ => block_height - 1,
+            },
         },
         timestamp: block.time as u32,
         metadata: BitcoinBlockMetadata {

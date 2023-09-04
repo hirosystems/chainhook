@@ -336,7 +336,10 @@ pub fn standardize_stacks_block(
         },
         parent_block_identifier: BlockIdentifier {
             hash: block.parent_index_block_hash.clone(),
-            index: block.block_height - 1,
+            index: match block.block_height {
+                0 => 0,
+                _ => block.block_height - 1,
+            }
         },
         timestamp: block.parent_burn_block_timestamp,
         metadata: StacksBlockMetadata {
