@@ -22,6 +22,8 @@ use redis::{Commands, Connection};
 use std::sync::mpsc::channel;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use self::http_api::get_entry_from_predicates_db;
+
 pub struct Service {
     config: Config,
     ctx: Context,
@@ -32,11 +34,17 @@ impl Service {
         Self { config, ctx }
     }
 
-    pub async fn run(&mut self, predicates: Vec<ChainhookFullSpecification>) -> Result<(), String> {
+    pub async fn run(
+        &mut self,
+        predicates_from_startup: Vec<ChainhookFullSpecification>,
+    ) -> Result<(), String> {
         let mut chainhook_config = ChainhookConfig::new();
 
-        // If no predicates passed at launch, retrieve predicates from Redis
-        if predicates.is_empty() && self.config.is_http_api_enabled() {
+        // store all predicates from Redis that were in the process of scanning when
+        // chainhook was shutdown - we need to resume where we left off
+        let mut leftover_scans = vec![];
+        // retrieve predicates from Redis, and register each in memory
+        if self.config.is_http_api_enabled() {
             let registered_predicates = match load_predicates_from_redis(&self.config, &self.ctx) {
                 Ok(predicates) => predicates,
                 Err(e) => {
@@ -48,8 +56,29 @@ impl Service {
                     vec![]
                 }
             };
-            for (predicate, _status) in registered_predicates.into_iter() {
+            for (predicate, status) in registered_predicates.into_iter() {
                 let predicate_uuid = predicate.uuid().to_string();
+                match status {
+                    PredicateStatus::Scanning(scanning_data) => {
+                        leftover_scans.push((predicate.clone(), Some(scanning_data)));
+                    }
+                    PredicateStatus::New => {
+                        leftover_scans.push((predicate.clone(), None));
+                    }
+                    // predicates that were previously in a streaming state probably
+                    // need to catch up on blocks
+                    PredicateStatus::Streaming(streaming_data) => {
+                        let scanning_data = ScanningData {
+                            number_of_blocks_to_scan: 0, // this is the only data we don't know when converting from streaming => scanning
+                            number_of_blocks_evaluated: streaming_data.number_of_blocks_evaluated,
+                            number_of_times_triggered: streaming_data.number_of_times_triggered,
+                            last_occurrence: streaming_data.last_occurrence,
+                            last_evaluated_block_height: streaming_data.last_evaluated_block_height,
+                        };
+                        leftover_scans.push((predicate.clone(), Some(scanning_data)));
+                    }
+                    _ => {}
+                }
                 match chainhook_config.register_specification(predicate) {
                     Ok(_) => {
                         info!(
@@ -68,8 +97,28 @@ impl Service {
             }
         }
 
+        let mut newly_registered_predicates = vec![];
         // For each predicate found, register in memory.
-        for predicate in predicates.into_iter() {
+        for predicate in predicates_from_startup.into_iter() {
+            if let PredicatesApi::On(api_config) = &self.config.http_api {
+                if let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn(api_config) {
+                    let uuid = predicate.get_uuid();
+                    match get_entry_from_predicates_db(
+                        &ChainhookSpecification::either_stx_or_btc_key(&uuid),
+                        &mut predicates_db_conn,
+                        &self.ctx,
+                    ) {
+                        Ok(Some(_)) => {
+                            error!(
+                                self.ctx.expect_logger(),
+                                "Predicate uuid already in use: {uuid}",
+                            );
+                            continue;
+                        }
+                        _ => {}
+                    }
+                };
+            }
             match chainhook_config.register_full_specification(
                 (
                     &self.config.network.bitcoin_network,
@@ -78,6 +127,7 @@ impl Service {
                 predicate,
             ) {
                 Ok(spec) => {
+                    newly_registered_predicates.push(spec.clone());
                     info!(
                         self.ctx.expect_logger(),
                         "Predicate {} retrieved from config and loaded",
@@ -156,12 +206,13 @@ impl Service {
             });
         }
 
+        let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
         let _ = start_event_observer(
             event_observer_config.clone(),
             moved_observer_command_tx,
             observer_command_rx,
-            Some(observer_event_tx),
+            Some(observer_event_tx_moved),
             None,
             self.ctx.clone(),
         );
@@ -175,6 +226,21 @@ impl Service {
             }
             PredicatesApi::Off => None,
         };
+
+        for predicate_with_last_scanned_block in leftover_scans {
+            match predicate_with_last_scanned_block {
+                (ChainhookSpecification::Stacks(spec), last_scanned_block) => {
+                    let _ = stacks_scan_op_tx.send((spec, last_scanned_block));
+                }
+                (ChainhookSpecification::Bitcoin(spec), last_scanned_block) => {
+                    let _ = bitcoin_scan_op_tx.send((spec, last_scanned_block));
+                }
+            }
+        }
+
+        for new_predicate in newly_registered_predicates {
+            let _ = observer_event_tx.send(ObserverEvent::PredicateRegistered(new_predicate));
+        }
 
         loop {
             let event = match observer_event_rx.recv() {
@@ -221,10 +287,10 @@ impl Service {
                     }
                     match spec {
                         ChainhookSpecification::Stacks(predicate_spec) => {
-                            let _ = stacks_scan_op_tx.send(predicate_spec);
+                            let _ = stacks_scan_op_tx.send((predicate_spec, None));
                         }
                         ChainhookSpecification::Bitcoin(predicate_spec) => {
-                            let _ = bitcoin_scan_op_tx.send(predicate_spec);
+                            let _ = bitcoin_scan_op_tx.send((predicate_spec, None));
                         }
                     }
                 }
@@ -504,11 +570,16 @@ fn update_stats_from_report(
     for (predicate_uuid, blocks_ids) in report.predicates_evaluated.iter() {
         // clone so we don't actually update the report
         let mut blocks_ids = blocks_ids.clone();
-        // any "triggered" predicate was also "evaluated". But we already updated the status for that block,
+        // any triggered or expired predicate was also evaluated. But we already updated the status for that block,
         // so remove those matching blocks from the list of evaluated predicates
         if let Some(triggered_block_ids) = report.predicates_triggered.get(predicate_uuid) {
             for triggered_id in triggered_block_ids {
                 blocks_ids.remove(triggered_id);
+            }
+        }
+        if let Some(expired_block_ids) = report.predicates_expired.get(predicate_uuid) {
+            for expired_id in expired_block_ids {
+                blocks_ids.remove(expired_id);
             }
         }
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
@@ -524,9 +595,10 @@ fn update_stats_from_report(
             );
         }
     }
-
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
+        println!("expiring predicate {}", predicate_uuid);
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
+            println!("predicate had height");
             let evaluated_count = blocks_ids.len().try_into().unwrap();
             set_expired_unsafe_status(
                 &chain,
@@ -694,6 +766,13 @@ pub fn set_predicate_scanning_status(
                     scanning_data.last_occurrence
                 }
             }
+            PredicateStatus::Streaming(streaming_data) => {
+                if number_of_times_triggered > streaming_data.number_of_times_triggered {
+                    now_ms
+                } else {
+                    streaming_data.last_occurrence
+                }
+            }
             PredicateStatus::ExpiredUnsafe(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
                     now_ms
@@ -708,9 +787,7 @@ pub fn set_predicate_scanning_status(
                     0
                 }
             }
-            PredicateStatus::Streaming(_)
-            | PredicateStatus::Interrupted(_)
-            | PredicateStatus::ExpiredSafe(_) => {
+            PredicateStatus::Interrupted(_) | PredicateStatus::ExpiredSafe(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
