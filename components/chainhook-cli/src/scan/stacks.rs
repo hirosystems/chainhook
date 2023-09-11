@@ -33,7 +33,7 @@ pub enum DigestingCommand {
     Terminate,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Record {
     pub id: u64,
     pub created_at: String,
@@ -41,7 +41,7 @@ pub struct Record {
     pub blob: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum RecordKind {
     #[serde(rename = "/new_block")]
     StacksBlockReceived,
