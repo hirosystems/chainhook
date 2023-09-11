@@ -258,7 +258,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                         send_request(request, 3, 1, &ctx).await
                     }
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, &ctx),
-                    StacksChainhookOccurrence::Data(_payload) => unreachable!(),
+                    StacksChainhookOccurrence::Data(_payload) => Ok(()),
                 };
                 match res {
                     Err(e) => {
