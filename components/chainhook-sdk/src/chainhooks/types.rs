@@ -130,6 +130,30 @@ impl ChainhookConfig {
         }
         None
     }
+
+    pub fn expire_stacks_hook(&mut self, hook_uuid: String) {
+        let mut i = 0;
+        while i < self.stacks_chainhooks.len() {
+            if self.stacks_chainhooks[i].uuid == hook_uuid {
+                self.stacks_chainhooks[i].expired = true;
+                break;
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    pub fn expire_bitcoin_hook(&mut self, hook_uuid: String) {
+        let mut i = 0;
+        while i < self.bitcoin_chainhooks.len() {
+            if self.bitcoin_chainhooks[i].uuid == hook_uuid {
+                self.bitcoin_chainhooks[i].expired = true;
+                break;
+            } else {
+                i += 1;
+            }
+        }
+    }
 }
 
 impl Serialize for ChainhookConfig {
@@ -240,6 +264,7 @@ pub struct BitcoinChainhookSpecification {
     pub include_outputs: bool,
     pub include_witness: bool,
     pub enabled: bool,
+    pub expired: bool,
 }
 
 impl BitcoinChainhookSpecification {
@@ -325,6 +350,7 @@ impl BitcoinChainhookFullSpecification {
             include_outputs: spec.include_outputs.unwrap_or(false),
             include_witness: spec.include_witness.unwrap_or(false),
             enabled: false,
+            expired: false,
         })
     }
 }
@@ -387,6 +413,7 @@ impl StacksChainhookFullSpecification {
             predicate: spec.predicate,
             action: spec.action,
             enabled: false,
+            expired: false,
         })
     }
 }
@@ -709,6 +736,7 @@ pub struct StacksChainhookSpecification {
     pub predicate: StacksPredicate,
     pub action: HookAction,
     pub enabled: bool,
+    pub expired: bool,
 }
 
 impl StacksChainhookSpecification {

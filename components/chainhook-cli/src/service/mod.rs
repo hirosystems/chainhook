@@ -12,7 +12,9 @@ use crate::storage::{
 use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
-use chainhook_sdk::observer::{start_event_observer, ObserverEvent, PredicateEvaluationReport};
+use chainhook_sdk::observer::{
+    start_event_observer, ObserverCommand, ObserverEvent, PredicateEvaluationReport,
+};
 use chainhook_sdk::types::StacksChainEvent;
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
@@ -205,9 +207,10 @@ impl Service {
         }
 
         let observer_event_tx_moved = observer_event_tx.clone();
+        let moved_observer_command_tx = observer_command_tx.clone();
         let _ = start_event_observer(
             event_observer_config.clone(),
-            observer_command_tx,
+            moved_observer_command_tx,
             observer_command_rx,
             Some(observer_event_tx_moved),
             None,
@@ -345,10 +348,54 @@ impl Service {
                         }
                     }
                 }
-                ObserverEvent::BitcoinChainEvent((_chain_update, report)) => {
+                ObserverEvent::BitcoinChainEvent((chain_update, report)) => {
                     debug!(self.ctx.expect_logger(), "Bitcoin update not stored");
+                    match chain_update {
+                        chainhook_sdk::types::BitcoinChainEvent::ChainUpdatedWithBlocks(data) => {
+                            if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+                                for confirmed_block in &data.confirmed_blocks {
+                                    match expire_predicates_for_block(
+                                        &Chain::Bitcoin,
+                                        confirmed_block.block_identifier.index,
+                                        predicates_db_conn,
+                                        &ctx,
+                                    ) {
+                                        Some(expired_predicate_uuids) => {
+                                            for uuid in expired_predicate_uuids.into_iter() {
+                                                let _ = observer_command_tx.send(
+                                                    ObserverCommand::ExpireBitcoinPredicate(uuid),
+                                                );
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
+                            }
+                        }
+                        chainhook_sdk::types::BitcoinChainEvent::ChainUpdatedWithReorg(data) => {
+                            if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+                                for confirmed_block in &data.confirmed_blocks {
+                                    match expire_predicates_for_block(
+                                        &Chain::Bitcoin,
+                                        confirmed_block.block_identifier.index,
+                                        predicates_db_conn,
+                                        &ctx,
+                                    ) {
+                                        Some(expired_predicate_uuids) => {
+                                            for uuid in expired_predicate_uuids.into_iter() {
+                                                let _ = observer_command_tx.send(
+                                                    ObserverCommand::ExpireBitcoinPredicate(uuid),
+                                                );
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-                        update_streaming_status_from_report(report, predicates_db_conn, &ctx);
+                        update_stats_from_report(Chain::Bitcoin, report, predicates_db_conn, &ctx);
                     }
                 }
                 ObserverEvent::StacksChainEvent((chain_event, report)) => {
@@ -369,6 +416,25 @@ impl Service {
                     match &chain_event {
                         StacksChainEvent::ChainUpdatedWithBlocks(data) => {
                             stacks_event += 1;
+                            if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+                                for confirmed_block in &data.confirmed_blocks {
+                                    match expire_predicates_for_block(
+                                        &Chain::Stacks,
+                                        confirmed_block.block_identifier.index,
+                                        predicates_db_conn,
+                                        &ctx,
+                                    ) {
+                                        Some(expired_predicate_uuids) => {
+                                            for uuid in expired_predicate_uuids.into_iter() {
+                                                let _ = observer_command_tx.send(
+                                                    ObserverCommand::ExpireStacksPredicate(uuid),
+                                                );
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
+                            }
                             confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
@@ -381,6 +447,25 @@ impl Service {
                             )
                         }
                         StacksChainEvent::ChainUpdatedWithReorg(data) => {
+                            if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+                                for confirmed_block in &data.confirmed_blocks {
+                                    match expire_predicates_for_block(
+                                        &Chain::Stacks,
+                                        confirmed_block.block_identifier.index,
+                                        predicates_db_conn,
+                                        &ctx,
+                                    ) {
+                                        Some(expired_predicate_uuids) => {
+                                            for uuid in expired_predicate_uuids.into_iter() {
+                                                let _ = observer_command_tx.send(
+                                                    ObserverCommand::ExpireStacksPredicate(uuid),
+                                                );
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
+                            }
                             confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
@@ -396,7 +481,7 @@ impl Service {
                         | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                     };
                     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-                        update_streaming_status_from_report(report, predicates_db_conn, &ctx);
+                        update_stats_from_report(Chain::Stacks, report, predicates_db_conn, &ctx);
                     }
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
@@ -421,10 +506,12 @@ impl Service {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
     Scanning(ScanningData),
     Streaming(StreamingData),
-    Expired(ExpiredData),
+    ExpiredUnsafe(ExpiredData),
+    ExpiredSafe(ExpiredData),
     Interrupted(String),
     New,
 }
@@ -453,9 +540,14 @@ pub struct ExpiredData {
     pub number_of_times_triggered: u64,
     pub last_occurrence: u128,
     pub last_evaluated_block_height: u64,
+    pub expired_at_block_height: u64,
 }
-
-fn update_streaming_status_from_report(
+pub enum Chain {
+    Bitcoin,
+    Stacks,
+}
+fn update_stats_from_report(
+    chain: Chain,
     report: PredicateEvaluationReport,
     predicates_db_conn: &mut Connection,
     ctx: &Context,
@@ -508,7 +600,8 @@ fn update_streaming_status_from_report(
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
             println!("predicate had height");
             let evaluated_count = blocks_ids.len().try_into().unwrap();
-            set_expired_status(
+            set_expired_unsafe_status(
+                &chain,
                 evaluated_count,
                 last_evaluated_height,
                 &(ChainhookSpecification::either_stx_or_btc_key(predicate_uuid)),
@@ -580,18 +673,21 @@ fn set_predicate_streaming_status(
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::Expired(ExpiredData {
+                PredicateStatus::ExpiredUnsafe(ExpiredData {
                     number_of_blocks_evaluated,
                     number_of_times_triggered,
                     last_occurrence,
                     last_evaluated_block_height,
+                    expired_at_block_height: _,
                 }) => (
                     last_occurrence,
                     number_of_blocks_evaluated,
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::New | PredicateStatus::Interrupted(_) => {
+                PredicateStatus::New
+                | PredicateStatus::Interrupted(_)
+                | PredicateStatus::ExpiredSafe(_) => {
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
@@ -677,7 +773,7 @@ pub fn set_predicate_scanning_status(
                     streaming_data.last_occurrence
                 }
             }
-            PredicateStatus::Expired(expired_data) => {
+            PredicateStatus::ExpiredUnsafe(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
                     now_ms
                 } else {
@@ -691,7 +787,7 @@ pub fn set_predicate_scanning_status(
                     0
                 }
             }
-            PredicateStatus::Interrupted(_) => {
+            PredicateStatus::Interrupted(_) | PredicateStatus::ExpiredSafe(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
@@ -715,7 +811,8 @@ pub fn set_predicate_scanning_status(
 /// Updates a predicate's status to `InitialScanCompleted`.
 ///
 /// Preserves the scanning metrics from the predicate's previous status
-fn set_expired_status(
+pub fn set_expired_unsafe_status(
+    chain: &Chain,
     number_of_new_blocks_evaluated: u64,
     last_evaluated_block_height: u64,
     predicate_key: &str,
@@ -723,59 +820,174 @@ fn set_expired_status(
     ctx: &Context,
 ) {
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
-    let (number_of_blocks_evaluated, number_of_times_triggered, last_occurrence) =
-        match current_status {
-            Some(status) => match status {
-                PredicateStatus::Scanning(ScanningData {
-                    number_of_blocks_to_scan: _,
-                    number_of_blocks_evaluated,
-                    number_of_times_triggered,
-                    last_occurrence,
-                    last_evaluated_block_height: _,
-                }) => (
-                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
-                    number_of_times_triggered,
-                    last_occurrence,
-                ),
-                PredicateStatus::New => (0, 0, 0),
-                PredicateStatus::Streaming(StreamingData {
-                    last_occurrence,
-                    last_evaluation: _,
-                    number_of_times_triggered,
-                    number_of_blocks_evaluated,
-                    last_evaluated_block_height: _,
-                }) => (
-                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
-                    number_of_times_triggered,
-                    last_occurrence,
-                ),
-                PredicateStatus::Expired(ExpiredData {
-                    number_of_blocks_evaluated,
-                    number_of_times_triggered,
-                    last_occurrence,
-                    last_evaluated_block_height: _,
-                }) => (
-                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
-                    number_of_times_triggered,
-                    last_occurrence,
-                ),
-                PredicateStatus::Interrupted(_) => {
-                    unreachable!("unreachable predicate status: {:?}", status)
-                }
-            },
-            None => (0, 0, 0),
-        };
+    let (
+        number_of_blocks_evaluated,
+        number_of_times_triggered,
+        last_occurrence,
+        expired_at_block_height,
+    ) = match current_status {
+        Some(status) => match status {
+            PredicateStatus::Scanning(ScanningData {
+                number_of_blocks_to_scan: _,
+                number_of_blocks_evaluated,
+                number_of_times_triggered,
+                last_occurrence,
+                last_evaluated_block_height,
+            }) => (
+                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                number_of_times_triggered,
+                last_occurrence,
+                last_evaluated_block_height,
+            ),
+            PredicateStatus::New => (0, 0, 0, 0),
+            PredicateStatus::Streaming(StreamingData {
+                last_occurrence,
+                last_evaluation: _,
+                number_of_times_triggered,
+                number_of_blocks_evaluated,
+                last_evaluated_block_height,
+            }) => (
+                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                number_of_times_triggered,
+                last_occurrence,
+                last_evaluated_block_height,
+            ),
+            PredicateStatus::ExpiredUnsafe(ExpiredData {
+                number_of_blocks_evaluated,
+                number_of_times_triggered,
+                last_occurrence,
+                last_evaluated_block_height: _,
+                expired_at_block_height,
+            }) => (
+                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                number_of_times_triggered,
+                last_occurrence,
+                expired_at_block_height,
+            ),
+            PredicateStatus::Interrupted(_) | PredicateStatus::ExpiredSafe(_) => {
+                unreachable!("unreachable predicate status: {:?}", status)
+            }
+        },
+        None => (0, 0, 0, 0),
+    };
     update_predicate_status(
         predicate_key,
-        PredicateStatus::Expired(ExpiredData {
+        PredicateStatus::ExpiredUnsafe(ExpiredData {
             number_of_blocks_evaluated,
             number_of_times_triggered,
             last_occurrence,
             last_evaluated_block_height,
+            expired_at_block_height,
         }),
         predicates_db_conn,
         &ctx,
     );
+    insert_predicate_expiration(
+        chain,
+        expired_at_block_height,
+        predicate_key,
+        predicates_db_conn,
+        &ctx,
+    );
+}
+
+pub fn set_expired_safe_status(
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let expired_data = match current_status {
+        Some(status) => match status {
+            PredicateStatus::ExpiredUnsafe(expired_data) => expired_data,
+            _ => unreachable!("unreachable predicate status: {:?}", status),
+        },
+        None => unreachable!(),
+    };
+    update_predicate_status(
+        predicate_key,
+        PredicateStatus::ExpiredSafe(expired_data),
+        predicates_db_conn,
+        &ctx,
+    );
+}
+
+fn get_predicate_expiration_key(chain: &Chain, block_height: u64) -> String {
+    match chain {
+        Chain::Bitcoin => format!("expires_at:bitcoin_block:{}", block_height),
+        Chain::Stacks => format!("expires_at:stacks_block:{}", block_height),
+    }
+}
+fn expire_predicates_for_block(
+    chain: &Chain,
+    confirmed_block_index: u64,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) -> Option<Vec<String>> {
+    match get_predicates_expiring_at_block(chain, confirmed_block_index, predicates_db_conn, ctx) {
+        Some(predicates_to_expire) => {
+            for predicate_key in predicates_to_expire.iter() {
+                set_expired_safe_status(predicate_key, predicates_db_conn, ctx);
+            }
+            Some(predicates_to_expire)
+        }
+        None => None,
+    }
+}
+
+fn insert_predicate_expiration(
+    chain: &Chain,
+    expired_at_block_height: u64,
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let key = get_predicate_expiration_key(chain, expired_at_block_height);
+    let mut predicates_expiring_at_block =
+        get_predicates_expiring_at_block(chain, expired_at_block_height, predicates_db_conn, &ctx)
+            .unwrap_or(vec![]);
+    predicates_expiring_at_block.push(predicate_key.to_owned());
+    let serialized_expiring_predicates = json!(predicates_expiring_at_block).to_string();
+    if let Err(e) =
+        predicates_db_conn.hset::<_, _, _, ()>(&key, "predicates", &serialized_expiring_predicates)
+    {
+        error!(
+            ctx.expect_logger(),
+            "Error updating expired predicates index: {}",
+            e.to_string()
+        );
+    } else {
+        info!(
+            ctx.expect_logger(),
+            "Updating expired predicates at block height {expired_at_block_height} with predicate: {predicate_key}"
+        );
+    }
+}
+
+fn get_predicates_expiring_at_block(
+    chain: &Chain,
+    block_index: u64,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) -> Option<Vec<String>> {
+    let key = get_predicate_expiration_key(chain, block_index);
+    match predicates_db_conn.hget::<_, _, String>(key.to_string(), "predicates") {
+        Ok(ref payload) => match serde_json::from_str(payload) {
+            Ok(data) => {
+                if let Err(e) = predicates_db_conn.hdel::<_, _, u64>(key.to_string(), "predicates")
+                {
+                    error!(
+                        ctx.expect_logger(),
+                        "Error removing expired predicates index: {}",
+                        e.to_string()
+                    );
+                }
+                Some(data)
+            }
+            Err(_) => None,
+        },
+        Err(_) => None,
+    }
 }
 
 pub fn update_predicate_status(
@@ -801,7 +1013,7 @@ pub fn update_predicate_status(
     }
 }
 
-pub fn update_predicate_spec(
+fn update_predicate_spec(
     predicate_key: &str,
     spec: &ChainhookSpecification,
     predicates_db_conn: &mut Connection,
@@ -824,7 +1036,7 @@ pub fn update_predicate_spec(
     }
 }
 
-pub fn retrieve_predicate_status(
+fn retrieve_predicate_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
 ) -> Option<PredicateStatus> {

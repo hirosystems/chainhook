@@ -4,7 +4,8 @@ use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
     service::{
-        open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status, ScanningData,
+        open_readwrite_predicates_db_conn_or_panic, set_expired_safe_status,
+        set_expired_unsafe_status, set_predicate_scanning_status, Chain, ScanningData,
     },
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
@@ -35,7 +36,7 @@ pub enum DigestingCommand {
     Terminate,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Record {
     pub id: u64,
     pub created_at: String,
@@ -43,7 +44,7 @@ pub struct Record {
     pub blob: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum RecordKind {
     #[serde(rename = "/new_block")]
     StacksBlockReceived,
@@ -148,7 +149,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     stacks_db_conn: &DB,
     config: &Config,
     ctx: &Context,
-) -> Result<BlockIdentifier, String> {
+) -> Result<(BlockIdentifier, bool), String> {
     let mut floating_end_block = false;
 
     let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
@@ -294,7 +295,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                         send_request(request, 3, 1, &ctx).await
                     }
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, &ctx),
-                    StacksChainhookOccurrence::Data(_payload) => unreachable!(),
+                    StacksChainhookOccurrence::Data(_payload) => Ok(()),
                 };
                 match res {
                     Err(e) => {
@@ -378,6 +379,41 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+        if let Some(predicate_end_block) = predicate_spec.end_block {
+            if predicate_end_block == last_block_scanned.index {
+                let is_confirmed = match get_stacks_block_at_block_height(
+                    predicate_end_block,
+                    true,
+                    3,
+                    stacks_db_conn,
+                ) {
+                    Ok(block) => match block {
+                        Some(_) => true,
+                        None => false,
+                    },
+                    Err(e) => {
+                        warn!(
+                            ctx.expect_logger(),
+                            "Failed to get stacks block for status update: {}",
+                            e.to_string()
+                        );
+                        false
+                    }
+                };
+                set_expired_unsafe_status(
+                    &Chain::Stacks,
+                    number_of_blocks_scanned,
+                    predicate_end_block,
+                    &predicate_spec.key(),
+                    predicates_db_conn,
+                    ctx,
+                );
+                if is_confirmed {
+                    set_expired_safe_status(&predicate_spec.key(), predicates_db_conn, ctx);
+                }
+                return Ok((last_block_scanned, true));
+            }
+        }
         set_predicate_scanning_status(
             &predicate_spec.key(),
             number_of_blocks_to_scan,
@@ -388,7 +424,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             ctx,
         );
     }
-    Ok(last_block_scanned)
+    Ok((last_block_scanned, false))
 }
 
 pub async fn scan_stacks_chainstate_via_csv_using_predicate(

@@ -25,3 +25,5 @@ components/chainhook-db/examples/arkadiko-data-indexing/vault-monitor/vendor
 components/chainhook-cli/cache
 components/chainhook-cli/index.redb
 cache/
+
+components/chainhook-cli/src/service/tests/fixtures/tmp

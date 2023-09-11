@@ -60,7 +60,7 @@ pub fn start_stacks_scan_runloop(
                 &moved_ctx,
             );
             let res = hiro_system_kit::nestable_block_on(op);
-            let last_block_scanned = match res {
+            let (last_block_scanned, predicate_is_expired) = match res {
                 Ok(last_block_scanned) => last_block_scanned,
                 Err(e) => {
                     warn!(
@@ -90,9 +90,11 @@ pub fn start_stacks_scan_runloop(
                 moved_ctx.expect_logger(),
                 "Stacks chainstate scan completed up to block: {}", last_block_scanned.index
             );
-            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                ChainhookSpecification::Stacks(predicate_spec),
-            ));
+            if !predicate_is_expired {
+                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                    ChainhookSpecification::Stacks(predicate_spec),
+                ));
+            }
         });
     }
     let res = stacks_scan_pool.join();

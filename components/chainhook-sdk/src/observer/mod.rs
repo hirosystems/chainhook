@@ -248,6 +248,8 @@ pub enum ObserverCommand {
     EnablePredicate(ChainhookSpecification),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
+    ExpireBitcoinPredicate(String),
+    ExpireStacksPredicate(String),
     NotifyBitcoinTransactionProxied,
     Terminate,
 }
@@ -1096,6 +1098,7 @@ pub async fn start_observer_commands_handler(
                     .bitcoin_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
+                    .filter(|p| !p.expired)
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1256,6 +1259,7 @@ pub async fn start_observer_commands_handler(
                     .stacks_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
+                    .filter(|p| !p.expired)
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1545,6 +1549,16 @@ pub async fn start_observer_commands_handler(
                         }),
                     }
                 }
+            }
+            ObserverCommand::ExpireStacksPredicate(hook_uuid) => {
+                ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
+                chainhook_store.predicates.expire_stacks_hook(hook_uuid);
+            }
+            ObserverCommand::ExpireBitcoinPredicate(hook_uuid) => {
+                ctx.try_log(|logger| {
+                    slog::info!(logger, "Handling ExpireBitcoinPredicate command")
+                });
+                chainhook_store.predicates.expire_bitcoin_hook(hook_uuid);
             }
         }
     }

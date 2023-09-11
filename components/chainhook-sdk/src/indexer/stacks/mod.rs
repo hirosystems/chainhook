@@ -18,7 +18,7 @@ use std::convert::TryInto;
 use std::io::Cursor;
 use std::str;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct NewBlock {
     pub block_height: u64,
     pub block_hash: String,
@@ -44,7 +44,7 @@ pub struct NewBlockHeader {
     pub parent_index_block_hash: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct MaturedMinerReward {
     pub from_index_consensus_hash: String,
     pub from_stacks_block_hash: String,
@@ -68,7 +68,7 @@ pub struct NewMicroblockTrail {
     pub events: Vec<NewEvent>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct NewTransaction {
     pub txid: String,
     pub tx_index: usize,
@@ -91,7 +91,7 @@ pub struct NewMicroblockTransaction {
     pub microblock_parent_hash: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct NewEvent {
     pub txid: String,
     pub committed: bool,
