@@ -476,7 +476,7 @@ pub struct ExpiredData {
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
-enum Chain {
+pub enum Chain {
     Bitcoin,
     Stacks,
 }
@@ -734,7 +734,7 @@ pub fn set_predicate_scanning_status(
 /// Updates a predicate's status to `InitialScanCompleted`.
 ///
 /// Preserves the scanning metrics from the predicate's previous status
-fn set_expired_unsafe_status(
+pub fn set_expired_unsafe_status(
     chain: &Chain,
     number_of_new_blocks_evaluated: u64,
     last_evaluated_block_height: u64,
@@ -814,7 +814,7 @@ fn set_expired_unsafe_status(
     );
 }
 
-fn set_expired_safe_status(
+pub fn set_expired_safe_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
     ctx: &Context,
@@ -847,7 +847,7 @@ fn expire_predicates_for_block(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) -> Option<Vec<String>> {
-    match get_predicates_expiring_at_block(chain, confirmed_block_index, predicates_db_conn) {
+    match get_predicates_expiring_at_block(chain, confirmed_block_index, predicates_db_conn, ctx) {
         Some(predicates_to_expire) => {
             for predicate_key in predicates_to_expire.iter() {
                 set_expired_safe_status(predicate_key, predicates_db_conn, ctx);
@@ -867,7 +867,7 @@ fn insert_predicate_expiration(
 ) {
     let key = get_predicate_expiration_key(chain, expired_at_block_height);
     let mut predicates_expiring_at_block =
-        get_predicates_expiring_at_block(chain, expired_at_block_height, predicates_db_conn)
+        get_predicates_expiring_at_block(chain, expired_at_block_height, predicates_db_conn, &ctx)
             .unwrap_or(vec![]);
     predicates_expiring_at_block.push(predicate_key.to_owned());
     let serialized_expiring_predicates = json!(predicates_expiring_at_block).to_string();
@@ -891,11 +891,22 @@ fn get_predicates_expiring_at_block(
     chain: &Chain,
     block_index: u64,
     predicates_db_conn: &mut Connection,
+    ctx: &Context,
 ) -> Option<Vec<String>> {
     let key = get_predicate_expiration_key(chain, block_index);
     match predicates_db_conn.hget::<_, _, String>(key.to_string(), "predicates") {
         Ok(ref payload) => match serde_json::from_str(payload) {
-            Ok(data) => Some(data),
+            Ok(data) => {
+                if let Err(e) = predicates_db_conn.hdel::<_, _, u64>(key.to_string(), "predicates")
+                {
+                    error!(
+                        ctx.expect_logger(),
+                        "Error removing expired predicates index: {}",
+                        e.to_string()
+                    );
+                }
+                Some(data)
+            }
             Err(_) => None,
         },
         Err(_) => None,
@@ -925,7 +936,7 @@ pub fn update_predicate_status(
     }
 }
 
-pub fn update_predicate_spec(
+fn update_predicate_spec(
     predicate_key: &str,
     spec: &ChainhookSpecification,
     predicates_db_conn: &mut Connection,
@@ -948,7 +959,7 @@ pub fn update_predicate_spec(
     }
 }
 
-pub fn retrieve_predicate_status(
+fn retrieve_predicate_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
 ) -> Option<PredicateStatus> {
