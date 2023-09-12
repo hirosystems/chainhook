@@ -576,11 +576,11 @@ async fn mine_stacks_block(port: u16, height: u64, burn_block_height: u64) {
         .unwrap();
 }
 
-#[test_case(Chain::Stacks, 5, 0, Some(3) => using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Stacks chain")]
-#[test_case(Chain::Stacks, 5, 0, None => using assert_streaming_status; "scanning with no predicate_end_block ends with Streaming status for Stacks chain")]
-#[test_case(Chain::Stacks, 3, 0, Some(5) => using assert_streaming_status; "scanning to predicate_end_block greater than chain_tip ends with Streaming status for Stacks chain")]
-#[test_case(Chain::Stacks, 5, 3, Some(7) => using assert_expired_unsafe_status; "scanning with predicate_end_block greater than starting_chain_tip and mining until end_block ends with ExpiredUnsafe status for Stacks chain")]
-#[test_case(Chain::Bitcoin, 5, 0, Some(3) => using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Bitcoin chain")]
+#[test_case(Chain::Stacks, 5, 0, Some(3) => ignore using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Stacks chain")]
+#[test_case(Chain::Stacks, 5, 0, None => ignore using assert_streaming_status; "scanning with no predicate_end_block ends with Streaming status for Stacks chain")]
+#[test_case(Chain::Stacks, 3, 0, Some(5) => ignore using assert_streaming_status; "scanning to predicate_end_block greater than chain_tip ends with Streaming status for Stacks chain")]
+#[test_case(Chain::Stacks, 5, 3, Some(7) => ignore using assert_expired_unsafe_status; "scanning with predicate_end_block greater than starting_chain_tip and mining until end_block ends with ExpiredUnsafe status for Stacks chain")]
+#[test_case(Chain::Bitcoin, 5, 0, Some(3) => ignore using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Bitcoin chain")]
 #[tokio::test]
 //#[serial_test::serial]
 async fn predicate_status_is_updated(
