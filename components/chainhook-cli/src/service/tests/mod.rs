@@ -5,6 +5,7 @@ use chainhook_sdk::types::BitcoinNetwork;
 use chainhook_sdk::types::Chain;
 use chainhook_sdk::types::StacksNetwork;
 use chainhook_sdk::types::StacksNodeConfig;
+use redis::Commands;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::net::TcpListener;
@@ -406,8 +407,33 @@ async fn it_handles_stacks_predicates_with_filters(filters: JsonValue) {
         }
     }
 }
-
-async fn start_chainhook_service(chainhook_port: u16, working_dir: &str, tsv_dir: &str) {
+fn flush_redis() {
+    let client =
+        redis::Client::open("redis://localhost:6378/").expect("unable to connect to redis");
+    let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
+    let predicate_keys: Vec<String> = predicate_db_conn
+        .scan_match("predicate:*")
+        .unwrap()
+        .into_iter()
+        .collect();
+    for k in predicate_keys {
+        predicate_db_conn
+            .hdel::<_, _, ()>(&k, "predicates")
+            .unwrap();
+        predicate_db_conn.hdel::<_, _, ()>(&k, "status").unwrap();
+        predicate_db_conn
+            .hdel::<_, _, ()>(&k, "specification")
+            .unwrap();
+    }
+}
+async fn start_chainhook_service(
+    chainhook_port: u16,
+    stacks_rpc_port: u16,
+    stacks_ingestion_port: u16,
+    working_dir: &str,
+    tsv_dir: &str,
+) {
+    flush_redis();
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
     let ctx = Context {
@@ -417,7 +443,7 @@ async fn start_chainhook_service(chainhook_port: u16, working_dir: &str, tsv_dir
     let api_config = PredicatesApiConfig {
         http_port: chainhook_port,
         display_logs: true,
-        database_uri: DEFAULT_REDIS_URI.to_string(),
+        database_uri: "redis://localhost:6378/".to_string(),
     };
     let mut config = Config {
         http_api: PredicatesApi::On(api_config),
@@ -443,8 +469,8 @@ async fn start_chainhook_service(chainhook_port: u16, working_dir: &str, tsv_dir
             bitcoind_rpc_password: "user".into(),
             bitcoind_rpc_url: "http://localhost:18443".into(),
             bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(StacksNodeConfig {
-                rpc_url: format!("http://localhost:3001"),
-                ingestion_port: 3002,
+                rpc_url: format!("http://localhost:{stacks_rpc_port}"),
+                ingestion_port: stacks_ingestion_port,
             }),
         },
     };
@@ -550,20 +576,22 @@ async fn mine_stacks_block(port: u16, height: u64, burn_block_height: u64) {
         .unwrap();
 }
 
-#[test_case(Chain::Stacks, 5, 0, Some(3) => using assert_expired_safe_status; "scanning to end_block lower than starting_chain_tip ends with ExpiredSafe status for Stacks chain")]
-#[test_case(Chain::Stacks, 5, 0, None => using assert_streaming_status; "scanning with no end block ends with Streaming status for Stacks chain")]
-// needs code fix to work: #[test_case(3, 5 => using assert_streaming_status; "scanning to end_block greater than chain_tip ends with Streaming status")]
-// #[test_case(Chain::Stacks, 5, 3, Some(8) => using assert_expired_unsafe_status; "scanning with end_block greater than starting_chain_tip and mining until end_block ends with ExpiredUnsafe status for Stacks chain")]
+#[test_case(Chain::Stacks, 5, 0, Some(3) => using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Stacks chain")]
+#[test_case(Chain::Stacks, 5, 0, None => using assert_streaming_status; "scanning with no predicate_end_block ends with Streaming status for Stacks chain")]
+#[test_case(Chain::Stacks, 3, 0, Some(5) => using assert_streaming_status; "scanning to predicate_end_block greater than chain_tip ends with Streaming status for Stacks chain")]
+#[test_case(Chain::Stacks, 5, 3, Some(7) => using assert_expired_unsafe_status; "scanning with predicate_end_block greater than starting_chain_tip and mining until end_block ends with ExpiredUnsafe status for Stacks chain")]
+#[test_case(Chain::Bitcoin, 5, 0, Some(3) => using assert_expired_safe_status; "scanning to predicate_end_block lower than starting_chain_tip ends with ExpiredSafe status for Bitcoin chain")]
 #[tokio::test]
+//#[serial_test::serial]
 async fn predicate_status_is_updated(
     chain: Chain,
     starting_chain_tip: u64,
     blocks_to_mine: u64,
-    end_block: Option<u64>,
+    predicate_end_block: Option<u64>,
 ) -> PredicateStatus {
-    let port = get_free_port();
-    // let stacks_rpc_port = get_free_port();
-    // let stacks_ingestion_port = get_free_port();
+    let chainhook_service_port = get_free_port();
+    let stacks_rpc_port = get_free_port();
+    let stacks_ingestion_port = get_free_port();
     let (working_dir, tsv_dir) = get_random_dirs();
     let uuid = &get_random_uuid();
     let predicate = match chain {
@@ -573,7 +601,7 @@ async fn predicate_status_is_updated(
                 Some("devnet"),
                 Some(json!({"scope":"block_height", "lower_than": 100})),
                 None,
-                Some(json!({"start_block": 1, "end_block": end_block})),
+                Some(json!({"start_block": 1, "end_block": predicate_end_block})),
                 Some(uuid),
             )
         }
@@ -581,25 +609,39 @@ async fn predicate_status_is_updated(
             Some("regtest"),
             Some(json!({"scope":"block"})),
             None,
-            Some(json!({"start_block": 1, "end_block": end_block})),
+            Some(json!({"start_block": 1, "end_block": predicate_end_block})),
             Some(uuid),
         ),
     };
-    start_chainhook_service(port, &working_dir, &tsv_dir).await;
-    let res = call_register_predicate(&predicate, port).await.unwrap();
+    start_chainhook_service(
+        chainhook_service_port,
+        stacks_rpc_port,
+        stacks_ingestion_port,
+        &working_dir,
+        &tsv_dir,
+    )
+    .await;
+    let res = call_register_predicate(&predicate, chainhook_service_port)
+        .await
+        .unwrap();
     let res = res.as_object().unwrap();
     let status = res.get("status").unwrap();
     assert_eq!(status, &json!(200));
 
-    match get_predicate_status(uuid, port).await {
+    match get_predicate_status(uuid, chainhook_service_port).await {
         PredicateStatus::New => {}
         _ => panic!("initially registered predicate should have new status"),
     }
     for i in 0..blocks_to_mine {
-        mine_stacks_block(3002, i + starting_chain_tip, i + starting_chain_tip + 100).await;
+        mine_stacks_block(
+            stacks_ingestion_port,
+            i + starting_chain_tip,
+            i + starting_chain_tip + 100,
+        )
+        .await;
     }
     sleep(Duration::new(2, 0));
-    let result = get_predicate_status(uuid, port).await;
+    let result = get_predicate_status(uuid, chainhook_service_port).await;
     std::fs::remove_dir_all(working_dir).unwrap();
     result
 }
