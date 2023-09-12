@@ -5,7 +5,7 @@ use crate::{
     config::{Config, PredicatesApi},
     service::{
         open_readwrite_predicates_db_conn_or_panic, set_expired_safe_status,
-        set_expired_unsafe_status, set_predicate_scanning_status, Chain, ScanningData,
+        set_expired_unsafe_status, set_predicate_scanning_status, ScanningData,
     },
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
@@ -13,7 +13,7 @@ use crate::{
         open_readwrite_stacks_db_conn,
     },
 };
-use chainhook_sdk::types::BlockIdentifier;
+use chainhook_sdk::types::{BlockIdentifier, Chain};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},

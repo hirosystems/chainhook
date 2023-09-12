@@ -15,7 +15,7 @@ use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{
     start_event_observer, ObserverCommand, ObserverEvent, PredicateEvaluationReport,
 };
-use chainhook_sdk::types::StacksChainEvent;
+use chainhook_sdk::types::{Chain, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
@@ -542,10 +542,7 @@ pub struct ExpiredData {
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
-pub enum Chain {
-    Bitcoin,
-    Stacks,
-}
+
 fn update_stats_from_report(
     chain: Chain,
     report: PredicateEvaluationReport,
@@ -596,9 +593,7 @@ fn update_stats_from_report(
         }
     }
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
-        println!("expiring predicate {}", predicate_uuid);
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            println!("predicate had height");
             let evaluated_count = blocks_ids.len().try_into().unwrap();
             set_expired_unsafe_status(
                 &chain,
