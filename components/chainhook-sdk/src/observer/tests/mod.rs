@@ -202,6 +202,102 @@ fn generate_and_register_new_bitcoin_chainhook(
     chainhook
 }
 
+fn assert_predicates_triggered_event(
+    observer_events_rx: &crossbeam_channel::Receiver<ObserverEvent>,
+    expected_len: usize,
+) {
+    assert!(
+        match observer_events_rx.recv() {
+            Ok(ObserverEvent::PredicatesTriggered(len)) => {
+                assert_eq!(
+                    len, expected_len,
+                    "expected {} predicate(s) to be triggered",
+                    expected_len
+                );
+                true
+            }
+            _ => false,
+        },
+        "expected PredicatesTriggered event to occur"
+    );
+}
+
+fn assert_stacks_chain_event(observer_events_rx: &crossbeam_channel::Receiver<ObserverEvent>) {
+    assert!(
+        match observer_events_rx.recv() {
+            Ok(ObserverEvent::StacksChainEvent(_)) => {
+                true
+            }
+            _ => false,
+        },
+        "expected StacksChainEvent event to occur"
+    );
+}
+
+fn assert_observer_metrics_stacks_registered_predicates(
+    observer_metrics_rw_lock: &Arc<RwLock<ObserverMetrics>>,
+    expected_count: usize,
+) {
+    assert_eq!(
+        expected_count,
+        observer_metrics_rw_lock
+            .read()
+            .unwrap()
+            .stacks
+            .registered_predicates,
+        "expected {} registered stacks hooks",
+        expected_count
+    );
+}
+
+fn assert_observer_metrics_stacks_deregistered_predicates(
+    observer_metrics_rw_lock: &Arc<RwLock<ObserverMetrics>>,
+    expected_count: usize,
+) {
+    assert_eq!(
+        expected_count,
+        observer_metrics_rw_lock
+            .read()
+            .unwrap()
+            .stacks
+            .deregistered_predicates,
+        "expected {} deregistered stacks hooks",
+        expected_count
+    );
+}
+
+fn assert_observer_metrics_bitcoin_registered_predicates(
+    observer_metrics_rw_lock: &Arc<RwLock<ObserverMetrics>>,
+    expected_count: usize,
+) {
+    assert_eq!(
+        expected_count,
+        observer_metrics_rw_lock
+            .read()
+            .unwrap()
+            .bitcoin
+            .registered_predicates,
+        "expected {} registered bitcoin hooks",
+        expected_count
+    );
+}
+
+fn assert_observer_metrics_bitcoin_deregistered_predicates(
+    observer_metrics_rw_lock: &Arc<RwLock<ObserverMetrics>>,
+    expected_count: usize,
+) {
+    assert_eq!(
+        expected_count,
+        observer_metrics_rw_lock
+            .read()
+            .unwrap()
+            .bitcoin
+            .deregistered_predicates,
+        "expected {} deregistered bitcoin hooks",
+        expected_count
+    );
+}
+
 #[test]
 fn test_stacks_chainhook_register_deregister() {
     let (observer_commands_tx, observer_commands_rx) = channel();
@@ -233,14 +329,7 @@ fn test_stacks_chainhook_register_deregister() {
     );
 
     // registering stacks chainhook should increment the observer_metric's registered stacks hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .registered_predicates
-    );
+    assert_observer_metrics_stacks_registered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -264,20 +353,9 @@ fn test_stacks_chainhook_register_deregister() {
     });
 
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Simulate a block that does include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -295,30 +373,30 @@ fn test_stacks_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksPredicateTriggered(payload)) => {
-            assert_eq!(payload.apply.len(), 1);
-            assert_eq!(payload.apply[0].transactions.len(), 1);
-            true
-        }
-        _ => false,
-    });
+    assert!(
+        match observer_events_rx.recv() {
+            Ok(ObserverEvent::StacksPredicateTriggered(payload)) => {
+                assert_eq!(
+                    payload.apply.len(),
+                    1,
+                    "expected 1 predicate to be triggered"
+                );
+                assert_eq!(
+                    payload.apply[0].transactions.len(),
+                    1,
+                    "expected triggered predicate to have 1 transaction"
+                );
+                true
+            }
+            _ => false,
+        },
+        "expected StacksPredicateTriggered event to occur"
+    );
 
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Simulate a block that does include 2 trigger
     let transactions = vec![
@@ -352,13 +430,7 @@ fn test_stacks_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::StacksPredicateTriggered(payload)) => {
@@ -370,12 +442,7 @@ fn test_stacks_chainhook_register_deregister() {
     });
 
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Deregister the hook
     let _ = observer_commands_tx.send(ObserverCommand::DeregisterStacksPredicate(
@@ -393,23 +460,9 @@ fn test_stacks_chainhook_register_deregister() {
     });
 
     // deregistering stacks chainhook should decrement the observer_metric's registered stacks hooks
-    assert_eq!(
-        0,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .registered_predicates
-    );
+    assert_observer_metrics_stacks_registered_predicates(&observer_metrics_rw_lock, 0);
     // and increment the deregistered hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .deregistered_predicates
-    );
+    assert_observer_metrics_stacks_deregistered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -427,20 +480,9 @@ fn test_stacks_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Simulate a block that does include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -458,20 +500,9 @@ fn test_stacks_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     let _ = observer_commands_tx.send(ObserverCommand::Terminate);
     handle.join().expect("unable to terminate thread");
@@ -522,14 +553,7 @@ fn test_stacks_chainhook_auto_deregister() {
         _ => false,
     });
     // registering stacks chainhook should increment the observer_metric's registered stacks hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .registered_predicates
-    );
+    assert_observer_metrics_stacks_registered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -552,24 +576,22 @@ fn test_stacks_chainhook_auto_deregister() {
         _ => false,
     });
 
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        Ok(e) => {
-            println!("{:?}", e);
-            true
-        }
-        _ => false,
-    });
+    assert!(
+        match observer_events_rx.recv() {
+            Ok(ObserverEvent::PredicatesTriggered(len)) => {
+                assert_eq!(len, 0);
+                true
+            }
+            Ok(e) => {
+                println!("{:?}", e);
+                true
+            }
+            _ => false,
+        },
+        "expected PredicatesTriggered event to occur"
+    );
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Simulate a block that does include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -586,14 +608,8 @@ fn test_stacks_chainhook_auto_deregister() {
         confirmed_blocks: vec![],
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
-    // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    // Should signal that hooks were triggered
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::StacksPredicateTriggered(_)) => {
@@ -603,12 +619,7 @@ fn test_stacks_chainhook_auto_deregister() {
     });
 
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        _ => false,
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     // Simulate another block that does include a trigger
     let transactions = vec![generate_test_tx_stacks_contract_call(
@@ -626,13 +637,8 @@ fn test_stacks_chainhook_auto_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
@@ -643,38 +649,12 @@ fn test_stacks_chainhook_auto_deregister() {
     });
 
     // deregistering stacks chainhook should decrement the observer_metric's registered stacks hooks
-    assert_eq!(
-        0,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .registered_predicates
-    );
+    assert_observer_metrics_stacks_registered_predicates(&observer_metrics_rw_lock, 0);
     // and increment the deregistered hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .stacks
-            .deregistered_predicates
-    );
+    assert_observer_metrics_stacks_deregistered_predicates(&observer_metrics_rw_lock, 1);
 
     // Should propagate block
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::StacksChainEvent(_)) => {
-            true
-        }
-        Ok(event) => {
-            println!("Unexpected event: {:?}", event);
-            false
-        }
-        Err(e) => {
-            println!("Error: {:?}", e);
-            false
-        }
-    });
+    assert_stacks_chain_event(&observer_events_rx);
 
     let _ = observer_commands_tx.send(ObserverCommand::Terminate);
     handle.join().expect("unable to terminate thread");
@@ -711,14 +691,7 @@ fn test_bitcoin_chainhook_register_deregister() {
     );
 
     // registering bitcoin chainhook should increment the observer_metric's registered bitcoin hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .registered_predicates
-    );
+    assert_observer_metrics_bitcoin_registered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger (wallet_1 to wallet_3)
     let transactions = vec![generate_test_tx_bitcoin_p2pkh_transfer(
@@ -735,20 +708,7 @@ fn test_bitcoin_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        Ok(event) => {
-            println!("Unexpected event: {:?}", event);
-            false
-        }
-        Err(e) => {
-            println!("Error: {:?}", e);
-            false
-        }
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
 
     // Should propagate block
     assert!(match observer_events_rx.recv() {
@@ -773,14 +733,8 @@ fn test_bitcoin_chainhook_register_deregister() {
     });
 
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
-    // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    // Should signal that 1 hook was triggered
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinPredicateTriggered(payload)) => {
@@ -828,14 +782,8 @@ fn test_bitcoin_chainhook_register_deregister() {
     });
 
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
-    // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    // Should signal that 1 hook was triggered
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinPredicateTriggered(payload)) => {
@@ -870,23 +818,9 @@ fn test_bitcoin_chainhook_register_deregister() {
     });
 
     // deregistering bitcoin chainhook should decrement the observer_metric's registered bitcoin hooks
-    assert_eq!(
-        0,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .registered_predicates
-    );
+    assert_observer_metrics_bitcoin_registered_predicates(&observer_metrics_rw_lock, 0);
     // and increment the deregistered hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .deregistered_predicates
-    );
+    assert_observer_metrics_bitcoin_deregistered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger
     let transactions = vec![generate_test_tx_bitcoin_p2pkh_transfer(
@@ -904,13 +838,8 @@ fn test_bitcoin_chainhook_register_deregister() {
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
 
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should propagate block
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinChainEvent(_)) => {
@@ -934,13 +863,8 @@ fn test_bitcoin_chainhook_register_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should propagate block
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinChainEvent(_)) => {
@@ -984,14 +908,7 @@ fn test_bitcoin_chainhook_auto_deregister() {
     );
 
     // registering bitcoin chainhook should increment the observer_metric's registered bitcoin hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .registered_predicates
-    );
+    assert_observer_metrics_bitcoin_registered_predicates(&observer_metrics_rw_lock, 1);
 
     // Simulate a block that does not include a trigger (wallet_1 to wallet_3)
     let transactions = vec![generate_test_tx_bitcoin_p2pkh_transfer(
@@ -1009,13 +926,8 @@ fn test_bitcoin_chainhook_auto_deregister() {
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
 
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should propagate block
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinChainEvent(_)) => {
@@ -1040,14 +952,8 @@ fn test_bitcoin_chainhook_auto_deregister() {
     });
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
 
-    // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 1);
-            true
-        }
-        _ => false,
-    });
+    // Should signal that 1 hook was triggered
+    assert_predicates_triggered_event(&observer_events_rx, 1);
 
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinPredicateTriggered(_)) => {
@@ -1081,13 +987,8 @@ fn test_bitcoin_chainhook_auto_deregister() {
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
 
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should propagate block
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::BitcoinChainEvent(_)) => {
@@ -1113,13 +1014,8 @@ fn test_bitcoin_chainhook_auto_deregister() {
     let _ = observer_commands_tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
 
     // Should signal that no hook were triggered
-    assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicatesTriggered(len)) => {
-            assert_eq!(len, 0);
-            true
-        }
-        _ => false,
-    });
+    assert_predicates_triggered_event(&observer_events_rx, 0);
+
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
@@ -1130,23 +1026,9 @@ fn test_bitcoin_chainhook_auto_deregister() {
     });
 
     // deregistering bitcoin chainhook should decrement the observer_metric's registered bitcoin hooks
-    assert_eq!(
-        0,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .registered_predicates
-    );
+    assert_observer_metrics_bitcoin_registered_predicates(&observer_metrics_rw_lock, 0);
     // and increment the deregistered hooks
-    assert_eq!(
-        1,
-        observer_metrics_rw_lock
-            .read()
-            .unwrap()
-            .bitcoin
-            .deregistered_predicates
-    );
+    assert_observer_metrics_bitcoin_deregistered_predicates(&observer_metrics_rw_lock, 1);
 
     // Should propagate block
     assert!(match observer_events_rx.recv() {
