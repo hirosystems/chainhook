@@ -1,5 +1,8 @@
 use crate::{
-    indexer::{ChainSegment, ChainSegmentIncompatibility},
+    indexer::{
+        fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
+        ChainSegmentIncompatibility,
+    },
     utils::Context,
 };
 use chainhook_types::{
@@ -224,7 +227,7 @@ impl BitcoinBlockPool {
             }
             segment
         };
-        if canonical_segment.len() < 7 {
+        if canonical_segment.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned

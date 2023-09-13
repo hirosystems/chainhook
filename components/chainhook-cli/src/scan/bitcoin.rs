@@ -1,7 +1,7 @@
 use crate::config::{Config, PredicatesApi};
 use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status,
-    set_unconfirmed_expiration_status, ScanningData,
+    open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
+    set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
@@ -14,6 +14,7 @@ use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
 };
+use chainhook_sdk::indexer::fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH;
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier, Chain,
@@ -227,7 +228,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                     predicates_db_conn,
                     ctx,
                 );
-                if last_scanned_block_confirmations >= 7 {
+                if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
                     set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
                 }
                 return Ok(true);
