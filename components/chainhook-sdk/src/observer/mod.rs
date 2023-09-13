@@ -1409,7 +1409,8 @@ pub async fn start_observer_commands_handler(
                                 e.to_string()
                             )
                         });
-                        continue;
+                        panic!("Unable to register new chainhook spec: {}", e.to_string());
+                        //continue;
                     }
                 };
                 ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
