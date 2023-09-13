@@ -333,7 +333,7 @@ jobs:
       - name: Unit Tests - Cargo
         # can't easily run mac-arm64 tests in GH without native runners for that arch
         if: matrix.target != 'aarch64-apple-darwin'
-        run: cargo test --release --locked --target ${{ matrix.target }}
+        run: RUST_BACKTRACE=1 cargo test --release --locked --target ${{ matrix.target }}
 
       # - name: Functional Tests (Linux)
       #   # can't easily run mac-arm64 tests in GH without native runners for that arch
