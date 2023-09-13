@@ -240,7 +240,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         );
     }
 
-    return Ok(true);
+    return Ok(false);
 }
 
 pub async fn process_block_with_predicates(
