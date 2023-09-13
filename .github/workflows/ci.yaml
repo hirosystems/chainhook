@@ -25,7 +25,6 @@ jobs:
       - name: Cargo test
         run: |
           rustup update
-          cargo check
           RUST_BACKTRACE=1 cargo test --all -- --test-threads=1
 
       - name: Semantic Release
