@@ -26,7 +26,7 @@ jobs:
         run: |
           rustup update
           cargo check
-          RUST_BACKTRACE=1 cargo test --all
+          RUST_BACKTRACE=1 cargo test --all -- --test-threads=1
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v3
