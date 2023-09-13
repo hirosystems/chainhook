@@ -131,11 +131,11 @@ impl ChainhookConfig {
         None
     }
 
-    pub fn expire_stacks_hook(&mut self, hook_uuid: String) {
+    pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
         let mut i = 0;
         while i < self.stacks_chainhooks.len() {
             if self.stacks_chainhooks[i].uuid == hook_uuid {
-                self.stacks_chainhooks[i].expired = true;
+                self.stacks_chainhooks[i].expired_at = Some(block_height);
                 break;
             } else {
                 i += 1;
@@ -143,11 +143,11 @@ impl ChainhookConfig {
         }
     }
 
-    pub fn expire_bitcoin_hook(&mut self, hook_uuid: String) {
+    pub fn expire_bitcoin_hook(&mut self, hook_uuid: String, block_height: u64) {
         let mut i = 0;
         while i < self.bitcoin_chainhooks.len() {
             if self.bitcoin_chainhooks[i].uuid == hook_uuid {
-                self.bitcoin_chainhooks[i].expired = true;
+                self.bitcoin_chainhooks[i].expired_at = Some(block_height);
                 break;
             } else {
                 i += 1;
@@ -264,7 +264,7 @@ pub struct BitcoinChainhookSpecification {
     pub include_outputs: bool,
     pub include_witness: bool,
     pub enabled: bool,
-    pub expired: bool,
+    pub expired_at: Option<u64>,
 }
 
 impl BitcoinChainhookSpecification {
@@ -350,7 +350,7 @@ impl BitcoinChainhookFullSpecification {
             include_outputs: spec.include_outputs.unwrap_or(false),
             include_witness: spec.include_witness.unwrap_or(false),
             enabled: false,
-            expired: false,
+            expired_at: None,
         })
     }
 }
@@ -413,7 +413,7 @@ impl StacksChainhookFullSpecification {
             predicate: spec.predicate,
             action: spec.action,
             enabled: false,
-            expired: false,
+            expired_at: None,
         })
     }
 }
@@ -736,7 +736,7 @@ pub struct StacksChainhookSpecification {
     pub predicate: StacksPredicate,
     pub action: HookAction,
     pub enabled: bool,
-    pub expired: bool,
+    pub expired_at: Option<u64>,
 }
 
 impl StacksChainhookSpecification {

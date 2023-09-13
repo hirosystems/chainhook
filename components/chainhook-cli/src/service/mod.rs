@@ -13,7 +13,8 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{
-    start_event_observer, ObserverCommand, ObserverEvent, PredicateEvaluationReport,
+    start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
+    PredicateEvaluationReport,
 };
 use chainhook_sdk::types::{Chain, StacksChainEvent};
 use chainhook_sdk::utils::Context;
@@ -363,7 +364,14 @@ impl Service {
                                         Some(expired_predicate_uuids) => {
                                             for uuid in expired_predicate_uuids.into_iter() {
                                                 let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireBitcoinPredicate(uuid),
+                                                    ObserverCommand::ExpireBitcoinPredicate(
+                                                        HookExpirationData {
+                                                            hook_uuid: uuid,
+                                                            block_height: confirmed_block
+                                                                .block_identifier
+                                                                .index,
+                                                        },
+                                                    ),
                                                 );
                                             }
                                         }
@@ -384,7 +392,14 @@ impl Service {
                                         Some(expired_predicate_uuids) => {
                                             for uuid in expired_predicate_uuids.into_iter() {
                                                 let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireBitcoinPredicate(uuid),
+                                                    ObserverCommand::ExpireBitcoinPredicate(
+                                                        HookExpirationData {
+                                                            hook_uuid: uuid,
+                                                            block_height: confirmed_block
+                                                                .block_identifier
+                                                                .index,
+                                                        },
+                                                    ),
                                                 );
                                             }
                                         }
@@ -427,7 +442,14 @@ impl Service {
                                         Some(expired_predicate_uuids) => {
                                             for uuid in expired_predicate_uuids.into_iter() {
                                                 let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireStacksPredicate(uuid),
+                                                    ObserverCommand::ExpireStacksPredicate(
+                                                        HookExpirationData {
+                                                            hook_uuid: uuid,
+                                                            block_height: confirmed_block
+                                                                .block_identifier
+                                                                .index,
+                                                        },
+                                                    ),
                                                 );
                                             }
                                         }
@@ -458,7 +480,14 @@ impl Service {
                                         Some(expired_predicate_uuids) => {
                                             for uuid in expired_predicate_uuids.into_iter() {
                                                 let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireStacksPredicate(uuid),
+                                                    ObserverCommand::ExpireStacksPredicate(
+                                                        HookExpirationData {
+                                                            hook_uuid: uuid,
+                                                            block_height: confirmed_block
+                                                                .block_identifier
+                                                                .index,
+                                                        },
+                                                    ),
                                                 );
                                             }
                                         }

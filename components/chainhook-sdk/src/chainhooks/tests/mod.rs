@@ -351,7 +351,7 @@ fn test_stacks_predicates(
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
-        expired: false,
+        expired_at: None,
     };
 
     let predicates = vec![&chainhook];
@@ -430,7 +430,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
-        expired: false,
+        expired_at: None,
     };
 
     let predicates = vec![&chainhook];
@@ -515,7 +515,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
-        expired: false,
+        expired_at: None,
     };
 
     let predicates = vec![&chainhook];
@@ -551,7 +551,7 @@ fn test_stacks_hook_action_noop() {
         )),
         action: HookAction::Noop,
         enabled: true,
-        expired: false,
+        expired_at: None,
     };
 
     let apply_block_data = fixtures::build_stacks_testnet_block_with_contract_call();
@@ -610,7 +610,7 @@ fn test_stacks_hook_action_file_append() {
             path: "./".to_string(),
         }),
         enabled: true,
-        expired: false,
+        expired_at: None,
     };
     let events = get_all_event_types();
     let mut apply_blocks = vec![];

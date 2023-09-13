@@ -248,10 +248,16 @@ pub enum ObserverCommand {
     EnablePredicate(ChainhookSpecification),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
-    ExpireBitcoinPredicate(String),
-    ExpireStacksPredicate(String),
+    ExpireBitcoinPredicate(HookExpirationData),
+    ExpireStacksPredicate(HookExpirationData),
     NotifyBitcoinTransactionProxied,
     Terminate,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HookExpirationData {
+    pub hook_uuid: String,
+    pub block_height: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1098,7 +1104,7 @@ pub async fn start_observer_commands_handler(
                     .bitcoin_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
-                    .filter(|p| !p.expired)
+                    .filter(|p| p.expired_at.is_none())
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1259,7 +1265,7 @@ pub async fn start_observer_commands_handler(
                     .stacks_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
-                    .filter(|p| !p.expired)
+                    .filter(|p| p.expired_at.is_none())
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1550,15 +1556,25 @@ pub async fn start_observer_commands_handler(
                     }
                 }
             }
-            ObserverCommand::ExpireStacksPredicate(hook_uuid) => {
+            ObserverCommand::ExpireStacksPredicate(HookExpirationData {
+                hook_uuid,
+                block_height,
+            }) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
-                chainhook_store.predicates.expire_stacks_hook(hook_uuid);
+                chainhook_store
+                    .predicates
+                    .expire_stacks_hook(hook_uuid, block_height);
             }
-            ObserverCommand::ExpireBitcoinPredicate(hook_uuid) => {
+            ObserverCommand::ExpireBitcoinPredicate(HookExpirationData {
+                hook_uuid,
+                block_height,
+            }) => {
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling ExpireBitcoinPredicate command")
                 });
-                chainhook_store.predicates.expire_bitcoin_hook(hook_uuid);
+                chainhook_store
+                    .predicates
+                    .expire_bitcoin_hook(hook_uuid, block_height);
             }
         }
     }
