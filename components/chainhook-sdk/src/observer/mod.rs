@@ -1151,12 +1151,6 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
                     {
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Bitcoin(chainhook),
-                            ));
-                        }
-
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
                             Err(e) => ctx.try_log(|logger| {
@@ -1166,6 +1160,12 @@ pub async fn start_observer_commands_handler(
                                     e
                                 )
                             }),
+                        }
+
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                                ChainhookSpecification::Bitcoin(chainhook),
+                            ));
                         }
                     }
                 }
@@ -1342,14 +1342,9 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
                     {
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Stacks(chainhook),
-                            ));
-                        }
-
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.stacks.deregister_prediate(),
+
                             Err(e) => ctx.try_log(|logger| {
                                 slog::warn!(
                                     logger,
@@ -1357,6 +1352,12 @@ pub async fn start_observer_commands_handler(
                                     e
                                 )
                             }),
+                        }
+
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                                ChainhookSpecification::Stacks(chainhook),
+                            ));
                         }
                     }
                 }
@@ -1413,13 +1414,6 @@ pub async fn start_observer_commands_handler(
                         //continue;
                     }
                 };
-                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
-                if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
-                } else {
-                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
-                    chainhook_store.predicates.enable_specification(&mut spec);
-                }
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => match spec {
@@ -1434,6 +1428,14 @@ pub async fn start_observer_commands_handler(
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
                 };
+
+                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
+                if let Some(ref tx) = observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
+                } else {
+                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
+                    chainhook_store.predicates.enable_specification(&mut spec);
+                }
             }
             ObserverCommand::EnablePredicate(mut spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
@@ -1447,17 +1449,18 @@ pub async fn start_observer_commands_handler(
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
                 let hook = chainhook_store.predicates.deregister_stacks_hook(hook_uuid);
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Stacks(hook),
-                    ));
-                }
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => metrics.stacks.deregister_prediate(),
                     Err(e) => ctx.try_log(|logger| {
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
+                }
+
+                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                        ChainhookSpecification::Stacks(hook),
+                    ));
                 }
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
@@ -1467,17 +1470,18 @@ pub async fn start_observer_commands_handler(
                 let hook = chainhook_store
                     .predicates
                     .deregister_bitcoin_hook(hook_uuid);
+
+                match observer_metrics.write() {
+                    Ok(mut metrics) => metrics.stacks.deregister_prediate(),
+                    Err(e) => ctx.try_log(|logger| {
+                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                    }),
+                }
+
                 if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         ChainhookSpecification::Bitcoin(hook),
                     ));
-
-                    match observer_metrics.write() {
-                        Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
-                        Err(e) => ctx.try_log(|logger| {
-                            slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                        }),
-                    }
                 }
             }
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
