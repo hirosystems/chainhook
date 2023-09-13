@@ -42,6 +42,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut floating_end_block = false;
 
     let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
+        // todo: if a user provides a number of blocks where start_block + blocks > chain tip,
+        // the predicate will fail to scan all blocks. we should calculate a valid end_block and
+        // switch to streaming mode at some point
         BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
     } else {
         let start_block = match predicate_spec.start_block {
