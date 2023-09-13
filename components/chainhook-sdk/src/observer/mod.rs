@@ -1430,7 +1430,7 @@ pub async fn start_observer_commands_handler(
                         }
                     },
                     Err(e) => ctx.try_log(|logger| {
-                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                        panic!("unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
                 };
             }
