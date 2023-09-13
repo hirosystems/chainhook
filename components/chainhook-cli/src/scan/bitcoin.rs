@@ -107,7 +107,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             None => (number_of_blocks_to_scan, 0, 0u64),
         }
     };
-
+    let mut last_scanned_block_confirmations = 0;
     let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
@@ -123,6 +123,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         let block_breakdown =
             download_and_parse_block_with_retry(&http_client, &block_hash, &bitcoin_config, ctx)
                 .await?;
+        last_scanned_block_confirmations = block_breakdown.confirmations;
         let block = match indexer::bitcoin::standardize_bitcoin_block(
             block_breakdown,
             &event_observer_config.bitcoin_network,
@@ -226,6 +227,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                     predicates_db_conn,
                     ctx,
                 );
+                if last_scanned_block_confirmations >= 7 {
+                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
+                }
                 return Ok(true);
             }
         }

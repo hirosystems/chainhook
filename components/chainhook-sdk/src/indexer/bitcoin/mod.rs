@@ -33,6 +33,7 @@ pub struct BitcoinBlockFullBreakdown {
     pub time: usize,
     pub nonce: u32,
     pub previousblockhash: Option<String>,
+    pub confirmations: i32,
 }
 
 impl BitcoinBlockFullBreakdown {
