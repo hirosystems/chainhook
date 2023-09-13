@@ -510,8 +510,8 @@ impl Service {
 pub enum PredicateStatus {
     Scanning(ScanningData),
     Streaming(StreamingData),
-    ExpiredUnsafe(ExpiredData),
-    ExpiredSafe(ExpiredData),
+    UnconfirmedExpiration(ExpiredData),
+    ConfirmedExpiration(ExpiredData),
     Interrupted(String),
     New,
 }
@@ -595,7 +595,7 @@ fn update_stats_from_report(
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
             let evaluated_count = blocks_ids.len().try_into().unwrap();
-            set_expired_unsafe_status(
+            set_unconfirmed_expiration_status(
                 &chain,
                 evaluated_count,
                 last_evaluated_height,
@@ -668,7 +668,7 @@ fn set_predicate_streaming_status(
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::ExpiredUnsafe(ExpiredData {
+                PredicateStatus::UnconfirmedExpiration(ExpiredData {
                     number_of_blocks_evaluated,
                     number_of_times_triggered,
                     last_occurrence,
@@ -682,7 +682,7 @@ fn set_predicate_streaming_status(
                 ),
                 PredicateStatus::New
                 | PredicateStatus::Interrupted(_)
-                | PredicateStatus::ExpiredSafe(_) => {
+                | PredicateStatus::ConfirmedExpiration(_) => {
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
@@ -768,7 +768,7 @@ pub fn set_predicate_scanning_status(
                     streaming_data.last_occurrence
                 }
             }
-            PredicateStatus::ExpiredUnsafe(expired_data) => {
+            PredicateStatus::UnconfirmedExpiration(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
                     now_ms
                 } else {
@@ -782,7 +782,7 @@ pub fn set_predicate_scanning_status(
                     0
                 }
             }
-            PredicateStatus::Interrupted(_) | PredicateStatus::ExpiredSafe(_) => {
+            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
@@ -806,7 +806,7 @@ pub fn set_predicate_scanning_status(
 /// Updates a predicate's status to `InitialScanCompleted`.
 ///
 /// Preserves the scanning metrics from the predicate's previous status
-pub fn set_expired_unsafe_status(
+pub fn set_unconfirmed_expiration_status(
     chain: &Chain,
     number_of_new_blocks_evaluated: u64,
     last_evaluated_block_height: u64,
@@ -847,7 +847,7 @@ pub fn set_expired_unsafe_status(
                 last_occurrence,
                 last_evaluated_block_height,
             ),
-            PredicateStatus::ExpiredUnsafe(ExpiredData {
+            PredicateStatus::UnconfirmedExpiration(ExpiredData {
                 number_of_blocks_evaluated,
                 number_of_times_triggered,
                 last_occurrence,
@@ -859,7 +859,7 @@ pub fn set_expired_unsafe_status(
                 last_occurrence,
                 expired_at_block_height,
             ),
-            PredicateStatus::Interrupted(_) | PredicateStatus::ExpiredSafe(_) => {
+            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
@@ -867,7 +867,7 @@ pub fn set_expired_unsafe_status(
     };
     update_predicate_status(
         predicate_key,
-        PredicateStatus::ExpiredUnsafe(ExpiredData {
+        PredicateStatus::UnconfirmedExpiration(ExpiredData {
             number_of_blocks_evaluated,
             number_of_times_triggered,
             last_occurrence,
@@ -886,7 +886,7 @@ pub fn set_expired_unsafe_status(
     );
 }
 
-pub fn set_expired_safe_status(
+pub fn set_confirmed_expiration_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
     ctx: &Context,
@@ -894,14 +894,14 @@ pub fn set_expired_safe_status(
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
     let expired_data = match current_status {
         Some(status) => match status {
-            PredicateStatus::ExpiredUnsafe(expired_data) => expired_data,
+            PredicateStatus::UnconfirmedExpiration(expired_data) => expired_data,
             _ => unreachable!("unreachable predicate status: {:?}", status),
         },
         None => unreachable!(),
     };
     update_predicate_status(
         predicate_key,
-        PredicateStatus::ExpiredSafe(expired_data),
+        PredicateStatus::ConfirmedExpiration(expired_data),
         predicates_db_conn,
         &ctx,
     );
@@ -922,7 +922,7 @@ fn expire_predicates_for_block(
     match get_predicates_expiring_at_block(chain, confirmed_block_index, predicates_db_conn, ctx) {
         Some(predicates_to_expire) => {
             for predicate_key in predicates_to_expire.iter() {
-                set_expired_safe_status(predicate_key, predicates_db_conn, ctx);
+                set_confirmed_expiration_status(predicate_key, predicates_db_conn, ctx);
             }
             Some(predicates_to_expire)
         }

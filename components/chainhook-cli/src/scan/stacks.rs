@@ -4,8 +4,8 @@ use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
     service::{
-        open_readwrite_predicates_db_conn_or_panic, set_expired_safe_status,
-        set_expired_unsafe_status, set_predicate_scanning_status, ScanningData,
+        open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
+        set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
     },
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
@@ -398,7 +398,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                         false
                     }
                 };
-                set_expired_unsafe_status(
+                set_unconfirmed_expiration_status(
                     &Chain::Stacks,
                     number_of_blocks_scanned,
                     predicate_end_block,
@@ -407,7 +407,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     ctx,
                 );
                 if is_confirmed {
-                    set_expired_safe_status(&predicate_spec.key(), predicates_db_conn, ctx);
+                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
                 }
                 return Ok((last_block_scanned, true));
             }

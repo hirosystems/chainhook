@@ -1,7 +1,7 @@
 use crate::config::{Config, PredicatesApi};
 use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_expired_unsafe_status,
-    set_predicate_scanning_status, ScanningData,
+    open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status,
+    set_unconfirmed_expiration_status, ScanningData,
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
@@ -217,8 +217,8 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         if let Some(predicate_end_block) = predicate_spec.end_block {
             if predicate_end_block == last_block_scanned.index {
                 // todo: we need to find a way to check if this block is confirmed
-                // and if so, set the status to expired safe
-                set_expired_unsafe_status(
+                // and if so, set the status to confirmed expiration
+                set_unconfirmed_expiration_status(
                     &Chain::Bitcoin,
                     number_of_blocks_scanned,
                     predicate_end_block,
