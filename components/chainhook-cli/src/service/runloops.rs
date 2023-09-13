@@ -124,8 +124,8 @@ pub fn start_bitcoin_scan_runloop(
                 &moved_ctx,
             );
 
-            match hiro_system_kit::nestable_block_on(op) {
-                Ok(_) => {}
+            let predicate_is_expired = match hiro_system_kit::nestable_block_on(op) {
+                Ok(predicate_is_expired) => predicate_is_expired,
                 Err(e) => {
                     error!(
                         moved_ctx.expect_logger(),
@@ -149,9 +149,11 @@ pub fn start_bitcoin_scan_runloop(
                     return;
                 }
             };
-            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                ChainhookSpecification::Bitcoin(predicate_spec),
-            ));
+            if !predicate_is_expired {
+                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                    ChainhookSpecification::Bitcoin(predicate_spec),
+                ));
+            }
         });
     }
     let _ = bitcoin_scan_pool.join();

@@ -1,6 +1,7 @@
 use crate::config::{Config, PredicatesApi};
 use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status, ScanningData,
+    open_readwrite_predicates_db_conn_or_panic, set_expired_unsafe_status,
+    set_predicate_scanning_status, ScanningData,
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
@@ -15,7 +16,7 @@ use chainhook_sdk::indexer::bitcoin::{
 };
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
-    BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier,
+    BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier, Chain,
 };
 use chainhook_sdk::utils::{file_append, send_request, BlockHeights, Context};
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     unfinished_scan_data: Option<ScanningData>,
     config: &Config,
     ctx: &Context,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let auth = Auth::UserPass(
         config.network.bitcoind_rpc_username.clone(),
         config.network.bitcoind_rpc_password.clone(),
@@ -213,6 +214,21 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+        if let Some(predicate_end_block) = predicate_spec.end_block {
+            if predicate_end_block == last_block_scanned.index {
+                // todo: we need to find a way to check if this block is confirmed
+                // and if so, set the status to expired safe
+                set_expired_unsafe_status(
+                    &Chain::Bitcoin,
+                    number_of_blocks_scanned,
+                    predicate_end_block,
+                    &predicate_spec.key(),
+                    predicates_db_conn,
+                    ctx,
+                );
+                return Ok(true);
+            }
+        }
         set_predicate_scanning_status(
             &predicate_spec.key(),
             number_of_blocks_to_scan,
@@ -224,7 +240,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         );
     }
 
-    Ok(())
+    return Ok(true);
 }
 
 pub async fn process_block_with_predicates(
