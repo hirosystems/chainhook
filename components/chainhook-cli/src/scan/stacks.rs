@@ -220,7 +220,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     let proofs = HashMap::new();
-    let mut blocks_scanned = 0;
     info!(
         ctx.expect_logger(),
         "Starting predicate evaluation on Stacks blocks"
@@ -241,7 +240,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
-        number_of_blocks_scanned += 1; // todo: can we remove this and just use `blocks_scanned`?
+        number_of_blocks_scanned += 1;
         let block_data =
             match get_stacks_block_at_block_height(current_block_height, true, 3, stacks_db_conn) {
                 Ok(Some(block)) => block,
@@ -268,7 +267,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 }
             };
         last_block_scanned = block_data.block_identifier.clone();
-        blocks_scanned += 1;
 
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
 
@@ -322,7 +320,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         }
 
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if blocks_scanned % 10 == 0 || blocks_scanned == 1 {
+            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 1 {
                 set_predicate_scanning_status(
                     &predicate_spec.key(),
                     number_of_blocks_to_scan,
@@ -375,7 +373,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     }
     info!(
         ctx.expect_logger(),
-        "{blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate"
+        "{number_of_blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate"
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
