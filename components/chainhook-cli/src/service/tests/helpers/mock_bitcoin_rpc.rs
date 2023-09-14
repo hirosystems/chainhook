@@ -1,3 +1,5 @@
+use chainhook_sdk::bitcoincore_rpc_json::bitcoin::TxMerkleNode;
+use rocket::serde::json::Value;
 use std::cmp::max;
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -6,87 +8,17 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use crate::scan::stacks::Record;
-use crate::scan::stacks::RecordKind;
 use chainhook_sdk::bitcoincore_rpc_json::bitcoin::hashes::sha256d::Hash;
 use chainhook_sdk::bitcoincore_rpc_json::bitcoin::Amount;
 use chainhook_sdk::bitcoincore_rpc_json::bitcoin::BlockHash;
-use chainhook_sdk::bitcoincore_rpc_json::bitcoin::TxMerkleNode;
 use chainhook_sdk::bitcoincore_rpc_json::GetBlockResult;
 use chainhook_sdk::bitcoincore_rpc_json::GetBlockchainInfoResult;
 use chainhook_sdk::bitcoincore_rpc_json::GetNetworkInfoResult;
-use chainhook_sdk::indexer::stacks::NewBlock;
-use chainhook_sdk::indexer::stacks::NewTransaction;
 use rocket::serde::json::Json;
 use rocket::Config;
 use rocket::State;
-use serde_json::Value;
 
-fn create_stacks_new_transaction(index: u64) -> NewTransaction {
-    NewTransaction {
-        txid: format!("transaction_id_{index}"),
-        tx_index: index as usize,
-        status: format!("success"),
-        raw_result: format!("0x0703"),
-        raw_tx: format!("0x00000000010400e2cd0871da5bdd38c4d5569493dc3b14aac4e0a10000000000000019000000000000000000008373b16e4a6f9d87864c314dd77bbd8b27a2b1805e96ec5a6509e7e4f833cd6a7bdb2462c95f6968a867ab6b0e8f0a6498e600dbc46cfe9f84c79709da7b9637010200000000040000000000000000000000000000000000000000000000000000000000000000"),
-        execution_cost: None,
-    }
-}
-
-pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock {
-    let parent_height = if height == 0 { 0 } else { height - 1 };
-    let parent_burn_block_height = if burn_block_height == 0 {
-        0
-    } else {
-        burn_block_height - 1
-    };
-
-    NewBlock {
-        block_height: height,
-        block_hash: height_to_prefixed_hash(height),
-        index_block_hash: height_to_prefixed_hash(height),
-        burn_block_height: burn_block_height,
-        burn_block_hash: height_to_prefixed_hash(burn_block_height),
-        parent_block_hash: height_to_prefixed_hash(parent_height),
-        parent_index_block_hash: height_to_prefixed_hash(parent_height),
-        parent_microblock: "0x0000000000000000000000000000000000000000000000000000000000000000"
-            .into(),
-        parent_microblock_sequence: 0,
-        parent_burn_block_hash: height_to_prefixed_hash(parent_burn_block_height),
-        parent_burn_block_height: burn_block_height,
-        parent_burn_block_timestamp: 0,
-        transactions: (0..4).map(|i| create_stacks_new_transaction(i)).collect(),
-        events: vec![],
-        matured_miner_rewards: vec![],
-    }
-}
-
-fn create_stacks_block_received_record(height: u64, burn_block_height: u64) -> Record {
-    let block = create_stacks_new_block(height, burn_block_height);
-    let serialized_block = serde_json::to_string(&block).unwrap();
-    Record {
-        id: height,
-        created_at: height.to_string(),
-        kind: RecordKind::StacksBlockReceived,
-        blob: Some(serialized_block),
-    }
-}
-pub const WORKING_DIR: &str = "src/service/tests/fixtures/tmp";
-pub fn write_stacks_blocks_to_tsv(block_count: u64, dir: &str) {
-    let mut writer = csv::WriterBuilder::default()
-        .has_headers(false)
-        .delimiter(b'\t')
-        .double_quote(false)
-        .quote(b'\'')
-        .buffer_capacity(8 * (1 << 10))
-        .from_path(dir)
-        .expect("unable to create csv writer");
-    for i in 1..block_count + 1 {
-        writer
-            .serialize(create_stacks_block_received_record(i, i + 100))
-            .unwrap();
-    }
-}
+use super::height_to_hash_str;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(crate = "rocket::serde")]
@@ -95,13 +27,6 @@ struct Rpc {
     id: Value,
     method: String,
     params: Vec<Value>,
-}
-
-pub fn height_to_prefixed_hash(height: u64) -> String {
-    format!("0x{}", height_to_hash_str(height))
-}
-fn height_to_hash_str(height: u64) -> String {
-    format!("{:0>64}", height.to_string())
 }
 
 fn height_to_hash(height: u64) -> BlockHash {
@@ -239,11 +164,10 @@ fn handle_rpc(rpc: Json<Rpc>, chain_tip: &State<Arc<RwLock<u64>>>) -> Value {
 }
 
 pub async fn mock_bitcoin_rpc(port: u16, starting_chain_tip: u64) {
-    let config = Config {
-        port,
-        address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        ..Config::debug_default()
-    };
+    let config = Config::figment()
+        .merge(("port", port))
+        .merge(("address", IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0))))
+        .merge(("log_level", "off"));
     let chain_tip_rw_lock = Arc::new(RwLock::new(starting_chain_tip));
     let _rocket = rocket::build()
         .configure(config)
