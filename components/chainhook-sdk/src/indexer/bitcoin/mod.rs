@@ -120,7 +120,7 @@ pub struct BitcoinTransactionOutputFullBreakdown {
     pub script_pub_key: GetRawTransactionResultVoutScriptPubKey,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct NewBitcoinBlock {
     pub burn_block_hash: String,
     pub burn_block_height: u64,
@@ -130,7 +130,7 @@ pub struct NewBitcoinBlock {
 }
 
 #[allow(dead_code)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct RewardParticipant {
     recipient: String,
     amt: u64,
