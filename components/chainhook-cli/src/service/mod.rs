@@ -890,9 +890,14 @@ pub fn set_unconfirmed_expiration_status(
                 number_of_times_triggered,
                 last_occurrence,
                 expired_at_block_height,
-            ),
-            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
+                )
+            }
+            PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
+            }
+            PredicateStatus::ConfirmedExpiration(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+                return;
             }
         },
         None => (0, 0, 0, 0),
