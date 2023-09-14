@@ -886,10 +886,10 @@ pub fn set_unconfirmed_expiration_status(
             }) => {
                 previously_was_unconfirmed = true;
                 (
-                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
-                number_of_times_triggered,
-                last_occurrence,
-                expired_at_block_height,
+                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    expired_at_block_height,
                 )
             }
             PredicateStatus::Interrupted(_) => {
@@ -916,14 +916,14 @@ pub fn set_unconfirmed_expiration_status(
     );
     // don't insert this entry more than once
     if !previously_was_unconfirmed {
-    insert_predicate_expiration(
-        chain,
-        expired_at_block_height,
-        predicate_key,
-        predicates_db_conn,
-        &ctx,
-    );
-}
+        insert_predicate_expiration(
+            chain,
+            expired_at_block_height,
+            predicate_key,
+            predicates_db_conn,
+            &ctx,
+        );
+    }
 }
 
 pub fn set_confirmed_expiration_status(
