@@ -74,7 +74,7 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 
                 for block in event.new_blocks.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    if end_block > block.block_identifier.index {
+                    if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
                             if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
@@ -105,7 +105,7 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
                 let end_block = chainhook.end_block.unwrap_or(u64::MAX);
 
                 for block in event.blocks_to_rollback.iter() {
-                    if end_block > block.block_identifier.index {
+                    if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
                             if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
@@ -121,7 +121,7 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
                 }
                 for block in event.blocks_to_apply.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    if end_block > block.block_identifier.index {
+                    if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
                             if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {

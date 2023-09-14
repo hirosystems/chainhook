@@ -270,7 +270,7 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     let mut expired_predicates = BTreeMap::new();
     let end_block = chainhook.end_block.unwrap_or(u64::MAX);
     for block in blocks {
-        if end_block > block.get_identifier().index {
+        if end_block >= block.get_identifier().index {
             let mut hits = vec![];
             if chainhook.is_predicate_targeting_block_header()
                 && evaluate_stacks_predicate_on_block(block, chainhook, ctx)
