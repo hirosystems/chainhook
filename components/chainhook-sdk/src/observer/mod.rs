@@ -1472,7 +1472,7 @@ pub async fn start_observer_commands_handler(
                     .deregister_bitcoin_hook(hook_uuid);
 
                 match observer_metrics.write() {
-                    Ok(mut metrics) => metrics.stacks.deregister_prediate(),
+                    Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
                     Err(e) => ctx.try_log(|logger| {
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
