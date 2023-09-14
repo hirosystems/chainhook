@@ -844,6 +844,7 @@ pub fn set_unconfirmed_expiration_status(
     ctx: &Context,
 ) {
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let mut previously_was_unconfirmed = false;
     let (
         number_of_blocks_evaluated,
         number_of_times_triggered,
@@ -882,7 +883,9 @@ pub fn set_unconfirmed_expiration_status(
                 last_occurrence,
                 last_evaluated_block_height: _,
                 expired_at_block_height,
-            }) => (
+            }) => {
+                previously_was_unconfirmed = true;
+                (
                 number_of_blocks_evaluated + number_of_new_blocks_evaluated,
                 number_of_times_triggered,
                 last_occurrence,
@@ -906,6 +909,8 @@ pub fn set_unconfirmed_expiration_status(
         predicates_db_conn,
         &ctx,
     );
+    // don't insert this entry more than once
+    if !previously_was_unconfirmed {
     insert_predicate_expiration(
         chain,
         expired_at_block_height,
@@ -913,6 +918,7 @@ pub fn set_unconfirmed_expiration_status(
         predicates_db_conn,
         &ctx,
     );
+}
 }
 
 pub fn set_confirmed_expiration_status(
