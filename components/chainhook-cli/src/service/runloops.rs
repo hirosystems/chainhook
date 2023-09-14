@@ -21,14 +21,19 @@ use crate::{
     storage::open_readonly_stacks_db_conn,
 };
 
+use super::ScanningData;
+
 pub fn start_stacks_scan_runloop(
     config: &Config,
-    stacks_scan_op_rx: crossbeam_channel::Receiver<StacksChainhookSpecification>,
+    stacks_scan_op_rx: crossbeam_channel::Receiver<(
+        StacksChainhookSpecification,
+        Option<ScanningData>,
+    )>,
     observer_command_tx: Sender<ObserverCommand>,
     ctx: &Context,
 ) {
     let stacks_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_stacks_scans);
-    while let Ok(predicate_spec) = stacks_scan_op_rx.recv() {
+    while let Ok((predicate_spec, unfinished_scan_data)) = stacks_scan_op_rx.recv() {
         let moved_ctx = ctx.clone();
         let moved_config = config.clone();
         let observer_command_tx = observer_command_tx.clone();
@@ -49,12 +54,13 @@ pub fn start_stacks_scan_runloop(
 
             let op = scan_stacks_chainstate_via_rocksdb_using_predicate(
                 &predicate_spec,
+                unfinished_scan_data,
                 &stacks_db_conn,
                 &moved_config,
                 &moved_ctx,
             );
             let res = hiro_system_kit::nestable_block_on(op);
-            let last_block_scanned = match res {
+            let (last_block_scanned, predicate_is_expired) = match res {
                 Ok(last_block_scanned) => last_block_scanned,
                 Err(e) => {
                     warn!(
@@ -84,9 +90,11 @@ pub fn start_stacks_scan_runloop(
                 moved_ctx.expect_logger(),
                 "Stacks chainstate scan completed up to block: {}", last_block_scanned.index
             );
-            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                ChainhookSpecification::Stacks(predicate_spec),
-            ));
+            if !predicate_is_expired {
+                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                    ChainhookSpecification::Stacks(predicate_spec),
+                ));
+            }
         });
     }
     let res = stacks_scan_pool.join();
@@ -95,25 +103,29 @@ pub fn start_stacks_scan_runloop(
 
 pub fn start_bitcoin_scan_runloop(
     config: &Config,
-    bitcoin_scan_op_rx: crossbeam_channel::Receiver<BitcoinChainhookSpecification>,
+    bitcoin_scan_op_rx: crossbeam_channel::Receiver<(
+        BitcoinChainhookSpecification,
+        Option<ScanningData>,
+    )>,
     observer_command_tx: Sender<ObserverCommand>,
     ctx: &Context,
 ) {
     let bitcoin_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_bitcoin_scans);
 
-    while let Ok(predicate_spec) = bitcoin_scan_op_rx.recv() {
+    while let Ok((predicate_spec, unfinished_scan_data)) = bitcoin_scan_op_rx.recv() {
         let moved_ctx = ctx.clone();
         let moved_config = config.clone();
         let observer_command_tx = observer_command_tx.clone();
         bitcoin_scan_pool.execute(move || {
             let op = scan_bitcoin_chainstate_via_rpc_using_predicate(
                 &predicate_spec,
+                unfinished_scan_data,
                 &moved_config,
                 &moved_ctx,
             );
 
-            match hiro_system_kit::nestable_block_on(op) {
-                Ok(_) => {}
+            let predicate_is_expired = match hiro_system_kit::nestable_block_on(op) {
+                Ok(predicate_is_expired) => predicate_is_expired,
                 Err(e) => {
                     error!(
                         moved_ctx.expect_logger(),
@@ -137,9 +149,11 @@ pub fn start_bitcoin_scan_runloop(
                     return;
                 }
             };
-            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                ChainhookSpecification::Bitcoin(predicate_spec),
-            ));
+            if !predicate_is_expired {
+                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                    ChainhookSpecification::Bitcoin(predicate_spec),
+                ));
+            }
         });
     }
     let _ = bitcoin_scan_pool.join();
