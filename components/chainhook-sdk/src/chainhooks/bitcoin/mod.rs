@@ -59,25 +59,33 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 ) -> (
     Vec<BitcoinTriggerChainhook<'a>>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
     let mut evaluated_predicates = BTreeMap::new();
     let mut triggered_predicates = vec![];
+    let mut expired_predicates = BTreeMap::new();
+
     match chain_event {
         BitcoinChainEvent::ChainUpdatedWithBlocks(event) => {
             for chainhook in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let rollback = vec![];
+                let end_block = chainhook.end_block.unwrap_or(u64::MAX);
 
                 for block in event.new_blocks.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block > block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        apply.push((hits, block));
+                        if hits.len() > 0 {
+                            apply.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
 
@@ -94,28 +102,37 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
             for chainhook in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
+                let end_block = chainhook.end_block.unwrap_or(u64::MAX);
 
                 for block in event.blocks_to_rollback.iter() {
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block > block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        rollback.push((hits, block));
+                        if hits.len() > 0 {
+                            rollback.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
                 for block in event.blocks_to_apply.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block > block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        apply.push((hits, block));
+                        if hits.len() > 0 {
+                            apply.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
@@ -128,7 +145,11 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
             }
         }
     }
-    (triggered_predicates, evaluated_predicates)
+    (
+        triggered_predicates,
+        evaluated_predicates,
+        expired_predicates,
+    )
 }
 
 pub fn serialize_bitcoin_payload_to_json<'a>(

@@ -4,7 +4,6 @@ use chainhook_types::{BitcoinNetwork, StacksNetwork};
 use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 
 use schemars::JsonSchema;
 
@@ -131,6 +130,30 @@ impl ChainhookConfig {
         }
         None
     }
+
+    pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
+        let mut i = 0;
+        while i < self.stacks_chainhooks.len() {
+            if self.stacks_chainhooks[i].uuid == hook_uuid {
+                self.stacks_chainhooks[i].expired_at = Some(block_height);
+                break;
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    pub fn expire_bitcoin_hook(&mut self, hook_uuid: String, block_height: u64) {
+        let mut i = 0;
+        while i < self.bitcoin_chainhooks.len() {
+            if self.bitcoin_chainhooks[i].uuid == hook_uuid {
+                self.bitcoin_chainhooks[i].expired_at = Some(block_height);
+                break;
+            } else {
+                i += 1;
+            }
+        }
+    }
 }
 
 impl Serialize for ChainhookConfig {
@@ -178,23 +201,6 @@ impl ChainhookSpecification {
         format!("predicate:{}", uuid)
     }
 
-    pub fn into_serialized_json(&self) -> JsonValue {
-        match &self {
-            Self::Stacks(data) => json!({
-                "chain": "stacks",
-                "uuid": data.uuid,
-                "network": data.network,
-                "predicate": data.predicate,
-            }),
-            Self::Bitcoin(data) => json!({
-                "chain": "bitcoin",
-                "uuid": data.uuid,
-                "network": data.network,
-                "predicate": data.predicate,
-            }),
-        }
-    }
-
     pub fn key(&self) -> String {
         match &self {
             Self::Bitcoin(data) => Self::bitcoin_key(&data.uuid),
@@ -226,6 +232,13 @@ impl ChainhookSpecification {
         }
         Ok(())
     }
+
+    pub fn start_block(&self) -> Option<u64> {
+        match &self {
+            Self::Bitcoin(data) => data.start_block,
+            Self::Stacks(data) => data.start_block,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -251,6 +264,7 @@ pub struct BitcoinChainhookSpecification {
     pub include_outputs: bool,
     pub include_witness: bool,
     pub enabled: bool,
+    pub expired_at: Option<u64>,
 }
 
 impl BitcoinChainhookSpecification {
@@ -336,6 +350,7 @@ impl BitcoinChainhookFullSpecification {
             include_outputs: spec.include_outputs.unwrap_or(false),
             include_witness: spec.include_witness.unwrap_or(false),
             enabled: false,
+            expired_at: None,
         })
     }
 }
@@ -398,6 +413,7 @@ impl StacksChainhookFullSpecification {
             predicate: spec.predicate,
             action: spec.action,
             enabled: false,
+            expired_at: None,
         })
     }
 }
@@ -720,6 +736,7 @@ pub struct StacksChainhookSpecification {
     pub predicate: StacksPredicate,
     pub action: HookAction,
     pub enabled: bool,
+    pub expired_at: Option<u64>,
 }
 
 impl StacksChainhookSpecification {

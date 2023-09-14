@@ -25,8 +25,7 @@ jobs:
       - name: Cargo test
         run: |
           rustup update
-          cargo check
-          cargo test --all
+          RUST_BACKTRACE=1 cargo test --all -- --test-threads=1
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v3
@@ -72,6 +71,6 @@ jobs:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          file: ./dockerfiles/components/chainhook.dockerfile
+          file: ./dockerfiles/components/chainhook-node.dockerfile
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
           push: ${{ (github.ref != 'refs/heads/master' || steps.semantic.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}

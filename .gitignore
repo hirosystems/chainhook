@@ -18,3 +18,5 @@ components/chainhook-types-js/dist
 *.rdb
 *.redb
 cache/
+
+components/chainhook-cli/src/service/tests/fixtures/tmp

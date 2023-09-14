@@ -216,8 +216,16 @@ pub enum ObserverCommand {
     EnablePredicate(ChainhookSpecification),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
+    ExpireBitcoinPredicate(HookExpirationData),
+    ExpireStacksPredicate(HookExpirationData),
     NotifyBitcoinTransactionProxied,
     Terminate,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HookExpirationData {
+    pub hook_uuid: String,
+    pub block_height: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -236,6 +244,7 @@ pub struct MempoolAdmissionData {
 pub struct PredicateEvaluationReport {
     pub predicates_evaluated: BTreeMap<String, BTreeSet<BlockIdentifier>>,
     pub predicates_triggered: BTreeMap<String, BTreeSet<BlockIdentifier>>,
+    pub predicates_expired: BTreeMap<String, BTreeSet<BlockIdentifier>>,
 }
 
 impl PredicateEvaluationReport {
@@ -243,6 +252,7 @@ impl PredicateEvaluationReport {
         PredicateEvaluationReport {
             predicates_evaluated: BTreeMap::new(),
             predicates_triggered: BTreeMap::new(),
+            predicates_expired: BTreeMap::new(),
         }
     }
 
@@ -272,6 +282,19 @@ impl PredicateEvaluationReport {
                     set
                 });
         }
+    }
+
+    pub fn track_expiration(&mut self, uuid: &str, block_identifier: &BlockIdentifier) {
+        self.predicates_expired
+            .entry(uuid.to_string())
+            .and_modify(|e| {
+                e.insert(block_identifier.clone());
+            })
+            .or_insert_with(|| {
+                let mut set = BTreeSet::new();
+                set.insert(block_identifier.clone());
+                set
+            });
     }
 }
 
@@ -1010,6 +1033,7 @@ pub async fn start_observer_commands_handler(
                     .bitcoin_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
+                    .filter(|p| p.expired_at.is_none())
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1019,14 +1043,18 @@ pub async fn start_observer_commands_handler(
                     )
                 });
 
-                let (predicates_triggered, predicates_evaluated) =
+                let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_bitcoin_chainhooks_on_chain_event(
                         &chain_event,
                         &bitcoin_chainhooks,
                         &ctx,
                     );
+
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
+                }
+                for (uuid, block_identifier) in predicates_expired.into_iter() {
+                    report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
                     let blocks_ids = entry
@@ -1051,6 +1079,11 @@ pub async fn start_observer_commands_handler(
                     let mut total_occurrences: u64 = *chainhooks_occurrences_tracker
                         .get(&trigger.chainhook.uuid)
                         .unwrap_or(&0);
+                    // todo: this currently is only additive, and an occurrence means we match a chain event,
+                    // rather than the number of blocks. Should we instead add to the total occurrences for
+                    // every apply block, and subtract for every rollback? If we did this, we could set the
+                    // status to `Expired` when we go above `expire_after_occurrence` occurrences, rather than
+                    // deregistering
                     total_occurrences += 1;
 
                     let limit = trigger.chainhook.expire_after_occurrence.unwrap_or(0);
@@ -1118,12 +1151,6 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
                     {
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Bitcoin(chainhook),
-                            ));
-                        }
-
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
                             Err(e) => ctx.try_log(|logger| {
@@ -1133,6 +1160,12 @@ pub async fn start_observer_commands_handler(
                                     e
                                 )
                             }),
+                        }
+
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                                ChainhookSpecification::Bitcoin(chainhook),
+                            ));
                         }
                     }
                 }
@@ -1158,6 +1191,7 @@ pub async fn start_observer_commands_handler(
                     .stacks_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
+                    .filter(|p| p.expired_at.is_none())
                     .collect::<Vec<_>>();
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -1228,7 +1262,7 @@ pub async fn start_observer_commands_handler(
                 }
 
                 // process hooks
-                let (predicates_triggered, predicates_evaluated) =
+                let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_stacks_chainhooks_on_chain_event(
                         &chain_event,
                         stacks_chainhooks,
@@ -1236,6 +1270,9 @@ pub async fn start_observer_commands_handler(
                     );
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
                     report.track_evaluation(uuid, block_identifier);
+                }
+                for (uuid, block_identifier) in predicates_expired.into_iter() {
+                    report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
                     let blocks_ids = entry
@@ -1305,14 +1342,9 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
                     {
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Stacks(chainhook),
-                            ));
-                        }
-
                         match observer_metrics.write() {
                             Ok(mut metrics) => metrics.stacks.deregister_prediate(),
+
                             Err(e) => ctx.try_log(|logger| {
                                 slog::warn!(
                                     logger,
@@ -1320,6 +1352,12 @@ pub async fn start_observer_commands_handler(
                                     e
                                 )
                             }),
+                        }
+
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                                ChainhookSpecification::Stacks(chainhook),
+                            ));
                         }
                     }
                 }
@@ -1372,16 +1410,10 @@ pub async fn start_observer_commands_handler(
                                 e.to_string()
                             )
                         });
-                        continue;
+                        panic!("Unable to register new chainhook spec: {}", e.to_string());
+                        //continue;
                     }
                 };
-                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
-                if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
-                } else {
-                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
-                    chainhook_store.predicates.enable_specification(&mut spec);
-                }
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => match spec {
@@ -1396,6 +1428,14 @@ pub async fn start_observer_commands_handler(
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
                 };
+
+                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
+                if let Some(ref tx) = observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
+                } else {
+                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
+                    chainhook_store.predicates.enable_specification(&mut spec);
+                }
             }
             ObserverCommand::EnablePredicate(mut spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
@@ -1409,17 +1449,18 @@ pub async fn start_observer_commands_handler(
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
                 let hook = chainhook_store.predicates.deregister_stacks_hook(hook_uuid);
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Stacks(hook),
-                    ));
-                }
 
                 match observer_metrics.write() {
                     Ok(mut metrics) => metrics.stacks.deregister_prediate(),
                     Err(e) => ctx.try_log(|logger| {
                         slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
                     }),
+                }
+
+                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                        ChainhookSpecification::Stacks(hook),
+                    ));
                 }
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
@@ -1429,18 +1470,39 @@ pub async fn start_observer_commands_handler(
                 let hook = chainhook_store
                     .predicates
                     .deregister_bitcoin_hook(hook_uuid);
+
+                match observer_metrics.write() {
+                    Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
+                    Err(e) => ctx.try_log(|logger| {
+                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
+                    }),
+                }
+
                 if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         ChainhookSpecification::Bitcoin(hook),
                     ));
-
-                    match observer_metrics.write() {
-                        Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
-                        Err(e) => ctx.try_log(|logger| {
-                            slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                        }),
-                    }
                 }
+            }
+            ObserverCommand::ExpireStacksPredicate(HookExpirationData {
+                hook_uuid,
+                block_height,
+            }) => {
+                ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
+                chainhook_store
+                    .predicates
+                    .expire_stacks_hook(hook_uuid, block_height);
+            }
+            ObserverCommand::ExpireBitcoinPredicate(HookExpirationData {
+                hook_uuid,
+                block_height,
+            }) => {
+                ctx.try_log(|logger| {
+                    slog::info!(logger, "Handling ExpireBitcoinPredicate command")
+                });
+                chainhook_store
+                    .predicates
+                    .expire_bitcoin_hook(hook_uuid, block_height);
             }
         }
     }
