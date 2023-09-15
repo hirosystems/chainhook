@@ -306,18 +306,9 @@ async fn await_new_scanning_status_complete(
     }
 }
 
-#[test_case(5, 0, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
-#[test_case(5, 0, Some(1), None => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
-#[test_case(3, 0, Some(1), Some(5) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
-#[test_case(5, 3, Some(1), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
-#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
-#[tokio::test]
-async fn test_stacks_predicate_status_is_updated(
+async fn setup_stacks_chainhook_test(
     starting_chain_tip: u64,
-    blocks_to_mine: u64,
-    predicate_start_block: Option<u64>,
-    predicate_end_block: Option<u64>,
-) -> PredicateStatus {
+) -> (Child, String, u16, u16, u16, u16) {
     let (
         redis_port,
         chainhook_service_port,
@@ -336,8 +327,6 @@ async fn test_stacks_predicate_status_is_updated(
         panic!("test failed with error: {e}");
     });
 
-    let uuid = &get_random_uuid();
-
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
     let ctx = Context {
@@ -351,14 +340,6 @@ async fn test_stacks_predicate_status_is_updated(
         redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
-
-    let predicate = build_stacks_payload(
-        Some("devnet"),
-        Some(json!({"scope":"block_height", "lower_than": 100})),
-        None,
-        Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
-        Some(uuid),
-    );
 
     let mut config = get_chainhook_config(
         redis_port,
@@ -387,7 +368,45 @@ async fn test_stacks_predicate_status_is_updated(
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
+    (
+        redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+    )
+}
 
+#[test_case(5, 0, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
+#[test_case(5, 0, Some(1), None => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
+#[test_case(3, 0, Some(1), Some(5) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
+#[test_case(5, 3, Some(1), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
+#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
+#[tokio::test]
+async fn test_stacks_predicate_status_is_updated(
+    starting_chain_tip: u64,
+    blocks_to_mine: u64,
+    predicate_start_block: Option<u64>,
+    predicate_end_block: Option<u64>,
+) -> PredicateStatus {
+    let (
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        _,
+    ) = setup_stacks_chainhook_test(starting_chain_tip).await;
+
+    let uuid = &get_random_uuid();
+    let predicate = build_stacks_payload(
+        Some("devnet"),
+        Some(json!({"scope":"block_height", "lower_than": 100})),
+        None,
+        Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
+        Some(uuid),
+    );
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
         .unwrap_or_else(|e| {
