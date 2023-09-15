@@ -390,6 +390,7 @@ async fn setup_stacks_chainhook_test(
 #[test_case(5, 3, Some(1), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
 #[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
 #[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_stacks_predicate_status_is_updated(
     starting_chain_tip: u64,
     blocks_to_mine: u64,
@@ -541,6 +542,7 @@ async fn setup_bitcoin_chainhook_test(
 #[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
 #[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
 #[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_bitcoin_predicate_status_is_updated(
     starting_chain_tip: u64,
     blocks_to_mine: u64,
@@ -626,6 +628,7 @@ async fn test_bitcoin_predicate_status_is_updated(
 #[test_case(Chain::Stacks; "for stacks chain")]
 #[test_case(Chain::Bitcoin; "for bitcoin chain")]
 #[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_deregister_predicate(chain: Chain) {
     let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) = match &chain {
         Chain::Stacks => setup_stacks_chainhook_test(0).await,
