@@ -55,7 +55,7 @@ fn handle_rpc(rpc: Json<Rpc>, chain_tip: &State<Arc<RwLock<u64>>>) -> Value {
             let hash = rpc.params[0].as_str().unwrap();
             let prefix = hash.chars().take_while(|&ch| ch == '0').collect::<String>();
             let height = hash.split(&prefix).collect::<Vec<&str>>()[1];
-            let height = height.parse::<u64>().unwrap();
+            let height = height.parse::<u64>().unwrap_or(0);
             if height > chain_tip {
                 return json!({
                     "id": rpc.id,
@@ -69,6 +69,11 @@ fn handle_rpc(rpc: Json<Rpc>, chain_tip: &State<Arc<RwLock<u64>>>) -> Value {
                 Some(height_to_hash(height + 1))
             };
             let confirmations = max(0, chain_tip - height) as i32;
+            let previousblockhash = if height == 0 {
+                None
+            } else {
+                Some(height_to_hash(height - 1))
+            };
             let block = GetBlockResult {
                 hash: BlockHash::from_hash(Hash::from_str(hash).unwrap()),
                 confirmations,
@@ -87,7 +92,7 @@ fn handle_rpc(rpc: Json<Rpc>, chain_tip: &State<Arc<RwLock<u64>>>) -> Value {
                 difficulty: 0.0,
                 chainwork: vec![],
                 n_tx: 0,
-                previousblockhash: Some(height_to_hash(height - 1)),
+                previousblockhash,
                 nextblockhash: next_block_hash,
             };
             json!({
