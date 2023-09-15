@@ -11,13 +11,19 @@ pub fn generate_test_bitcoin_block(
     let mut hash = vec![
         fork_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
+
+    let parent_height = match block_height {
+        0 => 0,
+        _ => block_height - 1,
+    };
+
     let parent_block_identifier = match parent {
         Some(parent) => {
-            assert_eq!(parent.block_identifier.index, block_height - 1);
+            assert_eq!(parent.block_identifier.index, parent_height);
             parent.block_identifier.clone()
         }
         _ => {
-            let mut parent_hash = if (block_height - 1) == 1 {
+            let mut parent_hash = if parent_height == 1 {
                 vec![
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ]
@@ -26,9 +32,10 @@ pub fn generate_test_bitcoin_block(
                     fork_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ]
             };
-            parent_hash.append(&mut (block_height - 1).to_be_bytes().to_vec());
+
+            parent_hash.append(&mut parent_height.to_be_bytes().to_vec());
             BlockIdentifier {
-                index: block_height - 1,
+                index: parent_height,
                 hash: format!("0x{}", hex::encode(&parent_hash[..])),
             }
         }
