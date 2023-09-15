@@ -13,6 +13,7 @@ use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::ObserverCommand;
 use chainhook_sdk::types::BitcoinBlockSignaling;
 use chainhook_sdk::types::BitcoinNetwork;
+use chainhook_sdk::types::Chain;
 use chainhook_sdk::types::StacksNetwork;
 use chainhook_sdk::types::StacksNodeConfig;
 use chainhook_sdk::utils::Context;
@@ -126,7 +127,7 @@ pub async fn call_register_predicate(
             .await
             .map_err(|e| {
                 format!(
-                    "Failed to make POST request to localhost:8765/v1/chainhooks: {}",
+                    "Failed to make POST request to localhost:{port}/v1/chainhooks: {}",
                     e
                 )
             })?
@@ -141,6 +142,34 @@ pub async fn call_register_predicate(
     Ok(res)
 }
 
+pub async fn call_deregister_predicate(
+    chain: &Chain,
+    predicate_uuid: &str,
+    port: u16,
+) -> Result<JsonValue, String> {
+    let client = reqwest::Client::new();
+    let chain = match chain {
+        Chain::Bitcoin => "bitcoin",
+        Chain::Stacks => "stacks",
+    };
+    let url = format!("http://localhost:{port}/v1/chainhooks/{chain}/{predicate_uuid}");
+    let res = client
+        .delete(&url)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to make DELETE request to {url}: {}", e))?
+        .json::<JsonValue>()
+        .await
+        .map_err(|e| {
+            format!(
+                "Failed to deserialize response of DELETE request to {url}: {}",
+                e
+            )
+        })?;
+    Ok(res)
+}
+
 pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonValue, String> {
     let client = reqwest::Client::new();
     let res =client
@@ -149,7 +178,30 @@ pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonV
             .await
             .map_err(|e| {
                 format!(
-                    "Failed to make POST request to localhost:8765/v1/chainhooks: {}",
+                    "Failed to make GET request to localhost:8765/v1/chainhooks/<{predicate_uuid}>: {}",
+                    e
+                )
+            })?
+            .json::<JsonValue>()
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed to deserialize response of GET request to localhost:{port}/v1/chainhooks/{predicate_uuid}: {}",
+                    e
+                )
+            })?;
+    Ok(res)
+}
+
+pub async fn call_get_predicates(port: u16) -> Result<JsonValue, String> {
+    let client = reqwest::Client::new();
+    let res =client
+            .get(format!("http://localhost:{port}/v1/chainhooks"))
+            .send()
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed to make GET request to localhost:8765/v1/chainhooks: {}",
                     e
                 )
             })?

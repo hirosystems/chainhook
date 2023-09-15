@@ -1,7 +1,9 @@
+use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::net::TcpListener;
+use std::process::Child;
 use std::thread::sleep;
 use std::time::Duration;
 use test_case::test_case;
@@ -10,7 +12,10 @@ use chainhook_sdk::observer::ObserverCommand;
 
 use self::helpers::build_predicates::{build_bitcoin_payload, build_stacks_payload, DEFAULT_UUID};
 use self::helpers::mock_bitcoin_rpc::mock_bitcoin_rpc;
-use self::helpers::mock_service::{flush_redis, start_chainhook_service, start_redis};
+use self::helpers::mock_service::{
+    call_deregister_predicate, filter_predicate_status_from_all_predicates, flush_redis,
+    start_chainhook_service, start_redis,
+};
 use self::helpers::mock_stacks_node::{
     create_tmp_working_dir, mine_burn_block, mine_stacks_block, write_stacks_blocks_to_tsv,
 };
@@ -18,7 +23,8 @@ use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::tests::helpers::build_predicates::get_random_uuid;
 use crate::service::tests::helpers::get_free_port;
 use crate::service::tests::helpers::mock_service::{
-    build_predicate_api_server, call_register_predicate, get_chainhook_config, get_predicate_status,
+    build_predicate_api_server, call_get_predicate, call_register_predicate, get_chainhook_config,
+    get_predicate_status,
 };
 use crate::service::PredicateStatus;
 
@@ -615,4 +621,89 @@ async fn test_bitcoin_predicate_status_is_updated(
     flush_redis(redis_port);
     redis_process.kill().unwrap();
     result
+}
+
+#[test_case(Chain::Stacks; "for stacks chain")]
+#[test_case(Chain::Bitcoin; "for bitcoin chain")]
+#[tokio::test]
+async fn test_deregister_predicate(chain: Chain) {
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) = match &chain {
+        Chain::Stacks => setup_stacks_chainhook_test(0).await,
+        Chain::Bitcoin => setup_bitcoin_chainhook_test(0).await,
+    };
+
+    let uuid = &get_random_uuid();
+
+    let predicate = match &chain {
+        Chain::Stacks => build_stacks_payload(
+            Some("devnet"),
+            Some(json!({"scope":"block_height", "lower_than": 100})),
+            None,
+            Some(json!({"start_block": 1, "end_block": 2})),
+            Some(uuid),
+        ),
+        Chain::Bitcoin => build_bitcoin_payload(
+            Some("regtest"),
+            Some(json!({"scope":"block"})),
+            None,
+            Some(json!({"start_block": 1, "end_block": 2})),
+            Some(uuid),
+        ),
+    };
+
+    let _ = call_register_predicate(&predicate, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    let result = call_get_predicate(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+    assert_eq!(result.get("status"), Some(&json!(200)));
+
+    let result = call_deregister_predicate(&chain, uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+    assert_eq!(result.get("status"), Some(&json!(200)));
+
+    let mut attempts = 0;
+    loop {
+        let result = call_get_predicate(uuid, chainhook_service_port)
+            .await
+            .unwrap_or_else(|e| {
+                std::fs::remove_dir_all(&working_dir).unwrap();
+                flush_redis(redis_port);
+                redis_process.kill().unwrap();
+                panic!("test failed with error: {e}");
+            });
+        if result.get("status") == Some(&json!(404)) {
+            break;
+        } else if attempts == 3 {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("predicate was not successfully derigistered");
+        } else {
+            attempts += 1;
+            sleep(Duration::new(1, 0));
+        }
+    }
+
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
 }
