@@ -12,15 +12,21 @@ pub fn generate_test_stacks_block(
     let mut hash = vec![
         fork_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
+
+    let parent_height = match block_height {
+        0 => 0,
+        _ => block_height - 1,
+    };
+
     let (parent_block_identifier, confirm_microblock_identifier) = match parent {
         Some(BlockEvent::Block(parent)) => {
-            assert_eq!(parent.block_identifier.index, block_height - 1);
+            assert_eq!(parent.block_identifier.index, parent_height);
             (parent.block_identifier.clone(), None)
         }
         Some(BlockEvent::Microblock(microblock_parent)) => {
             assert_eq!(
                 microblock_parent.metadata.anchor_block_identifier.index,
-                block_height - 1
+                parent_height,
             );
             (
                 microblock_parent.metadata.anchor_block_identifier.clone(),
@@ -28,7 +34,7 @@ pub fn generate_test_stacks_block(
             )
         }
         _ => {
-            let mut parent_hash = if (block_height - 1) == 1 {
+            let mut parent_hash = if parent_height == 1 {
                 vec![
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ]
@@ -37,10 +43,10 @@ pub fn generate_test_stacks_block(
                     fork_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ]
             };
-            parent_hash.append(&mut (block_height - 1).to_be_bytes().to_vec());
+            parent_hash.append(&mut parent_height.to_be_bytes().to_vec());
             (
                 BlockIdentifier {
-                    index: block_height - 1,
+                    index: parent_height,
                     hash: hex::encode(&parent_hash[..]),
                 },
                 None,
@@ -58,7 +64,7 @@ pub fn generate_test_stacks_block(
         transactions,
         metadata: StacksBlockMetadata {
             bitcoin_anchor_block_identifier: BlockIdentifier {
-                index: block_height - 1,
+                index: parent_height,
                 hash: format!(""),
             },
             pox_cycle_index: 1,
