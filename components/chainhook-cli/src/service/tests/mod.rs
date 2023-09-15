@@ -441,18 +441,9 @@ async fn test_stacks_predicate_status_is_updated(
     result
 }
 
-#[test_case(5, 1, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
-#[test_case(10, 1, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
-#[test_case(1, 3, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
-#[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
-#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
-#[tokio::test]
-async fn test_bitcoin_predicate_status_is_updated(
+async fn setup_bitcoin_chainhook_test(
     starting_chain_tip: u64,
-    blocks_to_mine: u64,
-    predicate_start_block: Option<u64>,
-    predicate_end_block: Option<u64>,
-) -> PredicateStatus {
+) -> (Child, String, u16, u16, u16, u16) {
     let (
         redis_port,
         chainhook_service_port,
@@ -471,8 +462,6 @@ async fn test_bitcoin_predicate_status_is_updated(
         panic!("test failed with error: {e}");
     });
 
-    let uuid = &get_random_uuid();
-
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
     let ctx = Context {
@@ -486,14 +475,6 @@ async fn test_bitcoin_predicate_status_is_updated(
             let _ = hiro_system_kit::nestable_block_on(future);
         })
         .expect("unable to spawn thread");
-
-    let predicate = build_bitcoin_payload(
-        Some("regtest"),
-        Some(json!({"scope":"block"})),
-        None,
-        Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
-        Some(uuid),
-    );
 
     let config = get_chainhook_config(
         redis_port,
@@ -513,6 +494,45 @@ async fn test_bitcoin_predicate_status_is_updated(
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
+    (
+        redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+    )
+}
+
+#[test_case(5, 1, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(10, 1, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
+#[test_case(1, 3, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
+#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
+#[tokio::test]
+async fn test_bitcoin_predicate_status_is_updated(
+    starting_chain_tip: u64,
+    blocks_to_mine: u64,
+    predicate_start_block: Option<u64>,
+    predicate_end_block: Option<u64>,
+) -> PredicateStatus {
+    let (
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+    ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
+
+    let uuid = &get_random_uuid();
+    let predicate = build_bitcoin_payload(
+        Some("regtest"),
+        Some(json!({"scope":"block"})),
+        None,
+        Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
+        Some(uuid),
+    );
 
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
