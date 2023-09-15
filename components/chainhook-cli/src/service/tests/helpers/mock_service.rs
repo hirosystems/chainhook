@@ -26,17 +26,30 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 
 pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStatus, String> {
-    let res = call_get_predicate(uuid, port).await?;
-    match res.as_object() {
-        Some(res_obj) => match res_obj.get("result") {
-            Some(result) => match result.get("status") {
-                Some(status) => serde_json::from_value(status.clone())
-                    .map_err(|e| format!("failed to parse status {}", e.to_string())),
-                None => Err(format!("no status field on result")),
+    let mut attempts = 0;
+    loop {
+        let res = call_get_predicate(uuid, port).await?;
+        match res.as_object() {
+            Some(res_obj) => match res_obj.get("result") {
+                Some(result) => match result.get("status") {
+                    Some(status) => {
+                        return serde_json::from_value(status.clone())
+                            .map_err(|e| format!("failed to parse status {}", e.to_string()));
+                    }
+                    None => return Err(format!("no status field on get predicate result")),
+                },
+                None => {
+                    attempts += 1;
+                    println!("reattempting get predicate status");
+                    if attempts == 10 {
+                        return Err(format!("no result field on get predicate response"));
+                    } else {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
             },
-            None => Err(format!("no result field on response")),
-        },
-        None => Err(format!("failed to parse response")),
+            None => return Err(format!("failed to parse get predicate response")),
+        }
     }
 }
 

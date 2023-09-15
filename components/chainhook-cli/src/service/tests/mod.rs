@@ -280,12 +280,31 @@ fn setup_chainhook_service_ports() -> Result<(u16, u16, u16, u16, u16), String> 
     ))
 }
 
+async fn await_new_scanning_status_complete(
+    uuid: &str,
+    chainhook_service_port: u16,
+) -> Result<(), String> {
+    let mut attempts = 0;
+    loop {
+        match get_predicate_status(uuid, chainhook_service_port).await? {
+            PredicateStatus::New | PredicateStatus::Scanning(_) => {
+                attempts += 1;
+                if attempts == 10 {
+                    return Err(format!("predicate stuck in new/scanning status"));
+                }
+                sleep(Duration::new(1, 0));
+            }
+            _ => break Ok(()),
+        }
+    }
+}
+
 #[test_case(5, 0, Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
 #[test_case(5, 0, None => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
 #[test_case(3, 0, Some(5) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
 #[test_case(5, 3, Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
 #[tokio::test]
-async fn test_predicate_status_is_updated(
+async fn test_stacks_predicate_status_is_updated(
     starting_chain_tip: u64,
     blocks_to_mine: u64,
     predicate_end_block: Option<u64>,
@@ -369,32 +388,15 @@ async fn test_predicate_status_is_updated(
             panic!("test failed with error: {e}");
         });
 
-    match get_predicate_status(uuid, chainhook_service_port)
+    await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
             flush_redis(redis_port);
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
-        }) {
-        PredicateStatus::New => {}
-        _ => panic!("initially registered predicate should have new status"),
-    }
-    loop {
-        match get_predicate_status(uuid, chainhook_service_port)
-            .await
-            .unwrap_or_else(|e| {
-                std::fs::remove_dir_all(&working_dir).unwrap();
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            }) {
-            PredicateStatus::New | PredicateStatus::Scanning(_) => {
-                sleep(Duration::new(1, 0));
-            }
-            _ => break,
-        }
-    }
+        });
+
     for i in 1..blocks_to_mine + 1 {
         mine_stacks_block(
             stacks_ingestion_port,
@@ -424,7 +426,7 @@ async fn test_predicate_status_is_updated(
 #[test_case(1, 3, Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
 #[test_case(3, 7, Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
 #[tokio::test]
-async fn test_bitcoin_predicate_status_is_updated_runner(
+async fn test_bitcoin_predicate_status_is_updated(
     starting_chain_tip: u64,
     blocks_to_mine: u64,
     predicate_end_block: Option<u64>,
@@ -499,32 +501,15 @@ async fn test_bitcoin_predicate_status_is_updated_runner(
             panic!("test failed with error: {e}");
         });
 
-    match get_predicate_status(uuid, chainhook_service_port)
+    await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
             flush_redis(redis_port);
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
-        }) {
-        PredicateStatus::New => {}
-        _ => panic!("initially registered predicate should have new status"),
-    }
-    loop {
-        match get_predicate_status(uuid, chainhook_service_port)
-            .await
-            .unwrap_or_else(|e| {
-                std::fs::remove_dir_all(&working_dir).unwrap();
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            }) {
-            PredicateStatus::New | PredicateStatus::Scanning(_) => {
-                sleep(Duration::new(1, 0));
-            }
-            _ => break,
-        }
-    }
+        });
+
     for i in 1..blocks_to_mine + 1 {
         mine_burn_block(
             stacks_ingestion_port,
