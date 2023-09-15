@@ -533,7 +533,7 @@ impl Service {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 /// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
@@ -545,7 +545,7 @@ pub enum PredicateStatus {
     New,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
@@ -554,7 +554,7 @@ pub struct ScanningData {
     pub last_evaluated_block_height: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
     pub last_occurrence: u128,
     pub last_evaluation: u128,
@@ -563,7 +563,7 @@ pub struct StreamingData {
     pub last_evaluated_block_height: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,

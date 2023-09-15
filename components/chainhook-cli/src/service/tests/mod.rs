@@ -415,6 +415,17 @@ async fn test_stacks_predicate_status_is_updated(
             panic!("test failed with error: {e}");
         });
 
+    let found_predicate_status =
+        filter_predicate_status_from_all_predicates(uuid, chainhook_service_port)
+            .await
+            .unwrap_or_else(|e| {
+                std::fs::remove_dir_all(&working_dir).unwrap();
+                flush_redis(redis_port);
+                redis_process.kill().unwrap();
+                panic!("test failed with error: {e}");
+            });
+    assert_eq!(found_predicate_status, result);
+
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
@@ -527,6 +538,16 @@ async fn test_bitcoin_predicate_status_is_updated(
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
+    let found_predicate_status =
+        filter_predicate_status_from_all_predicates(uuid, chainhook_service_port)
+            .await
+            .unwrap_or_else(|e| {
+                std::fs::remove_dir_all(&working_dir).unwrap();
+                flush_redis(redis_port);
+                redis_process.kill().unwrap();
+                panic!("test failed with error: {e}");
+            });
+    assert_eq!(found_predicate_status, result);
 
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);

@@ -53,6 +53,66 @@ pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStat
     }
 }
 
+pub async fn filter_predicate_status_from_all_predicates(
+    uuid: &str,
+    port: u16,
+) -> Result<PredicateStatus, String> {
+    let mut attempts = 0;
+    loop {
+        let res = call_get_predicates(port).await?;
+        match res.as_object() {
+            Some(res_obj) => match res_obj.get("result") {
+                Some(result) => match result.as_array() {
+                    Some(predicate_array) => {
+                        let matching_predicate =
+                            predicate_array.iter().find(|p| match p.as_object() {
+                                Some(p) => match p.get("uuid") {
+                                    Some(predicate_uuid) => predicate_uuid == uuid,
+                                    None => false,
+                                },
+                                None => false,
+                            });
+                        match matching_predicate {
+                            Some(predicate) => match predicate.get("status") {
+                                Some(status) => {
+                                    return serde_json::from_value(status.clone()).map_err(|e| {
+                                        format!("failed to parse status {}", e.to_string())
+                                    });
+                                }
+                                None => {
+                                    return Err(format!(
+                                        "no status field on matching get predicates result"
+                                    ))
+                                }
+                            },
+                            None => {
+                                return Err(format!(
+                                    "could not find predicate result with uuid matching {uuid}"
+                                ));
+                            }
+                        }
+                    }
+                    None => {
+                        return Err(format!(
+                            "failed to parse get predicate response's result field"
+                        ))
+                    }
+                },
+                None => {
+                    attempts += 1;
+                    println!("reattempting get predicates");
+                    if attempts == 10 {
+                        return Err(format!("no result field on get predicates response"));
+                    } else {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
+            },
+            None => return Err(format!("failed to parse get predicate response")),
+        }
+    }
+}
+
 pub async fn call_register_predicate(
     predicate: &JsonValue,
     port: u16,
