@@ -86,7 +86,11 @@ pub fn write_stacks_blocks_to_tsv(block_count: u64, dir: &str) -> Result<(), Str
     Ok(())
 }
 
-pub async fn mine_stacks_block(port: u16, height: u64, burn_block_height: u64) {
+pub async fn mine_stacks_block(
+    port: u16,
+    height: u64,
+    burn_block_height: u64,
+) -> Result<(), String> {
     let block = create_stacks_new_block(height, burn_block_height);
     let serialized_block = serde_json::to_string(&block).unwrap();
     let client = reqwest::Client::new();
@@ -96,10 +100,16 @@ pub async fn mine_stacks_block(port: u16, height: u64, burn_block_height: u64) {
         .body(serialized_block)
         .send()
         .await
-        .unwrap()
+        .map_err(|e| format!("failed to send new_block request: {}", e.to_string()))?
         .text()
         .await
-        .unwrap();
+        .map_err(|e| {
+            format!(
+                "failed to parse response for new_block request: {}",
+                e.to_string()
+            )
+        })?;
+    Ok(())
 }
 
 fn create_new_burn_block(burn_block_height: u64) -> NewBitcoinBlock {
@@ -116,9 +126,10 @@ pub async fn mine_burn_block(
     stacks_ingestion_port: u16,
     bitcoin_rpc_port: u16,
     burn_block_height: u64,
-) {
+) -> Result<(), String> {
     let block = create_new_burn_block(burn_block_height);
-    let serialized_block = serde_json::to_string(&block).unwrap();
+    let serialized_block = serde_json::to_string(&block)
+        .map_err(|e| format!("failed to serialize burn block: {}", e.to_string()))?;
     let client = reqwest::Client::new();
     let res = client
         .post(format!(
@@ -126,10 +137,20 @@ pub async fn mine_burn_block(
         ))
         .send()
         .await
-        .unwrap()
+        .map_err(|e| {
+            format!(
+                "mock bitcoin rpc endpoint increment-chain-tip failed: {}",
+                e.to_string()
+            )
+        })?
         .text()
         .await
-        .unwrap();
+        .map_err(|e| {
+            format!(
+                "failed to parse response for mock bitcoin rpc increment-chain-tip endpoint: {}",
+                e.to_string()
+            )
+        })?;
     assert_eq!(burn_block_height.to_string(), res);
     let _res = client
         .post(format!(
@@ -139,8 +160,14 @@ pub async fn mine_burn_block(
         .body(serialized_block)
         .send()
         .await
-        .unwrap()
+        .map_err(|e| format!("failed to send new_burn_block request: {}", e.to_string()))?
         .text()
         .await
-        .unwrap();
+        .map_err(|e| {
+            format!(
+                "failed to parse response for new_burn_block request: {}",
+                e.to_string()
+            )
+        })?;
+    Ok(())
 }

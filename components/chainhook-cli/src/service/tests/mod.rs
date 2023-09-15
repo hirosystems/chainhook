@@ -412,7 +412,13 @@ async fn test_stacks_predicate_status_is_updated(
             i + starting_chain_tip,
             i + starting_chain_tip + 100,
         )
-        .await;
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
     }
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
@@ -558,7 +564,13 @@ async fn test_bitcoin_predicate_status_is_updated(
             bitcoin_rpc_port,
             i + starting_chain_tip,
         )
-        .await;
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
     }
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
