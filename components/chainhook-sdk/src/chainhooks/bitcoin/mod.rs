@@ -24,12 +24,12 @@ pub struct BitcoinTriggerChainhook<'a> {
     pub rollback: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BitcoinApplyTransactionPayload {
     pub block: BitcoinBlockData,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BitcoinRollbackTransactionPayload {
     pub block: BitcoinBlockData,
 }
