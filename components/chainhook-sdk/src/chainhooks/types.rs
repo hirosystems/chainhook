@@ -161,13 +161,6 @@ pub enum ChainhookSpecification {
 }
 
 impl ChainhookSpecification {
-    pub fn name(&self) -> &str {
-        match &self {
-            Self::Bitcoin(data) => &data.name,
-            Self::Stacks(data) => &data.name,
-        }
-    }
-
     pub fn either_stx_or_btc_key(uuid: &str) -> String {
         format!("predicate:{}", uuid)
     }
@@ -197,25 +190,6 @@ impl ChainhookSpecification {
         match &self {
             Self::Bitcoin(data) => &data.uuid,
             Self::Stacks(data) => &data.uuid,
-        }
-    }
-
-    pub fn validate(&self) -> Result<(), String> {
-        match &self {
-            Self::Bitcoin(data) => {
-                let _ = data.action.validate()?;
-            }
-            Self::Stacks(data) => {
-                let _ = data.action.validate()?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn start_block(&self) -> Option<u64> {
-        match &self {
-            Self::Bitcoin(data) => data.start_block,
-            Self::Stacks(data) => data.start_block,
         }
     }
 }
