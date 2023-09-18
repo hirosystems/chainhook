@@ -122,63 +122,138 @@ impl NewEvent {
         if let Some(ref event_data) = self.stx_mint_event {
             let data: STXMintEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::STXMintEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::STXMintEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.stx_lock_event {
             let data: STXLockEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::STXLockEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::STXLockEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.stx_burn_event {
             let data: STXBurnEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::STXBurnEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::STXBurnEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.stx_transfer_event {
             let data: STXTransferEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::STXTransferEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::STXTransferEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.nft_mint_event {
             let data: NFTMintEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::NFTMintEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::NFTMintEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.nft_burn_event {
             let data: NFTBurnEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::NFTBurnEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::NFTBurnEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.nft_transfer_event {
             let data: NFTTransferEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::NFTTransferEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::NFTTransferEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.ft_mint_event {
             let data: FTMintEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::FTMintEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::FTMintEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.ft_burn_event {
             let data: FTBurnEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::FTBurnEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::FTBurnEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.ft_transfer_event {
             let data: FTTransferEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::FTTransferEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::FTTransferEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.data_var_set_event {
             let data: DataVarSetEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::DataVarSetEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: (StacksTransactionEventPayload::DataVarSetEvent(data)),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.data_map_insert_event {
             let data: DataMapInsertEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::DataMapInsertEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::DataMapInsertEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.data_map_update_event {
             let data: DataMapUpdateEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::DataMapUpdateEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::DataMapUpdateEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.data_map_delete_event {
             let data: DataMapDeleteEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::DataMapDeleteEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::DataMapDeleteEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         } else if let Some(ref event_data) = self.contract_event {
             let data: SmartContractEventData =
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
-            return Ok(StacksTransactionEvent::SmartContractEvent(data.clone()));
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::SmartContractEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
         }
         return Err(format!("unable to support event type"));
     }
@@ -842,8 +917,8 @@ pub fn get_standardized_stacks_receipt(
     if include_operations {
         let mut operation_id = 0;
         for event in events.iter() {
-            match event {
-                StacksTransactionEvent::STXMintEvent(data) => {
+            match &event.event_payload {
+                StacksTransactionEventPayload::STXMintEvent(data) => {
                     operations.push(Operation {
                         operation_identifier: OperationIdentifier {
                             index: operation_id,
@@ -864,7 +939,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::STXLockEvent(data) => {
+                StacksTransactionEventPayload::STXLockEvent(data) => {
                     operations.push(Operation {
                         operation_identifier: OperationIdentifier {
                             index: operation_id,
@@ -888,7 +963,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::STXBurnEvent(data) => {
+                StacksTransactionEventPayload::STXBurnEvent(data) => {
                     operations.push(Operation {
                         operation_identifier: OperationIdentifier {
                             index: operation_id,
@@ -909,7 +984,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::STXTransferEvent(data) => {
+                StacksTransactionEventPayload::STXTransferEvent(data) => {
                     operations.push(Operation {
                         operation_identifier: OperationIdentifier {
                             index: operation_id,
@@ -955,7 +1030,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::NFTMintEvent(data) => {
+                StacksTransactionEventPayload::NFTMintEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -983,7 +1058,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::NFTBurnEvent(data) => {
+                StacksTransactionEventPayload::NFTBurnEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -1011,7 +1086,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::NFTTransferEvent(data) => {
+                StacksTransactionEventPayload::NFTTransferEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -1064,7 +1139,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::FTMintEvent(data) => {
+                StacksTransactionEventPayload::FTMintEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -1100,7 +1175,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::FTBurnEvent(data) => {
+                StacksTransactionEventPayload::FTBurnEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -1131,7 +1206,7 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::FTTransferEvent(data) => {
+                StacksTransactionEventPayload::FTTransferEvent(data) => {
                     let (asset_class_identifier, contract_identifier) =
                         get_mutated_ids(&data.asset_class_identifier);
                     mutated_assets_radius.insert(asset_class_identifier);
@@ -1187,11 +1262,11 @@ pub fn get_standardized_stacks_receipt(
                     });
                     operation_id += 1;
                 }
-                StacksTransactionEvent::DataVarSetEvent(_data) => {}
-                StacksTransactionEvent::DataMapInsertEvent(_data) => {}
-                StacksTransactionEvent::DataMapUpdateEvent(_data) => {}
-                StacksTransactionEvent::DataMapDeleteEvent(_data) => {}
-                StacksTransactionEvent::SmartContractEvent(data) => {
+                StacksTransactionEventPayload::DataVarSetEvent(_data) => {}
+                StacksTransactionEventPayload::DataMapInsertEvent(_data) => {}
+                StacksTransactionEventPayload::DataMapUpdateEvent(_data) => {}
+                StacksTransactionEventPayload::DataMapDeleteEvent(_data) => {}
+                StacksTransactionEventPayload::SmartContractEvent(data) => {
                     mutated_contracts_radius.insert(data.contract_identifier.clone());
                 }
             }

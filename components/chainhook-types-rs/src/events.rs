@@ -123,7 +123,7 @@ pub struct SmartContractEventData {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "data")]
-pub enum StacksTransactionEvent {
+pub enum StacksTransactionEventPayload {
     STXTransferEvent(STXTransferEventData),
     STXMintEvent(STXMintEventData),
     STXLockEvent(STXLockEventData),
@@ -139,4 +139,16 @@ pub enum StacksTransactionEvent {
     DataMapUpdateEvent(DataMapUpdateEventData),
     DataMapDeleteEvent(DataMapDeleteEventData),
     SmartContractEvent(SmartContractEventData),
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksTransactionEvent {
+    #[serde(flatten)]
+    pub event_payload: StacksTransactionEventPayload,
+    pub position: StacksTransactionEventPosition,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksTransactionEventPosition {
+    pub index: u32,
 }
