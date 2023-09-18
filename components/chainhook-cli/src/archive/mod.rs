@@ -167,3 +167,42 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
         false
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use std::fs;
+
+    use chainhook_sdk::utils::Context;
+
+    use crate::{
+        archive::{
+            default_tsv_file_path, default_tsv_sha_file_path, download_stacks_dataset_if_required,
+        },
+        config::Config,
+    };
+
+    #[tokio::test]
+    async fn it_downloads_stacks_dataset_if_required() {
+        let mut config = Config::default(false, true, false, &None).unwrap();
+        config.storage.working_dir = format!(
+            "{}/src/service/tests/fixtures/tmp",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let logger = hiro_system_kit::log::setup_logger();
+        let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+        let ctx = Context {
+            logger: Some(logger),
+            tracer: false,
+        };
+        let mut config_clone = config.clone();
+        assert!(download_stacks_dataset_if_required(&mut config, &ctx).await);
+        assert!(!download_stacks_dataset_if_required(&mut config_clone, &ctx).await);
+
+        let mut tsv_file_path = config.expected_cache_path();
+        tsv_file_path.push(default_tsv_file_path(&config.network.stacks_network));
+        fs::remove_file(tsv_file_path).unwrap();
+        let mut tsv_sha_file_path = config.expected_cache_path();
+        tsv_sha_file_path.push(default_tsv_sha_file_path(&config.network.stacks_network));
+        fs::remove_file(tsv_sha_file_path).unwrap();
+    }
+}
