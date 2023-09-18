@@ -22,10 +22,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Install redis
+        run: sudo apt-get install -y redis-server
+
       - name: Cargo test
         run: |
           rustup update
-          RUST_BACKTRACE=1 cargo test --all -- --test-threads=1
+          RUST_BACKTRACE=1 cargo test --all --features redis_tests -- --test-threads=1
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v3

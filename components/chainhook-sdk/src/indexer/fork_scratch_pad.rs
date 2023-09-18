@@ -15,7 +15,7 @@ pub struct ForkScratchPad {
     forks: BTreeMap<usize, ChainSegment>,
     headers_store: BTreeMap<BlockIdentifier, BlockHeader>,
 }
-
+pub const CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 7;
 impl ForkScratchPad {
     pub fn new() -> ForkScratchPad {
         let mut forks = BTreeMap::new();
@@ -228,7 +228,7 @@ impl ForkScratchPad {
             }
             segment
         };
-        if canonical_segment.len() < 7 {
+        if canonical_segment.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned
