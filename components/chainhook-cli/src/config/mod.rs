@@ -232,20 +232,6 @@ impl Config {
             }));
     }
 
-    pub fn add_ordinals_sqlite_remote_source_url(&mut self, file_url: &str) {
-        self.event_sources
-            .push(EventSourceConfig::OrdinalsSqliteUrl(UrlConfig {
-                file_url: file_url.to_string(),
-            }));
-    }
-
-    pub fn add_local_ordinals_sqlite_source(&mut self, file_path: &PathBuf) {
-        self.event_sources
-            .push(EventSourceConfig::OrdinalsSqlitePath(PathConfig {
-                file_path: file_path.clone(),
-            }));
-    }
-
     pub fn expected_api_database_uri(&self) -> &str {
         &self.expected_api_config().database_uri
     }
@@ -272,15 +258,6 @@ impl Config {
         destination_path
     }
 
-    fn expected_remote_ordinals_sqlite_base_url(&self) -> &String {
-        for source in self.event_sources.iter() {
-            if let EventSourceConfig::OrdinalsSqliteUrl(config) = source {
-                return &config.file_url;
-            }
-        }
-        panic!("expected remote-tsv source")
-    }
-
     fn expected_remote_stacks_tsv_base_url(&self) -> &String {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvUrl(config) = source {
@@ -298,26 +275,9 @@ impl Config {
         format!("{}.gz", self.expected_remote_stacks_tsv_base_url())
     }
 
-    pub fn expected_remote_ordinals_sqlite_sha256(&self) -> String {
-        format!("{}.sha256", self.expected_remote_ordinals_sqlite_base_url())
-    }
-
-    pub fn expected_remote_ordinals_sqlite_url(&self) -> String {
-        format!("{}.gz", self.expected_remote_ordinals_sqlite_base_url())
-    }
-
     pub fn rely_on_remote_stacks_tsv(&self) -> bool {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvUrl(_config) = source {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn rely_on_remote_ordinals_sqlite(&self) -> bool {
-        for source in self.event_sources.iter() {
-            if let EventSourceConfig::OrdinalsSqliteUrl(_config) = source {
                 return true;
             }
         }
@@ -332,20 +292,6 @@ impl Config {
                 rely_on_remote_tsv = true;
             }
             if let EventSourceConfig::StacksTsvPath(_config) = source {
-                remote_tsv_present_locally = true;
-            }
-        }
-        rely_on_remote_tsv == true && remote_tsv_present_locally == false
-    }
-
-    pub fn should_download_remote_ordinals_sqlite(&self) -> bool {
-        let mut rely_on_remote_tsv = false;
-        let mut remote_tsv_present_locally = false;
-        for source in self.event_sources.iter() {
-            if let EventSourceConfig::OrdinalsSqliteUrl(_config) = source {
-                rely_on_remote_tsv = true;
-            }
-            if let EventSourceConfig::OrdinalsSqlitePath(_config) = source {
                 remote_tsv_present_locally = true;
             }
         }
