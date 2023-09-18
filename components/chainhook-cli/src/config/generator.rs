@@ -1,6 +1,8 @@
+use super::file::NetworkConfigMode;
 use chainhook_sdk::types::BitcoinNetwork;
 
 pub fn generate_config(network: &BitcoinNetwork) -> String {
+    let mode = NetworkConfigMode::from_bitcoin_network(network);
     let network = format!("{:?}", network);
     let conf = format!(
         r#"[storage]
@@ -15,7 +17,7 @@ working_dir = "cache"
 # database_uri = "redis://localhost:6379/"
 
 [network]
-mode = "{network}"
+mode = "{mode}"
 bitcoind_rpc_url = "http://localhost:8332"
 bitcoind_rpc_username = "devnet"
 bitcoind_rpc_password = "devnet"
@@ -39,6 +41,7 @@ max_caching_memory_size_mb = 32000
 [[event_source]]
 tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network}-stacks-blockchain-api-latest"
 "#,
+        mode = mode.as_str(),
         network = network.to_lowercase(),
     );
     return conf;
