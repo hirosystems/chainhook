@@ -1,7 +1,7 @@
 use crate::config::{Config, PredicatesApi};
 use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_predicate_scanning_status,
-    set_unconfirmed_expiration_status, ScanningData,
+    open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
+    set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
@@ -14,6 +14,7 @@ use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
 };
+use chainhook_sdk::indexer::fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH;
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier, Chain,
@@ -41,6 +42,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut floating_end_block = false;
 
     let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
+        // todo: if a user provides a number of blocks where start_block + blocks > chain tip,
+        // the predicate will fail to scan all blocks. we should calculate a valid end_block and
+        // switch to streaming mode at some point
         BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
     } else {
         let start_block = match predicate_spec.start_block {
@@ -107,7 +111,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             None => (number_of_blocks_to_scan, 0, 0u64),
         }
     };
-
+    let mut last_scanned_block_confirmations = 0;
     let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
@@ -123,6 +127,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         let block_breakdown =
             download_and_parse_block_with_retry(&http_client, &block_hash, &bitcoin_config, ctx)
                 .await?;
+        last_scanned_block_confirmations = block_breakdown.confirmations;
         let block = match indexer::bitcoin::standardize_bitcoin_block(
             block_breakdown,
             &event_observer_config.bitcoin_network,
@@ -226,6 +231,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                     predicates_db_conn,
                     ctx,
                 );
+                if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
+                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
+                }
                 return Ok(true);
             }
         }

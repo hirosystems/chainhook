@@ -533,7 +533,7 @@ impl Service {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 /// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
@@ -545,7 +545,7 @@ pub enum PredicateStatus {
     New,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
@@ -554,7 +554,7 @@ pub struct ScanningData {
     pub last_evaluated_block_height: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
     pub last_occurrence: u128,
     pub last_evaluation: u128,
@@ -563,7 +563,7 @@ pub struct StreamingData {
     pub last_evaluated_block_height: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
@@ -844,6 +844,7 @@ pub fn set_unconfirmed_expiration_status(
     ctx: &Context,
 ) {
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let mut previously_was_unconfirmed = false;
     let (
         number_of_blocks_evaluated,
         number_of_times_triggered,
@@ -882,14 +883,21 @@ pub fn set_unconfirmed_expiration_status(
                 last_occurrence,
                 last_evaluated_block_height: _,
                 expired_at_block_height,
-            }) => (
-                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
-                number_of_times_triggered,
-                last_occurrence,
-                expired_at_block_height,
-            ),
-            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
+            }) => {
+                previously_was_unconfirmed = true;
+                (
+                    number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                    number_of_times_triggered,
+                    last_occurrence,
+                    expired_at_block_height,
+                )
+            }
+            PredicateStatus::Interrupted(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
+            }
+            PredicateStatus::ConfirmedExpiration(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+                return;
             }
         },
         None => (0, 0, 0, 0),
@@ -906,13 +914,16 @@ pub fn set_unconfirmed_expiration_status(
         predicates_db_conn,
         &ctx,
     );
-    insert_predicate_expiration(
-        chain,
-        expired_at_block_height,
-        predicate_key,
-        predicates_db_conn,
-        &ctx,
-    );
+    // don't insert this entry more than once
+    if !previously_was_unconfirmed {
+        insert_predicate_expiration(
+            chain,
+            expired_at_block_height,
+            predicate_key,
+            predicates_db_conn,
+            &ctx,
+        );
+    }
 }
 
 pub fn set_confirmed_expiration_status(

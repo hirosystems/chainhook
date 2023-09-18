@@ -58,6 +58,7 @@ default = ["cli"]
 cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
+redis_tests = []
 
 # [patch.crates-io]
 # raft-proto = { git = "https://github.com/tikv/raft-rs", rev="95c532612ee6a83591fce9a8b51d6afe87b58835"}

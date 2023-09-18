@@ -21,6 +21,8 @@ use rand::{thread_rng, Rng};
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 
+use super::fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH;
+
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinBlockFullBreakdown {
@@ -30,6 +32,7 @@ pub struct BitcoinBlockFullBreakdown {
     pub time: usize,
     pub nonce: u32,
     pub previousblockhash: Option<String>,
+    pub confirmations: i32,
 }
 
 impl BitcoinBlockFullBreakdown {
@@ -114,7 +117,7 @@ pub struct BitcoinTransactionOutputFullBreakdown {
     pub script_pub_key: GetRawTransactionResultVoutScriptPubKey,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct NewBitcoinBlock {
     pub burn_block_hash: String,
     pub burn_block_height: u64,
@@ -124,7 +127,7 @@ pub struct NewBitcoinBlock {
 }
 
 #[allow(dead_code)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct RewardParticipant {
     recipient: String,
     amt: u64,
@@ -575,7 +578,7 @@ fn try_parse_stacks_operation(
 
     // Safely parsing the first 2 bytes (following OP_RETURN + PUSH_DATA)
     let op_return_output = &outputs[0].script_pub_key.hex;
-    if op_return_output.len() < 7 {
+    if op_return_output.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
         return None;
     }
     if op_return_output[3] != expected_magic_bytes[0]
