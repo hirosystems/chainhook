@@ -1,9 +1,10 @@
-use chainhook_types::StacksBlockData;
 use chainhook_types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
-    STXTransferEventData, SmartContractEventData, StacksTransactionData, StacksTransactionEvent,
+    STXTransferEventData, SmartContractEventData, StacksTransactionData,
+    StacksTransactionEventPayload,
 };
+use chainhook_types::{StacksBlockData, StacksTransactionEvent};
 use std::collections::HashMap;
 
 lazy_static! {
@@ -71,7 +72,7 @@ pub fn get_expected_occurrence() -> String {
     std::include_str!("stacks/testnet/occurrence.json").to_owned()
 }
 
-pub fn get_all_event_types() -> Vec<StacksTransactionEvent> {
+pub fn get_all_event_types() -> Vec<StacksTransactionEventPayload> {
     vec![
         get_test_event_by_type("stx_transfer"),
         get_test_event_by_type("stx_mint"),
@@ -88,54 +89,54 @@ pub fn get_all_event_types() -> Vec<StacksTransactionEvent> {
         get_test_event_by_type("smart_contract_not_print_event"),
     ]
 }
-pub fn get_test_event_by_type(event_type: &str) -> StacksTransactionEvent {
+pub fn get_test_event_by_type(event_type: &str) -> StacksTransactionEventPayload {
     match event_type {
-        "stx_transfer" => StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
+        "stx_transfer" => StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
             sender: "".to_string(),
             recipient: "".to_string(),
             amount: "".to_string(),
         }),
-        "stx_mint" => StacksTransactionEvent::STXMintEvent(STXMintEventData {
+        "stx_mint" => StacksTransactionEventPayload::STXMintEvent(STXMintEventData {
             recipient: "".to_string(),
             amount: "".to_string(),
         }),
-        "stx_lock" => StacksTransactionEvent::STXLockEvent(STXLockEventData {
+        "stx_lock" => StacksTransactionEventPayload::STXLockEvent(STXLockEventData {
             locked_amount: "".to_string(),
             unlock_height: "".to_string(),
             locked_address: "".to_string(),
         }),
-        "stx_burn" => StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
+        "stx_burn" => StacksTransactionEventPayload::STXBurnEvent(STXBurnEventData {
             sender: "".to_string(),
             amount: "".to_string(),
         }),
-        "nft_transfer" => StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
+        "nft_transfer" => StacksTransactionEventPayload::NFTTransferEvent(NFTTransferEventData {
             sender: "".to_string(),
             asset_class_identifier: "asset-id".to_string(),
             hex_asset_identifier: "asset-id".to_string(),
             recipient: "".to_string(),
         }),
-        "nft_mint" => StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
+        "nft_mint" => StacksTransactionEventPayload::NFTMintEvent(NFTMintEventData {
             asset_class_identifier: "asset-id".to_string(),
             hex_asset_identifier: "asset-id".to_string(),
             recipient: "".to_string(),
         }),
-        "nft_burn" => StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
+        "nft_burn" => StacksTransactionEventPayload::NFTBurnEvent(NFTBurnEventData {
             asset_class_identifier: "asset-id".to_string(),
             hex_asset_identifier: "asset-id".to_string(),
             sender: "".to_string(),
         }),
-        "ft_transfer" => StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
+        "ft_transfer" => StacksTransactionEventPayload::FTTransferEvent(FTTransferEventData {
             sender: "".to_string(),
             asset_class_identifier: "asset-id".to_string(),
             amount: "".to_string(),
             recipient: "".to_string(),
         }),
-        "ft_mint" => StacksTransactionEvent::FTMintEvent(FTMintEventData {
+        "ft_mint" => StacksTransactionEventPayload::FTMintEvent(FTMintEventData {
             asset_class_identifier: "asset-id".to_string(),
             recipient: "".to_string(),
             amount: "".to_string(),
         }),
-        "ft_burn" => StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
+        "ft_burn" => StacksTransactionEventPayload::FTBurnEvent(FTBurnEventData {
             asset_class_identifier: "asset-id".to_string(),
             sender: "".to_string(),
             amount: "".to_string(),
@@ -145,7 +146,7 @@ pub fn get_test_event_by_type(event_type: &str) -> StacksTransactionEvent {
         "data_map_update" => todo!(),
         "data_map_delete" => todo!(),
         "smart_contract_print_event" => {
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+            StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
                 topic: "print".to_string(),
                 contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data"
                     .to_string(),
@@ -153,14 +154,14 @@ pub fn get_test_event_by_type(event_type: &str) -> StacksTransactionEvent {
             })
         }
         "smart_contract_print_event_empty" => {
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+            StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
                 topic: "print".to_string(),
                 contract_identifier: "some-id".to_string(),
                 hex_value: EMPTY_EVENT_HEX.to_string(),
             })
         }
         "smart_contract_not_print_event" => {
-            StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+            StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
                 topic: "not-print".to_string(),
                 contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data"
                     .to_string(),
