@@ -6,7 +6,7 @@ use super::types::{
 };
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
-    StacksTransactionKind, TransactionIdentifier,
+    StacksTransactionEventPayload, StacksTransactionKind, TransactionIdentifier,
 };
 use hiro_system_kit::slog;
 use regex::Regex;
@@ -376,18 +376,23 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_burn = expected_event.actions.contains(&"burn".to_string());
 
             for event in transaction.metadata.receipt.events.iter() {
-                match (event, expecting_mint, expecting_transfer, expecting_burn) {
-                    (StacksTransactionEvent::FTMintEvent(ft_event), true, _, _) => {
+                match (
+                    &event.event_payload,
+                    expecting_mint,
+                    expecting_transfer,
+                    expecting_burn,
+                ) {
+                    (StacksTransactionEventPayload::FTMintEvent(ft_event), true, _, _) => {
                         return ft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
                     }
-                    (StacksTransactionEvent::FTTransferEvent(ft_event), _, true, _) => {
+                    (StacksTransactionEventPayload::FTTransferEvent(ft_event), _, true, _) => {
                         return ft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
                     }
-                    (StacksTransactionEvent::FTBurnEvent(ft_event), _, _, true) => {
+                    (StacksTransactionEventPayload::FTBurnEvent(ft_event), _, _, true) => {
                         return ft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
@@ -402,18 +407,23 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
             let expecting_burn = expected_event.actions.contains(&"burn".to_string());
             for event in transaction.metadata.receipt.events.iter() {
-                match (event, expecting_mint, expecting_transfer, expecting_burn) {
-                    (StacksTransactionEvent::NFTMintEvent(nft_event), true, _, _) => {
+                match (
+                    &event.event_payload,
+                    expecting_mint,
+                    expecting_transfer,
+                    expecting_burn,
+                ) {
+                    (StacksTransactionEventPayload::NFTMintEvent(nft_event), true, _, _) => {
                         return nft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
                     }
-                    (StacksTransactionEvent::NFTTransferEvent(nft_event), _, true, _) => {
+                    (StacksTransactionEventPayload::NFTTransferEvent(nft_event), _, true, _) => {
                         return nft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
                     }
-                    (StacksTransactionEvent::NFTBurnEvent(nft_event), _, _, true) => {
+                    (StacksTransactionEventPayload::NFTBurnEvent(nft_event), _, _, true) => {
                         return nft_event
                             .asset_class_identifier
                             .eq(&expected_event.asset_identifier)
@@ -431,16 +441,18 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
 
             for event in transaction.metadata.receipt.events.iter() {
                 match (
-                    event,
+                    &event.event_payload,
                     expecting_mint,
                     expecting_transfer,
                     expecting_lock,
                     expecting_burn,
                 ) {
-                    (StacksTransactionEvent::STXMintEvent(_), true, _, _, _) => return true,
-                    (StacksTransactionEvent::STXTransferEvent(_), _, true, _, _) => return true,
-                    (StacksTransactionEvent::STXLockEvent(_), _, _, true, _) => return true,
-                    (StacksTransactionEvent::STXBurnEvent(_), _, _, _, true) => return true,
+                    (StacksTransactionEventPayload::STXMintEvent(_), true, _, _, _) => return true,
+                    (StacksTransactionEventPayload::STXTransferEvent(_), _, true, _, _) => {
+                        return true
+                    }
+                    (StacksTransactionEventPayload::STXLockEvent(_), _, _, true, _) => return true,
+                    (StacksTransactionEventPayload::STXBurnEvent(_), _, _, _, true) => return true,
                     _ => continue,
                 }
             }
@@ -448,8 +460,8 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
         }
         StacksPredicate::PrintEvent(expected_event) => {
             for event in transaction.metadata.receipt.events.iter() {
-                match event {
-                    StacksTransactionEvent::SmartContractEvent(actual) => {
+                match &event.event_payload {
+                    StacksTransactionEventPayload::SmartContractEvent(actual) => {
                         if actual.topic == "print" {
                             match expected_event {
                                 StacksPrintEventBasedPredicate::Contains {
@@ -573,32 +585,36 @@ pub fn serialized_event_with_decoded_clarity_value(
     event: &StacksTransactionEvent,
     ctx: &Context,
 ) -> serde_json::Value {
-    match event {
-        StacksTransactionEvent::STXTransferEvent(payload) => {
+    match &event.event_payload {
+        StacksTransactionEventPayload::STXTransferEvent(payload) => {
             json!({
                 "type": "STXTransferEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::STXMintEvent(payload) => {
+        StacksTransactionEventPayload::STXMintEvent(payload) => {
             json!({
                 "type": "STXMintEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::STXLockEvent(payload) => {
+        StacksTransactionEventPayload::STXLockEvent(payload) => {
             json!({
                 "type": "STXLockEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::STXBurnEvent(payload) => {
+        StacksTransactionEventPayload::STXBurnEvent(payload) => {
             json!({
                 "type": "STXBurnEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::NFTTransferEvent(payload) => {
+        StacksTransactionEventPayload::NFTTransferEvent(payload) => {
             json!({
                 "type": "NFTTransferEvent",
                 "data": {
@@ -606,58 +622,65 @@ pub fn serialized_event_with_decoded_clarity_value(
                     "asset_identifier": serialized_decoded_clarity_value(&payload.hex_asset_identifier, ctx),
                     "sender": payload.sender,
                     "recipient": payload.recipient,
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::NFTMintEvent(payload) => {
+        StacksTransactionEventPayload::NFTMintEvent(payload) => {
             json!({
                 "type": "NFTMintEvent",
                 "data": {
                     "asset_class_identifier": payload.asset_class_identifier,
                     "asset_identifier": serialized_decoded_clarity_value(&payload.hex_asset_identifier, ctx),
                     "recipient": payload.recipient,
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::NFTBurnEvent(payload) => {
+        StacksTransactionEventPayload::NFTBurnEvent(payload) => {
             json!({
                 "type": "NFTBurnEvent",
                 "data": {
                     "asset_class_identifier": payload.asset_class_identifier,
                     "asset_identifier": serialized_decoded_clarity_value(&payload.hex_asset_identifier, ctx),
                     "sender": payload.sender,
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::FTTransferEvent(payload) => {
+        StacksTransactionEventPayload::FTTransferEvent(payload) => {
             json!({
                 "type": "FTTransferEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::FTMintEvent(payload) => {
+        StacksTransactionEventPayload::FTMintEvent(payload) => {
             json!({
                 "type": "FTMintEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::FTBurnEvent(payload) => {
+        StacksTransactionEventPayload::FTBurnEvent(payload) => {
             json!({
                 "type": "FTBurnEvent",
-                "data": payload
+                "data": payload,
+                "position": event.position
             })
         }
-        StacksTransactionEvent::DataVarSetEvent(payload) => {
+        StacksTransactionEventPayload::DataVarSetEvent(payload) => {
             json!({
                 "type": "DataVarSetEvent",
                 "data": {
                     "contract_identifier": payload.contract_identifier,
                     "var": payload.var,
                     "new_value": serialized_decoded_clarity_value(&payload.hex_new_value, ctx),
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::DataMapInsertEvent(payload) => {
+        StacksTransactionEventPayload::DataMapInsertEvent(payload) => {
             json!({
                 "type": "DataMapInsertEvent",
                 "data": {
@@ -665,10 +688,11 @@ pub fn serialized_event_with_decoded_clarity_value(
                     "map": payload.map,
                     "inserted_key": serialized_decoded_clarity_value(&payload.hex_inserted_key, ctx),
                     "inserted_value": serialized_decoded_clarity_value(&payload.hex_inserted_value, ctx),
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::DataMapUpdateEvent(payload) => {
+        StacksTransactionEventPayload::DataMapUpdateEvent(payload) => {
             json!({
                 "type": "DataMapUpdateEvent",
                 "data": {
@@ -676,27 +700,30 @@ pub fn serialized_event_with_decoded_clarity_value(
                     "map": payload.map,
                     "key": serialized_decoded_clarity_value(&payload.hex_key, ctx),
                     "new_value": serialized_decoded_clarity_value(&payload.hex_new_value, ctx),
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::DataMapDeleteEvent(payload) => {
+        StacksTransactionEventPayload::DataMapDeleteEvent(payload) => {
             json!({
                 "type": "DataMapDeleteEvent",
                 "data": {
                     "contract_identifier": payload.contract_identifier,
                     "map": payload.map,
                     "deleted_key": serialized_decoded_clarity_value(&payload.hex_deleted_key, ctx),
-                }
+                },
+                "position": event.position
             })
         }
-        StacksTransactionEvent::SmartContractEvent(payload) => {
+        StacksTransactionEventPayload::SmartContractEvent(payload) => {
             json!({
                 "type": "SmartContractEvent",
                 "data": {
                     "contract_identifier": payload.contract_identifier,
                     "topic": payload.topic,
                     "value": serialized_decoded_clarity_value(&payload.hex_value, ctx),
-                }
+                },
+                "position": event.position
             })
         }
     }
