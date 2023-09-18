@@ -489,6 +489,7 @@ fn verify_optional_addition_of_contract_abi() {
         ),
         action: HookAction::Noop,
         enabled: true,
+        expired_at: None,
     };
     let contract_call_chainhook = StacksChainhookSpecification {
         uuid: "contract-call".to_string(),
@@ -509,10 +510,11 @@ fn verify_optional_addition_of_contract_abi() {
         }),
         action: HookAction::Noop,
         enabled: true,
+        expired_at: None,
     };
 
     let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
-    let (triggered, _blocks) =
+    let (triggered, _blocks, _) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 2);
 
@@ -537,7 +539,7 @@ fn verify_optional_addition_of_contract_abi() {
     }
     contract_deploy_chainhook.include_contract_abi = false;
     let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
-    let (triggered, _blocks) =
+    let (triggered, _blocks, _) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 2);
 
