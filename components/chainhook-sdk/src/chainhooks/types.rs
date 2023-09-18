@@ -21,27 +21,6 @@ impl ChainhookConfig {
         }
     }
 
-    pub fn get_spec_with_uuid(&self, uuid: &str) -> Option<ChainhookSpecification> {
-        let res = self
-            .stacks_chainhooks
-            .iter()
-            .filter(|spec| spec.uuid.eq(&uuid))
-            .collect::<Vec<_>>();
-        if let Some(spec) = res.first() {
-            return Some(ChainhookSpecification::Stacks((*spec).clone()));
-        }
-
-        let res = self
-            .bitcoin_chainhooks
-            .iter()
-            .filter(|spec| spec.uuid.eq(&uuid))
-            .collect::<Vec<_>>();
-        if let Some(spec) = res.first() {
-            return Some(ChainhookSpecification::Bitcoin((*spec).clone()));
-        }
-        None
-    }
-
     pub fn register_full_specification(
         &mut self,
         networks: (&BitcoinNetwork, &StacksNetwork),
