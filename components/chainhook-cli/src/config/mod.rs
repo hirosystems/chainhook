@@ -24,7 +24,7 @@ pub const BITCOIN_SCAN_THREAD_POOL_SIZE: usize = 10;
 pub const STACKS_MAX_PREDICATE_REGISTRATION: usize = 50;
 pub const BITCOIN_MAX_PREDICATE_REGISTRATION: usize = 50;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     pub storage: StorageConfig,
     pub http_api: PredicatesApi,
@@ -33,25 +33,25 @@ pub struct Config {
     pub network: IndexerConfig,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StorageConfig {
     pub working_dir: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PredicatesApi {
     Off,
     On(PredicatesApiConfig),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PredicatesApiConfig {
     pub http_port: u16,
     pub database_uri: String,
     pub display_logs: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EventSourceConfig {
     StacksTsvPath(PathConfig),
     StacksTsvUrl(UrlConfig),
@@ -59,17 +59,17 @@ pub enum EventSourceConfig {
     OrdinalsSqliteUrl(UrlConfig),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PathConfig {
     pub file_path: PathBuf,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UrlConfig {
     pub file_url: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LimitsConfig {
     pub max_number_of_bitcoin_predicates: usize,
     pub max_number_of_concurrent_bitcoin_scans: usize,
@@ -411,3 +411,6 @@ pub fn default_cache_path() -> String {
     cache_path.push("cache");
     format!("{}", cache_path.display())
 }
+
+#[cfg(test)]
+pub mod tests;
