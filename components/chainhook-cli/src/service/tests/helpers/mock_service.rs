@@ -9,6 +9,7 @@ use crate::config::DEFAULT_REDIS_URI;
 use crate::service::http_api::start_predicate_api_server;
 use crate::service::PredicateStatus;
 use crate::service::Service;
+use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
 use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::ObserverCommand;
 use chainhook_sdk::types::BitcoinBlockSignaling;
@@ -288,19 +289,13 @@ pub fn flush_redis(port: u16) {
     let client = redis::Client::open(format!("redis://localhost:{port}/"))
         .expect("unable to connect to redis");
     let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
-    let predicate_keys: Vec<String> = predicate_db_conn
+    let db_keys: Vec<String> = predicate_db_conn
         .scan_match("predicate:*")
         .unwrap()
         .into_iter()
         .collect();
-    for k in predicate_keys {
-        predicate_db_conn
-            .hdel::<_, _, ()>(&k, "predicates")
-            .unwrap();
-        predicate_db_conn.hdel::<_, _, ()>(&k, "status").unwrap();
-        predicate_db_conn
-            .hdel::<_, _, ()>(&k, "specification")
-            .unwrap();
+    for k in db_keys {
+        predicate_db_conn.del::<_, ()>(&k).unwrap();
     }
 }
 
@@ -351,13 +346,13 @@ pub fn get_chainhook_config(
 pub async fn start_chainhook_service(
     config: Config,
     chainhook_port: u16,
+    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
     ctx: &Context,
 ) -> Result<(), String> {
     let mut service = Service::new(config, ctx.clone());
-    let startup_predicates = vec![];
     let _ = hiro_system_kit::thread_named("Stacks service")
         .spawn(move || {
-            let future = service.run(startup_predicates);
+            let future = service.run(startup_predicates.unwrap_or(vec![]));
             let _ = hiro_system_kit::nestable_block_on(future);
         })
         .map_err(|e| {

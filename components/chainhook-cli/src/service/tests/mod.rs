@@ -1,8 +1,13 @@
-use chainhook_sdk::types::Chain;
+use chainhook_sdk::chainhooks::types::{
+    ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
+};
+use chainhook_sdk::types::{Chain, StacksNetwork};
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
+use std::fs::{self};
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::process::Child;
 use std::thread::sleep;
 use std::time::Duration;
@@ -26,7 +31,10 @@ use crate::service::tests::helpers::mock_service::{
     build_predicate_api_server, call_get_predicate, call_register_predicate, get_chainhook_config,
     get_predicate_status,
 };
-use crate::service::PredicateStatus;
+use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, StreamingData};
+
+use super::http_api::document_predicate_api_server;
+use super::{update_predicate_spec, update_predicate_status};
 
 mod helpers;
 
@@ -314,6 +322,8 @@ async fn await_new_scanning_status_complete(
 
 async fn setup_stacks_chainhook_test(
     starting_chain_tip: u64,
+    redis_seed: Option<(StacksChainhookFullSpecification, PredicateStatus)>,
+    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
 ) -> (Child, String, u16, u16, u16, u16) {
     let (
         redis_port,
@@ -327,18 +337,43 @@ async fn setup_stacks_chainhook_test(
         .await
         .unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
-    let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
-
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
     let ctx = Context {
         logger: Some(logger),
         tracer: false,
     };
+
+    if let Some((predicate, status)) = redis_seed {
+        let client = redis::Client::open(format!("redis://localhost:{redis_port}/"))
+            .unwrap_or_else(|e| {
+                flush_redis(redis_port);
+                redis_process.kill().unwrap();
+                panic!("test failed with error: {e}");
+            });
+        let mut connection = client.get_connection().unwrap_or_else(|e| {
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+        let stacks_spec = predicate
+            .into_selected_network_specification(&StacksNetwork::Devnet)
+            .unwrap_or_else(|e| {
+                flush_redis(redis_port);
+                redis_process.kill().unwrap();
+                panic!("test failed with error: {e}");
+            });
+
+        let spec = ChainhookSpecification::Stacks(stacks_spec);
+        update_predicate_spec(&spec.key(), &spec, &mut connection, &ctx);
+        update_predicate_status(&spec.key(), status, &mut connection, &ctx);
+    }
+
+    let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
+        flush_redis(redis_port);
+        redis_process.kill().unwrap();
+        panic!("test failed with error: {e}");
+    });
 
     write_stacks_blocks_to_tsv(starting_chain_tip, &tsv_dir).unwrap_or_else(|e| {
         std::fs::remove_dir_all(&working_dir).unwrap();
@@ -366,7 +401,7 @@ async fn setup_stacks_chainhook_test(
             panic!("test failed with error: {e}");
         });
 
-    start_chainhook_service(config, chainhook_service_port, &ctx)
+    start_chainhook_service(config, chainhook_service_port, startup_predicates, &ctx)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
@@ -388,6 +423,8 @@ async fn setup_stacks_chainhook_test(
 #[test_case(5, 0, Some(1), None => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
 #[test_case(3, 0, Some(1), Some(5) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
 #[test_case(5, 3, Some(1), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
+#[test_case(1, 3, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
 #[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
@@ -404,7 +441,7 @@ async fn test_stacks_predicate_status_is_updated(
         redis_port,
         stacks_ingestion_port,
         _,
-    ) = setup_stacks_chainhook_test(starting_chain_tip).await;
+    ) = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
@@ -518,7 +555,7 @@ async fn setup_bitcoin_chainhook_test(
         &tsv_dir,
     );
 
-    start_chainhook_service(config, chainhook_service_port, &ctx)
+    start_chainhook_service(config, chainhook_service_port, None, &ctx)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
@@ -631,7 +668,7 @@ async fn test_bitcoin_predicate_status_is_updated(
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_deregister_predicate(chain: Chain) {
     let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) = match &chain {
-        Chain::Stacks => setup_stacks_chainhook_test(0).await,
+        Chain::Stacks => setup_stacks_chainhook_test(0, None, None).await,
         Chain::Bitcoin => setup_bitcoin_chainhook_test(0).await,
     };
 
@@ -709,4 +746,161 @@ async fn test_deregister_predicate(chain: Chain) {
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
+}
+
+#[test_case(New, 6 => using assert_confirmed_expiration_status; "preloaded predicate with new status should get scanned until completion")]
+#[test_case(Scanning(ScanningData {
+    number_of_blocks_evaluated: 4,
+    number_of_blocks_to_scan: 1,
+    number_of_times_triggered: 0,
+    last_occurrence: 0,
+    last_evaluated_block_height: 4
+}), 6 => using assert_confirmed_expiration_status; "preloaded predicate with scanning status should get scanned until completion")]
+#[test_case(Streaming(StreamingData {
+    number_of_blocks_evaluated: 4,
+    number_of_times_triggered: 0,
+    last_occurrence: 0,
+    last_evaluation: 0,
+    last_evaluated_block_height: 4
+}), 6 => using assert_confirmed_expiration_status; "preloaded predicate with streaming status and last evaluated height below tip should get scanned until completion")]
+#[test_case(Streaming(StreamingData {
+    number_of_blocks_evaluated: 5,
+    number_of_times_triggered: 0,
+    last_occurrence: 0,
+    last_evaluation: 0,
+    last_evaluated_block_height: 5
+}), 5 => using assert_streaming_status; "preloaded predicate with streaming status and last evaluated height at tip should be streamed")]
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn test_restarting_with_saved_predicates(
+    starting_status: PredicateStatus,
+    starting_chain_tip: u64,
+) -> PredicateStatus {
+    let uuid = &get_random_uuid();
+    let predicate = build_stacks_payload(
+        Some("devnet"),
+        Some(json!({"scope":"block_height", "lower_than": 100})),
+        None,
+        Some(json!({"start_block": 1, "end_block": 6})),
+        Some(uuid),
+    );
+    let predicate =
+        serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
+
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+        setup_stacks_chainhook_test(starting_chain_tip, Some((predicate, starting_status)), None)
+            .await;
+
+    await_new_scanning_status_complete(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    sleep(Duration::new(2, 0));
+    let result = get_predicate_status(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+    result
+}
+
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn it_allows_specifying_startup_predicate() {
+    let uuid = &get_random_uuid();
+    let predicate = build_stacks_payload(
+        Some("devnet"),
+        Some(json!({"scope":"block_height", "lower_than": 100})),
+        None,
+        Some(json!({"start_block": 1, "end_block": 2})),
+        Some(uuid),
+    );
+    let predicate =
+        serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
+    let startup_predicate = ChainhookFullSpecification::Stacks(predicate);
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+        setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
+
+    await_new_scanning_status_complete(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    sleep(Duration::new(2, 0));
+    let result = get_predicate_status(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+    assert_confirmed_expiration_status(result);
+}
+
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn register_predicate_responds_409_if_uuid_in_use() {
+    let uuid = &get_random_uuid();
+    let predicate = build_stacks_payload(
+        Some("devnet"),
+        Some(json!({"scope":"block_height", "lower_than": 100})),
+        None,
+        Some(json!({"start_block": 1, "end_block": 2})),
+        Some(uuid),
+    );
+    let stacks_spec = serde_json::from_value(predicate.clone())
+        .expect("failed to set up stacks chanhook spec for test");
+    let startup_predicate = ChainhookFullSpecification::Stacks(stacks_spec);
+
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+        setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
+
+    let result = call_register_predicate(&predicate, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+    assert_eq!(result.get("status"), Some(&json!(409)));
+
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+}
+
+#[test]
+fn it_generates_open_api_spec() {
+    let new_spec = document_predicate_api_server().unwrap();
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("../../docs/chainhook-openapi.json");
+    let current_spec = fs::read_to_string(path).unwrap();
+
+    assert_eq!(
+        current_spec, new_spec,
+        "breaking change detected: open api spec has been updated"
+    )
 }
