@@ -76,6 +76,7 @@ pub struct NewTransaction {
     pub raw_result: String,
     pub raw_tx: String,
     pub execution_cost: Option<StacksTransactionExecutionCost>,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,6 +90,7 @@ pub struct NewMicroblockTransaction {
     pub microblock_sequence: usize,
     pub microblock_hash: String,
     pub microblock_parent_hash: String,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -311,6 +313,7 @@ pub fn standardize_stacks_block(
                 description,
                 position: StacksTransactionPosition::anchor_block(tx.tx_index),
                 proof: None,
+                contract_abi: tx.contract_abi.clone(),
             },
         });
     }
@@ -452,6 +455,7 @@ pub fn standardize_stacks_microblock_trail(
                     tx.tx_index,
                 ),
                 proof: None,
+                contract_abi: tx.contract_abi.clone(),
             },
         };
 

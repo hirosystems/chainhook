@@ -64,6 +64,7 @@ pub fn generate_test_tx_stacks_contract_call(
             sponsor: None,
             position: chainhook_types::StacksTransactionPosition::anchor_block(0),
             proof: None,
+            contract_abi: None,
         },
     }
 }
