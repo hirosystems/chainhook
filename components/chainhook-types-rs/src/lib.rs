@@ -4,10 +4,12 @@ extern crate serde;
 extern crate serde_derive;
 
 pub mod bitcoin;
+mod contract_interface;
 mod events;
 mod processors;
 mod rosetta;
 
+pub use contract_interface::*;
 pub use events::*;
 pub use processors::*;
 pub use rosetta::*;

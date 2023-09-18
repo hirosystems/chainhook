@@ -67,6 +67,7 @@ fn stacks_chainhook_contract_call(
             expire_after_occurrence,
             capture_all_events: None,
             decode_clarity_values: Some(true),
+            include_contract_abi: None,
             predicate: StacksPredicate::ContractCall(StacksContractCallBasedPredicate {
                 contract_identifier: contract_identifier.to_string(),
                 method: method.to_string(),

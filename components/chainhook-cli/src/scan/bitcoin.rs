@@ -137,7 +137,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             Err((e, _)) => {
                 warn!(
                     ctx.expect_logger(),
-                    "Unable to standardize block#{} {}: {}", current_block_height, block_hash, e
+                    "Unable to standardize block #{} {}: {}", current_block_height, block_hash, e
                 );
                 continue;
             }

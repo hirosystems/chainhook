@@ -508,17 +508,41 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
     }
 }
 
-fn encode_transaction_including_with_clarity_decoding(
-    transaction: &StacksTransactionData,
+fn serialize_stacks_block(
+    block: &dyn AbstractStacksBlock,
+    transactions: Vec<&StacksTransactionData>,
+    decode_clarity_values: bool,
+    include_contract_abi: bool,
     ctx: &Context,
 ) -> serde_json::Value {
     json!({
+        "block_identifier": block.get_identifier(),
+        "parent_block_identifier": block.get_parent_identifier(),
+        "timestamp": block.get_timestamp(),
+        "transactions": transactions.into_iter().map(|transaction| {
+            serialize_stacks_transaction(&transaction, decode_clarity_values, include_contract_abi, ctx)
+        }).collect::<Vec<_>>(),
+        "metadata": block.get_serialized_metadata(),
+    })
+}
+
+fn serialize_stacks_transaction(
+    transaction: &StacksTransactionData,
+    decode_clarity_values: bool,
+    include_contract_abi: bool,
+    ctx: &Context,
+) -> serde_json::Value {
+    let mut json = json!({
         "transaction_identifier": transaction.transaction_identifier,
         "operations": transaction.operations,
         "metadata": {
             "success": transaction.metadata.success,
             "raw_tx": transaction.metadata.raw_tx,
-            "result": serialized_decoded_clarity_value(&transaction.metadata.result, ctx),
+            "result": if decode_clarity_values {
+                serialized_decoded_clarity_value(&transaction.metadata.result, ctx)
+            } else  {
+                json!(transaction.metadata.result)
+            },
             "sender": transaction.metadata.sender,
             "fee": transaction.metadata.fee,
             "kind": transaction.metadata.kind,
@@ -527,15 +551,21 @@ fn encode_transaction_including_with_clarity_decoding(
                 "mutated_assets_radius": transaction.metadata.receipt.mutated_assets_radius,
                 "contract_calls_stack": transaction.metadata.receipt.contract_calls_stack,
                 "events": transaction.metadata.receipt.events.iter().map(|event| {
-                    serialized_event_with_decoded_clarity_value(event, ctx)
+                    if decode_clarity_values { serialized_event_with_decoded_clarity_value(event, ctx) } else { json!(event) }
                 }).collect::<Vec<serde_json::Value>>(),
             },
             "description": transaction.metadata.description,
             "sponsor": transaction.metadata.sponsor,
             "execution_cost": transaction.metadata.execution_cost,
-            "position": transaction.metadata.position,
+            "position": transaction.metadata.position
         },
-    })
+    });
+    if include_contract_abi {
+        if let Some(abi) = &transaction.metadata.contract_abi {
+            json["metadata"]["contract_abi"] = json!(abi);
+        }
+    }
+    json
 }
 
 pub fn serialized_event_with_decoded_clarity_value(
@@ -764,37 +794,13 @@ pub fn serialize_stacks_payload_to_json<'a>(
     ctx: &Context,
 ) -> JsonValue {
     let decode_clarity_values = trigger.should_decode_clarity_value();
+    let include_contract_abi = trigger.chainhook.include_contract_abi;
     json!({
         "apply": trigger.apply.into_iter().map(|(transactions, block)| {
-            json!({
-                "block_identifier": block.get_identifier(),
-                "parent_block_identifier": block.get_parent_identifier(),
-                "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
-                    if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
-                    } else {
-                        json!(transaction)
-                    }
-                }).collect::<Vec<_>>(),
-                "metadata": block.get_serialized_metadata(),
-            })
+            serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
         "rollback": trigger.rollback.into_iter().map(|(transactions, block)| {
-            json!({
-                "block_identifier": block.get_identifier(),
-                "parent_block_identifier": block.get_parent_identifier(),
-                "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
-                    if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
-                    } else {
-                        json!(transaction)
-                    }
-                }).collect::<Vec<_>>(),
-                "metadata": block.get_serialized_metadata(),
-                // "proof": proofs.get(&transaction.transaction_identifier),
-            })
+            serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
         "chainhook": {
             "uuid": trigger.chainhook.uuid,
