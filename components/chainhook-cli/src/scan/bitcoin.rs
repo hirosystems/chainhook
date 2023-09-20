@@ -293,7 +293,7 @@ pub async fn execute_predicates_action<'a>(
                     BitcoinChainhookOccurrence::File(path, bytes) => {
                         file_append(path, bytes, &ctx)?
                     }
-                    BitcoinChainhookOccurrence::Data(_payload) => unreachable!(),
+                    BitcoinChainhookOccurrence::Data(_payload) => {}
                 };
             }
         }
