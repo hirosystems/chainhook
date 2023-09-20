@@ -410,4 +410,5 @@ impl std::fmt::Display for ChainSegment {
     }
 }
 
+#[cfg(test)]
 pub mod tests;
