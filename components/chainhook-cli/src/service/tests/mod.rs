@@ -336,6 +336,7 @@ async fn setup_stacks_chainhook_test(
     let mut redis_process = start_redis(redis_port)
         .await
         .unwrap_or_else(|e| panic!("test failed with error: {e}"));
+    flush_redis(redis_port);
 
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
@@ -525,6 +526,7 @@ async fn setup_bitcoin_chainhook_test(
         .await
         .unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
+    flush_redis(redis_port);
     let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
         flush_redis(redis_port);
         redis_process.kill().unwrap();

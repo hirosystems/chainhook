@@ -290,7 +290,7 @@ pub fn flush_redis(port: u16) {
         .expect("unable to connect to redis");
     let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
     let db_keys: Vec<String> = predicate_db_conn
-        .scan_match("predicate:*")
+        .scan_match("*")
         .unwrap()
         .into_iter()
         .collect();
