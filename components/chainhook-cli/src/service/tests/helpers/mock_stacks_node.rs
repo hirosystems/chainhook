@@ -1,7 +1,6 @@
 use crate::scan::stacks::{Record, RecordKind};
 use chainhook_sdk::indexer::bitcoin::NewBitcoinBlock;
-use chainhook_sdk::indexer::stacks::{NewBlock, NewTransaction};
-use chainhook_sdk::indexer::tests::helpers::create_new_event_from_stacks_event;
+use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction};
 use chainhook_sdk::types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
@@ -133,33 +132,43 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     };
 
     let mut events = vec![];
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
             sender: format!(""),
             recipient: format!(""),
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::STXMintEvent(STXMintEventData {
             recipient: format!(""),
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
             sender: format!(""),
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::STXLockEvent(STXLockEventData {
             locked_amount: format!("1"),
             unlock_height: format!(""),
             locked_address: format!(""),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
@@ -167,21 +176,27 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
             recipient: format!(""),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
             recipient: format!(""),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
             sender: format!(""),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
             asset_class_identifier: format!(""),
             sender: format!(""),
@@ -189,21 +204,27 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::FTMintEvent(FTMintEventData {
             asset_class_identifier: format!(""),
             recipient: format!(""),
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
             asset_class_identifier: format!(""),
             sender: format!(""),
             amount: format!("1"),
         }),
     ));
-    events.push(create_new_event_from_stacks_event(
+    events.push(create_stacks_new_event(
+        0,
+        events.len() as u32,
         StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
             contract_identifier: format!(""),
             topic: format!("print"),
