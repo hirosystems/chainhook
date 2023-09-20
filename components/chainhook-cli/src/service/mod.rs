@@ -935,9 +935,13 @@ pub fn set_confirmed_expiration_status(
     let expired_data = match current_status {
         Some(status) => match status {
             PredicateStatus::UnconfirmedExpiration(expired_data) => expired_data,
+            PredicateStatus::ConfirmedExpiration(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set ConfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+                return;
+            }
             _ => unreachable!("unreachable predicate status: {:?}", status),
         },
-        None => unreachable!(),
+        None => unreachable!("found no status for predicate: {}", predicate_key),
     };
     update_predicate_status(
         predicate_key,
