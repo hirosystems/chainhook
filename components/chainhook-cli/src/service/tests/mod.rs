@@ -31,6 +31,7 @@ use crate::service::tests::helpers::mock_service::{
     build_predicate_api_server, call_get_predicate, call_register_predicate, get_chainhook_config,
     get_predicate_status,
 };
+use crate::service::tests::helpers::mock_stacks_node::create_burn_fork_at;
 use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, StreamingData};
 
 use super::http_api::document_predicate_api_server;
@@ -602,7 +603,9 @@ async fn test_bitcoin_predicate_status_is_updated(
         Some("regtest"),
         Some(json!({"scope":"block"})),
         None,
-        Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
+        Some(
+            json!({"start_block": predicate_start_block, "end_block": predicate_end_block, "include_proof": true}),
+        ),
         Some(uuid),
     );
 
@@ -628,6 +631,7 @@ async fn test_bitcoin_predicate_status_is_updated(
         mine_burn_block(
             stacks_ingestion_port,
             bitcoin_rpc_port,
+            None,
             i + starting_chain_tip,
         )
         .await
@@ -664,6 +668,151 @@ async fn test_bitcoin_predicate_status_is_updated(
     result
 }
 
+///            
+///          ┌─> predicate start block
+///          │                               ┌─> reorg, predicate scans from A(3) to B(6)
+///          │                               │       ┌─> predicate end block (unconfirmed set)
+///  A(1) -> A(2) -> A(3) -> A(4) -> A(5)    │       │                                         ┌─> predicate status confirmed
+///                     \ -> B(4) -> B(5) -> B(6) -> B(7) -> B(8) -> B(9) -> B(10) -> B(11) -> B(12)
+///                                  
+///                         
+#[test_case(5, 3, 9, Some(2), Some(7); "ommitting start_block ends with Interrupted status")]
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn test_bitcoin_predicate_status_is_updated_with_reorg(
+    genesis_chain_blocks_to_mine: u64,
+    fork_point: u64,
+    fork_blocks_to_mine: u64,
+    predicate_start_block: Option<u64>,
+    predicate_end_block: Option<u64>,
+) {
+    let starting_chain_tip = 0;
+    let (
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+    ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
+
+    let uuid = &get_random_uuid();
+    let predicate = build_bitcoin_payload(
+        Some("regtest"),
+        Some(json!({"scope":"block"})),
+        None,
+        Some(
+            json!({"start_block": predicate_start_block, "end_block": predicate_end_block, "include_proof": true}),
+        ),
+        Some(uuid),
+    );
+
+    let _ = call_register_predicate(&predicate, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    let genesis_branch_key = '0';
+    let first_block_mined_height = starting_chain_tip + 1;
+    let last_block_mined_height = genesis_chain_blocks_to_mine + first_block_mined_height;
+    for block_height in first_block_mined_height..last_block_mined_height {
+        mine_burn_block(
+            stacks_ingestion_port,
+            bitcoin_rpc_port,
+            Some(genesis_branch_key),
+            block_height,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+    }
+
+    sleep(Duration::new(2, 0));
+    let status = get_predicate_status(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+    assert_streaming_status(status);
+
+    let branch_key = '1';
+    let first_fork_block_mined_height = fork_point + 1;
+    create_burn_fork_at(
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+        Some(branch_key),
+        first_fork_block_mined_height,
+        genesis_branch_key,
+        fork_point,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        std::fs::remove_dir_all(&working_dir).unwrap();
+        flush_redis(redis_port);
+        redis_process.kill().unwrap();
+        panic!("test failed with error: {e}");
+    });
+
+    let reorg_point = last_block_mined_height + 1;
+    let first_fork_block_mined_height = first_fork_block_mined_height + 1;
+    let last_fork_block_mined_height = first_fork_block_mined_height + fork_blocks_to_mine;
+    println!("reorg point {reorg_point}, first fork block: {first_fork_block_mined_height}, last_fork_block_mined_height {last_fork_block_mined_height}");
+    for block_height in first_fork_block_mined_height..last_fork_block_mined_height {
+        mine_burn_block(
+            stacks_ingestion_port,
+            bitcoin_rpc_port,
+            Some(branch_key),
+            block_height,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+        if block_height == reorg_point {
+            sleep(Duration::new(2, 0));
+            let status = get_predicate_status(uuid, chainhook_service_port)
+                .await
+                .unwrap_or_else(|e| {
+                    std::fs::remove_dir_all(&working_dir).unwrap();
+                    flush_redis(redis_port);
+                    redis_process.kill().unwrap();
+                    panic!("test failed with error: {e}");
+                });
+            assert_streaming_status(status);
+        }
+    }
+
+    sleep(Duration::new(2, 0));
+    let status = get_predicate_status(uuid, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    assert_confirmed_expiration_status(status);
+
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+}
+
 #[test_case(Chain::Stacks; "for stacks chain")]
 #[test_case(Chain::Bitcoin; "for bitcoin chain")]
 #[tokio::test]
@@ -688,7 +837,7 @@ async fn test_deregister_predicate(chain: Chain) {
             Some("regtest"),
             Some(json!({"scope":"block"})),
             None,
-            Some(json!({"start_block": 1, "end_block": 2})),
+            Some(json!({"start_block": 1, "end_block": 2, "include_proof": true})),
             Some(uuid),
         ),
     };

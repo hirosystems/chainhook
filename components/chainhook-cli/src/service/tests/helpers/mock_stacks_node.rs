@@ -1,4 +1,5 @@
 use crate::scan::stacks::{Record, RecordKind};
+use crate::service::tests::helpers::mock_bitcoin_rpc::TipData;
 use chainhook_sdk::indexer::bitcoin::NewBitcoinBlock;
 use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction};
 use chainhook_sdk::types::{
@@ -7,7 +8,7 @@ use chainhook_sdk::types::{
     STXTransferEventData, SmartContractEventData, StacksTransactionEvent,
 };
 
-use super::height_to_prefixed_hash;
+use super::{branch_and_height_to_prefixed_hash, height_to_prefixed_hash};
 
 pub const TEST_WORKING_DIR: &str = "src/service/tests/fixtures/tmp";
 
@@ -308,9 +309,9 @@ pub async fn mine_stacks_block(
     Ok(())
 }
 
-fn create_new_burn_block(burn_block_height: u64) -> NewBitcoinBlock {
+fn create_new_burn_block(branch: Option<char>, burn_block_height: u64) -> NewBitcoinBlock {
     NewBitcoinBlock {
-        burn_block_hash: height_to_prefixed_hash(burn_block_height),
+        burn_block_hash: branch_and_height_to_prefixed_hash(branch, burn_block_height),
         burn_block_height,
         reward_recipients: vec![],
         reward_slot_holders: vec![],
@@ -318,19 +319,25 @@ fn create_new_burn_block(burn_block_height: u64) -> NewBitcoinBlock {
     }
 }
 
-pub async fn mine_burn_block(
-    stacks_ingestion_port: u16,
+async fn call_increment_chain_tip(
     bitcoin_rpc_port: u16,
+    branch: Option<char>,
     burn_block_height: u64,
+    parent_branch_key: Option<char>,
+    parent_height_at_fork: Option<u64>,
 ) -> Result<(), String> {
-    let block = create_new_burn_block(burn_block_height);
-    let serialized_block = serde_json::to_string(&block)
-        .map_err(|e| format!("failed to serialize burn block: {}", e.to_string()))?;
     let client = reqwest::Client::new();
+    let tip_data = TipData {
+        branch: branch.unwrap_or('0'),
+        parent_branch_key,
+        parent_height_at_fork,
+    };
     let res = client
         .post(format!(
             "http://localhost:{bitcoin_rpc_port}/increment-chain-tip"
         ))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::to_value(tip_data).unwrap())
         .send()
         .await
         .map_err(|e| {
@@ -348,6 +355,18 @@ pub async fn mine_burn_block(
             )
         })?;
     assert_eq!(burn_block_height.to_string(), res);
+    Ok(())
+}
+
+async fn call_new_burn_block(
+    stacks_ingestion_port: u16,
+    branch: Option<char>,
+    burn_block_height: u64,
+) -> Result<(), String> {
+    let block = create_new_burn_block(branch, burn_block_height);
+    let serialized_block = serde_json::to_string(&block)
+        .map_err(|e| format!("failed to serialize burn block: {}", e.to_string()))?;
+    let client = reqwest::Client::new();
     let _res = client
         .post(format!(
             "http://localhost:{stacks_ingestion_port}/new_burn_block"
@@ -365,5 +384,38 @@ pub async fn mine_burn_block(
                 e.to_string()
             )
         })?;
+    Ok(())
+}
+
+pub async fn mine_burn_block(
+    stacks_ingestion_port: u16,
+    bitcoin_rpc_port: u16,
+    branch: Option<char>,
+    burn_block_height: u64,
+) -> Result<(), String> {
+    call_increment_chain_tip(bitcoin_rpc_port, branch, burn_block_height, None, None).await?;
+
+    call_new_burn_block(stacks_ingestion_port, branch, burn_block_height).await?;
+    Ok(())
+}
+
+pub async fn create_burn_fork_at(
+    stacks_ingestion_port: u16,
+    bitcoin_rpc_port: u16,
+    branch: Option<char>,
+    burn_block_height: u64,
+    fork_branch: char,
+    fork_at_height: u64,
+) -> Result<(), String> {
+    call_increment_chain_tip(
+        bitcoin_rpc_port,
+        branch,
+        burn_block_height,
+        Some(fork_branch),
+        Some(fork_at_height),
+    )
+    .await?;
+
+    call_new_burn_block(stacks_ingestion_port, branch, burn_block_height).await?;
     Ok(())
 }
