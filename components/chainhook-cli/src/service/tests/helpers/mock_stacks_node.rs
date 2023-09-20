@@ -21,6 +21,96 @@ pub fn create_tmp_working_dir() -> Result<(String, String), String> {
         .map_err(|e| format!("failed to create temp working dir: {}", e.to_string()))?;
     Ok((working_dir, tsv_dir))
 }
+fn create_stacks_new_event(tx_index: u64, index: u32, event: StacksTransactionEvent) -> NewEvent {
+    let mut event_type = String::new();
+    let stx_transfer_event = if let StacksTransactionEvent::STXTransferEvent(data) = &event {
+        event_type = format!("stx_transfer");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let stx_mint_event = if let StacksTransactionEvent::STXMintEvent(data) = &event {
+        event_type = format!("stx_mint");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let stx_burn_event = if let StacksTransactionEvent::STXBurnEvent(data) = &event {
+        event_type = format!("stx_burn");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let stx_lock_event = if let StacksTransactionEvent::STXLockEvent(data) = &event {
+        event_type = format!("stx_lock");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let nft_transfer_event = if let StacksTransactionEvent::NFTTransferEvent(data) = &event {
+        event_type = format!("nft_transfer");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let nft_mint_event = if let StacksTransactionEvent::NFTMintEvent(data) = &event {
+        event_type = format!("nft_mint");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let nft_burn_event = if let StacksTransactionEvent::NFTBurnEvent(data) = &event {
+        event_type = format!("nft_burn");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let ft_transfer_event = if let StacksTransactionEvent::FTTransferEvent(data) = &event {
+        event_type = format!("ft_transfer");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let ft_mint_event = if let StacksTransactionEvent::FTMintEvent(data) = &event {
+        event_type = format!("ft_mint");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let ft_burn_event = if let StacksTransactionEvent::FTBurnEvent(data) = &event {
+        event_type = format!("ft_burn");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    let contract_event = if let StacksTransactionEvent::SmartContractEvent(data) = &event {
+        event_type = format!("smart_contract_print_event");
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
+    NewEvent {
+        txid: format!("transaction_id_{tx_index}"),
+        committed: false,
+        event_index: index,
+        event_type,
+        stx_transfer_event,
+        stx_mint_event,
+        stx_burn_event,
+        stx_lock_event,
+        nft_transfer_event,
+        nft_mint_event,
+        nft_burn_event,
+        ft_transfer_event,
+        ft_mint_event,
+        ft_burn_event,
+        data_var_set_event: None,
+        data_map_insert_event: None,
+        data_map_update_event: None,
+        data_map_delete_event: None,
+        contract_event,
+    }
+}
 
 fn create_stacks_new_transaction(index: u64) -> NewTransaction {
     NewTransaction {
