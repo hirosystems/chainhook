@@ -1,6 +1,12 @@
 use crate::scan::stacks::{Record, RecordKind};
 use chainhook_sdk::indexer::bitcoin::NewBitcoinBlock;
 use chainhook_sdk::indexer::stacks::{NewBlock, NewTransaction};
+use chainhook_sdk::indexer::tests::helpers::create_new_event_from_stacks_event;
+use chainhook_sdk::types::{
+    FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
+    NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
+    STXTransferEventData, SmartContractEventData, StacksTransactionEvent,
+};
 
 use super::height_to_prefixed_hash;
 
@@ -36,6 +42,84 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
         burn_block_height - 1
     };
 
+    let mut events = vec![];
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
+            sender: format!(""),
+            recipient: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::STXMintEvent(STXMintEventData {
+            recipient: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
+            sender: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::STXLockEvent(STXLockEventData {
+            locked_amount: format!("1"),
+            unlock_height: format!(""),
+            locked_address: format!(""),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
+            asset_class_identifier: format!(""),
+            hex_asset_identifier: format!(""),
+            sender: format!(""),
+            recipient: format!(""),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
+            asset_class_identifier: format!(""),
+            hex_asset_identifier: format!(""),
+            recipient: format!(""),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
+            asset_class_identifier: format!(""),
+            hex_asset_identifier: format!(""),
+            sender: format!(""),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
+            asset_class_identifier: format!(""),
+            sender: format!(""),
+            recipient: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::FTMintEvent(FTMintEventData {
+            asset_class_identifier: format!(""),
+            recipient: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
+            asset_class_identifier: format!(""),
+            sender: format!(""),
+            amount: format!("1"),
+        }),
+    ));
+    events.push(create_new_event_from_stacks_event(
+        StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+            contract_identifier: format!(""),
+            topic: format!("print"),
+            hex_value: format!(""),
+        }),
+    ));
     NewBlock {
         block_height: height,
         block_hash: height_to_prefixed_hash(height),
@@ -51,7 +135,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
         parent_burn_block_height: burn_block_height,
         parent_burn_block_timestamp: 0,
         transactions: (0..4).map(|i| create_stacks_new_transaction(i)).collect(),
-        events: vec![],
+        events,
         matured_miner_rewards: vec![],
     }
 }
