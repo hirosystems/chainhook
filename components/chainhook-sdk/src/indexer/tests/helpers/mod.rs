@@ -7,6 +7,8 @@ pub mod bitcoin_shapes;
 pub mod microblocks;
 #[allow(non_snake_case, unreachable_code)]
 pub mod stacks_blocks;
+pub mod stacks_events;
+pub use stacks_events::create_new_event_from_stacks_event;
 pub mod stacks_shapes;
 pub mod transactions;
 
