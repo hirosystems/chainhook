@@ -194,6 +194,28 @@ pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonV
     Ok(res)
 }
 
+pub async fn call_ping(port: u16) -> Result<ObserverMetrics, String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .get(format!("http://localhost:{port}/ping"))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to make GET request to localhost:{port}/ping: {}", e))?
+        .json::<JsonValue>()
+        .await
+        .map_err(|e| {
+            format!(
+                "Failed to deserialize response of GET request to localhost:{port}/ping: {}",
+                e
+            )
+        })?;
+    match res.get("result") {
+        Some(result) => serde_json::from_value(result.clone())
+            .map_err(|e| format!("failed to parse observer metrics {}", e.to_string())),
+        None => Err(format!("Failed parse result of observer ping")),
+    }
+}
+
 pub async fn call_get_predicates(port: u16) -> Result<JsonValue, String> {
     let client = reqwest::Client::new();
     let res =client
