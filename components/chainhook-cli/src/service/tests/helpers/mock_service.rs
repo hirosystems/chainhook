@@ -372,7 +372,7 @@ pub async fn start_chainhook_service(
     ctx: &Context,
 ) -> Result<(), String> {
     let mut service = Service::new(config, ctx.clone());
-    let _ = hiro_system_kit::thread_named("Stacks service")
+    let _ = hiro_system_kit::thread_named("Chainhook service")
         .spawn(move || {
             let future = service.run(startup_predicates.unwrap_or(vec![]));
             let _ = hiro_system_kit::nestable_block_on(future);
