@@ -20,6 +20,7 @@ use chainhook_sdk::types::StacksNetwork;
 use chainhook_sdk::types::StacksNodeConfig;
 use chainhook_sdk::utils::Context;
 use redis::Commands;
+use reqwest::Method;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::path::PathBuf;
@@ -120,28 +121,8 @@ pub async fn call_register_predicate(
     predicate: &JsonValue,
     port: u16,
 ) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
-    let res =client
-            .post(format!("http://localhost:{port}/v1/chainhooks"))
-            .header("Content-Type", "application/json")
-            .json(predicate)
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make POST request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of POST request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?;
-    Ok(res)
+    let url = format!("http://localhost:{port}/v1/chainhooks");
+    call_observer_svc(&url, Method::POST, Some(predicate)).await
 }
 
 pub async fn call_deregister_predicate(
@@ -149,95 +130,58 @@ pub async fn call_deregister_predicate(
     predicate_uuid: &str,
     port: u16,
 ) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
     let chain = match chain {
         Chain::Bitcoin => "bitcoin",
         Chain::Stacks => "stacks",
     };
     let url = format!("http://localhost:{port}/v1/chainhooks/{chain}/{predicate_uuid}");
-    let res = client
-        .delete(&url)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to make DELETE request to {url}: {}", e))?
-        .json::<JsonValue>()
-        .await
-        .map_err(|e| {
-            format!(
-                "Failed to deserialize response of DELETE request to {url}: {}",
-                e
-            )
-        })?;
-    Ok(res)
+    call_observer_svc(&url, Method::DELETE, None).await
 }
 
 pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonValue, String> {
+    let url = format!("http://localhost:{port}/v1/chainhooks/{predicate_uuid}");
+    call_observer_svc(&url, Method::GET, None).await
+}
+
+pub async fn call_get_predicates(port: u16) -> Result<JsonValue, String> {
+    let url = format!("http://localhost:{port}/v1/chainhooks");
+    call_observer_svc(&url, Method::GET, None).await
+}
+
+pub async fn call_observer_svc(
+    url: &str,
+    method: Method,
+    json: Option<&JsonValue>,
+) -> Result<JsonValue, String> {
     let client = reqwest::Client::new();
-    let res =client
-            .get(format!("http://localhost:{port}/v1/chainhooks/{predicate_uuid}"))
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make GET request to localhost:{port}/v1/chainhooks/<{predicate_uuid}>: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of GET request to localhost:{port}/v1/chainhooks/{predicate_uuid}: {}",
-                    e
-                )
-            })?;
-    Ok(res)
+    let req = match (&method, json) {
+        (&Method::GET, None) => client.get(url),
+        (&Method::POST, None) => client.post(url).header("Content-Type", "application/json"),
+        (&Method::POST, Some(json)) => client
+            .post(url)
+            .header("Content-Type", "application/json")
+            .json(json),
+        (&Method::DELETE, None) => client
+            .delete(url)
+            .header("Content-Type", "application/json"),
+        _ => unimplemented!(),
+    };
+    req.send()
+        .await
+        .map_err(|e| format!("Failed to make {method} request to {url}: {e}",))?
+        .json::<JsonValue>()
+        .await
+        .map_err(|e| format!("Failed to deserialize response of {method} request to {url}: {e}",))
 }
 
 pub async fn call_ping(port: u16) -> Result<ObserverMetrics, String> {
-    let client = reqwest::Client::new();
-    let res = client
-        .get(format!("http://localhost:{port}/ping"))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to make GET request to localhost:{port}/ping: {}", e))?
-        .json::<JsonValue>()
-        .await
-        .map_err(|e| {
-            format!(
-                "Failed to deserialize response of GET request to localhost:{port}/ping: {}",
-                e
-            )
-        })?;
+    let url = format!("http://localhost:{port}/ping");
+    let res = call_observer_svc(&url, Method::GET, None).await?;
     match res.get("result") {
         Some(result) => serde_json::from_value(result.clone())
             .map_err(|e| format!("failed to parse observer metrics {}", e.to_string())),
         None => Err(format!("Failed parse result of observer ping")),
     }
-}
-
-pub async fn call_get_predicates(port: u16) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
-    let res =client
-            .get(format!("http://localhost:{port}/v1/chainhooks"))
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make GET request to localhost:8765/v1/chainhooks: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of GET request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?;
-    Ok(res)
 }
 
 pub async fn build_predicate_api_server(port: u16) -> (Receiver<ObserverCommand>, Shutdown) {
@@ -366,6 +310,7 @@ pub fn get_chainhook_config(
         },
     }
 }
+
 pub async fn start_chainhook_service(
     config: Config,
     chainhook_port: u16,
