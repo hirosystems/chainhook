@@ -12,6 +12,7 @@ use crate::service::Service;
 use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
 use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::ObserverCommand;
+use chainhook_sdk::observer::ObserverMetrics;
 use chainhook_sdk::types::BitcoinBlockSignaling;
 use chainhook_sdk::types::BitcoinNetwork;
 use chainhook_sdk::types::Chain;
