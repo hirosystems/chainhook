@@ -179,7 +179,7 @@ pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonV
             .await
             .map_err(|e| {
                 format!(
-                    "Failed to make GET request to localhost:8765/v1/chainhooks/<{predicate_uuid}>: {}",
+                    "Failed to make GET request to localhost:{port}/v1/chainhooks/<{predicate_uuid}>: {}",
                     e
                 )
             })?
