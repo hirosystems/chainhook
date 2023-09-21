@@ -293,14 +293,14 @@ impl ChainhookStore {
     }
 }
 
-#[derive(Debug, Default, Serialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ReorgMetrics {
     timestamp: i64,
     applied_blocks: usize,
     rolled_back_blocks: usize,
 }
 
-#[derive(Debug, Default, Serialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ChainMetrics {
     pub tip_height: u64,
     pub last_reorg: Option<ReorgMetrics>,
@@ -316,7 +316,7 @@ impl ChainMetrics {
     }
 }
 
-#[derive(Debug, Default, Serialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ObserverMetrics {
     pub bitcoin: ChainMetrics,
     pub stacks: ChainMetrics,

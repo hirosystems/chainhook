@@ -38,6 +38,7 @@ use super::http_api::document_predicate_api_server;
 use super::{update_predicate_spec, update_predicate_status};
 
 mod helpers;
+mod observer_tests;
 
 async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Shutdown)> {
     // perhaps a little janky, we bind to the port 0 to find an open one, then
