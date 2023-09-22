@@ -14,7 +14,7 @@ use crate::service::tests::{
         build_predicates::build_stacks_payload,
         mock_service::{call_observer_svc, call_ping, call_register_predicate, flush_redis},
     },
-    setup_stacks_chainhook_test,
+    setup_bitcoin_chainhook_test, setup_stacks_chainhook_test,
 };
 
 use super::helpers::{
@@ -52,6 +52,55 @@ async fn ping_endpoint_returns_metrics() {
     });
 
     assert_eq!(metrics.stacks.registered_predicates, 1);
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+}
+
+async fn await_observer_started(port: u16) {
+    let mut attempts = 0;
+    loop {
+        let url = format!("http://localhost:{port}/ping");
+        match call_observer_svc(&url, Method::GET, None).await {
+            Ok(_) => break,
+            Err(e) => {
+                if attempts > 3 {
+                    panic!("failed to start event observer, {}", e);
+                } else {
+                    attempts += 1;
+                    println!("attmpets {attempts}");
+                    sleep(Duration::new(0, 500_000_000));
+                }
+            }
+        }
+    }
+}
+#[test_case("/wallet", json!({
+    "method": "getaddressinfo",
+    "params": vec!["bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"],
+    "id": "my-id",
+    "jsonrpc": "2.0"
+}))]
+#[test_case("/", json!({
+    "method": "sendrawtransaction",
+    "params": vec!["0x0000"],
+    "id": "my-id",
+    "jsonrpc": "2.0"
+}))]
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn bitcoin_rpc_requests_are_forwarded(endpoint: &str, body: Value) {
+    let (mut redis_process, working_dir, _, redis_port, stacks_ingestion_port, _) =
+        setup_bitcoin_chainhook_test(1).await;
+
+    await_observer_started(stacks_ingestion_port).await;
+
+    let url = format!("http://localhost:{stacks_ingestion_port}{endpoint}");
+    let response = call_observer_svc(&url, Method::POST, Some(&body))
+        .await
+        .unwrap();
+    assert!(response.get("result").is_some());
+    assert!(response.get("error").is_none());
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();

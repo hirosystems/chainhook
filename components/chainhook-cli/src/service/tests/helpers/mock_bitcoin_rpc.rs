@@ -262,6 +262,22 @@ fn handle_rpc(
                 "result": "00",
             })
         }
+        "getaddressinfo" => {
+            json!({
+                "id": serde_json::to_value(rpc.id).unwrap(),
+                "jsonrpc": rpc.jsonrpc,
+                "result": {
+                    "address": rpc.params[0]
+                },
+            })
+        }
+        "sendrawtransaction" => {
+            json!({
+                "id": serde_json::to_value(rpc.id).unwrap(),
+                "jsonrpc": rpc.jsonrpc,
+                "result": "success",
+            })
+        }
         _ => unimplemented!("unsupported rpc endpoint: {}", rpc.method.as_str()),
     }
 }
