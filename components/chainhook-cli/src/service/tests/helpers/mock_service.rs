@@ -44,7 +44,6 @@ pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStat
                 },
                 None => {
                     attempts += 1;
-                    println!("reattempting get predicate status");
                     if attempts == 10 {
                         return Err(format!("no result field on get predicate response"));
                     } else {
@@ -104,7 +103,6 @@ pub async fn filter_predicate_status_from_all_predicates(
                 },
                 None => {
                     attempts += 1;
-                    println!("reattempting get predicates");
                     if attempts == 10 {
                         return Err(format!("no result field on get predicates response"));
                     } else {

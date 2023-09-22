@@ -768,7 +768,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
     let reorg_point = last_block_mined_height + 1;
     let first_fork_block_mined_height = first_fork_block_mined_height + 1;
     let last_fork_block_mined_height = first_fork_block_mined_height + fork_blocks_to_mine;
-    println!("reorg point {reorg_point}, first fork block: {first_fork_block_mined_height}, last_fork_block_mined_height {last_fork_block_mined_height}");
+
     for block_height in first_fork_block_mined_height..last_fork_block_mined_height {
         mine_burn_block(
             stacks_ingestion_port,

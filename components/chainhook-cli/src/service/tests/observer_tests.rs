@@ -68,7 +68,6 @@ async fn await_observer_started(port: u16) {
                     panic!("failed to start event observer, {}", e);
                 } else {
                     attempts += 1;
-                    println!("attmpets {attempts}");
                     sleep(Duration::new(0, 500_000_000));
                 }
             }
