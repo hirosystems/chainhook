@@ -57,6 +57,25 @@ async fn ping_endpoint_returns_metrics() {
     redis_process.kill().unwrap();
 }
 
+async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_port: u16) {
+    let (observer_commands_tx, observer_commands_rx) = channel();
+    let logger = hiro_system_kit::log::setup_logger();
+    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+    let ctx = Context {
+        logger: Some(logger),
+        tracer: false,
+    };
+    start_event_observer(
+        config,
+        observer_commands_tx,
+        observer_commands_rx,
+        None,
+        None,
+        ctx,
+    )
+    .unwrap();
+    await_observer_started(ingestion_port).await;
+}
 #[test_case("/drop_mempool_tx", Method::POST, None)]
 #[test_case("/attachments/new", Method::POST, None)]
 #[test_case("/mined_block", Method::POST, Some(&json!({})))]
@@ -71,7 +90,6 @@ async fn it_responds_200_for_unimplemented_endpoints(
     let (working_dir, _tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
         panic!("test failed with error: {e}");
     });
-    let (observer_commands_tx, observer_commands_rx) = channel();
     let config = EventObserverConfig {
         chainhook_config: None,
         bitcoin_rpc_proxy_enabled: false,
@@ -91,40 +109,7 @@ async fn it_responds_200_for_unimplemented_endpoints(
         stacks_network: chainhook_sdk::types::StacksNetwork::Devnet,
         data_handler_tx: None,
     };
-    let logger = hiro_system_kit::log::setup_logger();
-    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
-    let ctx = Context {
-        logger: Some(logger),
-        tracer: false,
-    };
-    start_event_observer(
-        config,
-        observer_commands_tx,
-        observer_commands_rx,
-        None,
-        None,
-        ctx,
-    )
-    .unwrap();
-
-    // ensure the service is started
-    let mut attempts = 0;
-    loop {
-        let url = format!("http://localhost:{ingestion_port}/ping");
-        match call_observer_svc(&url, Method::GET, None).await {
-            Ok(_) => break,
-            Err(e) => {
-                if attempts > 3 {
-                    panic!("failed to start event observer, {}", e);
-                } else {
-                    attempts += 1;
-                    println!("attmpets {attempts}");
-                    sleep(Duration::new(0, 500_000_000));
-                }
-            }
-        }
-    }
-
+    start_and_ping_event_observer(config, ingestion_port).await;
     let url = format!("http://localhost:{ingestion_port}{endpoint}");
     let response = call_observer_svc(&url, method, body).await.unwrap();
     assert_eq!(response.get("status").unwrap(), &json!(200));
