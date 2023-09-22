@@ -535,6 +535,7 @@ impl Service {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "info")]
 /// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
     Scanning(ScanningData),
@@ -546,18 +547,21 @@ pub enum PredicateStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+// note: last_occurrence (and other time-based fields on the status structs) originally were
+// of type u128. serde can't handle deserializing u128s when using an adjacently tagged enum,
+// so we're having to convert to a string. serde issue: https://github.com/serde-rs/json/issues/740
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: u128,
+    pub last_occurrence: String,
     pub last_evaluated_block_height: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
-    pub last_occurrence: u128,
-    pub last_evaluation: u128,
+    pub last_occurrence: String,
+    pub last_evaluation: String,
     pub number_of_times_triggered: u64,
     pub number_of_blocks_evaluated: u64,
     pub last_evaluated_block_height: u64,
@@ -567,7 +571,7 @@ pub struct StreamingData {
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: u128,
+    pub last_occurrence: String,
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
@@ -663,7 +667,8 @@ fn set_predicate_streaming_status(
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis();
+        .as_millis()
+        .to_string();
     let (
         last_occurrence,
         number_of_blocks_evaluated,
@@ -715,7 +720,7 @@ fn set_predicate_streaming_status(
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
-            None => (0, 0, 0, 0),
+            None => (format!("0"), 0, 0, 0),
         }
     };
     let (
@@ -728,7 +733,7 @@ fn set_predicate_streaming_status(
             last_triggered_height,
             triggered_count,
         } => (
-            now_ms,
+            now_ms.clone(),
             number_of_times_triggered + triggered_count,
             number_of_blocks_evaluated + triggered_count,
             last_triggered_height,
@@ -779,7 +784,8 @@ pub fn set_predicate_scanning_status(
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis();
+        .as_millis()
+        .to_string();
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
     let last_occurrence = match current_status {
         Some(status) => match status {
@@ -808,14 +814,14 @@ pub fn set_predicate_scanning_status(
                 if number_of_times_triggered > 0 {
                     now_ms
                 } else {
-                    0
+                    format!("0")
                 }
             }
             PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
-        None => 0,
+        None => format!("0"),
     };
 
     update_predicate_status(
@@ -864,7 +870,7 @@ pub fn set_unconfirmed_expiration_status(
                 last_occurrence,
                 last_evaluated_block_height,
             ),
-            PredicateStatus::New => (0, 0, 0, 0),
+            PredicateStatus::New => (0, 0, format!("0"), 0),
             PredicateStatus::Streaming(StreamingData {
                 last_occurrence,
                 last_evaluation: _,
@@ -900,7 +906,7 @@ pub fn set_unconfirmed_expiration_status(
                 return;
             }
         },
-        None => (0, 0, 0, 0),
+        None => (0, 0, format!("0"), 0),
     };
     update_predicate_status(
         predicate_key,
@@ -1036,6 +1042,7 @@ pub fn update_predicate_status(
     ctx: &Context,
 ) {
     let serialized_status = json!(status).to_string();
+    println!("serialized predicate status {serialized_status}");
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "status", &serialized_status)
     {
