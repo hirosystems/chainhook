@@ -72,24 +72,24 @@ pub fn get_expected_occurrence() -> String {
     std::include_str!("stacks/testnet/occurrence.json").to_owned()
 }
 
-pub fn get_all_event_types() -> Vec<StacksTransactionEventPayload> {
+pub fn get_all_event_payload_types() -> Vec<StacksTransactionEventPayload> {
     vec![
-        get_test_event_by_type("stx_transfer"),
-        get_test_event_by_type("stx_mint"),
-        get_test_event_by_type("stx_lock"),
-        get_test_event_by_type("stx_burn"),
-        get_test_event_by_type("nft_transfer"),
-        get_test_event_by_type("nft_mint"),
-        get_test_event_by_type("nft_burn"),
-        get_test_event_by_type("ft_transfer"),
-        get_test_event_by_type("ft_mint"),
-        get_test_event_by_type("ft_burn"),
-        get_test_event_by_type("smart_contract_print_event"),
-        get_test_event_by_type("smart_contract_print_event_empty"),
-        get_test_event_by_type("smart_contract_not_print_event"),
+        get_test_event_payload_by_type("stx_transfer"),
+        get_test_event_payload_by_type("stx_mint"),
+        get_test_event_payload_by_type("stx_lock"),
+        get_test_event_payload_by_type("stx_burn"),
+        get_test_event_payload_by_type("nft_transfer"),
+        get_test_event_payload_by_type("nft_mint"),
+        get_test_event_payload_by_type("nft_burn"),
+        get_test_event_payload_by_type("ft_transfer"),
+        get_test_event_payload_by_type("ft_mint"),
+        get_test_event_payload_by_type("ft_burn"),
+        get_test_event_payload_by_type("smart_contract_print_event"),
+        get_test_event_payload_by_type("smart_contract_print_event_empty"),
+        get_test_event_payload_by_type("smart_contract_not_print_event"),
     ]
 }
-pub fn get_test_event_by_type(event_type: &str) -> StacksTransactionEventPayload {
+pub fn get_test_event_payload_by_type(event_type: &str) -> StacksTransactionEventPayload {
     match event_type {
         "stx_transfer" => StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
             sender: "".to_string(),

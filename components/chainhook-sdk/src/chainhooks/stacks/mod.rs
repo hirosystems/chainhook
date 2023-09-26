@@ -377,7 +377,7 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
 
             for event in transaction.metadata.receipt.events.iter() {
                 match (
-                    event.event_payload,
+                    &event.event_payload,
                     expecting_mint,
                     expecting_transfer,
                     expecting_burn,
@@ -418,7 +418,7 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
 
             for event in transaction.metadata.receipt.events.iter() {
                 match (
-                    event.event_payload,
+                    &event.event_payload,
                     expecting_mint,
                     expecting_transfer,
                     expecting_burn,
