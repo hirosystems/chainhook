@@ -58,6 +58,9 @@
                     "recipient": "",
                     "sender": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "STXTransferEvent"
                 }
               ],
@@ -134,6 +137,9 @@
                   "data": {
                     "amount": "",
                     "recipient": ""
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "STXMintEvent"
                 }
@@ -213,6 +219,9 @@
                     "locked_amount": "",
                     "unlock_height": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "STXLockEvent"
                 }
               ],
@@ -289,6 +298,9 @@
                   "data": {
                     "amount": "",
                     "sender": ""
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "STXBurnEvent"
                 }
@@ -369,6 +381,9 @@
                     "recipient": "",
                     "sender": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "NFTTransferEvent"
                 }
               ],
@@ -447,6 +462,9 @@
                     "asset_identifier": "asset-id",
                     "recipient": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "NFTMintEvent"
                 }
               ],
@@ -524,6 +542,9 @@
                     "asset_class_identifier": "asset-id",
                     "asset_identifier": "asset-id",
                     "sender": ""
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "NFTBurnEvent"
                 }
@@ -604,6 +625,9 @@
                     "recipient": "",
                     "sender": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "FTTransferEvent"
                 }
               ],
@@ -681,6 +705,9 @@
                     "amount": "",
                     "asset_identifier": "asset-id",
                     "recipient": ""
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "FTMintEvent"
                 }
@@ -760,6 +787,9 @@
                     "asset_identifier": "asset-id",
                     "sender": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "FTBurnEvent"
                 }
               ],
@@ -837,6 +867,9 @@
                     "contract_identifier": "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data",
                     "topic": "print",
                     "value": "abcsome-valueabc"
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "SmartContractEvent"
                 }
@@ -916,6 +949,9 @@
                     "topic": "print",
                     "value": ""
                   },
+                  "position": {
+                    "index": 0
+                  },
                   "type": "SmartContractEvent"
                 }
               ],
@@ -993,6 +1029,9 @@
                     "contract_identifier": "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data",
                     "topic": "not-print",
                     "value": "abcsome-valueabc"
+                  },
+                  "position": {
+                    "index": 0
                   },
                   "type": "SmartContractEvent"
                 }
