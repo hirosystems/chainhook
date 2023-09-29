@@ -15,6 +15,9 @@ on:
 jobs:
   build-publish:
     runs-on: ubuntu-latest
+    outputs:
+      docker_image_digest: ${{ steps.docker_push.outputs.digest }}
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -70,6 +73,7 @@ jobs:
 
       - name: Build/Tag/Push Image
         uses: docker/build-push-action@v2
+        id: docker_push
         with:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
@@ -78,8 +82,11 @@ jobs:
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
           push: ${{ (github.ref != 'refs/heads/master' || steps.semantic.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
 
-  devploy-dev:
+  deploy-dev:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs:
       - build-publish
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -101,8 +108,9 @@ jobs:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/mainnet/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
+
 
   auto-approve-dev:
     runs-on: ubuntu-latest
@@ -118,10 +126,14 @@ jobs:
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/hirosystems/chainhook/actions/runs/${{ github.run_id }}/pending_deployments" -d "{\"environment_ids\":[${ENV_ID}],\"state\":\"approved\",\"comment\":\"auto approve\"}"
           fi
 
-  deploy-stg:
+  deploy-staging:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs:
       - build-publish
+      - deploy-dev
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DEPLOY_ENV: stg
@@ -141,7 +153,7 @@ jobs:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/mainnet/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
   auto-approve-stg:
@@ -160,9 +172,13 @@ jobs:
 
   deploy-prod:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs:
       - build-publish
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      - deploy-staging
+    if: needs.build-publish-release.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     env:
       DEPLOY_ENV: prd
     environment:
@@ -181,5 +197,5 @@ jobs:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/mainnet/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
