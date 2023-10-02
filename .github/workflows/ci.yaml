@@ -93,7 +93,7 @@ jobs:
     env:
       DEPLOY_ENV: dev
     environment:
-      name: Development
+      name: Development-${{ matrix.k8s-env }}
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
@@ -138,7 +138,7 @@ jobs:
     env:
       DEPLOY_ENV: stg
     environment:
-      name: Staging
+      name: Staging-${{ matrix.k8s-env }}
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
@@ -182,7 +182,7 @@ jobs:
     env:
       DEPLOY_ENV: prd
     environment:
-      name: Production
+      name: Production-${{ matrix.k8s-env }}
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
