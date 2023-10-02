@@ -53,9 +53,13 @@ use test_case::test_case;
     true;
     "OpReturn: EndsWith matches ASCII value"
 )]
+fn test_opreturn_evaluation(script_pubkey: &str, rule: MatchingRule, matches: bool) {
+    script_pubkey_evaluation(OutputPredicate::OpReturn(rule), script_pubkey, matches)
+}
 
-fn test_script_pubkey_evaluation(script_pubkey: &str, rule: MatchingRule, matches: bool) {
-    let predicate = BitcoinPredicateType::Outputs(OutputPredicate::OpReturn(rule));
+// script_pubkey_evaluation is a helper that evaluates a a script_pubkey against a transaction predicate.
+fn script_pubkey_evaluation(output: OutputPredicate, script_pubkey: &str, matches: bool) {
+    let predicate = BitcoinPredicateType::Outputs(output);
 
     let outputs = vec![TxOut {
         value: 0,
@@ -83,5 +87,5 @@ fn test_script_pubkey_evaluation(script_pubkey: &str, rule: MatchingRule, matche
         tracer: false,
     };
 
-    assert_eq!(matches, predicate.evaluate_transaction_predicate(&tx, &ctx),);
+    assert_eq!(matches, predicate.evaluate_transaction_predicate(&tx, &ctx));
 }
