@@ -1,6 +1,4 @@
----
-title: Use Chainhooks with Bitcoin
----
+# Use Chainhooks with Bitcoin
 
 The following guide helps you define predicates to use Chainhook with Bitcoin. The predicates are specified based on `if-this`, `then-that` constructs.
 
@@ -23,54 +21,58 @@ Get any transaction matching a given transaction ID (txid):
 }
 ```
 
-Get any transaction, including:
+Get any transaction matching a given `OP_RETURN` payload:
+Example: Given the following `script_pubkey` :
 
-- OP_RETURN output starting with a set of characters.
-  - `starts_with` mandatory argument admits:
-    - ASCII string type. Example: `X2[`
-    - hex encoded bytes. Example: `0x589403`
+```
+OP_RETURN
+PUSHDATA(0x03)
+0x616263
+```
+
+or `0x6a03616263` in hex, the following predicates will match the transaction above.
+
+Get any transaction, where its `OP_RETURN` payload starts with a set of characters:
+- `starts_with` mandatory argument admits:
+    - ASCII string type. Example: `ab`
+    - hex encoded bytes. Example: `0x6162`
 
 ```json
 {
     "if_this": {
         "scope": "outputs",
         "op_return": {
-            "starts_with": "X2["
+            "starts_with": "ab"
         }
     }
 }
 ```
-
-`op_return` is used to find blocks starting, ending, or equivalent to a specific string from the list of output blocks.
-
-Get any transaction, including an OP_RETURN output matching the sequence of bytes specified:
-
+Get any transaction, where its `OP_RETURN` payload is equals to set of characters:
 - `equals` mandatory argument admits:
-  - hex encoded bytes. Example: `0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012`
+	- ASCII string type: Example `abc`
+	- hex encoded bytes. Example: `0x616263`
 
 ```json
 {
     "if_this": {
         "scope": "outputs",
         "op_return": {
-            "equals": "0x69bd04208265aca9424d0337dac7d9e84371a2c91ece1891d67d3554bd9fdbe60afc6924d4b0773d90000006700010000006600012"
+            "equals": "0x616263"
         }
     }
 }
 ```
-
-Get any transaction, including an OP_RETURN output ending with a set of characters:
-
+Get any transaction, where its `OP_RETURN` payload ends with a set of characters:
 - `ends_with` mandatory argument admits:
-  - ASCII string type. Example: `X2[`
-  - hex encoded bytes. Example: `0x76a914000000000000000000000000000000000000000088ac`
+  - ASCII string type. Example: `bc`
+  - hex encoded bytes. Example: `0x6263`
 
 ```json
 {
     "if_this": {
         "scope": "outputs",
         "op_return": {
-            "ends_with": "0x76a914000000000000000000000000000000000000000088ac"
+            "ends_with": "0x6263"
         }
     }
 }
