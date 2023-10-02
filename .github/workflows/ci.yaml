@@ -178,7 +178,7 @@ jobs:
     needs:
       - build-publish
       - deploy-staging
-    if: needs.build-publish-release.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: needs.build-publish.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     env:
       DEPLOY_ENV: prd
     environment:
