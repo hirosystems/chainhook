@@ -838,9 +838,7 @@ pub fn set_predicate_scanning_status(
     );
 }
 
-/// Updates a predicate's status to `InitialScanCompleted`.
-///
-/// Preserves the scanning metrics from the predicate's previous status
+/// Updates a predicate's status to `UnconfirmedExpiration`.
 pub fn set_unconfirmed_expiration_status(
     chain: &Chain,
     number_of_new_blocks_evaluated: u64,
@@ -860,12 +858,12 @@ pub fn set_unconfirmed_expiration_status(
         Some(status) => match status {
             PredicateStatus::Scanning(ScanningData {
                 number_of_blocks_to_scan: _,
-                number_of_blocks_evaluated,
+                number_of_blocks_evaluated: _,
                 number_of_times_triggered,
                 last_occurrence,
                 last_evaluated_block_height,
             }) => (
-                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                number_of_new_blocks_evaluated,
                 number_of_times_triggered,
                 last_occurrence,
                 last_evaluated_block_height,
@@ -1042,7 +1040,6 @@ pub fn update_predicate_status(
     ctx: &Context,
 ) {
     let serialized_status = json!(status).to_string();
-    println!("serialized predicate status {serialized_status}");
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "status", &serialized_status)
     {
