@@ -167,3 +167,6 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
         false
     }
 }
+
+#[cfg(test)]
+pub mod tests;

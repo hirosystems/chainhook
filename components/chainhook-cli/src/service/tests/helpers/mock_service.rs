@@ -9,8 +9,10 @@ use crate::config::DEFAULT_REDIS_URI;
 use crate::service::http_api::start_predicate_api_server;
 use crate::service::PredicateStatus;
 use crate::service::Service;
+use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
 use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::ObserverCommand;
+use chainhook_sdk::observer::ObserverMetrics;
 use chainhook_sdk::types::BitcoinBlockSignaling;
 use chainhook_sdk::types::BitcoinNetwork;
 use chainhook_sdk::types::Chain;
@@ -18,6 +20,7 @@ use chainhook_sdk::types::StacksNetwork;
 use chainhook_sdk::types::StacksNodeConfig;
 use chainhook_sdk::utils::Context;
 use redis::Commands;
+use reqwest::Method;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::path::PathBuf;
@@ -41,7 +44,6 @@ pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStat
                 },
                 None => {
                     attempts += 1;
-                    println!("reattempting get predicate status");
                     if attempts == 10 {
                         return Err(format!("no result field on get predicate response"));
                     } else {
@@ -101,7 +103,6 @@ pub async fn filter_predicate_status_from_all_predicates(
                 },
                 None => {
                     attempts += 1;
-                    println!("reattempting get predicates");
                     if attempts == 10 {
                         return Err(format!("no result field on get predicates response"));
                     } else {
@@ -118,28 +119,8 @@ pub async fn call_register_predicate(
     predicate: &JsonValue,
     port: u16,
 ) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
-    let res =client
-            .post(format!("http://localhost:{port}/v1/chainhooks"))
-            .header("Content-Type", "application/json")
-            .json(predicate)
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make POST request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of POST request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?;
-    Ok(res)
+    let url = format!("http://localhost:{port}/v1/chainhooks");
+    call_observer_svc(&url, Method::POST, Some(predicate)).await
 }
 
 pub async fn call_deregister_predicate(
@@ -147,73 +128,58 @@ pub async fn call_deregister_predicate(
     predicate_uuid: &str,
     port: u16,
 ) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
     let chain = match chain {
         Chain::Bitcoin => "bitcoin",
         Chain::Stacks => "stacks",
     };
     let url = format!("http://localhost:{port}/v1/chainhooks/{chain}/{predicate_uuid}");
-    let res = client
-        .delete(&url)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to make DELETE request to {url}: {}", e))?
-        .json::<JsonValue>()
-        .await
-        .map_err(|e| {
-            format!(
-                "Failed to deserialize response of DELETE request to {url}: {}",
-                e
-            )
-        })?;
-    Ok(res)
+    call_observer_svc(&url, Method::DELETE, None).await
 }
 
 pub async fn call_get_predicate(predicate_uuid: &str, port: u16) -> Result<JsonValue, String> {
-    let client = reqwest::Client::new();
-    let res =client
-            .get(format!("http://localhost:{port}/v1/chainhooks/{predicate_uuid}"))
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make GET request to localhost:8765/v1/chainhooks/<{predicate_uuid}>: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of GET request to localhost:{port}/v1/chainhooks/{predicate_uuid}: {}",
-                    e
-                )
-            })?;
-    Ok(res)
+    let url = format!("http://localhost:{port}/v1/chainhooks/{predicate_uuid}");
+    call_observer_svc(&url, Method::GET, None).await
 }
 
 pub async fn call_get_predicates(port: u16) -> Result<JsonValue, String> {
+    let url = format!("http://localhost:{port}/v1/chainhooks");
+    call_observer_svc(&url, Method::GET, None).await
+}
+
+pub async fn call_observer_svc(
+    url: &str,
+    method: Method,
+    json: Option<&JsonValue>,
+) -> Result<JsonValue, String> {
     let client = reqwest::Client::new();
-    let res =client
-            .get(format!("http://localhost:{port}/v1/chainhooks"))
-            .send()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to make GET request to localhost:8765/v1/chainhooks: {}",
-                    e
-                )
-            })?
-            .json::<JsonValue>()
-            .await
-            .map_err(|e| {
-                format!(
-                    "Failed to deserialize response of GET request to localhost:{port}/v1/chainhooks: {}",
-                    e
-                )
-            })?;
-    Ok(res)
+    let req = match (&method, json) {
+        (&Method::GET, None) => client.get(url),
+        (&Method::POST, None) => client.post(url).header("Content-Type", "application/json"),
+        (&Method::POST, Some(json)) => client
+            .post(url)
+            .header("Content-Type", "application/json")
+            .json(json),
+        (&Method::DELETE, None) => client
+            .delete(url)
+            .header("Content-Type", "application/json"),
+        _ => unimplemented!(),
+    };
+    req.send()
+        .await
+        .map_err(|e| format!("Failed to make {method} request to {url}: {e}",))?
+        .json::<JsonValue>()
+        .await
+        .map_err(|e| format!("Failed to deserialize response of {method} request to {url}: {e}",))
+}
+
+pub async fn call_ping(port: u16) -> Result<ObserverMetrics, String> {
+    let url = format!("http://localhost:{port}/ping");
+    let res = call_observer_svc(&url, Method::GET, None).await?;
+    match res.get("result") {
+        Some(result) => serde_json::from_value(result.clone())
+            .map_err(|e| format!("failed to parse observer metrics {}", e.to_string())),
+        None => Err(format!("Failed parse result of observer ping")),
+    }
 }
 
 pub async fn build_predicate_api_server(port: u16) -> (Receiver<ObserverCommand>, Shutdown) {
@@ -288,19 +254,13 @@ pub fn flush_redis(port: u16) {
     let client = redis::Client::open(format!("redis://localhost:{port}/"))
         .expect("unable to connect to redis");
     let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
-    let predicate_keys: Vec<String> = predicate_db_conn
-        .scan_match("predicate:*")
+    let db_keys: Vec<String> = predicate_db_conn
+        .scan_match("*")
         .unwrap()
         .into_iter()
         .collect();
-    for k in predicate_keys {
-        predicate_db_conn
-            .hdel::<_, _, ()>(&k, "predicates")
-            .unwrap();
-        predicate_db_conn.hdel::<_, _, ()>(&k, "status").unwrap();
-        predicate_db_conn
-            .hdel::<_, _, ()>(&k, "specification")
-            .unwrap();
+    for k in db_keys {
+        predicate_db_conn.del::<_, ()>(&k).unwrap();
     }
 }
 
@@ -348,16 +308,17 @@ pub fn get_chainhook_config(
         },
     }
 }
+
 pub async fn start_chainhook_service(
     config: Config,
     chainhook_port: u16,
+    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
     ctx: &Context,
 ) -> Result<(), String> {
     let mut service = Service::new(config, ctx.clone());
-    let startup_predicates = vec![];
-    let _ = hiro_system_kit::thread_named("Stacks service")
+    let _ = hiro_system_kit::thread_named("Chainhook service")
         .spawn(move || {
-            let future = service.run(startup_predicates);
+            let future = service.run(startup_predicates.unwrap_or(vec![]));
             let _ = hiro_system_kit::nestable_block_on(future);
         })
         .map_err(|e| {

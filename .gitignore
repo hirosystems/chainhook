@@ -20,3 +20,4 @@ components/chainhook-types-js/dist
 cache/
 
 components/chainhook-cli/src/service/tests/fixtures/tmp
+components/chainhook-cli/src/archive/tests/fixtures/tmp

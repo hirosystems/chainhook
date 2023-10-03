@@ -1,3 +1,5 @@
+use chainhook_sdk::types::BitcoinNetwork;
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ConfigFile {
     pub storage: StorageConfigFile,
@@ -43,11 +45,36 @@ pub struct LimitsConfigFile {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct NetworkConfigFile {
-    pub mode: String,
+    pub mode: NetworkConfigMode,
     pub bitcoind_rpc_url: String,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoind_zmq_url: Option<String>,
     pub stacks_node_rpc_url: Option<String>,
     pub stacks_events_ingestion_port: Option<u16>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkConfigMode {
+    Devnet,
+    Testnet,
+    Mainnet,
+}
+
+impl NetworkConfigMode {
+    pub fn from_bitcoin_network(network: &BitcoinNetwork) -> Self {
+        match network {
+            BitcoinNetwork::Regtest => NetworkConfigMode::Devnet,
+            BitcoinNetwork::Testnet => NetworkConfigMode::Testnet,
+            BitcoinNetwork::Mainnet => NetworkConfigMode::Mainnet,
+        }
+    }
+    pub fn as_str(&self) -> &str {
+        match self {
+            NetworkConfigMode::Devnet => "devnet",
+            NetworkConfigMode::Testnet => "testnet",
+            NetworkConfigMode::Mainnet => "mainnet",
+        }
+    }
 }

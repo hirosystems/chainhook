@@ -897,13 +897,13 @@ impl BitcoinNetwork {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum BitcoinBlockSignaling {
     Stacks(StacksNodeConfig),
     ZeroMQ(String),
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct StacksNodeConfig {
     pub rpc_url: String,
     pub ingestion_port: u16,
