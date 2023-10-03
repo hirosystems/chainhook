@@ -37,7 +37,7 @@ use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, Streamin
 use super::http_api::document_predicate_api_server;
 use super::{update_predicate_spec, update_predicate_status};
 
-mod helpers;
+pub mod helpers;
 mod observer_tests;
 
 async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Shutdown)> {
