@@ -554,13 +554,13 @@ pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: String,
+    pub last_occurrence: Option<String>,
     pub last_evaluated_block_height: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
-    pub last_occurrence: String,
+    pub last_occurrence: Option<String>,
     pub last_evaluation: String,
     pub number_of_times_triggered: u64,
     pub number_of_blocks_evaluated: u64,
@@ -571,7 +571,7 @@ pub struct StreamingData {
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: String,
+    pub last_occurrence: Option<String>,
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
@@ -720,7 +720,7 @@ fn set_predicate_streaming_status(
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
-            None => (format!("0"), 0, 0, 0),
+            None => (None, 0, 0, 0),
         }
     };
     let (
@@ -733,7 +733,7 @@ fn set_predicate_streaming_status(
             last_triggered_height,
             triggered_count,
         } => (
-            now_ms.clone(),
+            Some(now_ms.clone()),
             number_of_times_triggered + triggered_count,
             number_of_blocks_evaluated + triggered_count,
             last_triggered_height,
@@ -791,37 +791,37 @@ pub fn set_predicate_scanning_status(
         Some(status) => match status {
             PredicateStatus::Scanning(scanning_data) => {
                 if number_of_times_triggered > scanning_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_ms)
                 } else {
                     scanning_data.last_occurrence
                 }
             }
             PredicateStatus::Streaming(streaming_data) => {
                 if number_of_times_triggered > streaming_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_ms)
                 } else {
                     streaming_data.last_occurrence
                 }
             }
             PredicateStatus::UnconfirmedExpiration(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_ms)
                 } else {
                     expired_data.last_occurrence
                 }
             }
             PredicateStatus::New => {
                 if number_of_times_triggered > 0 {
-                    now_ms
+                    Some(now_ms)
                 } else {
-                    format!("0")
+                    None
                 }
             }
             PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
-        None => format!("0"),
+        None => None,
     };
 
     update_predicate_status(
@@ -868,7 +868,7 @@ pub fn set_unconfirmed_expiration_status(
                 last_occurrence,
                 last_evaluated_block_height,
             ),
-            PredicateStatus::New => (0, 0, format!("0"), 0),
+            PredicateStatus::New => (0, 0, None, 0),
             PredicateStatus::Streaming(StreamingData {
                 last_occurrence,
                 last_evaluation: _,
@@ -904,7 +904,7 @@ pub fn set_unconfirmed_expiration_status(
                 return;
             }
         },
-        None => (0, 0, format!("0"), 0),
+        None => (0, 0, None, 0),
     };
     update_predicate_status(
         predicate_key,
