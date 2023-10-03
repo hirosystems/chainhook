@@ -2,7 +2,7 @@ use chainhook_types::{
     DataMapDeleteEventData, DataMapInsertEventData, DataMapUpdateEventData, DataVarSetEventData,
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
-    STXTransferEventData, SmartContractEventData, StacksTransactionEvent,
+    STXTransferEventData, SmartContractEventData, StacksTransactionEventPayload,
 };
 
 use crate::indexer::tests::helpers::stacks_events::create_new_event_from_stacks_event;
@@ -273,88 +273,88 @@ fn test_stacks_vector_052() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_052());
 }
 
-#[test_case(StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
+#[test_case(StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
     sender: format!(""),
     recipient: format!(""),
     amount: format!("1"),
 }); "stx_transfer")]
-#[test_case(StacksTransactionEvent::STXMintEvent(STXMintEventData {
+#[test_case(StacksTransactionEventPayload::STXMintEvent(STXMintEventData {
     recipient: format!(""),
     amount: format!("1"),
 }); "stx_mint")]
-#[test_case(StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
+#[test_case(StacksTransactionEventPayload::STXBurnEvent(STXBurnEventData {
     sender: format!(""),
     amount: format!("1"),
 }); "stx_burn")]
-#[test_case(StacksTransactionEvent::STXLockEvent(STXLockEventData {
+#[test_case(StacksTransactionEventPayload::STXLockEvent(STXLockEventData {
     locked_amount: format!("1"),
     unlock_height: format!(""),
     locked_address: format!(""),
 }); "stx_lock")]
-#[test_case(StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
+#[test_case(StacksTransactionEventPayload::NFTTransferEvent(NFTTransferEventData {
     asset_class_identifier: format!(""),
     hex_asset_identifier: format!(""),
     sender: format!(""),
     recipient: format!(""),
 }); "nft_transfer")]
-#[test_case(StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
+#[test_case(StacksTransactionEventPayload::NFTMintEvent(NFTMintEventData {
     asset_class_identifier: format!(""),
     hex_asset_identifier: format!(""),
     recipient: format!(""),
 }); "nft_mint")]
-#[test_case(StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
+#[test_case(StacksTransactionEventPayload::NFTBurnEvent(NFTBurnEventData {
     asset_class_identifier: format!(""),
     hex_asset_identifier: format!(""),
     sender: format!(""),
 }); "nft_burn")]
-#[test_case(StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
+#[test_case(StacksTransactionEventPayload::FTTransferEvent(FTTransferEventData {
     asset_class_identifier: format!(""),
     sender: format!(""),
     recipient: format!(""),
     amount: format!("1"),
 }); "ft_transfer")]
-#[test_case(StacksTransactionEvent::FTMintEvent(FTMintEventData {
+#[test_case(StacksTransactionEventPayload::FTMintEvent(FTMintEventData {
     asset_class_identifier: format!(""),
     recipient: format!(""),
     amount: format!("1"),
 }); "ft_mint")]
-#[test_case(StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
+#[test_case(StacksTransactionEventPayload::FTBurnEvent(FTBurnEventData {
     asset_class_identifier: format!(""),
     sender: format!(""),
     amount: format!("1"),
 }); "ft_burn")]
-#[test_case(StacksTransactionEvent::DataVarSetEvent(DataVarSetEventData {
+#[test_case(StacksTransactionEventPayload::DataVarSetEvent(DataVarSetEventData {
     contract_identifier: format!(""),
     var: format!(""),
     hex_new_value: format!(""),
 }); "data_var_set")]
-#[test_case(StacksTransactionEvent::DataMapInsertEvent(DataMapInsertEventData {
+#[test_case(StacksTransactionEventPayload::DataMapInsertEvent(DataMapInsertEventData {
     contract_identifier: format!(""),
     hex_inserted_key: format!(""),
     hex_inserted_value: format!(""),
     map: format!("")
 }); "data_map_insert")]
-#[test_case(StacksTransactionEvent::DataMapUpdateEvent(DataMapUpdateEventData {
+#[test_case(StacksTransactionEventPayload::DataMapUpdateEvent(DataMapUpdateEventData {
     contract_identifier: format!(""),
     hex_new_value: format!(""),
     hex_key: format!(""),
     map: format!("")
 }); "data_map_update")]
-#[test_case(StacksTransactionEvent::DataMapDeleteEvent(DataMapDeleteEventData {
+#[test_case(StacksTransactionEventPayload::DataMapDeleteEvent(DataMapDeleteEventData {
     contract_identifier: format!(""),
     hex_deleted_key: format!(""),
     map: format!("")
 }); "data_map_delete")]
-#[test_case(StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+#[test_case(StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
     contract_identifier: format!(""),
     topic: format!("print"),
     hex_value: format!(""),
 }); "smart_contract_print_event")]
-fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEvent) {
+fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEventPayload) {
     let new_event = create_new_event_from_stacks_event(original_event.clone());
     let event = new_event.into_chainhook_event().unwrap();
     let original_event_serialized = serde_json::to_string(&original_event).unwrap();
-    let event_serialized = serde_json::to_string(&event).unwrap();
+    let event_serialized = serde_json::to_string(&event.event_payload).unwrap();
     assert_eq!(original_event_serialized, event_serialized);
 }
 
