@@ -547,9 +547,6 @@ pub enum PredicateStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-// note: last_occurrence (and other time-based fields on the status structs) originally were
-// of type u128. serde can't handle deserializing u128s when using an adjacently tagged enum,
-// so we're having to convert to a string. serde issue: https://github.com/serde-rs/json/issues/740
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
