@@ -1042,6 +1042,7 @@ pub fn update_predicate_status(
     ctx: &Context,
 ) {
     let serialized_status = json!(status).to_string();
+    println!("serialized predicate status {serialized_status}");
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "status", &serialized_status)
     {
