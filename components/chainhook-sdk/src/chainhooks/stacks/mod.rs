@@ -544,6 +544,7 @@ fn serialize_stacks_transaction(
                 json!(transaction.metadata.result)
             },
             "sender": transaction.metadata.sender,
+            "nonce": transaction.metadata.nonce,
             "fee": transaction.metadata.fee,
             "kind": transaction.metadata.kind,
             "receipt": {
