@@ -120,7 +120,7 @@ jobs:
       DEPLOY_ENV: dev
       DEPLOY_NETWORK: mainnet
     environment:
-      name: Development-${{ env.DEPLOY_NETWORK }}
+      name: Development-mainnet
       url: https://platform.dev.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -148,7 +148,7 @@ jobs:
       DEPLOY_ENV: dev
       DEPLOY_NETWORK: testnet
     environment:
-      name: Development-${{ env.DEPLOY_NETWORK }}
+      name: Development-testnet
       url: https://platform.dev.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -191,7 +191,7 @@ jobs:
       DEPLOY_ENV: stg
       DEPLOY_NETWORK: mainnet
     environment:
-      name: Staging-${{ env.DEPLOY_NETWORK }}
+      name: Staging-mainnet
       url: https://platform.stg.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -220,7 +220,7 @@ jobs:
       DEPLOY_ENV: stg
       DEPLOY_NETWORK: testnet
     environment:
-      name: Staging-${{ env.DEPLOY_NETWORK }}
+      name: Staging-testnet
       url: https://platform.stg.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -265,7 +265,7 @@ jobs:
       DEPLOY_ENV: prd
       DEPLOY_NETWORK: mainnet
     environment:
-      name: Production-${{ env.DEPLOY_NETWORK }}
+      name: Production-mainnet
       url: https://platform.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -294,7 +294,7 @@ jobs:
       DEPLOY_ENV: prd
       DEPLOY_NETWORK: testnet
     environment:
-      name: Production-${{ env.DEPLOY_NETWORK }}
+      name: Production-testnet
       url: https://platform.hiro.so/
     steps:
       - name: Checkout actions repo
