@@ -377,6 +377,15 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+        set_predicate_scanning_status(
+            &predicate_spec.key(),
+            number_of_blocks_to_scan,
+            number_of_blocks_scanned,
+            number_of_times_triggered,
+            last_block_scanned.index,
+            predicates_db_conn,
+            ctx,
+        );
         if let Some(predicate_end_block) = predicate_spec.end_block {
             if predicate_end_block == last_block_scanned.index {
                 let is_confirmed = match get_stacks_block_at_block_height(
@@ -412,15 +421,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 return Ok((last_block_scanned, true));
             }
         }
-        set_predicate_scanning_status(
-            &predicate_spec.key(),
-            number_of_blocks_to_scan,
-            number_of_blocks_scanned,
-            number_of_times_triggered,
-            last_block_scanned.index,
-            predicates_db_conn,
-            ctx,
-        );
     }
     Ok((last_block_scanned, false))
 }

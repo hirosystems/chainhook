@@ -261,27 +261,84 @@ async fn it_handles_stacks_predicates_with_filters(filters: JsonValue) {
     }
 }
 
-fn assert_confirmed_expiration_status(status: PredicateStatus) {
+fn assert_confirmed_expiration_status(
+    (status, expected_evaluations, expected_occurrences): (
+        PredicateStatus,
+        Option<u64>,
+        Option<u64>,
+    ),
+) {
     match status {
-        PredicateStatus::ConfirmedExpiration(_) => {}
+        PredicateStatus::ConfirmedExpiration(data) => {
+            if let Some(expected) = expected_evaluations {
+                assert_eq!(
+                    data.number_of_blocks_evaluated, expected,
+                    "incorrect number of blocks evaluated"
+                );
+            }
+            if let Some(expected) = expected_occurrences {
+                assert_eq!(
+                    data.number_of_times_triggered, expected,
+                    "incorrect number of predicates triggered"
+                );
+            }
+        }
         _ => panic!("expected ConfirmedExpiration status, found {:?}", status),
     }
 }
-fn assert_unconfirmed_expiration_status(status: PredicateStatus) {
+fn assert_unconfirmed_expiration_status(
+    (status, expected_evaluations, expected_occurrences): (
+        PredicateStatus,
+        Option<u64>,
+        Option<u64>,
+    ),
+) {
     match status {
-        PredicateStatus::UnconfirmedExpiration(_) => {}
+        PredicateStatus::UnconfirmedExpiration(data) => {
+            if let Some(expected) = expected_evaluations {
+                assert_eq!(
+                    data.number_of_blocks_evaluated, expected,
+                    "incorrect number of blocks evaluated"
+                );
+            }
+            if let Some(expected) = expected_occurrences {
+                assert_eq!(
+                    data.number_of_times_triggered, expected,
+                    "incorrect number of predicates triggered"
+                );
+            }
+        }
         _ => panic!("expected UnconfirmedExpiration status, found {:?}", status),
     }
 }
 
-fn assert_streaming_status(status: PredicateStatus) {
+fn assert_streaming_status(
+    (status, expected_evaluations, expected_occurrences): (
+        PredicateStatus,
+        Option<u64>,
+        Option<u64>,
+    ),
+) {
     match status {
-        PredicateStatus::Streaming(_) => {}
+        PredicateStatus::Streaming(data) => {
+            if let Some(expected) = expected_evaluations {
+                assert_eq!(
+                    data.number_of_blocks_evaluated, expected,
+                    "incorrect number of blocks evaluated"
+                );
+            }
+            if let Some(expected) = expected_occurrences {
+                assert_eq!(
+                    data.number_of_times_triggered, expected,
+                    "incorrect number of predicates triggered"
+                );
+            }
+        }
         _ => panic!("expected Streaming status, found {:?}", status),
     }
 }
 
-fn assert_interrupted_status(status: PredicateStatus) {
+fn assert_interrupted_status((status, _, _): (PredicateStatus, Option<u64>, Option<u64>)) {
     match status {
         PredicateStatus::Interrupted(_) => {}
         _ => panic!("expected Interrupted status, found {:?}", status),
@@ -422,13 +479,13 @@ async fn setup_stacks_chainhook_test(
     )
 }
 
-#[test_case(5, 0, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
-#[test_case(5, 0, Some(1), None => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
-#[test_case(3, 0, Some(1), Some(5) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
-#[test_case(5, 3, Some(1), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
-#[test_case(1, 3, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
-#[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
-#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
+#[test_case(5, 0, Some(1), Some(3), Some(3), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
+#[test_case(5, 0, Some(1), None, Some(5), Some(5) => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
+#[test_case(3, 0, Some(1), Some(5), Some(3), Some(3) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
+#[test_case(5, 4, Some(1), Some(7), Some(9), Some(7) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining until end_block ends with UnconfirmedExpiration status")]
+#[test_case(1, 3, Some(1), Some(3), Some(4), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(3, 7, Some(1), Some(4), Some(9), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
+#[test_case(0, 0, None, None, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_stacks_predicate_status_is_updated(
@@ -436,7 +493,9 @@ async fn test_stacks_predicate_status_is_updated(
     blocks_to_mine: u64,
     predicate_start_block: Option<u64>,
     predicate_end_block: Option<u64>,
-) -> PredicateStatus {
+    expected_evaluations: Option<u64>,
+    expected_occurrences: Option<u64>,
+) -> (PredicateStatus, Option<u64>, Option<u64>) {
     let (
         mut redis_process,
         working_dir,
@@ -449,7 +508,7 @@ async fn test_stacks_predicate_status_is_updated(
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
         Some("devnet"),
-        Some(json!({"scope":"block_height", "lower_than": 100})),
+        Some(json!({"scope":"block_height", "lower_than": 600})),
         None,
         Some(json!({"start_block": predicate_start_block, "end_block": predicate_end_block})),
         Some(uuid),
@@ -510,7 +569,7 @@ async fn test_stacks_predicate_status_is_updated(
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
-    result
+    (result, expected_evaluations, expected_occurrences)
 }
 
 async fn setup_bitcoin_chainhook_test(
@@ -577,11 +636,11 @@ async fn setup_bitcoin_chainhook_test(
     )
 }
 
-#[test_case(5, 1, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
-#[test_case(10, 1, Some(1), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
-#[test_case(1, 3, Some(1), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
-#[test_case(3, 7, Some(1), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
-#[test_case(0, 0, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
+#[test_case(5, 1, Some(1), Some(3), Some(3), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(10, 1, Some(1), Some(3), Some(3), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
+#[test_case(1, 3, Some(1), Some(3), Some(4), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
+#[test_case(3, 7, Some(1), Some(4), Some(9), Some(4) => using assert_confirmed_expiration_status; "predicate_end_block greater than starting_chain_tip and mining blocks so that predicate_end_block confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with ConfirmedExpiration status")]
+#[test_case(0, 0, None, None, None, None => using assert_interrupted_status; "ommitting start_block ends with Interrupted status")]
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_bitcoin_predicate_status_is_updated(
@@ -589,7 +648,9 @@ async fn test_bitcoin_predicate_status_is_updated(
     blocks_to_mine: u64,
     predicate_start_block: Option<u64>,
     predicate_end_block: Option<u64>,
-) -> PredicateStatus {
+    expected_evaluations: Option<u64>,
+    expected_occurrences: Option<u64>,
+) -> (PredicateStatus, Option<u64>, Option<u64>) {
     let (
         mut redis_process,
         working_dir,
@@ -666,7 +727,7 @@ async fn test_bitcoin_predicate_status_is_updated(
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
-    result
+    (result, expected_evaluations, expected_occurrences)
 }
 
 ///            
@@ -745,7 +806,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
             redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
-    assert_streaming_status(status);
+    assert_streaming_status((status, None, None));
 
     let branch_key = '1';
     let first_fork_block_mined_height = fork_point + 1;
@@ -793,7 +854,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
                     redis_process.kill().unwrap();
                     panic!("test failed with error: {e}");
                 });
-            assert_streaming_status(status);
+            assert_streaming_status((status, None, None));
         }
     }
 
@@ -807,7 +868,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
             panic!("test failed with error: {e}");
         });
 
-    assert_confirmed_expiration_status(status);
+    assert_confirmed_expiration_status((status, None, None));
 
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
@@ -927,7 +988,7 @@ async fn test_deregister_predicate(chain: Chain) {
 async fn test_restarting_with_saved_predicates(
     starting_status: PredicateStatus,
     starting_chain_tip: u64,
-) -> PredicateStatus {
+) -> (PredicateStatus, Option<u64>, Option<u64>) {
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
         Some("devnet"),
@@ -965,7 +1026,7 @@ async fn test_restarting_with_saved_predicates(
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
-    result
+    (result, None, None)
 }
 
 #[tokio::test]
@@ -1007,7 +1068,7 @@ async fn it_allows_specifying_startup_predicate() {
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
-    assert_confirmed_expiration_status(result);
+    assert_confirmed_expiration_status((result, None, None));
 }
 
 #[tokio::test]
