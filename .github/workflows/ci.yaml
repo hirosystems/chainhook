@@ -3,12 +3,10 @@ name: CI
 on:
   push:
     branches:
-      - develop
       - main
-    tags-ignore:
-      - "**"
+      - develop
     paths-ignore:
-      - "**/CHANGELOG.md"
+      - '**/CHANGELOG.md'
   pull_request:
   workflow_dispatch:
 
@@ -19,10 +17,8 @@ jobs:
       docker_image_digest: ${{ steps.docker_push.outputs.digest }}
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Install redis
@@ -34,12 +30,12 @@ jobs:
           RUST_BACKTRACE=1 cargo test --all --features redis_tests -- --test-threads=1
 
       - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v3
+        uses: cycjimmy/semantic-release-action@v4
         id: semantic
         # Only run on non-PR events or only PRs that aren't from forks
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SEMANTIC_RELEASE_PACKAGE: ${{ github.event.repository.name }}
         with:
           semantic_version: 19
@@ -49,14 +45,13 @@ jobs:
             conventional-changelog-conventionalcommits@6.1.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Docker Meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
-            blockstack/${{ github.event.repository.name }}
             hirosystems/${{ github.event.repository.name }}
           tags: |
             type=ref,event=branch
@@ -65,22 +60,24 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_version != '' }}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build/Tag/Push Image
-        uses: docker/build-push-action@v2
+      - name: Build/Push Image
+        uses: docker/build-push-action@v5
         id: docker_push
         with:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           file: ./dockerfiles/components/chainhook-node.dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
-          push: ${{ (github.ref != 'refs/heads/master' || steps.semantic.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+          push: ${{ (github.ref != 'refs/heads/main' || steps.semantic.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
 
   deploy-dev:
     runs-on: ubuntu-latest
@@ -94,6 +91,7 @@ jobs:
       DEPLOY_ENV: dev
     environment:
       name: Development-${{ matrix.k8s-env }}
+      url: https://platform.dev.hiro.so/
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
@@ -110,7 +108,6 @@ jobs:
           k8s_branch: next
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
-
 
   auto-approve-dev:
     runs-on: ubuntu-latest
@@ -139,6 +136,7 @@ jobs:
       DEPLOY_ENV: stg
     environment:
       name: Staging-${{ matrix.k8s-env }}
+      url: https://platform.stg.hiro.so/
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
@@ -183,6 +181,7 @@ jobs:
       DEPLOY_ENV: prd
     environment:
       name: Production-${{ matrix.k8s-env }}
+      url: https://platform.hiro.so/
     steps:
       - name: Checkout actions repo
         uses: actions/checkout@v4
