@@ -966,21 +966,21 @@ async fn test_deregister_predicate(chain: Chain) {
     number_of_blocks_evaluated: 4,
     number_of_blocks_to_scan: 1,
     number_of_times_triggered: 0,
-    last_occurrence: format!("0"),
+    last_occurrence: None,
     last_evaluated_block_height: 4
 }), 6 => using assert_confirmed_expiration_status; "preloaded predicate with scanning status should get scanned until completion")]
 #[test_case(Streaming(StreamingData {
     number_of_blocks_evaluated: 4,
     number_of_times_triggered: 0,
-    last_occurrence: format!("0"),
-    last_evaluation: format!("0"),
+    last_occurrence: None,
+    last_evaluation: 0,
     last_evaluated_block_height: 4
 }), 6 => using assert_confirmed_expiration_status; "preloaded predicate with streaming status and last evaluated height below tip should get scanned until completion")]
 #[test_case(Streaming(StreamingData {
     number_of_blocks_evaluated: 5,
     number_of_times_triggered: 0,
-    last_occurrence: format!("0"),
-    last_evaluation: format!("0"),
+    last_occurrence: None,
+    last_evaluation: 0,
     last_evaluated_block_height: 5
 }), 5 => using assert_streaming_status; "preloaded predicate with streaming status and last evaluated height at tip should be streamed")]
 #[tokio::test]

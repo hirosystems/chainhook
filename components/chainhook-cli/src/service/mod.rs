@@ -547,21 +547,18 @@ pub enum PredicateStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-// note: last_occurrence (and other time-based fields on the status structs) originally were
-// of type u128. serde can't handle deserializing u128s when using an adjacently tagged enum,
-// so we're having to convert to a string. serde issue: https://github.com/serde-rs/json/issues/740
 pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: String,
+    pub last_occurrence: Option<u64>,
     pub last_evaluated_block_height: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
-    pub last_occurrence: String,
-    pub last_evaluation: String,
+    pub last_occurrence: Option<u64>,
+    pub last_evaluation: u64,
     pub number_of_times_triggered: u64,
     pub number_of_blocks_evaluated: u64,
     pub last_evaluated_block_height: u64,
@@ -571,7 +568,7 @@ pub struct StreamingData {
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: String,
+    pub last_occurrence: Option<u64>,
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
@@ -664,11 +661,10 @@ fn set_predicate_streaming_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let now_ms = SystemTime::now()
+    let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis()
-        .to_string();
+        .as_secs();
     let (
         last_occurrence,
         number_of_blocks_evaluated,
@@ -720,7 +716,7 @@ fn set_predicate_streaming_status(
                     unreachable!("unreachable predicate status: {:?}", status)
                 }
             },
-            None => (format!("0"), 0, 0, 0),
+            None => (None, 0, 0, 0),
         }
     };
     let (
@@ -733,7 +729,7 @@ fn set_predicate_streaming_status(
             last_triggered_height,
             triggered_count,
         } => (
-            now_ms.clone(),
+            Some(now_secs.clone()),
             number_of_times_triggered + triggered_count,
             number_of_blocks_evaluated + triggered_count,
             last_triggered_height,
@@ -759,7 +755,7 @@ fn set_predicate_streaming_status(
         predicate_key,
         PredicateStatus::Streaming(StreamingData {
             last_occurrence,
-            last_evaluation: now_ms,
+            last_evaluation: now_secs,
             number_of_times_triggered,
             last_evaluated_block_height,
             number_of_blocks_evaluated,
@@ -781,47 +777,46 @@ pub fn set_predicate_scanning_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let now_ms = SystemTime::now()
+    let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis()
-        .to_string();
+        .as_secs();
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
     let last_occurrence = match current_status {
         Some(status) => match status {
             PredicateStatus::Scanning(scanning_data) => {
                 if number_of_times_triggered > scanning_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     scanning_data.last_occurrence
                 }
             }
             PredicateStatus::Streaming(streaming_data) => {
                 if number_of_times_triggered > streaming_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     streaming_data.last_occurrence
                 }
             }
             PredicateStatus::UnconfirmedExpiration(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     expired_data.last_occurrence
                 }
             }
             PredicateStatus::New => {
                 if number_of_times_triggered > 0 {
-                    now_ms
+                    Some(now_secs)
                 } else {
-                    format!("0")
+                    None
                 }
             }
             PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                 unreachable!("unreachable predicate status: {:?}", status)
             }
         },
-        None => format!("0"),
+        None => None,
     };
 
     update_predicate_status(
@@ -868,7 +863,7 @@ pub fn set_unconfirmed_expiration_status(
                 last_occurrence,
                 last_evaluated_block_height,
             ),
-            PredicateStatus::New => (0, 0, format!("0"), 0),
+            PredicateStatus::New => (0, 0, None, 0),
             PredicateStatus::Streaming(StreamingData {
                 last_occurrence,
                 last_evaluation: _,
@@ -904,7 +899,7 @@ pub fn set_unconfirmed_expiration_status(
                 return;
             }
         },
-        None => (0, 0, format!("0"), 0),
+        None => (0, 0, None, 0),
     };
     update_predicate_status(
         predicate_key,
