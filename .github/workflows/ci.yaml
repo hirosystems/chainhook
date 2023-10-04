@@ -10,6 +10,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-publish:
     runs-on: ubuntu-latest
@@ -43,6 +47,13 @@ jobs:
             @semantic-release/changelog@6.0.3
             @semantic-release/git@10.0.1
             conventional-changelog-conventionalcommits@6.1.0
+
+      - name: Checkout tag
+        if: steps.semantic.outputs.new_release_version != ''
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: v${{ steps.semantic.outputs.new_release_version }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
