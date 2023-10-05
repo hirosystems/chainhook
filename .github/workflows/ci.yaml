@@ -136,8 +136,6 @@ jobs:
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
@@ -180,8 +178,6 @@ jobs:
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
@@ -226,7 +222,5 @@ jobs:
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
