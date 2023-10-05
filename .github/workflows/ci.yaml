@@ -17,9 +17,6 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    outputs:
-      docker_image_digest: ${{ steps.docker_push.outputs.digest }}
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
     steps:
       - uses: actions/checkout@v4
         with:
