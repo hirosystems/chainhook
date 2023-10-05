@@ -112,15 +112,17 @@ jobs:
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
           push: ${{ (github.ref != 'refs/heads/main' || steps.semantic.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
 
-  deploy-dev-mainnet:
+  deploy-dev:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs: build-publish
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DEPLOY_ENV: dev
-      DEPLOY_NETWORK: mainnet
     environment:
-      name: Development-mainnet
+      name: Development-${{ matrix.k8s-env }}
       url: https://platform.dev.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -130,40 +132,13 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
 
-      - name: Deploy Chainhook build to Dev ${{ env.DEPLOY_NETWORK }}
+      - name: Deploy Chainhook build to Dev ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
-          gh_token: ${{ secrets.GH_TOKEN }}
-
-  deploy-dev-testnet:
-    runs-on: ubuntu-latest
-    needs: build-publish
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    env:
-      DEPLOY_ENV: dev
-      DEPLOY_NETWORK: testnet
-    environment:
-      name: Development-testnet
-      url: https://platform.dev.hiro.so/
-    steps:
-      - name: Checkout actions repo
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GH_TOKEN }}
-          repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
-
-      - name: Deploy Chainhook build to Dev ${{ env.DEPLOY_NETWORK }}
-        uses: ./actions/deploy
-        with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
   auto-approve-dev:
@@ -179,17 +154,19 @@ jobs:
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/hirosystems/chainhook/actions/runs/${{ github.run_id }}/pending_deployments" -d "{\"environment_ids\":${ENV_IDS},\"state\":\"approved\",\"comment\":\"auto approve\"}"
           fi
 
-  deploy-staging-mainnet:
+  deploy-staging:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs:
       - build-publish
-      - deploy-dev-mainnet
+      - deploy-dev
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       DEPLOY_ENV: stg
-      DEPLOY_NETWORK: mainnet
     environment:
-      name: Staging-mainnet
+      name: Staging-${{ matrix.k8s-env }}
       url: https://platform.stg.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -199,42 +176,13 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
 
-      - name: Deploy Chainhook build to Stg ${{ env.DEPLOY_NETWORK }}
+      - name: Deploy Chainhook build to Stg ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
-          gh_token: ${{ secrets.GH_TOKEN }}
-
-  deploy-staging-testnet:
-    runs-on: ubuntu-latest
-    needs:
-      - build-publish
-      - deploy-dev-testnet
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    env:
-      DEPLOY_ENV: stg
-      DEPLOY_NETWORK: testnet
-    environment:
-      name: Staging-testnet
-      url: https://platform.stg.hiro.so/
-    steps:
-      - name: Checkout actions repo
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GH_TOKEN }}
-          repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
-
-      - name: Deploy Chainhook build to Stg ${{ env.DEPLOY_NETWORK }}
-        uses: ./actions/deploy
-        with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
   auto-approve-stg:
@@ -242,8 +190,7 @@ jobs:
     if: needs.build-publish.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     needs:
       - build-publish
-      - deploy-dev-mainnet
-      - deploy-dev-testnet
+      - deploy-dev
     steps:
       - name: Approve pending deployments
         run: |
@@ -253,17 +200,19 @@ jobs:
             curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/hirosystems/chainhook/actions/runs/${{ github.run_id }}/pending_deployments" -d "{\"environment_ids\":${ENV_IDS},\"state\":\"approved\",\"comment\":\"auto approve\"}"
           fi
 
-  deploy-prod-mainnet:
+  deploy-prod:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s-env: [mainnet,testnet]
     needs:
       - build-publish
-      - deploy-staging-mainnet
+      - deploy-staging
     if: needs.build-publish.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     env:
       DEPLOY_ENV: prd
-      DEPLOY_NETWORK: mainnet
     environment:
-      name: Production-mainnet
+      name: Production-${{ matrix.k8s-env }}
       url: https://platform.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -273,40 +222,11 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
 
-      - name: Deploy Chainhook build to Prd ${{ env.DEPLOY_NETWORK }}
+      - name: Deploy Chainhook build to Prd ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
           docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
           k8s_repo: k8s
           k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
-          gh_token: ${{ secrets.GH_TOKEN }}
-
-  deploy-prod-testnet:
-    runs-on: ubuntu-latest
-    needs:
-      - build-publish
-      - deploy-staging-testnet
-    if: needs.build-publish.outputs.new_release_published == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    env:
-      DEPLOY_ENV: prd
-      DEPLOY_NETWORK: testnet
-    environment:
-      name: Production-testnet
-      url: https://platform.hiro.so/
-    steps:
-      - name: Checkout actions repo
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GH_TOKEN }}
-          repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
-
-      - name: Deploy Chainhook build to Prd ${{ env.DEPLOY_NETWORK }}
-        uses: ./actions/deploy
-        with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
-          k8s_repo: k8s
-          k8s_branch: next
-          file_pattern: manifests/chainhooks/${{ env.DEPLOY_NETWORK }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
