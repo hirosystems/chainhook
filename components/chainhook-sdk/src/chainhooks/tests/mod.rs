@@ -348,7 +348,7 @@ fn test_stacks_predicates(
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: false,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -428,7 +428,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: false,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -483,7 +483,7 @@ fn verify_optional_addition_of_contract_abi() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: true,
+        include_contract_abi: Some(true),
         predicate: StacksPredicate::ContractDeployment(
             StacksContractDeploymentPredicate::Deployer("*".to_string()),
         ),
@@ -503,7 +503,7 @@ fn verify_optional_addition_of_contract_abi() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: true,
+        include_contract_abi: Some(true),
         predicate: StacksPredicate::ContractCall(StacksContractCallBasedPredicate {
             contract_identifier: "ST13F481SBR0R7Z6NMMH8YV2FJJYXA5JPA0AD3HP9.subnet-v1".to_string(),
             method: "commit-block".to_string(),
@@ -537,7 +537,7 @@ fn verify_optional_addition_of_contract_abi() {
             }
         }
     }
-    contract_deploy_chainhook.include_contract_abi = false;
+    contract_deploy_chainhook.include_contract_abi = Some(false);
     let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
     let (triggered, _blocks, _) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
@@ -622,7 +622,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: false,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -657,7 +657,7 @@ fn test_stacks_hook_action_noop() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
-        include_contract_abi: false,
+        include_contract_abi: None,
         predicate: StacksPredicate::Txid(ExactMatchingRule::Equals(
             "0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string(),
         )),
@@ -715,7 +715,7 @@ fn test_stacks_hook_action_file_append() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: Some(true),
-        include_contract_abi: false,
+        include_contract_abi: None,
         predicate: StacksPredicate::Txid(ExactMatchingRule::Equals(
             "0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string(),
         )),

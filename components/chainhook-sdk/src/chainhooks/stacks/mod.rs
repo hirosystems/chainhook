@@ -795,7 +795,7 @@ pub fn serialize_stacks_payload_to_json<'a>(
     ctx: &Context,
 ) -> JsonValue {
     let decode_clarity_values = trigger.should_decode_clarity_value();
-    let include_contract_abi = trigger.chainhook.include_contract_abi;
+    let include_contract_abi = trigger.chainhook.include_contract_abi.unwrap_or(false);
     json!({
         "apply": trigger.apply.into_iter().map(|(transactions, block)| {
             serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
