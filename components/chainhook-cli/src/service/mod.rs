@@ -713,7 +713,8 @@ fn set_predicate_streaming_status(
                 PredicateStatus::New
                 | PredicateStatus::Interrupted(_)
                 | PredicateStatus::ConfirmedExpiration(_) => {
-                    unreachable!("unreachable predicate status: {:?}", status)
+                    warn!(ctx.expect_logger(), "Attempting to set Streaming status when previous status was {:?} for predicate {}", status, predicate_key);
+                    return;
                 }
             },
             None => (None, 0, 0, 0),
@@ -812,8 +813,9 @@ pub fn set_predicate_scanning_status(
                     None
                 }
             }
-            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
-                unreachable!("unreachable predicate status: {:?}", status)
+            PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set Scanning status when previous status was {:?} for predicate {}", status, predicate_key);
+                return;
             }
         },
         None => None,
@@ -891,11 +893,8 @@ pub fn set_unconfirmed_expiration_status(
                     expired_at_block_height,
                 )
             }
-            PredicateStatus::Interrupted(_) => {
-                unreachable!("unreachable predicate status: {:?}", status)
-            }
-            PredicateStatus::ConfirmedExpiration(_) => {
-                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+            PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when previous status was {:?} for predicate {}", status, predicate_key);
                 return;
             }
         },
@@ -934,11 +933,14 @@ pub fn set_confirmed_expiration_status(
     let expired_data = match current_status {
         Some(status) => match status {
             PredicateStatus::UnconfirmedExpiration(expired_data) => expired_data,
-            PredicateStatus::ConfirmedExpiration(_) => {
-                warn!(ctx.expect_logger(), "Attempting to set ConfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+            PredicateStatus::ConfirmedExpiration(_)
+            | PredicateStatus::Interrupted(_)
+            | PredicateStatus::New
+            | PredicateStatus::Scanning(_)
+            | PredicateStatus::Streaming(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set ConfirmedExpiration status when previous status was {:?} for predicate {}", status, predicate_key);
                 return;
             }
-            _ => unreachable!("unreachable predicate status: {:?}", status),
         },
         None => unreachable!("found no status for predicate: {}", predicate_key),
     };
