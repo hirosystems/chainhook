@@ -78,7 +78,11 @@ impl Service {
                         };
                         leftover_scans.push((predicate.clone(), Some(scanning_data)));
                     }
-                    _ => {}
+                    PredicateStatus::UnconfirmedExpiration(_) => {}
+                    PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                        // Confirmed and Interrupted predicates don't need to be reregistered.
+                        continue;
+                    }
                 }
                 match chainhook_config.register_specification(predicate) {
                     Ok(_) => {
