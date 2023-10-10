@@ -1,4 +1,5 @@
 use super::bitcoin::{TxIn, TxOut};
+use crate::contract_interface::ContractInterface;
 use crate::events::*;
 use schemars::JsonSchema;
 use std::cmp::Ordering;
@@ -219,6 +220,8 @@ pub struct StacksTransactionMetadata {
     pub execution_cost: Option<StacksTransactionExecutionCost>,
     pub position: StacksTransactionPosition,
     pub proof: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_abi: Option<ContractInterface>,
 }
 
 /// TODO
@@ -894,13 +897,13 @@ impl BitcoinNetwork {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum BitcoinBlockSignaling {
     Stacks(StacksNodeConfig),
     ZeroMQ(String),
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct StacksNodeConfig {
     pub rpc_url: String,
     pub ingestion_port: u16,

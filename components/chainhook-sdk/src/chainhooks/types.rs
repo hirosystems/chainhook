@@ -21,27 +21,6 @@ impl ChainhookConfig {
         }
     }
 
-    pub fn get_spec_with_uuid(&self, uuid: &str) -> Option<ChainhookSpecification> {
-        let res = self
-            .stacks_chainhooks
-            .iter()
-            .filter(|spec| spec.uuid.eq(&uuid))
-            .collect::<Vec<_>>();
-        if let Some(spec) = res.first() {
-            return Some(ChainhookSpecification::Stacks((*spec).clone()));
-        }
-
-        let res = self
-            .bitcoin_chainhooks
-            .iter()
-            .filter(|spec| spec.uuid.eq(&uuid))
-            .collect::<Vec<_>>();
-        if let Some(spec) = res.first() {
-            return Some(ChainhookSpecification::Bitcoin((*spec).clone()));
-        }
-        None
-    }
-
     pub fn register_full_specification(
         &mut self,
         networks: (&BitcoinNetwork, &StacksNetwork),
@@ -182,13 +161,6 @@ pub enum ChainhookSpecification {
 }
 
 impl ChainhookSpecification {
-    pub fn name(&self) -> &str {
-        match &self {
-            Self::Bitcoin(data) => &data.name,
-            Self::Stacks(data) => &data.name,
-        }
-    }
-
     pub fn either_stx_or_btc_key(uuid: &str) -> String {
         format!("predicate:{}", uuid)
     }
@@ -218,25 +190,6 @@ impl ChainhookSpecification {
         match &self {
             Self::Bitcoin(data) => &data.uuid,
             Self::Stacks(data) => &data.uuid,
-        }
-    }
-
-    pub fn validate(&self) -> Result<(), String> {
-        match &self {
-            Self::Bitcoin(data) => {
-                let _ = data.action.validate()?;
-            }
-            Self::Stacks(data) => {
-                let _ = data.action.validate()?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn start_block(&self) -> Option<u64> {
-        match &self {
-            Self::Bitcoin(data) => data.start_block,
-            Self::Stacks(data) => data.start_block,
         }
     }
 }
@@ -410,6 +363,7 @@ impl StacksChainhookFullSpecification {
             capture_all_events: spec.capture_all_events,
             decode_clarity_values: spec.decode_clarity_values,
             expire_after_occurrence: spec.expire_after_occurrence,
+            include_contract_abi: spec.include_contract_abi,
             predicate: spec.predicate,
             action: spec.action,
             enabled: false,
@@ -432,6 +386,8 @@ pub struct StacksChainhookNetworkSpecification {
     pub capture_all_events: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decode_clarity_values: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_contract_abi: Option<bool>,
     #[serde(rename = "if_this")]
     pub predicate: StacksPredicate,
     #[serde(rename = "then_that")]
@@ -732,6 +688,7 @@ pub struct StacksChainhookSpecification {
     pub capture_all_events: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decode_clarity_values: Option<bool>,
+    pub include_contract_abi: Option<bool>,
     #[serde(rename = "predicate")]
     pub predicate: StacksPredicate,
     pub action: HookAction,

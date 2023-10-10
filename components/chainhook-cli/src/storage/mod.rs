@@ -61,28 +61,6 @@ pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Resu
     Ok(db)
 }
 
-fn get_default_bitcoin_db_file_path(base_dir: &PathBuf) -> PathBuf {
-    let mut destination_path = base_dir.clone();
-    destination_path.push("bitcoin.rocksdb");
-    destination_path
-}
-
-pub fn open_readonly_bitcoin_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
-    let path = get_default_bitcoin_db_file_path(&base_dir);
-    let opts = get_db_default_options();
-    let db = DB::open_for_read_only(&opts, path, false)
-        .map_err(|e| format!("unable to open bitcoin.rocksdb: {}", e.to_string()))?;
-    Ok(db)
-}
-
-pub fn open_readwrite_bitcoin_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
-    let path = get_default_bitcoin_db_file_path(&base_dir);
-    let opts = get_db_default_options();
-    let db = DB::open(&opts, path)
-        .map_err(|e| format!("unable to open bitcoin.rocksdb: {}", e.to_string()))?;
-    Ok(db)
-}
-
 fn get_block_key(block_identifier: &BlockIdentifier) -> [u8; 12] {
     let mut key = [0u8; 12];
     key[..2].copy_from_slice(b"b:");

@@ -14,7 +14,7 @@ use super::{
         StacksTrait,
     },
 };
-use crate::utils::Context;
+use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_by_type},
@@ -348,6 +348,7 @@ fn test_stacks_predicates(
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -427,6 +428,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -444,6 +446,114 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
     } else {
         let actual_applies: u64 = triggered[0].apply.len().try_into().unwrap();
         assert_eq!(actual_applies, expected_applies);
+    }
+}
+
+#[test]
+fn verify_optional_addition_of_contract_abi() {
+    // "mine" two blocks
+    //  - one contract deploy (which should have a contract abi) and
+    //  - one contract call (which should not)
+    let new_blocks = vec![
+        StacksBlockUpdate {
+            block: fixtures::build_stacks_testnet_block_with_contract_deployment(),
+            parent_microblocks_to_apply: vec![],
+            parent_microblocks_to_rollback: vec![],
+        },
+        StacksBlockUpdate {
+            block: fixtures::build_stacks_testnet_block_with_contract_call(),
+            parent_microblocks_to_apply: vec![],
+            parent_microblocks_to_rollback: vec![],
+        },
+    ];
+    let event: StacksChainEvent =
+        StacksChainEvent::ChainUpdatedWithBlocks(StacksChainUpdatedWithBlocksData {
+            new_blocks,
+            confirmed_blocks: vec![],
+        });
+    let mut contract_deploy_chainhook = StacksChainhookSpecification {
+        uuid: "contract-deploy".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        include_contract_abi: Some(true),
+        predicate: StacksPredicate::ContractDeployment(
+            StacksContractDeploymentPredicate::Deployer("*".to_string()),
+        ),
+        action: HookAction::Noop,
+        enabled: true,
+        expired_at: None,
+    };
+    let contract_call_chainhook = StacksChainhookSpecification {
+        uuid: "contract-call".to_string(),
+        owner_uuid: None,
+        name: "".to_string(),
+        network: StacksNetwork::Testnet,
+        version: 1,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        capture_all_events: None,
+        decode_clarity_values: None,
+        include_contract_abi: Some(true),
+        predicate: StacksPredicate::ContractCall(StacksContractCallBasedPredicate {
+            contract_identifier: "ST13F481SBR0R7Z6NMMH8YV2FJJYXA5JPA0AD3HP9.subnet-v1".to_string(),
+            method: "commit-block".to_string(),
+        }),
+        action: HookAction::Noop,
+        enabled: true,
+        expired_at: None,
+    };
+
+    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    let (triggered, _blocks, _) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    assert_eq!(triggered.len(), 2);
+
+    for t in triggered.into_iter() {
+        let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
+        let result = result.as_object().unwrap();
+        let uuid = result.get("chainhook").unwrap().get("uuid").unwrap();
+        let apply_blocks = result.get("apply").unwrap();
+        for block in apply_blocks.as_array().unwrap() {
+            let transactions = block.get("transactions").unwrap();
+            for transaction in transactions.as_array().unwrap() {
+                let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
+                if uuid == "contract-call" {
+                    assert_eq!(contract_abi, None);
+                } else if uuid == "contract-deploy" {
+                    assert!(contract_abi.is_some())
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+    }
+    contract_deploy_chainhook.include_contract_abi = Some(false);
+    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    let (triggered, _blocks, _) =
+        evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
+    assert_eq!(triggered.len(), 2);
+
+    for t in triggered.into_iter() {
+        let result = serialize_stacks_payload_to_json(t, &HashMap::new(), &Context::empty());
+        let result = result.as_object().unwrap();
+        let apply_blocks = result.get("apply").unwrap();
+        for block in apply_blocks.as_array().unwrap() {
+            let transactions = block.get("transactions").unwrap();
+            for transaction in transactions.as_array().unwrap() {
+                let contract_abi = transaction.get("metadata").unwrap().get("contract_abi");
+                assert_eq!(contract_abi, None);
+            }
+        }
     }
 }
 
@@ -512,6 +622,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
+        include_contract_abi: None,
         predicate: predicate,
         action: HookAction::Noop,
         enabled: true,
@@ -546,6 +657,7 @@ fn test_stacks_hook_action_noop() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: None,
+        include_contract_abi: None,
         predicate: StacksPredicate::Txid(ExactMatchingRule::Equals(
             "0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string(),
         )),
@@ -603,6 +715,7 @@ fn test_stacks_hook_action_file_append() {
         expire_after_occurrence: None,
         capture_all_events: None,
         decode_clarity_values: Some(true),
+        include_contract_abi: None,
         predicate: StacksPredicate::Txid(ExactMatchingRule::Equals(
             "0xb92c2ade84a8b85f4c72170680ae42e65438aea4db72ba4b2d6a6960f4141ce8".to_string(),
         )),

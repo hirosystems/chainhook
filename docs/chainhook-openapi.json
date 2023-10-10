@@ -837,6 +837,10 @@
             "type": "boolean",
             "nullable": true
           },
+          "include_contract_abi": {
+            "type": "boolean",
+            "nullable": true
+          },
           "if_this": {
             "$ref": "#/components/schemas/StacksPredicate"
           },

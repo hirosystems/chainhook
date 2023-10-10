@@ -225,8 +225,11 @@ Following additional configurations can be used to improve the performance of ch
 - Stop evaluating chainhook after a given number of occurrences found:
 `"expire_after_occurrence": 1`
 
-- Include decoded clarity values in the payload
+- Include decoded clarity values in the payload:
 `"decode_clarity_values": true`
+
+- Include the contract ABI for transactions that deploy contracts:
+`"include_contract_abi": true`
 
 ## Example predicate definition to print events
 

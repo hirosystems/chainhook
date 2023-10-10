@@ -78,7 +78,11 @@ impl Service {
                         };
                         leftover_scans.push((predicate.clone(), Some(scanning_data)));
                     }
-                    _ => {}
+                    PredicateStatus::UnconfirmedExpiration(_) => {}
+                    PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                        // Confirmed and Interrupted predicates don't need to be reregistered.
+                        continue;
+                    }
                 }
                 match chainhook_config.register_specification(predicate) {
                     Ok(_) => {
@@ -535,6 +539,7 @@ impl Service {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(tag = "type", content = "info")]
 /// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
 pub enum PredicateStatus {
     Scanning(ScanningData),
@@ -550,14 +555,14 @@ pub struct ScanningData {
     pub number_of_blocks_to_scan: u64,
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: u128,
+    pub last_occurrence: Option<u64>,
     pub last_evaluated_block_height: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StreamingData {
-    pub last_occurrence: u128,
-    pub last_evaluation: u128,
+    pub last_occurrence: Option<u64>,
+    pub last_evaluation: u64,
     pub number_of_times_triggered: u64,
     pub number_of_blocks_evaluated: u64,
     pub last_evaluated_block_height: u64,
@@ -567,7 +572,7 @@ pub struct StreamingData {
 pub struct ExpiredData {
     pub number_of_blocks_evaluated: u64,
     pub number_of_times_triggered: u64,
-    pub last_occurrence: u128,
+    pub last_occurrence: Option<u64>,
     pub last_evaluated_block_height: u64,
     pub expired_at_block_height: u64,
 }
@@ -660,10 +665,10 @@ fn set_predicate_streaming_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let now_ms = SystemTime::now()
+    let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis();
+        .as_secs();
     let (
         last_occurrence,
         number_of_blocks_evaluated,
@@ -712,10 +717,11 @@ fn set_predicate_streaming_status(
                 PredicateStatus::New
                 | PredicateStatus::Interrupted(_)
                 | PredicateStatus::ConfirmedExpiration(_) => {
-                    unreachable!("unreachable predicate status: {:?}", status)
+                    warn!(ctx.expect_logger(), "Attempting to set Streaming status when previous status was {:?} for predicate {}", status, predicate_key);
+                    return;
                 }
             },
-            None => (0, 0, 0, 0),
+            None => (None, 0, 0, 0),
         }
     };
     let (
@@ -728,7 +734,7 @@ fn set_predicate_streaming_status(
             last_triggered_height,
             triggered_count,
         } => (
-            now_ms,
+            Some(now_secs.clone()),
             number_of_times_triggered + triggered_count,
             number_of_blocks_evaluated + triggered_count,
             last_triggered_height,
@@ -754,7 +760,7 @@ fn set_predicate_streaming_status(
         predicate_key,
         PredicateStatus::Streaming(StreamingData {
             last_occurrence,
-            last_evaluation: now_ms,
+            last_evaluation: now_secs,
             number_of_times_triggered,
             last_evaluated_block_height,
             number_of_blocks_evaluated,
@@ -776,46 +782,47 @@ pub fn set_predicate_scanning_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let now_ms = SystemTime::now()
+    let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
-        .as_millis();
+        .as_secs();
     let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
     let last_occurrence = match current_status {
         Some(status) => match status {
             PredicateStatus::Scanning(scanning_data) => {
                 if number_of_times_triggered > scanning_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     scanning_data.last_occurrence
                 }
             }
             PredicateStatus::Streaming(streaming_data) => {
                 if number_of_times_triggered > streaming_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     streaming_data.last_occurrence
                 }
             }
             PredicateStatus::UnconfirmedExpiration(expired_data) => {
                 if number_of_times_triggered > expired_data.number_of_times_triggered {
-                    now_ms
+                    Some(now_secs)
                 } else {
                     expired_data.last_occurrence
                 }
             }
             PredicateStatus::New => {
                 if number_of_times_triggered > 0 {
-                    now_ms
+                    Some(now_secs)
                 } else {
-                    0
+                    None
                 }
             }
-            PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
-                unreachable!("unreachable predicate status: {:?}", status)
+            PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set Scanning status when previous status was {:?} for predicate {}", status, predicate_key);
+                return;
             }
         },
-        None => 0,
+        None => None,
     };
 
     update_predicate_status(
@@ -832,9 +839,7 @@ pub fn set_predicate_scanning_status(
     );
 }
 
-/// Updates a predicate's status to `InitialScanCompleted`.
-///
-/// Preserves the scanning metrics from the predicate's previous status
+/// Updates a predicate's status to `UnconfirmedExpiration`.
 pub fn set_unconfirmed_expiration_status(
     chain: &Chain,
     number_of_new_blocks_evaluated: u64,
@@ -854,17 +859,17 @@ pub fn set_unconfirmed_expiration_status(
         Some(status) => match status {
             PredicateStatus::Scanning(ScanningData {
                 number_of_blocks_to_scan: _,
-                number_of_blocks_evaluated,
+                number_of_blocks_evaluated: _,
                 number_of_times_triggered,
                 last_occurrence,
                 last_evaluated_block_height,
             }) => (
-                number_of_blocks_evaluated + number_of_new_blocks_evaluated,
+                number_of_new_blocks_evaluated,
                 number_of_times_triggered,
                 last_occurrence,
                 last_evaluated_block_height,
             ),
-            PredicateStatus::New => (0, 0, 0, 0),
+            PredicateStatus::New => (0, 0, None, 0),
             PredicateStatus::Streaming(StreamingData {
                 last_occurrence,
                 last_evaluation: _,
@@ -892,15 +897,12 @@ pub fn set_unconfirmed_expiration_status(
                     expired_at_block_height,
                 )
             }
-            PredicateStatus::Interrupted(_) => {
-                unreachable!("unreachable predicate status: {:?}", status)
-            }
-            PredicateStatus::ConfirmedExpiration(_) => {
-                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when ConfirmedExpiration status has already been set for predicate {}", predicate_key);
+            PredicateStatus::ConfirmedExpiration(_) | PredicateStatus::Interrupted(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set UnconfirmedExpiration status when previous status was {:?} for predicate {}", status, predicate_key);
                 return;
             }
         },
-        None => (0, 0, 0, 0),
+        None => (0, 0, None, 0),
     };
     update_predicate_status(
         predicate_key,
@@ -935,9 +937,16 @@ pub fn set_confirmed_expiration_status(
     let expired_data = match current_status {
         Some(status) => match status {
             PredicateStatus::UnconfirmedExpiration(expired_data) => expired_data,
-            _ => unreachable!("unreachable predicate status: {:?}", status),
+            PredicateStatus::ConfirmedExpiration(_)
+            | PredicateStatus::Interrupted(_)
+            | PredicateStatus::New
+            | PredicateStatus::Scanning(_)
+            | PredicateStatus::Streaming(_) => {
+                warn!(ctx.expect_logger(), "Attempting to set ConfirmedExpiration status when previous status was {:?} for predicate {}", status, predicate_key);
+                return;
+            }
         },
-        None => unreachable!(),
+        None => unreachable!("found no status for predicate: {}", predicate_key),
     };
     update_predicate_status(
         predicate_key,

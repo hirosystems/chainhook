@@ -137,7 +137,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             Err((e, _)) => {
                 warn!(
                     ctx.expect_logger(),
-                    "Unable to standardize block#{} {}: {}", current_block_height, block_hash, e
+                    "Unable to standardize block #{} {}: {}", current_block_height, block_hash, e
                 );
                 continue;
             }
@@ -219,6 +219,15 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+        set_predicate_scanning_status(
+            &predicate_spec.key(),
+            number_of_blocks_to_scan,
+            number_of_blocks_scanned,
+            number_of_times_triggered,
+            last_block_scanned.index,
+            predicates_db_conn,
+            ctx,
+        );
         if let Some(predicate_end_block) = predicate_spec.end_block {
             if predicate_end_block == last_block_scanned.index {
                 // todo: we need to find a way to check if this block is confirmed
@@ -237,15 +246,6 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 return Ok(true);
             }
         }
-        set_predicate_scanning_status(
-            &predicate_spec.key(),
-            number_of_blocks_to_scan,
-            number_of_blocks_scanned,
-            number_of_times_triggered,
-            last_block_scanned.index,
-            predicates_db_conn,
-            ctx,
-        );
     }
 
     return Ok(false);
@@ -293,7 +293,7 @@ pub async fn execute_predicates_action<'a>(
                     BitcoinChainhookOccurrence::File(path, bytes) => {
                         file_append(path, bytes, &ctx)?
                     }
-                    BitcoinChainhookOccurrence::Data(_payload) => unreachable!(),
+                    BitcoinChainhookOccurrence::Data(_payload) => {}
                 };
             }
         }
