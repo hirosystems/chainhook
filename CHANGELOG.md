@@ -1,3 +1,29 @@
+## [1.1.0](https://github.com/hirosystems/chainhook/compare/v1.0.0...v1.1.0) (2023-10-10)
+
+
+### Features
+
+* allow matching with regex for stacks print_event ([#380](https://github.com/hirosystems/chainhook/issues/380)) ([131809e](https://github.com/hirosystems/chainhook/commit/131809e7d2b8e4b48b83114440a4876ec9aee9ee)), closes [#348](https://github.com/hirosystems/chainhook/issues/348)
+* augment predicate status returned by GET/LIST endpoints ([#397](https://github.com/hirosystems/chainhook/issues/397)) ([a100263](https://github.com/hirosystems/chainhook/commit/a100263a0bcab3a43c9bbce49ddead754d2d621c)), closes [#396](https://github.com/hirosystems/chainhook/issues/396) [#324](https://github.com/hirosystems/chainhook/issues/324) [#390](https://github.com/hirosystems/chainhook/issues/390) [#402](https://github.com/hirosystems/chainhook/issues/402) [#403](https://github.com/hirosystems/chainhook/issues/403)
+* introduce "data_handler_tx" ([ee486f3](https://github.com/hirosystems/chainhook/commit/ee486f3571f97728d5305bdb72a303134fca1bf5))
+
+
+### Bug Fixes
+
+* build error ([85d4d91](https://github.com/hirosystems/chainhook/commit/85d4d91ca6276a25d0bc95e256da356758155466))
+* build errors ([b9ff1aa](https://github.com/hirosystems/chainhook/commit/b9ff1aab26a26b9ada1e19d12a891fa2e8ad72fd))
+* build errro ([be0c229](https://github.com/hirosystems/chainhook/commit/be0c22957b7345721e33d38e3bfa98794155e7a7))
+* bump retries and delays ([aff3690](https://github.com/hirosystems/chainhook/commit/aff36904e557026ab91a039e40959957b5bbc309))
+* chainhook not being registered ([5a809c6](https://github.com/hirosystems/chainhook/commit/5a809c63bec1c949314ecbd44ef1348286968dec))
+* ensure that the parent block was previously received. else, fetch it ([2755266](https://github.com/hirosystems/chainhook/commit/275526620209e8b7137722f9c081aa7b9dca31e5))
+* migrate to finer zmq lib ([4eb5a07](https://github.com/hirosystems/chainhook/commit/4eb5a07ad350360f159b5443d0b2d665c20892bf))
+* prevent panic when scanning from genesis block ([#408](https://github.com/hirosystems/chainhook/issues/408)) ([1868a06](https://github.com/hirosystems/chainhook/commit/1868a06aba6de61bfb516b0f88b3e900a5d99a64))
+* remove event_handlers ([6fecfd2](https://github.com/hirosystems/chainhook/commit/6fecfd2f41fe5bc8c672a51bcf3050c634927b84))
+* retrieve blocks until tip ([5213f5f](https://github.com/hirosystems/chainhook/commit/5213f5f67a8adfddc72de7c707eb9d0de46150a2))
+* revisit approach ([67a34dc](https://github.com/hirosystems/chainhook/commit/67a34dcb2f7dab546bb88bd1a6ed098109953531))
+* use crossbeam channels ([ea33553](https://github.com/hirosystems/chainhook/commit/ea335530c174b8893013e6be7e0258285c4a9667))
+* workflow ([d434c93](https://github.com/hirosystems/chainhook/commit/d434c9362ec46b13f1a98d51f62d1c1938f70319))
+
 #### 1.4.0 (2023-01-23)
 
 ##### New Features
