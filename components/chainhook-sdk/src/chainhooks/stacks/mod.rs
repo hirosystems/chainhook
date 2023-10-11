@@ -829,6 +829,7 @@ pub fn handle_stacks_hook_action<'a>(
                 client
                     .request(method, &host)
                     .header("Content-Type", "application/json")
+                    .header("Authorization", http.authorization_header.clone())
                     .body(body),
             ))
         }
