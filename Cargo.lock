@@ -398,7 +398,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chainhook"
-version = "1.0.0"
+version = "1.1.1"
 dependencies = [
  "ansi_term",
  "atty",
@@ -439,13 +439,13 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "base58 0.2.0",
  "base64",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
- "chainhook-types 1.0.12",
+ "chainhook-types 1.1.0",
  "clarinet-utils",
  "crossbeam-channel",
  "dashmap",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.0.12"
+version = "1.1.0"
 dependencies = [
  "hex",
  "schemars 0.8.12",
