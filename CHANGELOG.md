@@ -1,3 +1,12 @@
+## [1.1.1](https://github.com/hirosystems/chainhook/compare/v1.1.0...v1.1.1) (2023-10-11)
+
+
+### Bug Fixes
+
+* add auth header for stacks hook ([#444](https://github.com/hirosystems/chainhook/issues/444)) ([8c4e5ea](https://github.com/hirosystems/chainhook/commit/8c4e5ea8b54b6b20d3b19796c9d0b57f3d38a3a2)), closes [#438](https://github.com/hirosystems/chainhook/issues/438)
+* don't evaluate transactions for block predicates ([#445](https://github.com/hirosystems/chainhook/issues/445)) ([0e84fe7](https://github.com/hirosystems/chainhook/commit/0e84fe7e2b6098345eee4b997138e6910a849996))
+* redis conn ([#442](https://github.com/hirosystems/chainhook/issues/442)) ([80737ad](https://github.com/hirosystems/chainhook/commit/80737addce9d6df7035b5586da11f33640ee72d2))
+
 ## [1.1.0](https://github.com/hirosystems/chainhook/compare/v1.0.0...v1.1.0) (2023-10-10)
 
 
