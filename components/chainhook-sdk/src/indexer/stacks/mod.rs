@@ -342,7 +342,7 @@ pub fn standardize_stacks_block(
             index: match block.block_height {
                 0 => 0,
                 _ => block.block_height - 1,
-            }
+            },
         },
         timestamp: block.parent_burn_block_timestamp,
         metadata: StacksBlockMetadata {
