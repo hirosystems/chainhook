@@ -272,11 +272,11 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     for block in blocks {
         if end_block >= block.get_identifier().index {
             let mut hits = vec![];
-            if chainhook.is_predicate_targeting_block_header()
-                && evaluate_stacks_predicate_on_block(block, chainhook, ctx)
-            {
-                for tx in block.get_transactions().iter() {
-                    hits.push(tx);
+            if chainhook.is_predicate_targeting_block_header() {
+                if evaluate_stacks_predicate_on_block(block, chainhook, ctx) {
+                    for tx in block.get_transactions().iter() {
+                        hits.push(tx);
+                    }
                 }
             } else {
                 for tx in block.get_transactions().iter() {
