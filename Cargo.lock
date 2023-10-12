@@ -416,7 +416,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit",
+ "hiro-system-kit 0.1.0",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -452,7 +452,7 @@ dependencies = [
  "futures",
  "fxhash",
  "hex",
- "hiro-system-kit",
+ "hiro-system-kit 0.3.1",
  "hyper",
  "lazy_static",
  "rand 0.8.5",
@@ -637,7 +637,7 @@ dependencies = [
  "debug_types",
  "futures",
  "getrandom 0.2.8",
- "hiro-system-kit",
+ "hiro-system-kit 0.1.0",
  "httparse",
  "integer-sqrt",
  "lazy_static",
@@ -1631,6 +1631,24 @@ dependencies = [
  "ansi_term",
  "atty",
  "futures",
+ "lazy_static",
+ "slog",
+ "slog-async",
+ "slog-atomic",
+ "slog-json",
+ "slog-scope",
+ "slog-term",
+ "tokio",
+]
+
+[[package]]
+name = "hiro-system-kit"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94a96596d2b33489f33f79b2df6f340dbbd2baba05a251715bb84661d33bf1c9"
+dependencies = [
+ "ansi_term",
+ "atty",
  "lazy_static",
  "slog",
  "slog-async",
@@ -3856,9 +3874,9 @@ dependencies = [
 
 [[package]]
 name = "stacks-rpc-client"
-version = "1.0.8"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4903f6164688594cb80856abc27d7a76fa7b6ac84c6fc70a45e414d097c191ab"
+checksum = "12eef9ff174e8345b414abbfa5ed7e271e772d1e6b2c3eaa9f7f02209c87f48e"
 dependencies = [
  "clarity-repl",
  "hmac 0.12.1",
