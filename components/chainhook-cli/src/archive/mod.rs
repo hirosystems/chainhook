@@ -46,13 +46,26 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
     let decoder_thread = std::thread::spawn(move || {
         let input = ChannelRead::new(rx);
         let mut decoder = GzDecoder::new(input);
-        let mut content = Vec::new();
-        let _ = decoder.read_to_end(&mut content);
         let mut file = fs::File::create(&destination_path).unwrap();
-        if let Err(e) = file.write_all(&content[..]) {
-            println!("unable to write file: {}", e.to_string());
-            std::process::exit(1);
+        let mut buffer = [0; 512_000];
+        loop {
+            match decoder.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => {
+                    println!("bytes read: {}", n);
+                    if let Err(e) = file.write_all(&buffer[..n]) {
+                        let err = format!("unable to update compressed archive: {}", e.to_string());
+                        return Err(err);
+                    }
+                }
+                Err(e) => {
+                    let err = format!("unable to write compressed archive: {}", e.to_string());
+                    return Err(err);
+                }
+            }
         }
+        let _ = file.flush();
+        Ok(())
     });
 
     if res.status() == reqwest::StatusCode::OK {
@@ -68,6 +81,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
 
     tokio::task::spawn_blocking(|| decoder_thread.join())
         .await
+        .unwrap()
         .unwrap()
         .unwrap();
 
