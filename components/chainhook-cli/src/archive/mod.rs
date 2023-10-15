@@ -52,7 +52,6 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
             match decoder.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(n) => {
-                    println!("bytes read: {}", n);
                     if let Err(e) = file.write_all(&buffer[..n]) {
                         let err = format!("unable to update compressed archive: {}", e.to_string());
                         return Err(err);
