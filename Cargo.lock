@@ -416,7 +416,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit 0.1.0",
+ "hiro-system-kit 0.3.1",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -1607,12 +1607,6 @@ dependencies = [
  "atty",
  "futures",
  "lazy_static",
- "slog",
- "slog-async",
- "slog-atomic",
- "slog-json",
- "slog-scope",
- "slog-term",
  "tokio",
 ]
 

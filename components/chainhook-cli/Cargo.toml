@@ -17,7 +17,7 @@ hex = "0.4.3"
 rand = "0.8.5"
 chainhook-sdk = { version = "0.10.0", default-features = false, features = ["zeromq"], path = "../chainhook-sdk" }
 clarinet-files = "1.0.1"
-hiro-system-kit = "0.1.0"
+hiro-system-kit = "0.3.1"
 # clarinet-files = { path = "../../../clarinet/components/clarinet-files" }
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
 clap = { version = "3.2.23", features = ["derive"], optional = true }
@@ -60,9 +60,9 @@ serial_test = "2.0.0"
 
 [features]
 default = ["cli"]
-cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
-debug = ["hiro-system-kit/debug"]
-release = ["hiro-system-kit/release"]
+cli = ["clap", "clap_generate", "toml", "ctrlc", "release"]
+debug = ["chainhook-sdk/debug"]
+release = ["chainhook-sdk/release"]
 redis_tests = []
 
 # [patch.crates-io]
