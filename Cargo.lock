@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "base58 0.2.0",
  "base64",
