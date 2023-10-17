@@ -229,6 +229,7 @@ pub async fn retrieve_block_hash(
     Ok(block_hash)
 }
 
+// not used internally by chainhook; exported for ordhook
 pub async fn try_download_block_bytes_with_retry(
     http_client: HttpClient,
     block_height: u64,
