@@ -1,5 +1,8 @@
 use crate::{
-    indexer::{ChainSegment, ChainSegmentIncompatibility},
+    indexer::{
+        fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
+        ChainSegmentIncompatibility,
+    },
     utils::Context,
 };
 use chainhook_types::{
@@ -264,7 +267,7 @@ impl StacksBlockPool {
             segment
         };
 
-        if canonical_segment.len() < 7 {
+        if canonical_segment.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
             ctx.try_log(|logger| slog::info!(logger, "No block to confirm"));
             return;
         }

@@ -1,8 +1,8 @@
 ---
-title: FAQ's
+title: FAQs
 ---
 
-# FAQ's
+# FAQs
 
 #### **Can Chainhook target both Bitcoin and Stacks?**
 

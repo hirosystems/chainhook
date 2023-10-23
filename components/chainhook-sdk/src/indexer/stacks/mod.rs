@@ -18,7 +18,7 @@ use std::convert::TryInto;
 use std::io::Cursor;
 use std::str;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct NewBlock {
     pub block_height: u64,
     pub block_hash: String,
@@ -44,7 +44,7 @@ pub struct NewBlockHeader {
     pub parent_index_block_hash: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct MaturedMinerReward {
     pub from_index_consensus_hash: String,
     pub from_stacks_block_hash: String,
@@ -68,7 +68,7 @@ pub struct NewMicroblockTrail {
     pub events: Vec<NewEvent>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct NewTransaction {
     pub txid: String,
     pub tx_index: usize,
@@ -76,6 +76,7 @@ pub struct NewTransaction {
     pub raw_result: String,
     pub raw_tx: String,
     pub execution_cost: Option<StacksTransactionExecutionCost>,
+    pub contract_abi: Option<ContractInterface>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,9 +90,10 @@ pub struct NewMicroblockTransaction {
     pub microblock_sequence: usize,
     pub microblock_hash: String,
     pub microblock_parent_hash: String,
+    pub contract_abi: Option<ContractInterface>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct NewEvent {
     pub txid: String,
     pub committed: bool,
@@ -251,8 +253,10 @@ pub fn standardize_stacks_block(
     let pox_cycle_length: u64 = (chain_ctx.pox_info.prepare_phase_block_length
         + chain_ctx.pox_info.reward_phase_block_length)
         .into();
-    let current_len =
-        block.burn_block_height - (1 + chain_ctx.pox_info.first_burnchain_block_height);
+    let current_len = u64::saturating_sub(
+        block.burn_block_height,
+        1 + chain_ctx.pox_info.first_burnchain_block_height,
+    );
     let pox_cycle_id: u32 = (current_len / pox_cycle_length).try_into().unwrap_or(0);
     let mut events: HashMap<&String, Vec<&NewEvent>> = HashMap::new();
     for event in block.events.iter() {
@@ -311,6 +315,7 @@ pub fn standardize_stacks_block(
                 description,
                 position: StacksTransactionPosition::anchor_block(tx.tx_index),
                 proof: None,
+                contract_abi: tx.contract_abi.clone(),
             },
         });
     }
@@ -336,7 +341,10 @@ pub fn standardize_stacks_block(
         },
         parent_block_identifier: BlockIdentifier {
             hash: block.parent_index_block_hash.clone(),
-            index: block.block_height - 1,
+            index: match block.block_height {
+                0 => 0,
+                _ => block.block_height - 1,
+            },
         },
         timestamp: block.parent_burn_block_timestamp,
         metadata: StacksBlockMetadata {
@@ -449,6 +457,7 @@ pub fn standardize_stacks_microblock_trail(
                     tx.tx_index,
                 ),
                 proof: None,
+                contract_abi: tx.contract_abi.clone(),
             },
         };
 

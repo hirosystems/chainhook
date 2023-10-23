@@ -18,31 +18,28 @@ use std::str::FromStr;
 
 use reqwest::RequestBuilder;
 
+use hex::FromHex;
+
 pub struct BitcoinTriggerChainhook<'a> {
     pub chainhook: &'a BitcoinChainhookSpecification,
     pub apply: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
     pub rollback: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
 }
 
-#[derive(Clone, Debug)]
-pub struct BitcoinApplyTransactionPayload {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BitcoinTransactionPayload {
     pub block: BitcoinBlockData,
 }
 
-#[derive(Clone, Debug)]
-pub struct BitcoinRollbackTransactionPayload {
-    pub block: BitcoinBlockData,
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookPayload {
     pub uuid: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookOccurrencePayload {
-    pub apply: Vec<BitcoinApplyTransactionPayload>,
-    pub rollback: Vec<BitcoinRollbackTransactionPayload>,
+    pub apply: Vec<BitcoinTransactionPayload>,
+    pub rollback: Vec<BitcoinTransactionPayload>,
     pub chainhook: BitcoinChainhookPayload,
 }
 
@@ -59,25 +56,33 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 ) -> (
     Vec<BitcoinTriggerChainhook<'a>>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
     let mut evaluated_predicates = BTreeMap::new();
     let mut triggered_predicates = vec![];
+    let mut expired_predicates = BTreeMap::new();
+
     match chain_event {
         BitcoinChainEvent::ChainUpdatedWithBlocks(event) => {
             for chainhook in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let rollback = vec![];
+                let end_block = chainhook.end_block.unwrap_or(u64::MAX);
 
                 for block in event.new_blocks.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block >= block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        apply.push((hits, block));
+                        if hits.len() > 0 {
+                            apply.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
 
@@ -94,28 +99,37 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
             for chainhook in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
+                let end_block = chainhook.end_block.unwrap_or(u64::MAX);
 
                 for block in event.blocks_to_rollback.iter() {
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block >= block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        rollback.push((hits, block));
+                        if hits.len() > 0 {
+                            rollback.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
                 for block in event.blocks_to_apply.iter() {
                     evaluated_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
-                    let mut hits = vec![];
-                    for tx in block.transactions.iter() {
-                        if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
-                            hits.push(tx);
+                    if end_block >= block.block_identifier.index {
+                        let mut hits = vec![];
+                        for tx in block.transactions.iter() {
+                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                                hits.push(tx);
+                            }
                         }
-                    }
-                    if hits.len() > 0 {
-                        apply.push((hits, block));
+                        if hits.len() > 0 {
+                            apply.push((hits, block));
+                        }
+                    } else {
+                        expired_predicates.insert(chainhook.uuid.as_str(), &block.block_identifier);
                     }
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
@@ -128,7 +142,11 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
             }
         }
     }
-    (triggered_predicates, evaluated_predicates)
+    (
+        triggered_predicates,
+        evaluated_predicates,
+        expired_predicates,
+    )
 }
 
 pub fn serialize_bitcoin_payload_to_json<'a>(
@@ -257,7 +275,7 @@ pub fn handle_bitcoin_hook_action<'a>(
                             .into_iter()
                             .map(|t| t.clone())
                             .collect::<Vec<_>>();
-                        BitcoinApplyTransactionPayload { block }
+                        BitcoinTransactionPayload { block }
                     })
                     .collect::<Vec<_>>(),
                 rollback: trigger
@@ -269,7 +287,7 @@ pub fn handle_bitcoin_hook_action<'a>(
                             .into_iter()
                             .map(|t| t.clone())
                             .collect::<Vec<_>>();
-                        BitcoinRollbackTransactionPayload { block }
+                        BitcoinTransactionPayload { block }
                     })
                     .collect::<Vec<_>>(),
                 chainhook: BitcoinChainhookPayload {
@@ -277,6 +295,25 @@ pub fn handle_bitcoin_hook_action<'a>(
                 },
             },
         )),
+    }
+}
+
+struct OpReturn(String);
+impl OpReturn {
+    fn from_string(hex: &String) -> Result<String, String> {
+        // Remove the `0x` prefix if present so that we can call from_hex without errors.
+        let hex = hex.strip_prefix("0x").unwrap_or(hex);
+
+        // Parse the hex bytes.
+        let bytes = Vec::<u8>::from_hex(hex).unwrap();
+        match bytes.as_slice() {
+            // An OpReturn is composed by:
+            // - OP_RETURN 0x6a
+            // - Data length <N> (ignored)
+            // - The data
+            [0x6a, _, rest @ ..] => Ok(hex::encode(rest)),
+            _ => Err(String::from("not an OP_RETURN")),
+        }
     }
 }
 
@@ -292,32 +329,48 @@ impl BitcoinPredicateType {
             BitcoinPredicateType::Txid(ExactMatchingRule::Equals(txid)) => {
                 tx.transaction_identifier.hash.eq(txid)
             }
-            BitcoinPredicateType::Outputs(OutputPredicate::OpReturn(MatchingRule::Equals(
-                hex_bytes,
-            ))) => {
+            BitcoinPredicateType::Outputs(OutputPredicate::OpReturn(rule)) => {
                 for output in tx.metadata.outputs.iter() {
-                    if output.script_pubkey.eq(hex_bytes) {
-                        return true;
+                    // opret contains the op_return data section prefixed with `0x`.
+                    let opret = match OpReturn::from_string(&output.script_pubkey) {
+                        Ok(op) => op,
+                        Err(_) => continue,
+                    };
+
+                    // encoded_pattern takes a predicate pattern and return its lowercase hex
+                    // representation.
+                    fn encoded_pattern(pattern: &str) -> String {
+                        // If the pattern starts with 0x, return it in lowercase and without the 0x
+                        // prefix.
+                        if pattern.starts_with("0x") {
+                            return pattern
+                                .strip_prefix("0x")
+                                .unwrap()
+                                .to_lowercase()
+                                .to_string();
+                        }
+
+                        // In this case it should be trated as ASCII so let's return its hex
+                        // representation.
+                        hex::encode(pattern)
                     }
-                }
-                false
-            }
-            BitcoinPredicateType::Outputs(OutputPredicate::OpReturn(MatchingRule::StartsWith(
-                hex_bytes,
-            ))) => {
-                for output in tx.metadata.outputs.iter() {
-                    if output.script_pubkey.starts_with(hex_bytes) {
-                        return true;
-                    }
-                }
-                false
-            }
-            BitcoinPredicateType::Outputs(OutputPredicate::OpReturn(MatchingRule::EndsWith(
-                hex_bytes,
-            ))) => {
-                for output in tx.metadata.outputs.iter() {
-                    if output.script_pubkey.ends_with(hex_bytes) {
-                        return true;
+
+                    match rule {
+                        MatchingRule::StartsWith(pattern) => {
+                            if opret.starts_with(&encoded_pattern(pattern)) {
+                                return true;
+                            }
+                        }
+                        MatchingRule::EndsWith(pattern) => {
+                            if opret.ends_with(&encoded_pattern(pattern)) {
+                                return true;
+                            }
+                        }
+                        MatchingRule::Equals(pattern) => {
+                            if opret.eq(&encoded_pattern(pattern)) {
+                                return true;
+                            }
+                        }
                     }
                 }
                 false
@@ -423,7 +476,6 @@ impl BitcoinPredicateType {
                 for op in tx.metadata.ordinal_operations.iter() {
                     match op {
                         OrdinalOperation::InscriptionRevealed(_)
-                        | OrdinalOperation::CursedInscriptionRevealed(_)
                         | OrdinalOperation::InscriptionTransferred(_) => return true,
                     }
                 }
@@ -432,3 +484,6 @@ impl BitcoinPredicateType {
         }
     }
 }
+
+#[cfg(test)]
+pub mod tests;

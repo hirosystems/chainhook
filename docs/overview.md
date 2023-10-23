@@ -4,7 +4,7 @@ title: Overview
 
 # Chainhook Overview
 
-Chainhook is a reorg-aware transaction indexing engine that helps developers get reliable blockchain data, regardless of forks and reorgs. By focusing only on the data devs care about, Chainhook helps developers work with much lighter datasets and build IFTTT logic into their applications.
+Chainhook is a reorg-aware transaction indexing engine that helps you get reliable blockchain data, regardless of forks and reorgs. By focusing only on the data developers care about, Chainhook helps devs work with much lighter datasets and build IFTTT logic into their applications.
 
 Chainhook can be used as a tool in your local development environment and as a service in the cloud environment.
 
@@ -18,15 +18,15 @@ With Chainhook, developers can build consistent, reorg-proof databases that inde
 
 ## Features
 
-1. **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, developers can create their own indexes, build, iterate, and refine them in minutes. Chainhook can help developers avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes imply faster query results, which helps minimize end-user response time. This leads to an enhanced Developer Experience and an improved End-User Experience.
+1. **Faster, More Efficient Indexing:** Instead of working with a generic blockchain indexer, taking hours to process every single transaction of every single block, you can create your own index, build, iterate, and refine it in minutes. Chainhook can help you avoid massive storage management and storage scaling issues by avoiding full chain indexation. Lighter indexes lead to faster query results, which helps minimize end-user response time. This leads to a better developer experience and a better end-user experience.
 
 2. **Re-org and Fork Aware:** Chainhook stores possible chain forks and checks each new chain event against the forks to maintain the current valid fork. All triggers, also known as **predicates**, are evaluated against the current valid fork. In the event of a reorg, Chainhook computes a list of new blocks to apply and old blocks to rollback and evaluates the registered predicates against those blocks.
   
-3. **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as **predicates**. Developers can write “if_this / then_that” **predicates**that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
+3. **IFTTT Logic, powering your applications:** Chainhook helps developers create elegant event-based architectures using triggers, also known as **predicates**. Developers can write “if_this / then_that” **predicates** that when triggered, are packaged as events and forwarded to the configured destination. By using cloud functions as destinations, developers can also cut costs on processing by only paying for processing when a block that contains some data relevant to the developer's application is being mined.
 
 ## Chainhooks: Trigger IFTTT Logic in your Application
 
-With Chainhook, developers can trigger actions based on predicates they can define. Chainhooks can be triggered by events such as:
+With Chainhook, you can trigger actions based on predicates you define. Chainhooks can be triggered by events such as:
 
 - A certain amount of SIP-10 tokens were transferred
 - A particular blockchain address received some tokens on the Stacks/Bitcoin blockchain

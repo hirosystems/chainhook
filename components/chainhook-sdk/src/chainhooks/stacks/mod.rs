@@ -2,13 +2,14 @@ use crate::utils::{AbstractStacksBlock, Context};
 
 use super::types::{
     BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
-    StacksContractDeploymentPredicate, StacksPredicate,
+    StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
 };
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
     StacksTransactionKind, TransactionIdentifier,
 };
 use hiro_system_kit::slog;
+use regex::Regex;
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
 use stacks_rpc_client::clarity::stacks_common::codec::StacksMessageCodec;
@@ -66,9 +67,11 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
 ) -> (
     Vec<StacksTriggerChainhook<'a>>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
     let mut triggered_predicates = vec![];
     let mut evaluated_predicates = BTreeMap::new();
+    let mut expired_predicates = BTreeMap::new();
     match chain_event {
         StacksChainEvent::ChainUpdatedWithBlocks(update) => {
             for chainhook in active_chainhooks.iter() {
@@ -83,26 +86,35 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                     for parents_microblock_to_apply in
                         block_update.parent_microblocks_to_apply.iter()
                     {
-                        apply.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_apply],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_apply],
+                                chainhook,
+                                ctx,
+                            );
+                        apply.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
                     for parents_microblock_to_rolllback in
                         block_update.parent_microblocks_to_rollback.iter()
                     {
-                        rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_rolllback],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_rolllback],
+                                chainhook,
+                                ctx,
+                            );
+                        rollback.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -123,11 +135,14 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook.uuid.as_str(),
                         &microblock_to_apply.metadata.anchor_block_identifier,
                     );
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_apply],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -148,18 +163,22 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook.uuid.as_str(),
                         &microblock_to_apply.metadata.anchor_block_identifier,
                     );
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_apply],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 for microblock_to_rollback in update.microblocks_to_rollback.iter() {
-                    rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![microblock_to_rollback],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    rollback.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -183,33 +202,44 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                     for parents_microblock_to_apply in
                         block_update.parent_microblocks_to_apply.iter()
                     {
-                        apply.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_apply],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_apply],
+                                chainhook,
+                                ctx,
+                            );
+                        apply.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    apply.append(&mut evaluate_stacks_chainhook_on_blocks(
+
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    apply.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 for block_update in update.blocks_to_rollback.iter() {
                     for parents_microblock_to_rollback in
                         block_update.parent_microblocks_to_rollback.iter()
                     {
-                        rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
-                            vec![parents_microblock_to_rollback],
-                            chainhook,
-                            ctx,
-                        ));
+                        let (mut occurrences, mut expirations) =
+                            evaluate_stacks_chainhook_on_blocks(
+                                vec![parents_microblock_to_rollback],
+                                chainhook,
+                                ctx,
+                            );
+                        rollback.append(&mut occurrences);
+                        expired_predicates.append(&mut expirations);
                     }
-                    rollback.append(&mut evaluate_stacks_chainhook_on_blocks(
+                    let (mut occurrences, mut expirations) = evaluate_stacks_chainhook_on_blocks(
                         vec![&block_update.block],
                         chainhook,
                         ctx,
-                    ));
+                    );
+                    rollback.append(&mut occurrences);
+                    expired_predicates.append(&mut expirations);
                 }
                 if !apply.is_empty() || !rollback.is_empty() {
                     triggered_predicates.push(StacksTriggerChainhook {
@@ -221,33 +251,48 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
             }
         }
     }
-    (triggered_predicates, evaluated_predicates)
+    (
+        triggered_predicates,
+        evaluated_predicates,
+        expired_predicates,
+    )
 }
 
 pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     blocks: Vec<&'a dyn AbstractStacksBlock>,
     chainhook: &'a StacksChainhookSpecification,
     ctx: &Context,
-) -> Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)> {
+) -> (
+    Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
+) {
     let mut occurrences = vec![];
+    let mut expired_predicates = BTreeMap::new();
+    let end_block = chainhook.end_block.unwrap_or(u64::MAX);
     for block in blocks {
-        let mut hits = vec![];
-        if chainhook.is_predicate_targeting_block_header() {
-            for tx in block.get_transactions().iter() {
-                hits.push(tx);
-            }
-        } else {
-            for tx in block.get_transactions().iter() {
-                if evaluate_stacks_predicate_on_transaction(tx, chainhook, ctx) {
-                    hits.push(tx);
+        if end_block >= block.get_identifier().index {
+            let mut hits = vec![];
+            if chainhook.is_predicate_targeting_block_header() {
+                if evaluate_stacks_predicate_on_block(block, chainhook, ctx) {
+                    for tx in block.get_transactions().iter() {
+                        hits.push(tx);
+                    }
+                }
+            } else {
+                for tx in block.get_transactions().iter() {
+                    if evaluate_stacks_predicate_on_transaction(tx, chainhook, ctx) {
+                        hits.push(tx);
+                    }
                 }
             }
-        }
-        if hits.len() > 0 {
-            occurrences.push((hits, block));
+            if hits.len() > 0 {
+                occurrences.push((hits, block));
+            }
+        } else {
+            expired_predicates.insert(chainhook.uuid.as_str(), block.get_identifier());
         }
     }
-    occurrences
+    (occurrences, expired_predicates)
 }
 
 pub fn evaluate_stacks_predicate_on_block<'a>(
@@ -406,16 +451,47 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
                 match event {
                     StacksTransactionEvent::SmartContractEvent(actual) => {
                         if actual.topic == "print" {
-                            if expected_event.contract_identifier == actual.contract_identifier
-                                || expected_event.contract_identifier == "*"
-                            {
-                                if expected_event.contains == "*" {
-                                    return true;
+                            match expected_event {
+                                StacksPrintEventBasedPredicate::Contains {
+                                    contract_identifier,
+                                    contains,
+                                } => {
+                                    if contract_identifier == &actual.contract_identifier
+                                        || contract_identifier == "*"
+                                    {
+                                        if contains == "*" {
+                                            return true;
+                                        }
+                                        let value = format!(
+                                            "{}",
+                                            expect_decoded_clarity_value(&actual.hex_value)
+                                        );
+                                        if value.contains(contains) {
+                                            return true;
+                                        }
+                                    }
                                 }
-                                let value =
-                                    format!("{}", expect_decoded_clarity_value(&actual.hex_value));
-                                if value.contains(&expected_event.contains) {
-                                    return true;
+                                StacksPrintEventBasedPredicate::MatchesRegex {
+                                    contract_identifier,
+                                    regex,
+                                } => {
+                                    if contract_identifier == &actual.contract_identifier
+                                        || contract_identifier == "*"
+                                    {
+                                        if let Ok(regex) = Regex::new(regex) {
+                                            let value = format!(
+                                                "{}",
+                                                expect_decoded_clarity_value(&actual.hex_value)
+                                            );
+                                            if regex.is_match(&value) {
+                                                return true;
+                                            }
+                                        } else {
+                                            ctx.try_log(|logger| {
+                                                slog::error!(logger, "unable to parse print_event matching rule as regex")
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -432,18 +508,43 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
     }
 }
 
-fn encode_transaction_including_with_clarity_decoding(
-    transaction: &StacksTransactionData,
+fn serialize_stacks_block(
+    block: &dyn AbstractStacksBlock,
+    transactions: Vec<&StacksTransactionData>,
+    decode_clarity_values: bool,
+    include_contract_abi: bool,
     ctx: &Context,
 ) -> serde_json::Value {
     json!({
+        "block_identifier": block.get_identifier(),
+        "parent_block_identifier": block.get_parent_identifier(),
+        "timestamp": block.get_timestamp(),
+        "transactions": transactions.into_iter().map(|transaction| {
+            serialize_stacks_transaction(&transaction, decode_clarity_values, include_contract_abi, ctx)
+        }).collect::<Vec<_>>(),
+        "metadata": block.get_serialized_metadata(),
+    })
+}
+
+fn serialize_stacks_transaction(
+    transaction: &StacksTransactionData,
+    decode_clarity_values: bool,
+    include_contract_abi: bool,
+    ctx: &Context,
+) -> serde_json::Value {
+    let mut json = json!({
         "transaction_identifier": transaction.transaction_identifier,
         "operations": transaction.operations,
         "metadata": {
             "success": transaction.metadata.success,
             "raw_tx": transaction.metadata.raw_tx,
-            "result": serialized_decoded_clarity_value(&transaction.metadata.result, ctx),
+            "result": if decode_clarity_values {
+                serialized_decoded_clarity_value(&transaction.metadata.result, ctx)
+            } else  {
+                json!(transaction.metadata.result)
+            },
             "sender": transaction.metadata.sender,
+            "nonce": transaction.metadata.nonce,
             "fee": transaction.metadata.fee,
             "kind": transaction.metadata.kind,
             "receipt": {
@@ -451,15 +552,21 @@ fn encode_transaction_including_with_clarity_decoding(
                 "mutated_assets_radius": transaction.metadata.receipt.mutated_assets_radius,
                 "contract_calls_stack": transaction.metadata.receipt.contract_calls_stack,
                 "events": transaction.metadata.receipt.events.iter().map(|event| {
-                    serialized_event_with_decoded_clarity_value(event, ctx)
+                    if decode_clarity_values { serialized_event_with_decoded_clarity_value(event, ctx) } else { json!(event) }
                 }).collect::<Vec<serde_json::Value>>(),
             },
             "description": transaction.metadata.description,
             "sponsor": transaction.metadata.sponsor,
             "execution_cost": transaction.metadata.execution_cost,
-            "position": transaction.metadata.position,
+            "position": transaction.metadata.position
         },
-    })
+    });
+    if include_contract_abi {
+        if let Some(abi) = &transaction.metadata.contract_abi {
+            json["metadata"]["contract_abi"] = json!(abi);
+        }
+    }
+    json
 }
 
 pub fn serialized_event_with_decoded_clarity_value(
@@ -688,37 +795,13 @@ pub fn serialize_stacks_payload_to_json<'a>(
     ctx: &Context,
 ) -> JsonValue {
     let decode_clarity_values = trigger.should_decode_clarity_value();
+    let include_contract_abi = trigger.chainhook.include_contract_abi.unwrap_or(false);
     json!({
         "apply": trigger.apply.into_iter().map(|(transactions, block)| {
-            json!({
-                "block_identifier": block.get_identifier(),
-                "parent_block_identifier": block.get_parent_identifier(),
-                "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
-                    if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
-                    } else {
-                        json!(transaction)
-                    }
-                }).collect::<Vec<_>>(),
-                "metadata": block.get_serialized_metadata(),
-            })
+            serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
         "rollback": trigger.rollback.into_iter().map(|(transactions, block)| {
-            json!({
-                "block_identifier": block.get_identifier(),
-                "parent_block_identifier": block.get_parent_identifier(),
-                "timestamp": block.get_timestamp(),
-                "transactions": transactions.iter().map(|transaction| {
-                    if decode_clarity_values {
-                        encode_transaction_including_with_clarity_decoding(transaction, ctx)
-                    } else {
-                        json!(transaction)
-                    }
-                }).collect::<Vec<_>>(),
-                "metadata": block.get_serialized_metadata(),
-                // "proof": proofs.get(&transaction.transaction_identifier),
-            })
+            serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
         "chainhook": {
             "uuid": trigger.chainhook.uuid,
@@ -746,6 +829,7 @@ pub fn handle_stacks_hook_action<'a>(
                 client
                     .request(method, &host)
                     .header("Content-Type", "application/json")
+                    .header("Authorization", http.authorization_header.clone())
                     .body(body),
             ))
         }
