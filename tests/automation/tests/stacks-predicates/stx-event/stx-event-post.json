@@ -1,0 +1,1 @@
+{"chain":"stacks","uuid":"0cc86353-7883-4fde-a1e6-42df78f0f6d6","name":"Stx event post","version":1,"networks":{"testnet":{"start_block":111750,"end_block":211800,"if_this":{"scope":"stx_event","actions":["transfer","lock"]},"then_that":{"http_post":{"url":"https://8ad2-2405-201-200a-3191-75fe-9dba-108b-42b9.ngrok.io","authorization_header":""}}}}}

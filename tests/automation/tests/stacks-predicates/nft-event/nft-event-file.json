@@ -1,0 +1,22 @@
+{
+  "chain": "stacks",
+  "uuid": "c3c3bf08-2035-40bf-a5eb-0e4295911f8a",
+  "name": "nft event file",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 60150,
+      "end_block": 60153,
+      "if_this": {
+        "scope": "nft_event",
+        "asset_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.punker-nft3",
+        "actions": ["claim"]
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/nft-event/nft-event-file-result.json"
+        }
+      }
+    }
+  }
+}
