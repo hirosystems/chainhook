@@ -809,12 +809,15 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.new_headers.iter() {
                             if store_update_required {
-                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                let Some(block) =
+                                    bitcoin_block_store.remove(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_mutate.push(block);
                             } else {
-                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 new_blocks.push(cache.block.clone());
@@ -866,12 +869,15 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.headers_to_apply.iter() {
                             if store_update_required {
-                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                let Some(block) =
+                                    bitcoin_block_store.remove(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_mutate.push(block);
                             } else {
-                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_apply.push(cache.block.clone());

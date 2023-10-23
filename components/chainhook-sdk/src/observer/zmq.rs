@@ -36,8 +36,8 @@ pub async fn start_zeromq_runloop(
     ctx: &Context,
 ) {
     let BitcoinBlockSignaling::ZeroMQ(ref bitcoind_zmq_url) = config.bitcoin_block_signaling else {
-            unreachable!()
-        };
+        unreachable!()
+    };
 
     let bitcoind_zmq_url = bitcoind_zmq_url.clone();
     let bitcoin_config = config.get_bitcoin_config();
