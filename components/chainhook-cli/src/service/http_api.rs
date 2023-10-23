@@ -348,7 +348,7 @@ pub fn load_predicates_from_redis(
     ctx: &Context,
 ) -> Result<Vec<(ChainhookSpecification, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
-    let client = redis::Client::open(redis_uri.clone())
+    let client = redis::Client::open(redis_uri)
         .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
     let mut predicate_db_conn = client
         .get_connection()

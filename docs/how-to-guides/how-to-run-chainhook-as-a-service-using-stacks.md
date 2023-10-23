@@ -1,5 +1,5 @@
 ---
-title: Run Chainhook as a Service using Stacks
+title: Run Chainhook as a Service Using Stacks
 ---
 
 You can run Chainhook as a service to evaluate Stacks blocks against your predicates. You can also dynamically register new predicates by enabling predicates registration API.
@@ -8,13 +8,13 @@ Start with the prerequisite section and configure your files to start the chainh
 
 ## Prerequisite
 
-### Configure Stacks Node
+### Configure Your Stacks Node
 
-- Configure your stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
-- Recommend the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
-- Set up the bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
+- Configure your Stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
+- We Recommend using the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
+- Set up your Bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
-A `Stacks.toml` file is generated when configuring the stacks node. Below is the sample `Stacks.toml` file.
+A `Stacks.toml` file is generated when configuring your Stacks node. Below is the sample `Stacks.toml` file.
 
 ```toml
 [node]
@@ -99,7 +99,7 @@ max_caching_memory_size_mb = 32000
 tsv_file_url = "https://archive.hiro.so/mainnet/stacks-blockchain-api/mainnet-stacks-blockchain-api-latest"
 ```
 
-Ensure the following configurations are matched to allow chainhook to communicate with the Stacks and Bitcoin layers.
+Ensure the following configurations are matched to allow chainhook to communicate with both Stacks and Bitcoin.
 
 | bitcoin.conf    | Stacks.toml | Chainhook.toml               |
 | --------------- | ----------- | ---------------------------- |
@@ -112,11 +112,11 @@ Ensure the following configurations are matched to allow chainhook to communicat
 
 > **_NOTE:_**
 >
-> The `bitcoind_zmq_url` is optional when running chainhook as a service using stacks because stacks will pull the blocks from Stacks and the Bitcoin chain.
+> The `bitcoind_zmq_url` is optional when running chainhook as a service using Stacks because Stacks will pull the blocks from Stacks and the Bitcoin chain.
 
-## Scan blockchain based on predicates
+## Scan the blockchain based on predicates
 
-Now that the stacks and chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with sample JSON files to scan the blocks in the blockchain and render the results. To understand the supported predicates for Stacks, refer to [how to use chainhook with stacks](how-to-use-chainhooks-with-stacks.md).
+Now that the Stacks and Chainhook configurations are done, you can scan your blocks by defining your [predicates](../overview.md#if-this-predicate-design). This section helps you with sample JSON files to scan blockchain blocks and render the results. To understand the supported predicates for Stacks, refer to [how to use chainhook with stacks](how-to-use-chainhooks-with-stacks.md).
 
 The following are the two examples to walk you through `file_append` and `http_post` `then-that` predicate designs.
 
@@ -178,7 +178,7 @@ A JSON file `print-event.json` is generated.
 >
 > You can get blockchain height and current block in the [Explorer](https://explorer.hiro.so/blocks?chain=mainnet).
 
-Now, use the following command to scan the blocks based on the predicates defined in the `mainnet` network block of your `print-event.json` file.
+Now, use the following command to scan the blocks based on the predicates defined in the `mainnet` network block of your `print-event.json` file:
 
 ```console
 chainhook predicates scan print-event.json --mainnet
@@ -191,13 +191,13 @@ The output of the above command will be a text file `arkadiko.txt` generated bas
 ```
 
 > **_TIP:_**
-> To optimize your experience with scanning, the following are a few knobs you can play with:
-> Use of adequate values for `start_block` and `end_block` in predicates will drastically improve the performance.
+> To optimize your experience with scanning, there are a few variables you can play with:
+> Use of adequate values for `start_block` and `end_block` in predicates will drastically improve performance.
 > Networking: reducing the number of network hops between the chainhook and the bitcoind processes can also help.
 
 ### Example 2 - `http_post`
 
-Run the following command to generate a sample JSON file with predicates in your terminal.
+Run the following command to generate a sample JSON file with predicates in your terminal:
 
 ```console
 chainhook predicates new print-event-post.json --stacks
@@ -250,7 +250,7 @@ Update the generated JSON file `print-event-post.json` with the following:
 >
 > The `start_block` is the required field to use the `http_post` `then-that` predicate.
 
-Now, use the following command to scan the blocks based on the predicates defined in the `print-event-post.json` file.
+Now, use the following command to scan the blocks based on the predicates defined in the `print-event-post.json` file:
 
 ```console
 chainhook predicates scan print-event-post.json --mainnet
@@ -260,9 +260,9 @@ The above command posts events to the URL `http://localhost:3000/events` mention
 
 ## Initiate Chainhook Service
 
-In this section, you'll learn how to initiate the chainhook service using the following two ways and use the REST API call to post the events onto a server.
+In this section, you'll learn two ways to initiate the Chainhook service as well as how to use the REST API call to post the events onto a server.
 
-- Initiate the chainhook service by passing the predicate path to the command as shown below.
+- Initiate the Chainhook service by passing the predicate path to the command as shown below:
 
   ```console
   chainhook service start --predicate-path=print-event.json --config-path=Chainhook.toml
@@ -274,7 +274,7 @@ In this section, you'll learn how to initiate the chainhook service using the fo
 
 You can also dynamically register new predicates with your Chainhook service.
 
-First, we need to uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server.
+First, we need to uncomment the following lines of code in the `Chainhook.toml` file to enable the predicate registration server:
 
 ```toml
 # ...
