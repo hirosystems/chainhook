@@ -31,25 +31,20 @@ pub struct BitcoinTriggerChainhook<'a> {
     pub rollback: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct BitcoinApplyTransactionPayload {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BitcoinTransactionPayload {
     pub block: BitcoinBlockData,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct BitcoinRollbackTransactionPayload {
-    pub block: BitcoinBlockData,
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookPayload {
     pub uuid: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookOccurrencePayload {
-    pub apply: Vec<BitcoinApplyTransactionPayload>,
-    pub rollback: Vec<BitcoinRollbackTransactionPayload>,
+    pub apply: Vec<BitcoinTransactionPayload>,
+    pub rollback: Vec<BitcoinTransactionPayload>,
     pub chainhook: BitcoinChainhookPayload,
 }
 
@@ -285,7 +280,7 @@ pub fn handle_bitcoin_hook_action<'a>(
                             .into_iter()
                             .map(|t| t.clone())
                             .collect::<Vec<_>>();
-                        BitcoinApplyTransactionPayload { block }
+                        BitcoinTransactionPayload { block }
                     })
                     .collect::<Vec<_>>(),
                 rollback: trigger
@@ -297,7 +292,7 @@ pub fn handle_bitcoin_hook_action<'a>(
                             .into_iter()
                             .map(|t| t.clone())
                             .collect::<Vec<_>>();
-                        BitcoinRollbackTransactionPayload { block }
+                        BitcoinTransactionPayload { block }
                     })
                     .collect::<Vec<_>>(),
                 chainhook: BitcoinChainhookPayload {
