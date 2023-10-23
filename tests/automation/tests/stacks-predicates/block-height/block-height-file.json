@@ -1,0 +1,21 @@
+{
+  "chain": "stacks",
+  "uuid": "5128f99a-eac7-484f-8228-6e643bd19cf7",
+  "name": "Block Height File",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 114259,
+      "end_block": 114261,
+      "if_this": {
+        "scope": "block_height",
+        "equals": 114260
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/block-height/block-height-file-result.json"
+        }
+      }
+    }
+  }
+}

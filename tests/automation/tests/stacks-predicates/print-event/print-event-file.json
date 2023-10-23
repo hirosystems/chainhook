@@ -1,0 +1,22 @@
+{
+  "chain": "stacks",
+  "uuid": "375d8569-5342-4e80-9ee9-e6e9bb4bf2a5",
+  "name": "print event file",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 1000,
+      "expire_after_occurrence": 1,
+      "if_this": {
+        "scope": "print_event",
+        "contract_identifier": "ST113MYNN52BC76GWP8P9PYFEP7XWJP6S5YFQM4ZE.shitty-coin",
+        "contains": "balance-of"
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/print-event/print-event-file-result.json"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "chain": "stacks",
+  "uuid": "a2b55836-5fbe-441b-9de8-c24c3cda286c",
+  "name": "FT Event File",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 111779,
+      "end_block": 111781,
+      "expire_after_occurrence": 1,
+      "if_this": {
+        "scope": "ft_event",
+        "asset_identifier": "ST113MYNN52BC76GWP8P9PYFEP7XWJP6S5YFQM4ZE.shitty-coin::shitty",
+        "actions": ["transfer"]
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/ft-event/ft-event-file-result.json"
+        }
+      }
+    }
+  }
+}
