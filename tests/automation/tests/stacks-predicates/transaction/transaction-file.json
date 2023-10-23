@@ -1,0 +1,21 @@
+{
+  "chain": "stacks",
+  "uuid": "dad71268-d3c1-4cd9-bb99-16a4bd4155c4",
+  "name": "transactions file",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 111779,
+      "end_block": 111781,
+      "if_this": {
+        "scope": "txid",
+        "equals": "0x411e78f4b727fc0a78b86c3fd56da0c741c71339713be81d7528c4015665267b"
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/transaction/transaction-file-result.json"
+        }
+      }
+    }
+  }
+}

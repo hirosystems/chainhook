@@ -1,0 +1,22 @@
+{
+  "chain": "stacks",
+  "uuid": "0dcfe481-ef9e-40f7-ad7b-1a9a39895516",
+  "name": "Contract Call File",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "start_block": 0,
+      "end_block": 311800,
+      "if_this": {
+        "scope": "contract_call",
+        "contract_identifier": "ST000000000000000000002AMW42H.bns",
+        "method": "name-revoke"
+      },
+      "then_that": {
+        "file_append": {
+          "path": "script/stacks-predicates/contract-call/contract-call-file-result.json"
+        }
+      }
+    }
+  }
+}
