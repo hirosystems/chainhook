@@ -521,6 +521,18 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "descriptor"
+                ],
+                "properties": {
+                  "descriptor": {
+                    "$ref": "#/components/schemas/DescriptorMatchingRule"
+                  }
+                },
+                "additionalProperties": false
               }
             ],
             "required": [
@@ -725,6 +737,29 @@
             "additionalProperties": false
           }
         ]
+      },
+      "DescriptorMatchingRule": {
+        "type": "object",
+        "required": [
+          "expression"
+        ],
+        "properties": {
+          "expression": {
+            "type": "string"
+          },
+          "range": {
+            "default": null,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "nullable": true
+          }
+        }
       },
       "HookAction": {
         "oneOf": [
