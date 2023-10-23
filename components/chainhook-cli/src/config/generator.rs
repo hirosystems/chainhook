@@ -8,9 +8,9 @@ pub fn generate_config(network: &BitcoinNetwork) -> String {
         r#"[storage]
 working_dir = "cache"
 
-# The Http Api allows you to register / deregister
-# dynamically predicates.
-# Disable by default.
+# The HTTP API allows you to register / deregister
+# predicates dynamically.
+# This is disabled by default.
 #
 # [http_api]
 # http_port = 20456
@@ -21,12 +21,15 @@ mode = "{mode}"
 bitcoind_rpc_url = "http://localhost:8332"
 bitcoind_rpc_username = "devnet"
 bitcoind_rpc_password = "devnet"
-# Bitcoin block events can be received by Chainhook
-# either through a Bitcoin node's ZeroMQ interface,
-# or through the Stacks node. The Stacks node is
-# used by default:
+
+# Chainhook must be able to receive Bitcoin block events.
+# These events can originate from either a Stacks node or a Bitcoin node's ZeroMQ interface.
+
+# By default, the service is set to receive Bitcoin block events from the Stacks node:
 stacks_node_rpc_url = "http://localhost:20443"
-# but zmq can be used instead:
+
+# However, events can also be received directly from a Bitcoin node.
+# To achieve this, comment out the `stacks_node_rpc_url` line and uncomment the following line:
 # bitcoind_zmq_url = "tcp://0.0.0.0:18543"
 
 [limits]
@@ -38,6 +41,8 @@ max_number_of_processing_threads = 16
 max_number_of_networking_threads = 16
 max_caching_memory_size_mb = 32000
 
+# The TSV file is required for downloading historical data for your predicates. 
+# If this is not a requirement, you can comment out the `tsv_file_url` line.
 [[event_source]]
 tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network}-stacks-blockchain-api-latest"
 "#,
