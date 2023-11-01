@@ -49,7 +49,7 @@ impl BitcoinChainContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IndexerConfig {
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,

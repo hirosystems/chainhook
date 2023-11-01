@@ -149,57 +149,56 @@ pub async fn send_request(
     attempts_max: u16,
     attempts_interval_sec: u16,
     ctx: &Context,
-) -> Result<(), ()> {
+) -> Result<(), String> {
     let mut retry = 0;
     loop {
         let request_builder = match request_builder.try_clone() {
             Some(rb) => rb,
             None => {
                 ctx.try_log(|logger| slog::warn!(logger, "unable to clone request builder"));
-                return Err(());
+                return Err(format!(
+                    "internal server error: unable to clone request builder"
+                ));
             }
         };
-        match request_builder.send().await {
+        let err_msg = match request_builder.send().await {
             Ok(res) => {
                 if res.status().is_success() {
                     ctx.try_log(|logger| slog::info!(logger, "Trigger {} successful", res.url()));
                     return Ok(());
                 } else {
                     retry += 1;
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "Trigger {} failed with status {}",
-                            res.url(),
-                            res.status()
-                        )
-                    });
+                    let err_msg =
+                        format!("Trigger {} failed with status {}", res.url(), res.status());
+                    ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                    err_msg
                 }
             }
             Err(e) => {
                 retry += 1;
-                ctx.try_log(|logger| {
-                    slog::warn!(logger, "unable to send request {}", e.to_string())
-                });
+                let err_msg = format!("unable to send request {}", e.to_string());
+                ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                err_msg
             }
-        }
+        };
         if retry >= attempts_max {
-            ctx.try_log(|logger| {
-                slog::error!(logger, "unable to send request after several retries")
-            });
-            return Err(());
+            let msg: String = format!(
+                "unable to send request after several retries. most recent error: {}",
+                err_msg
+            );
+            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+            return Err(msg);
         }
         std::thread::sleep(std::time::Duration::from_secs(attempts_interval_sec.into()));
     }
 }
 
-pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), ()> {
+pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), String> {
     let mut file_path = match std::env::current_dir() {
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(logger, "unable to retrieve current_dir {}", e.to_string())
-            });
-            return Err(());
+            let msg = format!("unable to retrieve current_dir {}", e.to_string());
+            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+            return Err(msg);
         }
         Ok(p) => p,
     };
@@ -210,15 +209,13 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), ()
                 let _ = file.write_all(&bytes);
             }
             Err(e) => {
-                ctx.try_log(|logger| {
-                    slog::warn!(
-                        logger,
-                        "unable to create file {}: {}",
-                        file_path.display(),
-                        e.to_string()
-                    )
-                });
-                return Err(());
+                let msg = format!(
+                    "unable to create file {}: {}",
+                    file_path.display(),
+                    e.to_string()
+                );
+                ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+                return Err(msg);
             }
         }
     }
@@ -230,8 +227,9 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), ()
         .open(file_path)
     {
         Err(e) => {
-            ctx.try_log(|logger| slog::warn!(logger, "unable to open file {}", e.to_string()));
-            return Err(());
+            let msg = format!("unable to open file {}", e.to_string());
+            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+            return Err(msg);
         }
         Ok(p) => p,
     };
@@ -239,21 +237,17 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), ()
     let utf8 = match String::from_utf8(bytes) {
         Ok(string) => string,
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable serialize bytes as utf8 string {}",
-                    e.to_string()
-                )
-            });
-            return Err(());
+            let msg = format!("unable serialize bytes as utf8 string {}", e.to_string());
+            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+            return Err(msg);
         }
     };
 
     if let Err(e) = writeln!(file, "{}", utf8) {
-        ctx.try_log(|logger| slog::warn!(logger, "unable to open file {}", e.to_string()));
+        let msg = format!("unable to open file {}", e.to_string());
+        ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
         eprintln!("Couldn't write to file: {}", e);
-        return Err(());
+        return Err(msg);
     }
 
     Ok(())

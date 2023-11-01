@@ -536,6 +536,9 @@ Additional configuration knobs available:
 
 // Include decoded clarity values in payload
 "decode_clarity_values": true
+
+// Include the contract ABI for transactions that deploy contracts:
+"include_contract_abi": true
 ```
 
 Putting all the pieces together:

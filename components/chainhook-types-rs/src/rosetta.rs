@@ -1,4 +1,5 @@
 use super::bitcoin::{TxIn, TxOut};
+use crate::contract_interface::ContractInterface;
 use crate::events::*;
 use schemars::JsonSchema;
 use std::cmp::Ordering;
@@ -12,6 +13,16 @@ pub struct BlockIdentifier {
     /// Also known as the block height.
     pub index: u64,
     pub hash: String,
+}
+
+impl BlockIdentifier {
+    pub fn get_hash_bytes_str(&self) -> &str {
+        &self.hash[2..]
+    }
+
+    pub fn get_hash_bytes(&self) -> Vec<u8> {
+        hex::decode(&self.get_hash_bytes_str()).unwrap()
+    }
 }
 
 impl Display for BlockIdentifier {
@@ -209,6 +220,8 @@ pub struct StacksTransactionMetadata {
     pub execution_cost: Option<StacksTransactionExecutionCost>,
     pub position: StacksTransactionPosition,
     pub proof: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_abi: Option<ContractInterface>,
 }
 
 /// TODO
@@ -305,7 +318,6 @@ pub struct BitcoinTransactionMetadata {
 #[serde(rename_all = "snake_case")]
 pub enum OrdinalOperation {
     InscriptionRevealed(OrdinalInscriptionRevealData),
-    CursedInscriptionRevealed(OrdinalInscriptionRevealData),
     InscriptionTransferred(OrdinalInscriptionTransferData),
 }
 
@@ -325,6 +337,7 @@ pub enum OrdinalInscriptionCurseType {
     Batch,
     P2wsh,
     Reinscription,
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -884,13 +897,13 @@ impl BitcoinNetwork {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub enum BitcoinBlockSignaling {
     Stacks(StacksNodeConfig),
     ZeroMQ(String),
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct StacksNodeConfig {
     pub rpc_url: String,
     pub ingestion_port: u16,

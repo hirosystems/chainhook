@@ -28,12 +28,29 @@ fn get_default_stacks_db_file_path(base_dir: &PathBuf) -> PathBuf {
     destination_path
 }
 
-pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
+pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result<DB, String> {
     let path = get_default_stacks_db_file_path(&base_dir);
     let opts = get_db_default_options();
-    let db = DB::open_for_read_only(&opts, path, false)
-        .map_err(|e| format!("unable to open stacks.rocksdb: {}", e.to_string()))?;
-    Ok(db)
+    match DB::open_for_read_only(&opts, path.clone(), false) {
+        Ok(db) => Ok(db),
+        Err(e) => {
+            if e.to_string()
+                .contains("IO error: No such file or directory")
+            {
+                return match open_readwrite_stacks_db_conn(base_dir, ctx) {
+                    Ok(_) => {
+                        let db = DB::open_for_read_only(&opts, path, false).map_err(|e| {
+                            format!("unable to open stacks.rocksdb: {}", e.to_string())
+                        })?;
+                        Ok(db)
+                    }
+                    Err(e) => Err(e),
+                };
+            } else {
+                return Err(format!("unable to open stacks.rocksdb: {}", e.to_string()));
+            }
+        }
+    }
 }
 
 pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
@@ -41,28 +58,6 @@ pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Resu
     let opts = get_db_default_options();
     let db = DB::open(&opts, path)
         .map_err(|e| format!("unable to open stacks.rocksdb: {}", e.to_string()))?;
-    Ok(db)
-}
-
-fn get_default_bitcoin_db_file_path(base_dir: &PathBuf) -> PathBuf {
-    let mut destination_path = base_dir.clone();
-    destination_path.push("bitcoin.rocksdb");
-    destination_path
-}
-
-pub fn open_readonly_bitcoin_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
-    let path = get_default_bitcoin_db_file_path(&base_dir);
-    let opts = get_db_default_options();
-    let db = DB::open_for_read_only(&opts, path, false)
-        .map_err(|e| format!("unable to open bitcoin.rocksdb: {}", e.to_string()))?;
-    Ok(db)
-}
-
-pub fn open_readwrite_bitcoin_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
-    let path = get_default_bitcoin_db_file_path(&base_dir);
-    let opts = get_db_default_options();
-    let db = DB::open(&opts, path)
-        .map_err(|e| format!("unable to open bitcoin.rocksdb: {}", e.to_string()))?;
     Ok(db)
 }
 
