@@ -1,0 +1,42 @@
+{
+  "transaction_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/transaction/transaction-file.json --testnet",
+    "result_file": "tests/stacks-predicates/transaction/transaction-file-result.json"
+  },
+  "transaction_post": "chainhook predicates scan tests/stacks-predicates/transaction/transaction-post.json --testnet",
+  "block_height_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/block-height/block-height-file.json --testnet",
+    "result_file": "tests/stacks-predicates/block-height/block-height-file-result.json"
+  },  
+  "block_height_post": "chainhook predicates scan tests/stacks-predicates/block-height/block-height-post.json --testnet",
+  "ft_event_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/ft-event/ft-event-file.json --testnet",
+    "result_file": "tests/stacks-predicates/ft-event/ft-event-file-result.json"
+  },
+  "ft_event_post": "chainhook predicates scan tests/stacks-predicates/ft-event/ft-event-post.json --testnet",
+  "nft_event_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/nft-event/nft-event-file.json --testnet",
+    "result_file": "tests/stacks-predicates/nft-event/nft-event-file-result.json"
+  },
+  "nft_event_post": "chainhook predicates scan tests/stacks-predicates/nft-event/nft-event-post.json --testnet",
+  "stx_event_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/stx-event/stx-event-file.json --testnet",
+    "result_file": "tests/stacks-predicates/stx-event/stx-event-file-result.json"
+  },
+  "stx_event_post": "chainhook predicates scan tests/stacks-predicates/stx-event/stx-event-post.json --testnet",
+  "print_event_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/print-event/print-event-file.json --testnet",
+    "result_file": "tests/stacks-predicates/print-event/print-event-file-result.json"
+  },
+  "print_event_post": "chainhook predicates scan tests/stacks-predicates/print-event/print-event-post.json --testnet",
+  "contract_call_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/contract-call/contract-call-file.json --testnet",
+    "result_file": "tests/stacks-predicates/contract-call/contract-call-file-result.json"
+  },
+  "contract_call_post": "chainhook predicates scan tests/stacks-predicates/contract-call/contract-call-post.json --testnet",
+  "contract_deployment_file": {
+    "command": "chainhook predicates scan tests/stacks-predicates/contract-deployment/contract-deployment-file.json --testnet",
+    "result_file": "tests/stacks-predicates/contract-deployment/contract-deployment-file-result.json"
+  },
+  "contract_deployment_post": "chainhook predicates scan tests/stacks-predicates/contract-deployment/contract-deployment-post.json --testnet"
+}

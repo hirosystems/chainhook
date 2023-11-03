@@ -102,7 +102,7 @@ fn handle_get_predicates(
 
             let serialized_predicates = predicates
                 .iter()
-                .map(|(p, _)| p.into_serialized_json())
+                .map(|(p, s)| serialized_predicate_with_status(p, s))
                 .collect::<Vec<_>>();
 
             Json(json!({
@@ -194,36 +194,22 @@ fn handle_get_predicate(
 
     match open_readwrite_predicates_db_conn(api_config) {
         Ok(mut predicates_db_conn) => {
-            let entry = match get_entry_from_predicates_db(
+            let (predicate, status) = match get_entry_from_predicates_db(
                 &ChainhookSpecification::either_stx_or_btc_key(&predicate_uuid),
                 &mut predicates_db_conn,
                 &ctx,
             ) {
-                Ok(Some((ChainhookSpecification::Stacks(spec), status))) => json!({
-                    "chain": "stacks",
-                    "uuid": spec.uuid,
-                    "network": spec.network,
-                    "predicate": spec.predicate,
-                    "status": status,
-                    "enabled": spec.enabled,
-                }),
-                Ok(Some((ChainhookSpecification::Bitcoin(spec), status))) => json!({
-                    "chain": "bitcoin",
-                    "uuid": spec.uuid,
-                    "network": spec.network,
-                    "predicate": spec.predicate,
-                    "status": status,
-                    "enabled": spec.enabled,
-                }),
+                Ok(Some(predicate_with_status)) => predicate_with_status,
                 _ => {
                     return Json(json!({
                         "status": 404,
                     }))
                 }
             };
+            let result = serialized_predicate_with_status(&predicate, &status);
             Json(json!({
                 "status": 200,
-                "result": entry
+                "result": result
             }))
         }
         Err(e) => Json(json!({
@@ -362,7 +348,7 @@ pub fn load_predicates_from_redis(
     ctx: &Context,
 ) -> Result<Vec<(ChainhookSpecification, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
-    let client = redis::Client::open(redis_uri.clone())
+    let client = redis::Client::open(redis_uri)
         .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
     let mut predicate_db_conn = client
         .get_connection()
@@ -386,4 +372,28 @@ pub fn get_routes_spec() -> (Vec<rocket::Route>, OpenApi) {
         handle_delete_bitcoin_predicate,
         handle_delete_stacks_predicate
     ]
+}
+
+fn serialized_predicate_with_status(
+    predicate: &ChainhookSpecification,
+    status: &PredicateStatus,
+) -> JsonValue {
+    match (predicate, status) {
+        (ChainhookSpecification::Stacks(spec), status) => json!({
+            "chain": "stacks",
+            "uuid": spec.uuid,
+            "network": spec.network,
+            "predicate": spec.predicate,
+            "status": status,
+            "enabled": spec.enabled,
+        }),
+        (ChainhookSpecification::Bitcoin(spec), status) => json!({
+            "chain": "bitcoin",
+            "uuid": spec.uuid,
+            "network": spec.network,
+            "predicate": spec.predicate,
+            "status": status,
+            "enabled": spec.enabled,
+        }),
+    }
 }

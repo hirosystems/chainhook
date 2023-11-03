@@ -1,4 +1,17 @@
-use super::super::tests::{helpers, process_stacks_blocks_and_check_expectations};
+use chainhook_types::{
+    DataMapDeleteEventData, DataMapInsertEventData, DataMapUpdateEventData, DataVarSetEventData,
+    FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
+    NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
+    STXTransferEventData, SmartContractEventData, StacksTransactionEvent,
+};
+
+use crate::indexer::tests::helpers::stacks_events::create_new_event_from_stacks_event;
+
+use super::{
+    super::tests::{helpers, process_stacks_blocks_and_check_expectations},
+    NewEvent,
+};
+use test_case::test_case;
 
 #[test]
 fn test_stacks_vector_001() {
@@ -258,4 +271,117 @@ fn test_stacks_vector_051() {
 #[test]
 fn test_stacks_vector_052() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_052());
+}
+
+#[test_case(StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
+    sender: format!(""),
+    recipient: format!(""),
+    amount: format!("1"),
+}); "stx_transfer")]
+#[test_case(StacksTransactionEvent::STXMintEvent(STXMintEventData {
+    recipient: format!(""),
+    amount: format!("1"),
+}); "stx_mint")]
+#[test_case(StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
+    sender: format!(""),
+    amount: format!("1"),
+}); "stx_burn")]
+#[test_case(StacksTransactionEvent::STXLockEvent(STXLockEventData {
+    locked_amount: format!("1"),
+    unlock_height: format!(""),
+    locked_address: format!(""),
+}); "stx_lock")]
+#[test_case(StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
+    asset_class_identifier: format!(""),
+    hex_asset_identifier: format!(""),
+    sender: format!(""),
+    recipient: format!(""),
+}); "nft_transfer")]
+#[test_case(StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
+    asset_class_identifier: format!(""),
+    hex_asset_identifier: format!(""),
+    recipient: format!(""),
+}); "nft_mint")]
+#[test_case(StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
+    asset_class_identifier: format!(""),
+    hex_asset_identifier: format!(""),
+    sender: format!(""),
+}); "nft_burn")]
+#[test_case(StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
+    asset_class_identifier: format!(""),
+    sender: format!(""),
+    recipient: format!(""),
+    amount: format!("1"),
+}); "ft_transfer")]
+#[test_case(StacksTransactionEvent::FTMintEvent(FTMintEventData {
+    asset_class_identifier: format!(""),
+    recipient: format!(""),
+    amount: format!("1"),
+}); "ft_mint")]
+#[test_case(StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
+    asset_class_identifier: format!(""),
+    sender: format!(""),
+    amount: format!("1"),
+}); "ft_burn")]
+#[test_case(StacksTransactionEvent::DataVarSetEvent(DataVarSetEventData {
+    contract_identifier: format!(""),
+    var: format!(""),
+    hex_new_value: format!(""),
+}); "data_var_set")]
+#[test_case(StacksTransactionEvent::DataMapInsertEvent(DataMapInsertEventData {
+    contract_identifier: format!(""),
+    hex_inserted_key: format!(""),
+    hex_inserted_value: format!(""),
+    map: format!("")
+}); "data_map_insert")]
+#[test_case(StacksTransactionEvent::DataMapUpdateEvent(DataMapUpdateEventData {
+    contract_identifier: format!(""),
+    hex_new_value: format!(""),
+    hex_key: format!(""),
+    map: format!("")
+}); "data_map_update")]
+#[test_case(StacksTransactionEvent::DataMapDeleteEvent(DataMapDeleteEventData {
+    contract_identifier: format!(""),
+    hex_deleted_key: format!(""),
+    map: format!("")
+}); "data_map_delete")]
+#[test_case(StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+    contract_identifier: format!(""),
+    topic: format!("print"),
+    hex_value: format!(""),
+}); "smart_contract_print_event")]
+fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEvent) {
+    let new_event = create_new_event_from_stacks_event(original_event.clone());
+    let event = new_event.into_chainhook_event().unwrap();
+    let original_event_serialized = serde_json::to_string(&original_event).unwrap();
+    let event_serialized = serde_json::to_string(&event).unwrap();
+    assert_eq!(original_event_serialized, event_serialized);
+}
+
+#[test]
+fn into_chainhook_event_rejects_invalid_missing_event() {
+    let new_event = NewEvent {
+        txid: format!(""),
+        committed: false,
+        event_index: 0,
+        event_type: format!(""),
+        stx_transfer_event: None,
+        stx_mint_event: None,
+        stx_burn_event: None,
+        stx_lock_event: None,
+        nft_transfer_event: None,
+        nft_mint_event: None,
+        nft_burn_event: None,
+        ft_transfer_event: None,
+        ft_mint_event: None,
+        ft_burn_event: None,
+        data_var_set_event: None,
+        data_map_insert_event: None,
+        data_map_update_event: None,
+        data_map_delete_event: None,
+        contract_event: None,
+    };
+    new_event
+        .into_chainhook_event()
+        .expect_err("expected error on missing event");
 }

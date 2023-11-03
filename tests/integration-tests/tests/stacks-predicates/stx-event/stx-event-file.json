@@ -1,0 +1,22 @@
+{
+  "chain": "stacks",
+  "uuid": "1950fbed-85b5-467f-b4ac-fc464e18e021",
+  "name": "Stx event file",
+  "version": 1,
+  "networks": {
+    "testnet": {
+      "if_this": {
+        "scope": "stx_event",
+        "actions": ["transfer", "lock"]
+      },
+      "then_that": {
+        "file_append": {
+          "path": "tests/stacks-predicates/stx-event/stx-event-file-result.json"
+        }
+      },
+      "start_block": 113310,
+      "end_block": 113315,
+      "expire_after_occurrence": 5
+    }
+  }
+}

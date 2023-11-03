@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "0.17.0"
+    "version": "1.1.1"
   },
   "paths": {
     "/ping": {
@@ -521,6 +521,18 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "descriptor"
+                ],
+                "properties": {
+                  "descriptor": {
+                    "$ref": "#/components/schemas/DescriptorMatchingRule"
+                  }
+                },
+                "additionalProperties": false
               }
             ],
             "required": [
@@ -726,6 +738,29 @@
           }
         ]
       },
+      "DescriptorMatchingRule": {
+        "type": "object",
+        "required": [
+          "expression"
+        ],
+        "properties": {
+          "expression": {
+            "type": "string"
+          },
+          "range": {
+            "default": null,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "nullable": true
+          }
+        }
+      },
       "HookAction": {
         "oneOf": [
           {
@@ -834,6 +869,10 @@
             "nullable": true
           },
           "decode_clarity_values": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "include_contract_abi": {
             "type": "boolean",
             "nullable": true
           },
@@ -997,9 +1036,39 @@
           },
           {
             "type": "object",
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "contains",
+                  "contract_identifier"
+                ],
+                "properties": {
+                  "contract_identifier": {
+                    "type": "string"
+                  },
+                  "contains": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "contract_identifier",
+                  "matches_regex"
+                ],
+                "properties": {
+                  "contract_identifier": {
+                    "type": "string"
+                  },
+                  "matches_regex": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
             "required": [
-              "contains",
-              "contract_identifier",
               "scope"
             ],
             "properties": {
@@ -1008,12 +1077,6 @@
                 "enum": [
                   "print_event"
                 ]
-              },
-              "contract_identifier": {
-                "type": "string"
-              },
-              "contains": {
-                "type": "string"
               }
             }
           },
