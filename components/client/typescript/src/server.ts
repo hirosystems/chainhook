@@ -40,6 +40,17 @@ const ChainhookNodeOptionsSchema = Type.Object({
 /** Chainhook node connection options */
 export type ChainhookNodeOptions = Static<typeof ChainhookNodeOptionsSchema>;
 
+/**
+ * Throw this error when processing a Chainhook Payload if you believe it is a bad request. This
+ * will cause the server to return a `400` status code.
+ */
+export class BadPayloadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
 const IfThisThenNothingSchema = Type.Union([
   Type.Composite([
     BitcoinIfThisOptionsSchema,
@@ -209,8 +220,13 @@ export async function buildServer(
           await callback(request.params.uuid, request.body);
           await reply.code(200).send();
         } catch (error) {
-          logger.error(error, `ChainhookEventObserver error processing payload`);
-          await reply.code(500).send();
+          if (error instanceof BadPayloadRequestError) {
+            logger.error(error, `ChainhookEventObserver bad payload`);
+            await reply.code(400).send();
+          } else {
+            logger.error(error, `ChainhookEventObserver error processing payload`);
+            await reply.code(500).send();
+          }
         }
       }
     );
