@@ -467,13 +467,13 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.10.2"
+version = "0.10.6"
 dependencies = [
  "base58 0.2.0",
  "base64",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
- "chainhook-types 1.1.0",
+ "chainhook-types 1.1.2",
  "clarinet-utils",
  "crossbeam-channel",
  "dashmap",
@@ -516,7 +516,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.1.0"
+version = "1.1.2"
 dependencies = [
  "hex",
  "schemars 0.8.12",

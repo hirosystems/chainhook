@@ -324,11 +324,19 @@ pub enum OrdinalOperation {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct OrdinalInscriptionTransferData {
     pub inscription_id: String,
-    pub updated_address: Option<String>,
+    pub destination: OrdinalInscriptionTransferDestination,
     pub satpoint_pre_transfer: String,
     pub satpoint_post_transfer: String,
     pub post_transfer_output_value: Option<u64>,
     pub tx_index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum OrdinalInscriptionTransferDestination {
+    Transferred(String),
+    SpentInFees,
+    Burnt(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
