@@ -885,6 +885,7 @@ impl StacksNetwork {
 pub enum BitcoinNetwork {
     Regtest,
     Testnet,
+    Signet,
     Mainnet,
 }
 
@@ -894,9 +895,10 @@ impl BitcoinNetwork {
             "regtest" => BitcoinNetwork::Regtest,
             "testnet" => BitcoinNetwork::Testnet,
             "mainnet" => BitcoinNetwork::Mainnet,
+            "signet" => BitcoinNetwork::Signet,
             _ => {
                 return Err(format!(
-                    "network '{}' unsupported (mainnet, testnet, regtest)",
+                    "network '{}' unsupported (mainnet, testnet, regtest, signet)",
                     network
                 ))
             }

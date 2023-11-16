@@ -535,6 +535,7 @@ pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
         BitcoinNetwork::Mainnet => *b"X2",
         BitcoinNetwork::Testnet => *b"T2",
         BitcoinNetwork::Regtest => *b"id",
+        BitcoinNetwork::Signet => unreachable!()
     }
 }
 
@@ -597,6 +598,7 @@ pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
         BitcoinNetwork::Mainnet => POX_CONFIG_MAINNET,
         BitcoinNetwork::Testnet => POX_CONFIG_TESTNET,
         BitcoinNetwork::Regtest => POX_CONFIG_DEVNET,
+        BitcoinNetwork::Signet => unreachable!(),
     }
 }
 
