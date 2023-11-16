@@ -27,8 +27,15 @@ export const BitcoinInscriptionRevealedSchema = Type.Object({
 export type BitcoinInscriptionRevealed = Static<typeof BitcoinInscriptionRevealedSchema>;
 
 export const BitcoinInscriptionTransferredSchema = Type.Object({
+  destination: Type.Object({
+    type: Type.Union([
+      Type.Literal('transferred'),
+      Type.Literal('spent_in_fees'),
+      Type.Literal('burnt'),
+    ]),
+    value: Type.Optional(Type.String()),
+  }),
   inscription_id: Type.String(),
-  updated_address: Nullable(Type.String()),
   satpoint_pre_transfer: Type.String(),
   satpoint_post_transfer: Type.String(),
   post_transfer_output_value: Nullable(Type.Integer()),
