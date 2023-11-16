@@ -18,7 +18,6 @@ rand = "0.8.5"
 chainhook-sdk = { version = "0.11.0", default-features = false, features = [
     "zeromq",
 ], path = "../chainhook-sdk" }
-clarinet-files = "2"
 hiro-system-kit = "0.3.1"
 # clarinet-files = { path = "../../../clarinet/components/clarinet-files" }
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
