@@ -501,24 +501,12 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.1.2"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecabe3781a1f5584a5bf4b348870f756eee685bd4882e752cc9cbdea123386ce"
 dependencies = [
  "hex",
  "schemars 0.8.11",
- "serde",
- "serde_derive",
- "serde_json",
- "strum",
-]
-
-[[package]]
-name = "chainhook-types"
-version = "1.2.0"
-dependencies = [
- "hex",
- "schemars 0.8.12",
  "serde",
  "serde_derive",
  "serde_json",
