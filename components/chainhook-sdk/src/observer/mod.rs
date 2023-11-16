@@ -170,16 +170,8 @@ impl EventObserverConfig {
                 .and_then(|c| c.bitcoind_rpc_url.clone())
                 .unwrap_or("http://localhost:18443".to_string()),
             bitcoin_block_signaling: overrides
-                .and_then(|c| match c.bitcoind_zmq_url.as_ref() {
-                    Some(url) => Some(BitcoinBlockSignaling::ZeroMQ(url.clone())),
-                    None => Some(BitcoinBlockSignaling::Stacks(
-                        StacksNodeConfig::default_localhost(
-                            overrides
-                                .and_then(|c| c.ingestion_port)
-                                .unwrap_or(DEFAULT_INGESTION_PORT),
-                        ),
-                    )),
-                })
+                .and_then(|c| c.bitcoind_zmq_url.as_ref())
+                .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
                 .unwrap_or(BitcoinBlockSignaling::Stacks(
                     StacksNodeConfig::default_localhost(
                         overrides
