@@ -1,6 +1,6 @@
 [package]
 name = "chainhook-sdk"
-version = "0.10.2"
+version = "0.11.0"
 description = "Stateless Transaction Indexing Engine for Stacks and Bitcoin"
 license = "GPL-3.0"
 edition = "2021"
@@ -18,7 +18,7 @@ hiro-system-kit = { version = "0.3.1", optional = true }
 # stacks-rpc-client = { version = "1", path = "../../../clarinet/components/stacks-rpc-client" }
 # clarinet-utils = { version = "1", path = "../../../clarinet/components/clarinet-utils" }
 # hiro-system-kit = { version = "0.1.0", path = "../../../clarinet/components/hiro-system-kit" }
-chainhook-types = { version = "1.1.0", path = "../chainhook-types-rs" }
+chainhook-types = { version = "1.2.0", path = "../chainhook-types-rs" }
 rocket = { version = "=0.5.0-rc.3", features = ["json"] }
 bitcoincore-rpc = "0.16.0"
 bitcoincore-rpc-json = "0.16.0"
@@ -46,9 +46,6 @@ miniscript = "10.0.0"
 
 [dev-dependencies]
 test-case = "3.1.0"
-
-[replace]
-"jsonrpc:0.13.0" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
 
 [features]
 default = ["hiro-system-kit/log"]

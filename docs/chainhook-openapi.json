@@ -214,6 +214,17 @@
                   {
                     "type": "object",
                     "required": [
+                      "signet"
+                    ],
+                    "properties": {
+                      "signet": {
+                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
                       "mainnet"
                     ],
                     "properties": {
@@ -314,6 +325,7 @@
         "enum": [
           "regtest",
           "testnet",
+          "signet",
           "mainnet"
         ]
       },

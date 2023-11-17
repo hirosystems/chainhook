@@ -60,6 +60,7 @@ pub enum NetworkConfigMode {
     Devnet,
     Testnet,
     Mainnet,
+    Signet,
 }
 
 impl NetworkConfigMode {
@@ -68,6 +69,7 @@ impl NetworkConfigMode {
             BitcoinNetwork::Regtest => NetworkConfigMode::Devnet,
             BitcoinNetwork::Testnet => NetworkConfigMode::Testnet,
             BitcoinNetwork::Mainnet => NetworkConfigMode::Mainnet,
+            BitcoinNetwork::Signet => NetworkConfigMode::Signet,
         }
     }
     pub fn as_str(&self) -> &str {
@@ -75,6 +77,7 @@ impl NetworkConfigMode {
             NetworkConfigMode::Devnet => "devnet",
             NetworkConfigMode::Testnet => "testnet",
             NetworkConfigMode::Mainnet => "mainnet",
+            NetworkConfigMode::Signet => "signet",
         }
     }
 }
