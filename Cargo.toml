@@ -7,5 +7,7 @@ members = [
 default-members = ["components/chainhook-cli", "components/chainhook-sdk"]
 resolver = "2"
 
-[replace]
-"jsonrpc:0.13.0" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
+[patch.crates-io]
+"jsonrpc" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
+stacks-rpc-client = { version = "2", git = "https://github.com/hirosystems/clarinet.git", branch = "chore/upgrade-clarity-vm" }
+clarity-vm = { version = "2", default-features = false, git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-next-bump-version", package = "clarity" }
