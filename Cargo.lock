@@ -437,7 +437,6 @@ dependencies = [
  "chainhook-sdk",
  "clap 3.2.25",
  "clap_generate",
- "clarity-vm",
  "criterion",
  "crossbeam-channel",
  "csv",
@@ -662,7 +661,6 @@ dependencies = [
  "serde_json",
  "serde_stacker",
  "sha2-asm",
- "slog",
  "stacks-common",
  "time 0.2.27",
 ]
@@ -3483,9 +3481,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "slog",
- "slog-json",
- "slog-term",
  "time 0.2.27",
 ]
 
