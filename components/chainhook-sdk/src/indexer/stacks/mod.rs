@@ -741,10 +741,15 @@ pub fn get_tx_description(
                 StacksTransactionKind::ContractDeployment(data),
             )
         }
-        TransactionPayload::Coinbase(_, _) => {
+        TransactionPayload::Coinbase(_, _, _) => {
             (format!("coinbase"), StacksTransactionKind::Coinbase)
         }
-        _ => (format!("other"), StacksTransactionKind::Unsupported),
+        TransactionPayload::TenureChange(_) => {
+            todo!("TenureChange")
+        }
+        TransactionPayload::PoisonMicroblock(_, _) => {
+            unimplemented!()
+        }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))
 }
