@@ -745,7 +745,7 @@ pub fn get_tx_description(
             (format!("coinbase"), StacksTransactionKind::Coinbase)
         }
         TransactionPayload::TenureChange(_) => {
-            todo!("TenureChange")
+            (format!("tenure change"), StacksTransactionKind::TenureChange)
         }
         TransactionPayload::PoisonMicroblock(_, _) => {
             unimplemented!()
