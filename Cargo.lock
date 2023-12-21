@@ -574,7 +574,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "base58 0.2.0",
  "base64 0.13.1",
@@ -609,7 +609,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-types"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "hex",
  "schemars",
@@ -738,7 +738,7 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "2.2.0"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#4048f3461e8bb6c4402c12c1e089fb86282e16c2"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#4196a6dde5905561b1d2f6f66fad497d491cea4c"
 dependencies = [
  "integer-sqrt",
  "lazy_static",
@@ -762,7 +762,7 @@ dependencies = [
 [[package]]
 name = "clarity-repl"
 version = "2.1.0"
-source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#dca55673335125cfb46e469c6f5b3cef088d77ba"
+source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#a1c8b2a751ab3c0885439e8007099c27d934195e"
 dependencies = [
  "ansi_term",
  "atty",
@@ -1806,7 +1806,7 @@ checksum = "3011d1213f159867b13cfd6ac92d2cd5f1345762c63be3554e84092d85a50bbd"
 [[package]]
 name = "hiro-system-kit"
 version = "0.1.0"
-source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#dca55673335125cfb46e469c6f5b3cef088d77ba"
+source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#a1c8b2a751ab3c0885439e8007099c27d934195e"
 dependencies = [
  "ansi_term",
  "atty",
@@ -4039,7 +4039,7 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.2"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#4048f3461e8bb6c4402c12c1e089fb86282e16c2"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#4196a6dde5905561b1d2f6f66fad497d491cea4c"
 dependencies = [
  "chrono",
  "curve25519-dalek",
@@ -4062,12 +4062,13 @@ dependencies = [
  "slog-term",
  "time 0.2.27",
  "winapi",
+ "wsts",
 ]
 
 [[package]]
 name = "stacks-rpc-client"
 version = "2.1.0"
-source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#dca55673335125cfb46e469c6f5b3cef088d77ba"
+source = "git+https://github.com/hirosystems/clarinet.git?branch=chore/upgrade-clarity-vm#a1c8b2a751ab3c0885439e8007099c27d934195e"
 dependencies = [
  "clarity-repl",
  "hmac 0.12.1",
