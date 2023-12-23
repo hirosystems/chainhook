@@ -535,7 +535,7 @@ pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
         BitcoinNetwork::Mainnet => *b"X2",
         BitcoinNetwork::Testnet => *b"T2",
         BitcoinNetwork::Regtest => *b"id",
-        BitcoinNetwork::Signet => unreachable!()
+        BitcoinNetwork::Signet => unreachable!(),
     }
 }
 

@@ -4,8 +4,7 @@ use super::types::{
 };
 use crate::utils::Context;
 
-use bitcoincore_rpc::bitcoin::util::address::Payload;
-use bitcoincore_rpc::bitcoin::Address;
+use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinTransactionData, BlockIdentifier, OrdinalOperation,
     StacksBaseChainOperation, TransactionIdentifier,
@@ -18,8 +17,10 @@ use miniscript::Descriptor;
 
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, HashMap};
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use reqwest::RequestBuilder;
 
@@ -387,7 +388,7 @@ impl BitcoinPredicateType {
                 encoded_address,
             ))) => {
                 let address = match Address::from_str(encoded_address) {
-                    Ok(address) => address,
+                    Ok(address) => address.assume_checked(),
                     Err(_) => return false,
                 };
                 let address_bytes = hex::encode(address.script_pubkey().as_bytes());
@@ -405,13 +406,13 @@ impl BitcoinPredicateType {
                 encoded_address,
             ))) => {
                 let address = match Address::from_str(encoded_address) {
-                    Ok(address) => match address.payload {
-                        Payload::WitnessProgram {
-                            version: _,
-                            program: _,
-                        } => address,
-                        _ => return false,
-                    },
+                    Ok(address) => {
+                        let checked_address = address.assume_checked();
+                        match checked_address.payload() {
+                            Payload::WitnessProgram(_) => checked_address,
+                            _ => return false,
+                        }
+                    }
                     Err(_) => return false,
                 };
                 let address_bytes = hex::encode(address.script_pubkey().as_bytes());
