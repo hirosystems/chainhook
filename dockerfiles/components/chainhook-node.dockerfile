@@ -6,6 +6,8 @@ RUN apt update && apt install -y ca-certificates pkg-config libssl-dev libclang-
 
 RUN rustup update 1.70.0 && rustup default 1.70.0
 
+COPY ./Cargo.* /src/
+
 COPY ./components/chainhook-cli /src/components/chainhook-cli
 
 COPY ./components/chainhook-types-rs /src/components/chainhook-types-rs
