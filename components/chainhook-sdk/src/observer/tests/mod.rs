@@ -20,7 +20,7 @@ use chainhook_types::{
     BitcoinBlockSignaling, BitcoinChainEvent, BitcoinNetwork, BlockchainEvent,
     BlockchainUpdatedWithHeaders, OrdinalInscriptionRevealData, OrdinalOperation,
     StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksNetwork,
-    StacksNodeConfig,
+    StacksNodeConfig, OrdinalInscriptionNumber,
 };
 use hiro_system_kit;
 use std::collections::BTreeMap;
@@ -1139,11 +1139,14 @@ fn test_bitcoin_chainhook_through_reorg() {
     // The block pre-processor will simulate block augmentation with new informations, which should trigger
     // registered predicates
     let block_pre_processor_handle = std::thread::spawn(move || {
-        let mut cursor: u64 = 0;
+        let mut inscription_number = OrdinalInscriptionNumber::zero();
+        let mut cursor = 0;
         while let Ok((mut blocks, _)) = block_pre_processor_in_rx.recv() {
             for b in blocks.iter_mut() {
                 for (tx_index, tx) in b.block.transactions.iter_mut().enumerate() {
                     cursor += 1;
+                    inscription_number.classic += 1;
+                    inscription_number.jubilee += 1;
                     tx.metadata
                         .ordinal_operations
                         .push(OrdinalOperation::InscriptionRevealed(
@@ -1151,7 +1154,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 content_bytes: format!("{cursor}"),
                                 content_type: "".to_string(),
                                 content_length: cursor as usize,
-                                inscription_number: cursor as i64,
+                                inscription_number: inscription_number.clone(),
                                 inscription_fee: cursor,
                                 inscription_output_value: cursor,
                                 inscription_id: format!("{cursor}"),
