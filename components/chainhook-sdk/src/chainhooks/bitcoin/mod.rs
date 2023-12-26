@@ -49,8 +49,44 @@ pub struct BitcoinChainhookOccurrencePayload {
     pub chainhook: BitcoinChainhookPayload,
 }
 
+impl BitcoinChainhookOccurrencePayload {
+    pub fn from_trigger<'a>(
+        trigger: BitcoinTriggerChainhook<'a>,
+    ) -> BitcoinChainhookOccurrencePayload {
+        BitcoinChainhookOccurrencePayload {
+            apply: trigger
+                .apply
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let mut block = block.clone();
+                    block.transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    BitcoinTransactionPayload { block }
+                })
+                .collect::<Vec<_>>(),
+            rollback: trigger
+                .rollback
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let mut block = block.clone();
+                    block.transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    BitcoinTransactionPayload { block }
+                })
+                .collect::<Vec<_>>(),
+            chainhook: BitcoinChainhookPayload {
+                uuid: trigger.chainhook.uuid.clone(),
+            },
+        }
+    }
+}
+
 pub enum BitcoinChainhookOccurrence {
-    Http(RequestBuilder),
+    Http(RequestBuilder, BitcoinChainhookOccurrencePayload),
     File(String, Vec<u8>),
     Data(BitcoinChainhookOccurrencePayload),
 }
@@ -156,12 +192,12 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 }
 
 pub fn serialize_bitcoin_payload_to_json<'a>(
-    trigger: BitcoinTriggerChainhook<'a>,
+    trigger: &BitcoinTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
 ) -> JsonValue {
-    let predicate_spec = &trigger.chainhook;
+    let predicate_spec = trigger.chainhook;
     json!({
-        "apply": trigger.apply.into_iter().map(|(transactions, block)| {
+        "apply": trigger.apply.iter().map(|(transactions, block)| {
             json!({
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
@@ -170,7 +206,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
                 "metadata": block.metadata,
             })
         }).collect::<Vec<_>>(),
-        "rollback": trigger.rollback.into_iter().map(|(transactions, block)| {
+        "rollback": trigger.rollback.iter().map(|(transactions, block)| {
             json!({
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
@@ -252,18 +288,19 @@ pub fn handle_bitcoin_hook_action<'a>(
                 .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
             let host = format!("{}", http.url);
             let method = Method::POST;
-            let body = serde_json::to_vec(&serialize_bitcoin_payload_to_json(trigger, proofs))
+            let body = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
                 .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
-            Ok(BitcoinChainhookOccurrence::Http(
-                client
-                    .request(method, &host)
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", http.authorization_header.clone())
-                    .body(body),
-            ))
+            let request = client
+                .request(method, &host)
+                .header("Content-Type", "application/json")
+                .header("Authorization", http.authorization_header.clone())
+                .body(body);
+
+            let data = BitcoinChainhookOccurrencePayload::from_trigger(trigger);
+            Ok(BitcoinChainhookOccurrence::Http(request, data))
         }
         HookAction::FileAppend(disk) => {
-            let bytes = serde_json::to_vec(&serialize_bitcoin_payload_to_json(trigger, proofs))
+            let bytes = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
                 .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
             Ok(BitcoinChainhookOccurrence::File(
                 disk.path.to_string(),
@@ -271,35 +308,7 @@ pub fn handle_bitcoin_hook_action<'a>(
             ))
         }
         HookAction::Noop => Ok(BitcoinChainhookOccurrence::Data(
-            BitcoinChainhookOccurrencePayload {
-                apply: trigger
-                    .apply
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let mut block = block.clone();
-                        block.transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        BitcoinTransactionPayload { block }
-                    })
-                    .collect::<Vec<_>>(),
-                rollback: trigger
-                    .rollback
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let mut block = block.clone();
-                        block.transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        BitcoinTransactionPayload { block }
-                    })
-                    .collect::<Vec<_>>(),
-                chainhook: BitcoinChainhookPayload {
-                    uuid: trigger.chainhook.uuid.clone(),
-                },
-            },
+            BitcoinChainhookOccurrencePayload::from_trigger(trigger),
         )),
     }
 }

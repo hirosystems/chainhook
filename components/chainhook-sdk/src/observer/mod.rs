@@ -1121,8 +1121,8 @@ pub async fn start_observer_commands_handler(
                                 slog::error!(logger, "unable to handle action {}", e)
                             });
                         }
-                        Ok(BitcoinChainhookOccurrence::Http(request)) => {
-                            requests.push(request);
+                        Ok(BitcoinChainhookOccurrence::Http(request, data)) => {
+                            requests.push((request, data));
                         }
                         Ok(BitcoinChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
@@ -1168,8 +1168,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for request in requests.into_iter() {
-                    let _ = send_request(request, 3, 1, &ctx).await;
+                for (request, data) in requests.into_iter() {
+                    if send_request(request, 3, 1, &ctx).await.is_ok() {
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
+                        }
+                    }
                 }
 
                 if let Some(ref tx) = observer_events_tx {
