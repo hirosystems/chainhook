@@ -137,7 +137,7 @@ jobs:
       - name: Deploy Chainhook build to Dev ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
+          docker_image_tag_or_digest: ${{ needs.build-publish.outputs.docker_image_digest }}
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
@@ -179,7 +179,7 @@ jobs:
       - name: Deploy Chainhook build to Stg ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
+          docker_image_tag_or_digest: ${{ needs.build-publish.outputs.docker_image_digest }}
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
 
@@ -223,6 +223,6 @@ jobs:
       - name: Deploy Chainhook build to Prd ${{ matrix.k8s-env }}
         uses: ./actions/deploy
         with:
-          docker_tag: ${{ needs.build-publish.outputs.docker_image_digest }}
+          docker_image_tag_or_digest: ${{ needs.build-publish.outputs.docker_image_digest }}
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
           gh_token: ${{ secrets.GH_TOKEN }}
