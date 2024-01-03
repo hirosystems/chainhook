@@ -20,7 +20,7 @@ RUN mkdir /out
 
 RUN cargo build --features release --release
 
-RUN cp target/release/chainhook /out
+RUN cp /src/target/release/chainhook /out
 
 FROM debian:bullseye-slim
 
