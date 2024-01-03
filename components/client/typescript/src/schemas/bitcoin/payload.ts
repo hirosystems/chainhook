@@ -10,7 +10,10 @@ export const BitcoinInscriptionRevealedSchema = Type.Object({
   content_bytes: Type.String(),
   content_type: Type.String(),
   content_length: Type.Integer(),
-  inscription_number: Type.Integer(),
+  inscription_number: Type.Object({
+    jubilee: Type.Integer(),
+    classic: Type.Integer(),
+  }),
   inscription_fee: Type.Integer(),
   inscription_id: Type.String(),
   inscription_input_index: Type.Integer(),
