@@ -245,3 +245,100 @@ impl PrometheusMonitoring {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{thread::sleep, time::Duration};
+
+    use super::PrometheusMonitoring;
+
+    #[test]
+    fn it_tracks_stx_predicate_registration_deregistration_with_defaults() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.stx_registered_predicates.get(), 0);
+        assert_eq!(prometheus.stx_deregistered_predicates.get(), 0);
+        prometheus.stx_metrics_set_registered_predicates(10);
+        assert_eq!(prometheus.stx_registered_predicates.get(), 10);
+        assert_eq!(prometheus.stx_deregistered_predicates.get(), 0);
+        prometheus.stx_metrics_register_predicate();
+        assert_eq!(prometheus.stx_registered_predicates.get(), 11);
+        assert_eq!(prometheus.stx_deregistered_predicates.get(), 0);
+        prometheus.stx_metrics_deregister_predicate();
+        assert_eq!(prometheus.stx_registered_predicates.get(), 10);
+        assert_eq!(prometheus.stx_deregistered_predicates.get(), 1);
+    }
+
+    #[test]
+    fn it_tracks_stx_reorgs() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.stx_last_reorg_timestamp.get(), 0);
+        assert_eq!(prometheus.stx_last_reorg_applied_blocks.get(), 0);
+        assert_eq!(prometheus.stx_last_reorg_rolled_back_blocks.get(), 0);
+        prometheus.stx_metrics_set_reorg(10000, 1, 1);
+        assert_eq!(prometheus.stx_last_reorg_timestamp.get(), 10000);
+        assert_eq!(prometheus.stx_last_reorg_applied_blocks.get(), 1);
+        assert_eq!(prometheus.stx_last_reorg_rolled_back_blocks.get(), 1);
+    }
+
+    #[test]
+    fn it_tracks_stx_block_ingestion() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.stx_highest_block_ingested.get(), 0);
+        assert_eq!(prometheus.stx_last_block_ingestion_time.get(), 0);
+        prometheus.stx_metrics_ingest_block(100);
+        assert_eq!(prometheus.stx_highest_block_ingested.get(), 100);
+        let time = prometheus.stx_last_block_ingestion_time.get();
+        assert!(time > 0);
+        // ingesting a block lower than previous tip will
+        // update ingestion time but not highest block ingested
+        sleep(Duration::new(1, 0));
+        prometheus.stx_metrics_ingest_block(99);
+        assert_eq!(prometheus.stx_highest_block_ingested.get(), 100);
+        assert!(prometheus.stx_last_block_ingestion_time.get() > time);
+    }
+
+    #[test]
+    fn it_tracks_btc_predicate_registration_deregistration_with_defaults() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.btc_registered_predicates.get(), 0);
+        assert_eq!(prometheus.btc_deregistered_predicates.get(), 0);
+        prometheus.btc_metrics_set_registered_predicates(10);
+        assert_eq!(prometheus.btc_registered_predicates.get(), 10);
+        assert_eq!(prometheus.btc_deregistered_predicates.get(), 0);
+        prometheus.btc_metrics_register_predicate();
+        assert_eq!(prometheus.btc_registered_predicates.get(), 11);
+        assert_eq!(prometheus.btc_deregistered_predicates.get(), 0);
+        prometheus.btc_metrics_deregister_predicate();
+        assert_eq!(prometheus.btc_registered_predicates.get(), 10);
+        assert_eq!(prometheus.btc_deregistered_predicates.get(), 1);
+    }
+
+    #[test]
+    fn it_tracks_btc_reorgs() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.btc_last_reorg_timestamp.get(), 0);
+        assert_eq!(prometheus.btc_last_reorg_applied_blocks.get(), 0);
+        assert_eq!(prometheus.btc_last_reorg_rolled_back_blocks.get(), 0);
+        prometheus.btc_metrics_set_reorg(10000, 1, 1);
+        assert_eq!(prometheus.btc_last_reorg_timestamp.get(), 10000);
+        assert_eq!(prometheus.btc_last_reorg_applied_blocks.get(), 1);
+        assert_eq!(prometheus.btc_last_reorg_rolled_back_blocks.get(), 1);
+    }
+
+    #[test]
+    fn it_tracks_btc_block_ingestion() {
+        let prometheus = PrometheusMonitoring::new();
+        assert_eq!(prometheus.btc_highest_block_ingested.get(), 0);
+        assert_eq!(prometheus.btc_last_block_ingestion_time.get(), 0);
+        prometheus.btc_metrics_ingest_block(100);
+        assert_eq!(prometheus.btc_highest_block_ingested.get(), 100);
+        let time = prometheus.btc_last_block_ingestion_time.get();
+        assert!(time > 0);
+        // ingesting a block lower than previous tip will
+        // update ingestion time but not highest block ingested
+        sleep(Duration::new(1, 0));
+        prometheus.btc_metrics_ingest_block(99);
+        assert_eq!(prometheus.btc_highest_block_ingested.get(), 100);
+        assert!(prometheus.btc_last_block_ingestion_time.get() > time);
+    }
+}
