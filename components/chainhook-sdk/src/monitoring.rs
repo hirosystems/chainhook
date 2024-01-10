@@ -140,6 +140,7 @@ impl PrometheusMonitoring {
         registry.register(Box::new(g.clone())).unwrap();
         g
     }
+
     pub fn create_and_register_int_gauge(registry: &Registry, name: &str, help: &str) -> IntGauge {
         let g = IntGauge::new(name, help).unwrap();
         registry.register(Box::new(g.clone())).unwrap();
@@ -147,15 +148,8 @@ impl PrometheusMonitoring {
     }
 
     pub fn stx_metrics_deregister_predicate(&self) {
-        let registered = self.stx_registered_predicates.get();
-        let deregistered = self.stx_deregistered_predicates.get();
-        println!("starting registered: {registered}. starting deregistered: {deregistered}");
-        println!("deregistering stacks predicate");
         self.stx_registered_predicates.dec();
         self.stx_deregistered_predicates.inc();
-        let registered = self.stx_registered_predicates.get();
-        let deregistered = self.stx_deregistered_predicates.get();
-        println!("ending registered: {registered}. ending deregistered: {deregistered}");
     }
 
     pub fn stx_metrics_register_predicate(&self) {
