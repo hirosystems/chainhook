@@ -487,7 +487,6 @@ pub async fn start_bitcoin_event_observer(
 ) -> Result<(), Box<dyn Error>> {
     let chainhook_store = config.get_chainhook_store();
 
-    let prometheus_monitoring = PrometheusMonitoring::new();
     #[cfg(feature = "zeromq")]
     {
         let ctx_moved = ctx.clone();
@@ -496,6 +495,26 @@ pub async fn start_bitcoin_event_observer(
             let future =
                 zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
             let _ = hiro_system_kit::nestable_block_on(future);
+        });
+    }
+
+    let prometheus_monitoring = PrometheusMonitoring::new();
+    prometheus_monitoring.stx_metrics_set_registered_predicates(
+        chainhook_store.predicates.stacks_chainhooks.len() as u64,
+    );
+    prometheus_monitoring.btc_metrics_set_registered_predicates(
+        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+    );
+
+    if let Some(port) = config.prometheus_monitoring_port {
+        let registry_moved = prometheus_monitoring.registry.clone();
+        let ctx_cloned = ctx.clone();
+        let _ = std::thread::spawn(move || {
+            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+                port,
+                registry_moved,
+                ctx_cloned,
+            ));
         });
     }
 
@@ -559,12 +578,18 @@ pub async fn start_stacks_event_observer(
     prometheus_monitoring.btc_metrics_set_registered_predicates(
         chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
     );
-    prometheus_monitoring.stx_metrics_set_registered_predicates(
-        chainhook_store.predicates.stacks_chainhooks.len() as u64,
-    );
-    prometheus_monitoring.btc_metrics_set_registered_predicates(
-        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
-    );
+
+    if let Some(port) = config.prometheus_monitoring_port {
+        let registry_moved = prometheus_monitoring.registry.clone();
+        let ctx_cloned = ctx.clone();
+        let _ = std::thread::spawn(move || {
+            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+                port,
+                registry_moved,
+                ctx_cloned,
+            ));
+        });
+    }
 
     let limits = Limits::default().limit("json", 20.megabytes());
     let mut shutdown_config = config::Shutdown::default();
