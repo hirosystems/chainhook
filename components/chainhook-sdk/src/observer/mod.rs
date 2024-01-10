@@ -79,6 +79,7 @@ pub struct EventObserverConfig {
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
     pub data_handler_tx: Option<crossbeam_channel::Sender<DataHandlerEvent>>,
+    pub prometheus_monitoring_port: Option<u16>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
