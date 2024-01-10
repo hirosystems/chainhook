@@ -346,18 +346,20 @@ fn _assert_interrupted_status((status, _, _): (PredicateStatus, Option<u64>, Opt
     }
 }
 
-fn setup_chainhook_service_ports() -> Result<(u16, u16, u16, u16, u16), String> {
+fn setup_chainhook_service_ports() -> Result<(u16, u16, u16, u16, u16, u16), String> {
     let redis_port = get_free_port()?;
     let chainhook_service_port = get_free_port()?;
     let stacks_rpc_port = get_free_port()?;
     let stacks_ingestion_port = get_free_port()?;
     let bitcoin_rpc_port = get_free_port()?;
+    let prometheus_port = get_free_port()?;
     Ok((
         redis_port,
         chainhook_service_port,
         stacks_rpc_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        prometheus_port,
     ))
 }
 
@@ -384,13 +386,14 @@ async fn setup_stacks_chainhook_test(
     starting_chain_tip: u64,
     redis_seed: Option<(StacksChainhookFullSpecification, PredicateStatus)>,
     startup_predicates: Option<Vec<ChainhookFullSpecification>>,
-) -> (Child, String, u16, u16, u16, u16) {
+) -> (Child, String, u16, u16, u16, u16, u16) {
     let (
         redis_port,
         chainhook_service_port,
         stacks_rpc_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        prometheus_port,
     ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
     let mut redis_process = start_redis(redis_port)
@@ -451,6 +454,7 @@ async fn setup_stacks_chainhook_test(
         bitcoin_rpc_port,
         &working_dir,
         &tsv_dir,
+        Some(prometheus_port),
     );
 
     consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx)
@@ -477,6 +481,7 @@ async fn setup_stacks_chainhook_test(
         redis_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        prometheus_port,
     )
 }
 
@@ -503,6 +508,7 @@ async fn test_stacks_predicate_status_is_updated(
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
+        _,
         _,
     ) = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
 
@@ -575,13 +581,14 @@ async fn test_stacks_predicate_status_is_updated(
 
 async fn setup_bitcoin_chainhook_test(
     starting_chain_tip: u64,
-) -> (Child, String, u16, u16, u16, u16) {
+) -> (Child, String, u16, u16, u16, u16, u16) {
     let (
         redis_port,
         chainhook_service_port,
         stacks_rpc_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        prometheus_port,
     ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
     let mut redis_process = start_redis(redis_port)
@@ -617,6 +624,7 @@ async fn setup_bitcoin_chainhook_test(
         bitcoin_rpc_port,
         &working_dir,
         &tsv_dir,
+        Some(prometheus_port),
     );
 
     start_chainhook_service(config, chainhook_service_port, None, &ctx)
@@ -634,6 +642,7 @@ async fn setup_bitcoin_chainhook_test(
         redis_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        prometheus_port,
     )
 }
 
@@ -659,6 +668,7 @@ async fn test_bitcoin_predicate_status_is_updated(
         redis_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        _,
     ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
 
     let uuid = &get_random_uuid();
@@ -757,6 +767,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
         redis_port,
         stacks_ingestion_port,
         bitcoin_rpc_port,
+        _,
     ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
 
     let uuid = &get_random_uuid();
@@ -881,9 +892,10 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_deregister_predicate(chain: Chain) {
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) = match &chain {
-        Chain::Stacks => setup_stacks_chainhook_test(3, None, None).await,
-        Chain::Bitcoin => setup_bitcoin_chainhook_test(3).await,
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) = match &chain
+    {
+        Chain::Stacks => setup_stacks_chainhook_test(0, None, None).await,
+        Chain::Bitcoin => setup_bitcoin_chainhook_test(0).await,
     };
 
     let uuid = &get_random_uuid();
@@ -1001,7 +1013,7 @@ async fn test_restarting_with_saved_predicates(
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
 
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
         setup_stacks_chainhook_test(starting_chain_tip, Some((predicate, starting_status)), None)
             .await;
 
@@ -1044,7 +1056,7 @@ async fn it_allows_specifying_startup_predicate() {
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
     let startup_predicate = ChainhookFullSpecification::Stacks(predicate);
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
         setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
@@ -1087,7 +1099,7 @@ async fn register_predicate_responds_409_if_uuid_in_use() {
         .expect("failed to set up stacks chanhook spec for test");
     let startup_predicate = ChainhookFullSpecification::Stacks(stacks_spec);
 
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) =
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
         setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
 
     let result = call_register_predicate(&predicate, chainhook_service_port)

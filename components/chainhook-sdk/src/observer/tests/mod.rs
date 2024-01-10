@@ -45,6 +45,7 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: StacksNetwork::Devnet,
         data_handler_tx: None,
+        prometheus_monitoring_port: None,
     };
     let predicates = ChainhookConfig::new();
     let chainhook_store = ChainhookStore { predicates };

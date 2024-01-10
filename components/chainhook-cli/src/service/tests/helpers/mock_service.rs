@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::config::EventSourceConfig;
 use crate::config::LimitsConfig;
+use crate::config::MonitoringConfig;
 use crate::config::PathConfig;
 use crate::config::PredicatesApi;
 use crate::config::PredicatesApiConfig;
@@ -12,7 +13,6 @@ use crate::service::Service;
 use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
 use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::ObserverCommand;
-use chainhook_sdk::observer::ObserverMetrics;
 use chainhook_sdk::types::BitcoinBlockSignaling;
 use chainhook_sdk::types::BitcoinNetwork;
 use chainhook_sdk::types::Chain;
@@ -182,6 +182,19 @@ pub async fn call_ping(port: u16) -> Result<JsonValue, String> {
     }
 }
 
+pub async fn call_prometheus(port: u16) -> Result<String, String> {
+    let url = format!("http://localhost:{port}/metrics");
+    let client = reqwest::Client::new();
+    client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to make GET request to {url}: {e}",))?
+        .text()
+        .await
+        .map_err(|e| format!("Failed to deserialize response of GET request to {url}: {e}",))
+}
+
 pub async fn build_predicate_api_server(port: u16) -> (Receiver<ObserverCommand>, Shutdown) {
     let ctx = Context {
         logger: None,
@@ -272,6 +285,7 @@ pub fn get_chainhook_config(
     bitcoin_rpc_port: u16,
     working_dir: &str,
     tsv_dir: &str,
+    prometheus_port: Option<u16>,
 ) -> Config {
     let api_config = PredicatesApiConfig {
         http_port: chainhook_port,
@@ -305,6 +319,9 @@ pub fn get_chainhook_config(
                 rpc_url: format!("http://localhost:{stacks_rpc_port}"),
                 ingestion_port: stacks_ingestion_port,
             }),
+        },
+        monitoring: MonitoringConfig {
+            prometheus_monitoring_port: prometheus_port,
         },
     }
 }

@@ -12,7 +12,9 @@ use test_case::test_case;
 use crate::service::tests::{
     helpers::{
         build_predicates::build_stacks_payload,
-        mock_service::{call_observer_svc, call_ping, call_register_predicate, flush_redis},
+        mock_service::{
+            call_observer_svc, call_ping, call_prometheus, call_register_predicate, flush_redis,
+        },
     },
     setup_bitcoin_chainhook_test, setup_stacks_chainhook_test,
 };
@@ -30,6 +32,7 @@ async fn ping_endpoint_returns_metrics() {
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
+        _,
         _,
     ) = setup_stacks_chainhook_test(1, None, None).await;
 
@@ -61,6 +64,33 @@ async fn ping_endpoint_returns_metrics() {
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }
+
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn prometheus_endpoint_returns_encoded_metrics() {
+    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, prometheus_port) =
+        setup_stacks_chainhook_test(1, None, None).await;
+
+    let uuid = &get_random_uuid();
+    let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
+    let _ = call_register_predicate(&predicate, chainhook_service_port)
+        .await
+        .unwrap_or_else(|e| {
+            std::fs::remove_dir_all(&working_dir).unwrap();
+            flush_redis(redis_port);
+            redis_process.kill().unwrap();
+            panic!("test failed with error: {e}");
+        });
+
+    let metrics = call_prometheus(prometheus_port).await.unwrap_or_else(|e| {
+        std::fs::remove_dir_all(&working_dir).unwrap();
+        flush_redis(redis_port);
+        redis_process.kill().unwrap();
+        panic!("test failed with error: {e}");
+    });
+    const EXPECTED: &'static str = "# HELP stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE stx_registered_predicates gauge\nstx_registered_predicates 1\n";
+    assert!(metrics.ends_with(EXPECTED));
+
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
@@ -98,7 +128,7 @@ async fn await_observer_started(port: u16) {
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn bitcoin_rpc_requests_are_forwarded(endpoint: &str, body: Value) {
-    let (mut redis_process, working_dir, _, redis_port, stacks_ingestion_port, _) =
+    let (mut redis_process, working_dir, _, redis_port, stacks_ingestion_port, _, _) =
         setup_bitcoin_chainhook_test(1).await;
 
     await_observer_started(stacks_ingestion_port).await;
@@ -165,6 +195,7 @@ async fn it_responds_200_for_unimplemented_endpoints(
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: chainhook_sdk::types::StacksNetwork::Devnet,
         data_handler_tx: None,
+        prometheus_monitoring_port: None,
     };
     start_and_ping_event_observer(config, ingestion_port).await;
     let url = format!("http://localhost:{ingestion_port}{endpoint}");
