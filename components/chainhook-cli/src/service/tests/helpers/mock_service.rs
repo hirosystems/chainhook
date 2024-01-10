@@ -172,7 +172,7 @@ pub async fn call_observer_svc(
         .map_err(|e| format!("Failed to deserialize response of {method} request to {url}: {e}",))
 }
 
-pub async fn call_ping(port: u16) -> Result<ObserverMetrics, String> {
+pub async fn call_ping(port: u16) -> Result<JsonValue, String> {
     let url = format!("http://localhost:{port}/ping");
     let res = call_observer_svc(&url, Method::GET, None).await?;
     match res.get("result") {

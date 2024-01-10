@@ -2,6 +2,7 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, NewBitcoinBlock,
 };
 use crate::indexer::{self, Indexer};
+use crate::monitoring::PrometheusMonitoring;
 use crate::utils::Context;
 use hiro_system_kit::slog;
 use rocket::serde::json::{json, Json, Value as JsonValue};
@@ -10,19 +11,20 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
 use super::{
-    BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand, ObserverMetrics,
+    BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand,
     StacksChainMempoolEvent,
 };
 
 #[rocket::get("/ping", format = "application/json")]
 pub fn handle_ping(
     ctx: &State<Context>,
-    metrics_rw_lock: &State<Arc<RwLock<ObserverMetrics>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "GET /ping"));
+
     Json(json!({
         "status": 200,
-        "result": metrics_rw_lock.inner(),
+        "result": prometheus_monitoring.get_metrics(),
     }))
 }
 

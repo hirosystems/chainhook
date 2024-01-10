@@ -50,8 +50,17 @@ async fn ping_endpoint_returns_metrics() {
         redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
+    let result = metrics
+        .get("stacks")
+        .unwrap()
+        .get("registered_predicates")
+        .unwrap();
+    assert_eq!(result, 1);
 
-    assert_eq!(metrics.stacks.registered_predicates, 1);
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
+}
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
     redis_process.kill().unwrap();
