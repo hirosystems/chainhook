@@ -162,7 +162,7 @@ impl Config {
             http_api: match config_file.http_api {
                 None => PredicatesApi::Off,
                 Some(http_api) => match http_api.disabled {
-                    Some(false) => PredicatesApi::Off,
+                    Some(true) => PredicatesApi::Off,
                     _ => PredicatesApi::On(PredicatesApiConfig {
                         http_port: http_api.http_port.unwrap_or(DEFAULT_CONTROL_PORT),
                         display_logs: http_api.display_logs.unwrap_or(true),
