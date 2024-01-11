@@ -78,7 +78,10 @@ fn test_opreturn_evaluation(script_pubkey: &str, rule: MatchingRule, matches: bo
 )]
 fn test_descriptor_evaluation(addr: &str, expr: &str) {
     // turn the address into a script_pubkey with a 0x prefix, as expected by the evaluator.
-    let script_pubkey = Address::from_str(addr).unwrap().assume_checked().script_pubkey();
+    let script_pubkey = Address::from_str(addr)
+        .unwrap()
+        .assume_checked()
+        .script_pubkey();
     let matching_script_pubkey = format!("0x{}", hex::encode(script_pubkey));
 
     let rule = DescriptorMatchingRule {

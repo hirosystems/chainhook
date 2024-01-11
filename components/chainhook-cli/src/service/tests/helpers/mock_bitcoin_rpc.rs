@@ -141,7 +141,7 @@ fn handle_rpc(
                         req_sigs: None,
                         type_: None,
                         addresses: vec![],
-                        address: None
+                        address: None,
                     },
                 }],
             };
@@ -167,7 +167,7 @@ fn handle_rpc(
                         req_sigs: None,
                         type_: None,
                         addresses: vec![],
-                        address: None
+                        address: None,
                     },
                 }],
             };

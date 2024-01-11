@@ -85,7 +85,7 @@ pub fn generate_test_tx_bitcoin_p2pkh_transfer(
         .from_base58()
         .expect("Unable to get bytes from btc address");
     let slice = [
-        pubkey_hash[1], 
+        pubkey_hash[1],
         pubkey_hash[2],
         pubkey_hash[3],
         pubkey_hash[4],

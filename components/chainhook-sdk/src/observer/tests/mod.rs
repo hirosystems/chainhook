@@ -18,9 +18,9 @@ use crate::observer::{
 use crate::utils::{AbstractBlock, Context};
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinChainEvent, BitcoinNetwork, BlockchainEvent,
-    BlockchainUpdatedWithHeaders, OrdinalInscriptionRevealData, OrdinalOperation,
-    StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksNetwork,
-    StacksNodeConfig, OrdinalInscriptionNumber,
+    BlockchainUpdatedWithHeaders, OrdinalInscriptionNumber, OrdinalInscriptionRevealData,
+    OrdinalOperation, StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData,
+    StacksNetwork, StacksNodeConfig,
 };
 use hiro_system_kit;
 use std::collections::BTreeMap;
