@@ -1159,6 +1159,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 inscription_output_value: cursor,
                                 inscription_id: format!("{cursor}"),
                                 inscription_input_index: 0,
+                                inscription_pointer: 0,
                                 inscriber_address: None,
                                 ordinal_number: cursor,
                                 ordinal_block_height: b.block.block_identifier.index,
