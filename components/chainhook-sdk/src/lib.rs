@@ -19,6 +19,7 @@ pub extern crate dashmap;
 pub extern crate fxhash;
 pub extern crate stacks_rpc_client;
 
+pub use bitcoincore_rpc::bitcoin;
 pub use chainhook_types as types;
 
 pub mod chainhooks;

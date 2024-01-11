@@ -103,14 +103,14 @@ impl BitcoinTransactionInputFullBreakdown {
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinTransactionInputPrevoutFullBreakdown {
     pub height: u64,
-    #[serde(with = "bitcoin::util::amount::serde::as_btc")]
+    #[serde(with = "bitcoin::amount::serde::as_btc")]
     pub value: Amount,
 }
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BitcoinTransactionOutputFullBreakdown {
-    #[serde(with = "bitcoin::util::amount::serde::as_btc")]
+    #[serde(with = "bitcoin::amount::serde::as_btc")]
     pub value: Amount,
     pub n: u32,
     pub script_pub_key: GetRawTransactionResultVoutScriptPubKey,

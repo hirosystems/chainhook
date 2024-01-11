@@ -1,3 +1,4 @@
+use chainhook_sdk::bitcoin::Network;
 use chainhook_sdk::bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
 use chainhook_sdk::indexer::bitcoin::BitcoinBlockFullBreakdown;
 use chainhook_sdk::indexer::bitcoin::BitcoinTransactionFullBreakdown;
@@ -36,7 +37,7 @@ struct Rpc {
 
 fn branch_and_height_to_hash(branch: Option<char>, height: u64) -> BlockHash {
     let hash = Hash::from_str(&branch_and_height_to_hash_str(branch, height)).unwrap();
-    BlockHash::from_hash(hash)
+    BlockHash::from_raw_hash(hash)
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -139,7 +140,8 @@ fn handle_rpc(
                         hex: vec![],
                         req_sigs: None,
                         type_: None,
-                        addresses: None,
+                        addresses: vec![],
+                        address: None,
                     },
                 }],
             };
@@ -164,7 +166,8 @@ fn handle_rpc(
                         hex: vec![],
                         req_sigs: None,
                         type_: None,
-                        addresses: None,
+                        addresses: vec![],
+                        address: None,
                     },
                 }],
             };
@@ -192,7 +195,7 @@ fn handle_rpc(
 
             let hash = branch_and_height_to_hash(Some(*branch), *chain_tip);
             let blockchain_info = GetBlockchainInfoResult {
-                chain: "regtest".into(),
+                chain: Network::Regtest,
                 blocks: chain_tip.to_owned(),
                 headers: 0,
                 best_block_hash: hash,
