@@ -45,6 +45,11 @@ max_caching_memory_size_mb = 32000
 # If this is not a requirement, you can comment out the `tsv_file_url` line.
 [[event_source]]
 tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network}-stacks-blockchain-api-latest"
+
+# Enables a server that provides metrics that can be scraped by Prometheus.
+# This is disabled by default.
+# [monitoring]
+# prometheus_monitoring_port = 1111
 "#,
         mode = mode.as_str(),
         network = network.to_lowercase(),
