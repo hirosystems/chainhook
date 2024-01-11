@@ -49,7 +49,7 @@ tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network
 # Enables a server that provides metrics that can be scraped by Prometheus.
 # This is disabled by default.
 # [monitoring]
-# prometheus_monitoring_port = 1111
+# prometheus_monitoring_port = 20457
 "#,
         mode = mode.as_str(),
         network = network.to_lowercase(),

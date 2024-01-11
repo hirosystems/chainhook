@@ -42,13 +42,13 @@ fn config_from_file_allows_setting_disabled_fields() {
         disabled: Some(false),
     });
     generated_config_file.monitoring = Some(MonitoringConfigFile {
-        prometheus_monitoring_port: Some(1111),
+        prometheus_monitoring_port: Some(20457),
     });
     let generated_config = Config::from_config_file(generated_config_file).unwrap();
     assert!(generated_config.is_http_api_enabled());
     assert_eq!(
         generated_config.monitoring.prometheus_monitoring_port,
-        Some(1111)
+        Some(20457)
     );
 }
 
