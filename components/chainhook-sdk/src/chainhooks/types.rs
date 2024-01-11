@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chainhook_types::{BitcoinNetwork, StacksNetwork};
 use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use schemars::JsonSchema;
 
@@ -511,6 +511,7 @@ pub enum OutputPredicate {
     P2sh(ExactMatchingRule),
     P2wpkh(ExactMatchingRule),
     P2wsh(ExactMatchingRule),
+    Descriptor(DescriptorMatchingRule),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -534,6 +535,7 @@ pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
         BitcoinNetwork::Mainnet => *b"X2",
         BitcoinNetwork::Testnet => *b"T2",
         BitcoinNetwork::Regtest => *b"id",
+        BitcoinNetwork::Signet => unreachable!()
     }
 }
 
@@ -596,6 +598,7 @@ pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
         BitcoinNetwork::Mainnet => POX_CONFIG_MAINNET,
         BitcoinNetwork::Testnet => POX_CONFIG_TESTNET,
         BitcoinNetwork::Regtest => POX_CONFIG_DEVNET,
+        BitcoinNetwork::Signet => unreachable!(),
     }
 }
 
@@ -659,6 +662,30 @@ pub enum MatchingRule {
 #[serde(rename_all = "snake_case")]
 pub enum ExactMatchingRule {
     Equals(String),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct DescriptorMatchingRule {
+    // expression defines the bitcoin descriptor.
+    pub expression: String,
+    #[serde(default, deserialize_with = "deserialize_descriptor_range")]
+    pub range: Option<[u32; 2]>,
+}
+
+// deserialize_descriptor_range makes sure that the range value is valid.
+fn deserialize_descriptor_range<'de, D>(deserializer: D) -> Result<Option<[u32; 2]>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let range: [u32; 2] = Deserialize::deserialize(deserializer)?;
+    if !(range[0] < range[1]) {
+        Err(de::Error::custom(
+            "First element of 'range' must be lower than the second element",
+        ))
+    } else {
+        Ok(Some(range))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]

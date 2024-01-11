@@ -1,0 +1,1 @@
+export const NGROK_DASHBOARD: string = "localhost:4040";

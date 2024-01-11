@@ -136,6 +136,59 @@ impl EventObserverConfig {
             _ => unreachable!(),
         }
     }
+
+    pub fn new_using_overrides(
+        overrides: Option<&EventObserverConfigOverrides>,
+    ) -> Result<EventObserverConfig, String> {
+        let bitcoin_network =
+            if let Some(network) = overrides.and_then(|c| c.bitcoin_network.as_ref()) {
+                BitcoinNetwork::from_str(network)?
+            } else {
+                BitcoinNetwork::Regtest
+            };
+
+        let stacks_network =
+            if let Some(network) = overrides.and_then(|c| c.stacks_network.as_ref()) {
+                StacksNetwork::from_str(network)?
+            } else {
+                StacksNetwork::Devnet
+            };
+
+        let config = EventObserverConfig {
+            bitcoin_rpc_proxy_enabled: false,
+            chainhook_config: None,
+            ingestion_port: overrides
+                .and_then(|c| c.ingestion_port)
+                .unwrap_or(DEFAULT_INGESTION_PORT),
+            bitcoind_rpc_username: overrides
+                .and_then(|c| c.bitcoind_rpc_username.clone())
+                .unwrap_or("devnet".to_string()),
+            bitcoind_rpc_password: overrides
+                .and_then(|c| c.bitcoind_rpc_password.clone())
+                .unwrap_or("devnet".to_string()),
+            bitcoind_rpc_url: overrides
+                .and_then(|c| c.bitcoind_rpc_url.clone())
+                .unwrap_or("http://localhost:18443".to_string()),
+            bitcoin_block_signaling: overrides
+                .and_then(|c| c.bitcoind_zmq_url.as_ref())
+                .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
+                .unwrap_or(BitcoinBlockSignaling::Stacks(
+                    StacksNodeConfig::default_localhost(
+                        overrides
+                            .and_then(|c| c.ingestion_port)
+                            .unwrap_or(DEFAULT_INGESTION_PORT),
+                    ),
+                )),
+            display_logs: overrides.and_then(|c| c.display_logs).unwrap_or(false),
+            cache_path: overrides
+                .and_then(|c| c.cache_path.clone())
+                .unwrap_or("cache".to_string()),
+            bitcoin_network,
+            stacks_network,
+            data_handler_tx: None,
+        };
+        Ok(config)
+    }
 }
 
 #[derive(Deserialize, Debug)]

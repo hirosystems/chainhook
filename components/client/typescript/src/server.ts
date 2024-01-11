@@ -30,6 +30,12 @@ const ServerOptionsSchema = Type.Object({
   validate_chainhook_payloads: Type.Optional(Type.Boolean({ default: false })),
   /** Size limit for received chainhook payloads (default 40MB) */
   body_limit: Type.Optional(Type.Number({ default: 41943040 })),
+  /** Node type: `chainhook` or `ordhook` */
+  node_type: Type.Optional(
+    Type.Union([Type.Literal('chainhook'), Type.Literal('ordhook')], {
+      default: 'chainhook',
+    })
+  ),
 });
 /** Local event server connection and authentication options */
 export type ServerOptions = Static<typeof ServerOptionsSchema>;
@@ -39,6 +45,17 @@ const ChainhookNodeOptionsSchema = Type.Object({
 });
 /** Chainhook node connection options */
 export type ChainhookNodeOptions = Static<typeof ChainhookNodeOptionsSchema>;
+
+/**
+ * Throw this error when processing a Chainhook Payload if you believe it is a bad request. This
+ * will cause the server to return a `400` status code.
+ */
+export class BadPayloadRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
 
 const IfThisThenNothingSchema = Type.Union([
   Type.Composite([
@@ -104,14 +121,14 @@ export async function buildServer(
       logger.info(`ChainhookEventObserver does not have predicates to register`);
       return;
     }
-    logger.info(
-      predicates,
-      `ChainhookEventObserver registering predicates at ${chainhookOpts.base_url}`
-    );
+    const nodeType = serverOpts.node_type ?? 'chainhook';
+    const path = nodeType === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
+    const registerUrl = `${chainhookOpts.base_url}${path}`;
+    logger.info(predicates, `ChainhookEventObserver registering predicates at ${registerUrl}`);
     for (const predicate of predicates) {
       const thenThat: ThenThatHttpPost = {
         http_post: {
-          url: `${serverOpts.external_base_url}/chainhook/${encodeURIComponent(predicate.uuid)}`,
+          url: `${serverOpts.external_base_url}/payload`,
           authorization_header: `Bearer ${serverOpts.auth_token}`,
         },
       };
@@ -119,7 +136,7 @@ export async function buildServer(
         const body = predicate as Predicate;
         if ('mainnet' in body.networks) body.networks.mainnet.then_that = thenThat;
         if ('testnet' in body.networks) body.networks.testnet.then_that = thenThat;
-        await request(`${chainhookOpts.base_url}/v1/chainhooks`, {
+        await request(registerUrl, {
           method: 'POST',
           body: JSON.stringify(body),
           headers: { 'content-type': 'application/json' },
@@ -140,19 +157,19 @@ export async function buildServer(
       return;
     }
     logger.info(`ChainhookEventObserver closing predicates at ${chainhookOpts.base_url}`);
+    const nodeType = serverOpts.node_type ?? 'chainhook';
     const removals = predicates.map(
       predicate =>
         new Promise<void>((resolve, reject) => {
-          request(
-            `${chainhookOpts.base_url}/v1/chainhooks/${predicate.chain}/${encodeURIComponent(
-              predicate.uuid
-            )}`,
-            {
-              method: 'DELETE',
-              headers: { 'content-type': 'application/json' },
-              throwOnError: true,
-            }
-          )
+          const path =
+            nodeType === 'chainhook'
+              ? `/v1/chainhooks/${predicate.chain}/${encodeURIComponent(predicate.uuid)}`
+              : `/v1/observers/${encodeURIComponent(predicate.uuid)}`;
+          request(`${chainhookOpts.base_url}${path}`, {
+            method: 'DELETE',
+            headers: { 'content-type': 'application/json' },
+            throwOnError: true,
+          })
             .then(() => {
               logger.info(
                 `ChainhookEventObserver removed '${predicate.name}' predicate (${predicate.uuid})`
@@ -184,12 +201,9 @@ export async function buildServer(
     const compiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
     fastify.addHook('preHandler', isEventAuthorized);
     fastify.post(
-      '/chainhook/:uuid',
+      '/payload',
       {
         schema: {
-          params: Type.Object({
-            uuid: Type.String({ format: 'uuid' }),
-          }),
           body: PayloadSchema,
         },
       },
@@ -206,11 +220,16 @@ export async function buildServer(
           return;
         }
         try {
-          await callback(request.params.uuid, request.body);
+          await callback(request.body.chainhook.uuid, request.body);
           await reply.code(200).send();
         } catch (error) {
-          logger.error(error, `ChainhookEventObserver error processing payload`);
-          await reply.code(500).send();
+          if (error instanceof BadPayloadRequestError) {
+            logger.error(error, `ChainhookEventObserver bad payload`);
+            await reply.code(400).send();
+          } else {
+            logger.error(error, `ChainhookEventObserver error processing payload`);
+            await reply.code(500).send();
+          }
         }
       }
     );
@@ -221,7 +240,7 @@ export async function buildServer(
     trustProxy: true,
     logger: PINO_CONFIG,
     pluginTimeout: 0, // Disable so ping can retry indefinitely
-    bodyLimit: serverOpts.body_limit ?? 41943040, // 40MB
+    bodyLimit: serverOpts.body_limit ?? 41943040, // 40MB default
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   if (serverOpts.wait_for_chainhook_node ?? true) {
