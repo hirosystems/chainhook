@@ -265,14 +265,23 @@ async fn serve_req(
             let encoder = TextEncoder::new();
             let metric_families = registry.gather();
             let mut buffer = vec![];
-            encoder.encode(&metric_families, &mut buffer).unwrap();
-
-            let response = Response::builder()
-                .status(200)
-                .header(CONTENT_TYPE, encoder.format_type())
-                .body(Body::from(buffer))
-                .unwrap();
-
+            let response = match encoder.encode(&metric_families, &mut buffer) {
+                Ok(_) => Response::builder()
+                    .status(200)
+                    .header(CONTENT_TYPE, encoder.format_type())
+                    .body(Body::from(buffer))
+                    .unwrap(),
+                Err(e) => {
+                    ctx.try_log(|logger| {
+                        slog::debug!(
+                            logger,
+                            "Prometheus monitoring: failed to encode metrics: {}",
+                            e.to_string()
+                        )
+                    });
+                    Response::builder().status(500).body(Body::empty()).unwrap()
+                }
+            };
             Ok(response)
         }
         (_, _) => {
