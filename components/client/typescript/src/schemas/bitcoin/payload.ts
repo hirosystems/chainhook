@@ -38,7 +38,7 @@ export const BitcoinInscriptionTransferredSchema = Type.Object({
     ]),
     value: Type.Optional(Type.String()),
   }),
-  inscription_id: Type.String(),
+  ordinal_number: Type.Integer(),
   satpoint_pre_transfer: Type.String(),
   satpoint_post_transfer: Type.String(),
   post_transfer_output_value: Nullable(Type.Integer()),
