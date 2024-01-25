@@ -10,7 +10,7 @@ use crate::{
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
-        open_readwrite_stacks_db_conn,
+        open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
     },
 };
 use chainhook_sdk::types::{BlockIdentifier, Chain};
@@ -69,7 +69,7 @@ pub async fn get_canonical_fork_from_tsv(
 
     let (record_tx, record_rx) = std::sync::mpsc::channel();
 
-    let start_block = start_block.unwrap_or(0);
+    let mut start_block = start_block.unwrap_or(0);
     info!(
         ctx.expect_logger(),
         "Parsing tsv file to determine canoncial fork; starting at block {}", start_block
@@ -99,6 +99,7 @@ pub async fn get_canonical_fork_from_tsv(
         })
         .expect("unable to spawn thread");
 
+    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx)?;
     let canonical_fork = {
         let mut cursor = BlockIdentifier::default();
         let mut dump = HashMap::new();
@@ -118,7 +119,13 @@ pub async fn get_canonical_fork_from_tsv(
             };
 
             if start_block > block_identifier.index {
-                continue;
+                // don't insert blocks that are already in the db,
+                // but do fill any gaps in our data
+                if is_stacks_block_present(&block_identifier, 0, &stacks_db) {
+                    continue;
+                } else {
+                    start_block = block_identifier.index;
+                }
             }
 
             if block_identifier.index > cursor.index {
