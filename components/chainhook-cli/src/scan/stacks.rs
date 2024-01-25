@@ -69,9 +69,13 @@ pub async fn get_canonical_fork_from_tsv(
     let (record_tx, record_rx) = std::sync::mpsc::channel();
 
     let start_block = 0;
-
+    let ctx_moved = ctx.clone();
     let parsing_handle = hiro_system_kit::thread_named("Stacks chainstate CSV parsing")
         .spawn(move || {
+            info!(
+                ctx_moved.expect_logger(),
+                "Starting Stacks chainstate ingestion."
+            );
             let mut reader_builder = csv::ReaderBuilder::default()
                 .has_headers(false)
                 .delimiter(b'\t')
@@ -92,6 +96,10 @@ pub async fn get_canonical_fork_from_tsv(
                 };
             }
             let _ = record_tx.send(None);
+            info!(
+                ctx_moved.expect_logger(),
+                "Completed Stacks chainstate ingestion."
+            );
         })
         .expect("unable to spawn thread");
 

@@ -175,6 +175,7 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
                     std::process::exit(1);
                 }
             }
+            info!(ctx.expect_logger(), "Successfully downloaded tsv file.");
             config.add_local_stacks_tsv_source(&tsv_file_path);
         }
         true
