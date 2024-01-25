@@ -1,3 +1,30 @@
+## [1.2.0](https://github.com/hirosystems/chainhook/compare/v1.1.1...v1.2.0) (2024-01-25)
+
+
+### Features
+
+* add bad request support ([7abe4f6](https://github.com/hirosystems/chainhook/commit/7abe4f6a70c39e91d6546e8f51cef8684344d4ff))
+* add inscription transfer destination schema ([526de7a](https://github.com/hirosystems/chainhook/commit/526de7aba52bc3c82d8d627efab692e491174115))
+* add jubilee support for inscription_revealed schemas ([#470](https://github.com/hirosystems/chainhook/issues/470)) ([823f430](https://github.com/hirosystems/chainhook/commit/823f4300c5b65ee006cdba1c6587fb549dcc1a33))
+* add Wallet Descriptor Support for Transaction Indexing ([959da29](https://github.com/hirosystems/chainhook/commit/959da298b7cbf370e1b445bb82b50804c64d965f))
+* broadcast ObserverEvent::BitcoinPredicateTriggered on successful requests ([6407e2c](https://github.com/hirosystems/chainhook/commit/6407e2cd6ea88f7fbc3452238404c63a59be8ac3))
+* broadcast ObserverEvent::BitcoinPredicateTriggered on successful requests ([a6164ea](https://github.com/hirosystems/chainhook/commit/a6164ea05a77a1932418c02a002a7c3bf352caaf))
+* introduce signet mode ([549c775](https://github.com/hirosystems/chainhook/commit/549c775bb5cdc0194c5a04d407e3a4cd5d92663b))
+
+
+### Bug Fixes
+
+* address review ([687e2ae](https://github.com/hirosystems/chainhook/commit/687e2ae7b367f3c1ec173e5c56b471945622540d))
+* broken tests ([0e6359e](https://github.com/hirosystems/chainhook/commit/0e6359e66a90664c243c71cbc9f6114f318fbbcf))
+* broken tests ([7a0209b](https://github.com/hirosystems/chainhook/commit/7a0209b480629e9c472e45e0803d01f9f208c779))
+* buffer decoding of archive file to reduce memory usage ([#450](https://github.com/hirosystems/chainhook/issues/450)) ([f1b89f7](https://github.com/hirosystems/chainhook/commit/f1b89f7c9a05f1bc4cb59253ba63dadeca0e3b07)), closes [#401](https://github.com/hirosystems/chainhook/issues/401)
+* build error ([88f597e](https://github.com/hirosystems/chainhook/commit/88f597e90c662427b18a6d20cfbcf3d931b3bb35))
+* enable default features for hiro-system-kit ([867424a](https://github.com/hirosystems/chainhook/commit/867424a5c060cdd314d6d35cd27bcea9bd3690be))
+* skip empty chunks when decoding gz ([b4ce82f](https://github.com/hirosystems/chainhook/commit/b4ce82f92da49a67a55483a7d4cba283781713e0))
+* **stacks-indexer:** prevent subtract with overflow ([#449](https://github.com/hirosystems/chainhook/issues/449)) ([d8d9979](https://github.com/hirosystems/chainhook/commit/d8d9979823070dcef37a3556c99bc34b1d48e27c))
+* update ordhook URLs on typescript client ([9462ae3](https://github.com/hirosystems/chainhook/commit/9462ae3b20ff6e49c4e649c370a9ad97102f0cb4))
+* warnings ([126d049](https://github.com/hirosystems/chainhook/commit/126d0499c13a2ff6d4e36d00c90281f3ef5d1138))
+
 ## [1.1.1](https://github.com/hirosystems/chainhook/compare/v1.1.0...v1.1.1) (2023-10-11)
 
 
