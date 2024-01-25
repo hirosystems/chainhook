@@ -266,7 +266,9 @@ impl Service {
                     // If no start block specified, depending on the nature the hook, we'd like to retrieve:
                     // - contract-id
                     if let PredicatesApi::On(ref config) = self.config.http_api {
-                        let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn_verbose(&config, &ctx) else {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
                             continue;
                         };
                         update_predicate_spec(
@@ -293,7 +295,9 @@ impl Service {
                 }
                 ObserverEvent::PredicateEnabled(spec) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
-                        let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn_verbose(&config, &ctx) else {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
                             continue;
                         };
                         update_predicate_spec(
@@ -312,7 +316,9 @@ impl Service {
                 }
                 ObserverEvent::PredicateDeregistered(spec) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
-                        let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn_verbose(&config, &ctx) else {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
                             continue;
                         };
                         let predicate_key = spec.key();
@@ -330,7 +336,9 @@ impl Service {
                 ObserverEvent::BitcoinChainEvent((chain_update, report)) => {
                     debug!(self.ctx.expect_logger(), "Bitcoin update not stored");
                     if let PredicatesApi::On(ref config) = self.config.http_api {
-                        let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn_verbose(&config, &ctx) else {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
                             continue;
                         };
 
@@ -446,7 +454,9 @@ impl Service {
                     };
 
                     if let PredicatesApi::On(ref config) = self.config.http_api {
-                        let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn_verbose(&config, &ctx) else {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
                             continue;
                         };
 

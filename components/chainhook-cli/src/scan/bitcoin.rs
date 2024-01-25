@@ -287,7 +287,7 @@ pub async fn execute_predicates_action<'a>(
             Ok(action) => {
                 actions_triggered += 1;
                 match action {
-                    BitcoinChainhookOccurrence::Http(request) => {
+                    BitcoinChainhookOccurrence::Http(request, _) => {
                         send_request(request, 10, 3, &ctx).await?
                     }
                     BitcoinChainhookOccurrence::File(path, bytes) => {

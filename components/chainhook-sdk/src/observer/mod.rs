@@ -136,6 +136,59 @@ impl EventObserverConfig {
             _ => unreachable!(),
         }
     }
+
+    pub fn new_using_overrides(
+        overrides: Option<&EventObserverConfigOverrides>,
+    ) -> Result<EventObserverConfig, String> {
+        let bitcoin_network =
+            if let Some(network) = overrides.and_then(|c| c.bitcoin_network.as_ref()) {
+                BitcoinNetwork::from_str(network)?
+            } else {
+                BitcoinNetwork::Regtest
+            };
+
+        let stacks_network =
+            if let Some(network) = overrides.and_then(|c| c.stacks_network.as_ref()) {
+                StacksNetwork::from_str(network)?
+            } else {
+                StacksNetwork::Devnet
+            };
+
+        let config = EventObserverConfig {
+            bitcoin_rpc_proxy_enabled: false,
+            chainhook_config: None,
+            ingestion_port: overrides
+                .and_then(|c| c.ingestion_port)
+                .unwrap_or(DEFAULT_INGESTION_PORT),
+            bitcoind_rpc_username: overrides
+                .and_then(|c| c.bitcoind_rpc_username.clone())
+                .unwrap_or("devnet".to_string()),
+            bitcoind_rpc_password: overrides
+                .and_then(|c| c.bitcoind_rpc_password.clone())
+                .unwrap_or("devnet".to_string()),
+            bitcoind_rpc_url: overrides
+                .and_then(|c| c.bitcoind_rpc_url.clone())
+                .unwrap_or("http://localhost:18443".to_string()),
+            bitcoin_block_signaling: overrides
+                .and_then(|c| c.bitcoind_zmq_url.as_ref())
+                .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
+                .unwrap_or(BitcoinBlockSignaling::Stacks(
+                    StacksNodeConfig::default_localhost(
+                        overrides
+                            .and_then(|c| c.ingestion_port)
+                            .unwrap_or(DEFAULT_INGESTION_PORT),
+                    ),
+                )),
+            display_logs: overrides.and_then(|c| c.display_logs).unwrap_or(false),
+            cache_path: overrides
+                .and_then(|c| c.cache_path.clone())
+                .unwrap_or("cache".to_string()),
+            bitcoin_network,
+            stacks_network,
+            data_handler_tx: None,
+        };
+        Ok(config)
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -809,12 +862,15 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.new_headers.iter() {
                             if store_update_required {
-                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                let Some(block) =
+                                    bitcoin_block_store.remove(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_mutate.push(block);
                             } else {
-                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 new_blocks.push(cache.block.clone());
@@ -866,12 +922,15 @@ pub async fn start_observer_commands_handler(
 
                         for header in data.headers_to_apply.iter() {
                             if store_update_required {
-                                let Some(block) = bitcoin_block_store.remove(&header.block_identifier) else {
+                                let Some(block) =
+                                    bitcoin_block_store.remove(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_mutate.push(block);
                             } else {
-                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier) else {
+                                let Some(cache) = bitcoin_block_store.get(&header.block_identifier)
+                                else {
                                     continue;
                                 };
                                 blocks_to_apply.push(cache.block.clone());
@@ -1062,8 +1121,8 @@ pub async fn start_observer_commands_handler(
                                 slog::error!(logger, "unable to handle action {}", e)
                             });
                         }
-                        Ok(BitcoinChainhookOccurrence::Http(request)) => {
-                            requests.push(request);
+                        Ok(BitcoinChainhookOccurrence::Http(request, data)) => {
+                            requests.push((request, data));
                         }
                         Ok(BitcoinChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
@@ -1109,8 +1168,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for request in requests.into_iter() {
-                    let _ = send_request(request, 3, 1, &ctx).await;
+                for (request, data) in requests.into_iter() {
+                    if send_request(request, 3, 1, &ctx).await.is_ok() {
+                        if let Some(ref tx) = observer_events_tx {
+                            let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
+                        }
+                    }
                 }
 
                 if let Some(ref tx) = observer_events_tx {

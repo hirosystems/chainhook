@@ -1,20 +1,26 @@
 use super::types::{
-    BitcoinChainhookSpecification, BitcoinPredicateType, ExactMatchingRule, HookAction,
-    InputPredicate, MatchingRule, OrdinalOperations, OutputPredicate, StacksOperations,
+    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
+    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OutputPredicate, StacksOperations,
 };
 use crate::utils::Context;
 
-use bitcoincore_rpc::bitcoin::util::address::Payload;
-use bitcoincore_rpc::bitcoin::Address;
+use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinTransactionData, BlockIdentifier, OrdinalOperation,
     StacksBaseChainOperation, TransactionIdentifier,
 };
 
+use hiro_system_kit::slog;
+
+use miniscript::bitcoin::secp256k1::Secp256k1;
+use miniscript::Descriptor;
+
 use reqwest::{Client, Method};
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, HashMap};
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::FromStr,
+};
 
 use reqwest::RequestBuilder;
 
@@ -26,30 +32,61 @@ pub struct BitcoinTriggerChainhook<'a> {
     pub rollback: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct BitcoinApplyTransactionPayload {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BitcoinTransactionPayload {
     pub block: BitcoinBlockData,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct BitcoinRollbackTransactionPayload {
-    pub block: BitcoinBlockData,
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookPayload {
     pub uuid: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookOccurrencePayload {
-    pub apply: Vec<BitcoinApplyTransactionPayload>,
-    pub rollback: Vec<BitcoinRollbackTransactionPayload>,
+    pub apply: Vec<BitcoinTransactionPayload>,
+    pub rollback: Vec<BitcoinTransactionPayload>,
     pub chainhook: BitcoinChainhookPayload,
 }
 
+impl BitcoinChainhookOccurrencePayload {
+    pub fn from_trigger<'a>(
+        trigger: BitcoinTriggerChainhook<'a>,
+    ) -> BitcoinChainhookOccurrencePayload {
+        BitcoinChainhookOccurrencePayload {
+            apply: trigger
+                .apply
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let mut block = block.clone();
+                    block.transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    BitcoinTransactionPayload { block }
+                })
+                .collect::<Vec<_>>(),
+            rollback: trigger
+                .rollback
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let mut block = block.clone();
+                    block.transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    BitcoinTransactionPayload { block }
+                })
+                .collect::<Vec<_>>(),
+            chainhook: BitcoinChainhookPayload {
+                uuid: trigger.chainhook.uuid.clone(),
+            },
+        }
+    }
+}
+
 pub enum BitcoinChainhookOccurrence {
-    Http(RequestBuilder),
+    Http(RequestBuilder, BitcoinChainhookOccurrencePayload),
     File(String, Vec<u8>),
     Data(BitcoinChainhookOccurrencePayload),
 }
@@ -155,12 +192,12 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 }
 
 pub fn serialize_bitcoin_payload_to_json<'a>(
-    trigger: BitcoinTriggerChainhook<'a>,
+    trigger: &BitcoinTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
 ) -> JsonValue {
-    let predicate_spec = &trigger.chainhook;
+    let predicate_spec = trigger.chainhook;
     json!({
-        "apply": trigger.apply.into_iter().map(|(transactions, block)| {
+        "apply": trigger.apply.iter().map(|(transactions, block)| {
             json!({
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
@@ -169,7 +206,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
                 "metadata": block.metadata,
             })
         }).collect::<Vec<_>>(),
-        "rollback": trigger.rollback.into_iter().map(|(transactions, block)| {
+        "rollback": trigger.rollback.iter().map(|(transactions, block)| {
             json!({
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
@@ -251,18 +288,19 @@ pub fn handle_bitcoin_hook_action<'a>(
                 .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
             let host = format!("{}", http.url);
             let method = Method::POST;
-            let body = serde_json::to_vec(&serialize_bitcoin_payload_to_json(trigger, proofs))
+            let body = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
                 .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
-            Ok(BitcoinChainhookOccurrence::Http(
-                client
-                    .request(method, &host)
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", http.authorization_header.clone())
-                    .body(body),
-            ))
+            let request = client
+                .request(method, &host)
+                .header("Content-Type", "application/json")
+                .header("Authorization", http.authorization_header.clone())
+                .body(body);
+
+            let data = BitcoinChainhookOccurrencePayload::from_trigger(trigger);
+            Ok(BitcoinChainhookOccurrence::Http(request, data))
         }
         HookAction::FileAppend(disk) => {
-            let bytes = serde_json::to_vec(&serialize_bitcoin_payload_to_json(trigger, proofs))
+            let bytes = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
                 .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
             Ok(BitcoinChainhookOccurrence::File(
                 disk.path.to_string(),
@@ -270,35 +308,7 @@ pub fn handle_bitcoin_hook_action<'a>(
             ))
         }
         HookAction::Noop => Ok(BitcoinChainhookOccurrence::Data(
-            BitcoinChainhookOccurrencePayload {
-                apply: trigger
-                    .apply
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let mut block = block.clone();
-                        block.transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        BitcoinApplyTransactionPayload { block }
-                    })
-                    .collect::<Vec<_>>(),
-                rollback: trigger
-                    .rollback
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let mut block = block.clone();
-                        block.transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        BitcoinRollbackTransactionPayload { block }
-                    })
-                    .collect::<Vec<_>>(),
-                chainhook: BitcoinChainhookPayload {
-                    uuid: trigger.chainhook.uuid.clone(),
-                },
-            },
+            BitcoinChainhookOccurrencePayload::from_trigger(trigger),
         )),
     }
 }
@@ -326,7 +336,7 @@ impl BitcoinPredicateType {
     pub fn evaluate_transaction_predicate(
         &self,
         tx: &BitcoinTransactionData,
-        _ctx: &Context,
+        ctx: &Context,
     ) -> bool {
         // TODO(lgalabru): follow-up on this implementation
         match &self {
@@ -387,7 +397,7 @@ impl BitcoinPredicateType {
                 encoded_address,
             ))) => {
                 let address = match Address::from_str(encoded_address) {
-                    Ok(address) => address,
+                    Ok(address) => address.assume_checked(),
                     Err(_) => return false,
                 };
                 let address_bytes = hex::encode(address.script_pubkey().as_bytes());
@@ -405,13 +415,13 @@ impl BitcoinPredicateType {
                 encoded_address,
             ))) => {
                 let address = match Address::from_str(encoded_address) {
-                    Ok(address) => match address.payload {
-                        Payload::WitnessProgram {
-                            version: _,
-                            program: _,
-                        } => address,
-                        _ => return false,
-                    },
+                    Ok(address) => {
+                        let checked_address = address.assume_checked();
+                        match checked_address.payload() {
+                            Payload::WitnessProgram(_) => checked_address,
+                            _ => return false,
+                        }
+                    }
                     Err(_) => return false,
                 };
                 let address_bytes = hex::encode(address.script_pubkey().as_bytes());
@@ -420,6 +430,50 @@ impl BitcoinPredicateType {
                         return true;
                     }
                 }
+                false
+            }
+            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(
+                DescriptorMatchingRule { expression, range },
+            )) => {
+                // To derive from descriptors, we need to provide a secp context.
+                let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
+                let (desc, _) = Descriptor::parse_descriptor(&sig, expression).unwrap();
+
+                // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
+                // defined by the predicate OR fallback to a default range of [0,5] when not set.
+                // When the descriptor is not derivable we force to create a unique iteration by
+                // ranging over [0,1].
+                let range = if desc.has_wildcard() {
+                    range.unwrap_or([0, 5])
+                } else {
+                    [0, 1]
+                };
+
+                // Derive the addresses and try to match them against the outputs.
+                for i in range[0]..range[1] {
+                    let derived = desc.derived_descriptor(&ver, i).unwrap();
+
+                    // Extract and encode the derived pubkey.
+                    let script_pubkey = hex::encode(derived.script_pubkey().as_bytes());
+
+                    // Match that script against the tx outputs.
+                    for (index, output) in tx.metadata.outputs.iter().enumerate() {
+                        if output.script_pubkey[2..] == script_pubkey {
+                            ctx.try_log(|logger| {
+                                slog::debug!(
+                                    logger,
+                                    "Descriptor: Matched pubkey {:?} on tx {:?} output {}",
+                                    script_pubkey,
+                                    tx.transaction_identifier.get_hash_bytes_str(),
+                                    index,
+                                )
+                            });
+
+                            return true;
+                        }
+                    }
+                }
+
                 false
             }
             BitcoinPredicateType::Inputs(InputPredicate::Txid(predicate)) => {

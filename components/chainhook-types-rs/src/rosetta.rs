@@ -323,8 +323,8 @@ pub enum OrdinalOperation {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct OrdinalInscriptionTransferData {
-    pub inscription_id: String,
-    pub updated_address: Option<String>,
+    pub ordinal_number: u64,
+    pub destination: OrdinalInscriptionTransferDestination,
     pub satpoint_pre_transfer: String,
     pub satpoint_post_transfer: String,
     pub post_transfer_output_value: Option<u64>,
@@ -332,12 +332,25 @@ pub struct OrdinalInscriptionTransferData {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum OrdinalInscriptionTransferDestination {
+    Transferred(String),
+    SpentInFees,
+    Burnt(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum OrdinalInscriptionCurseType {
-    Tag(u8),
-    Batch,
-    P2wsh,
+    DuplicateField,
+    IncompleteField,
+    NotAtOffsetZero,
+    NotInFirstInput,
+    Pointer,
+    Pushnum,
     Reinscription,
-    Unknown,
+    Stutter,
+    UnrecognizedEvenField,
+    Generic,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -345,11 +358,12 @@ pub struct OrdinalInscriptionRevealData {
     pub content_bytes: String,
     pub content_type: String,
     pub content_length: usize,
-    pub inscription_number: i64,
+    pub inscription_number: OrdinalInscriptionNumber,
     pub inscription_fee: u64,
     pub inscription_output_value: u64,
     pub inscription_id: String,
     pub inscription_input_index: usize,
+    pub inscription_pointer: u64,
     pub inscriber_address: Option<String>,
     pub ordinal_number: u64,
     pub ordinal_block_height: u64,
@@ -358,6 +372,27 @@ pub struct OrdinalInscriptionRevealData {
     pub transfers_pre_inscription: u32,
     pub satpoint_post_inscription: String,
     pub curse_type: Option<OrdinalInscriptionCurseType>,
+}
+
+impl OrdinalInscriptionNumber {
+    pub fn zero() -> Self {
+        OrdinalInscriptionNumber {
+            jubilee: 0,
+            classic: 0,
+        }
+    }
+}
+
+impl OrdinalInscriptionRevealData {
+    pub fn get_inscription_number(&self) -> i64 {
+        self.inscription_number.jubilee
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct OrdinalInscriptionNumber {
+    pub classic: i64,
+    pub jubilee: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -877,6 +912,7 @@ impl StacksNetwork {
 pub enum BitcoinNetwork {
     Regtest,
     Testnet,
+    Signet,
     Mainnet,
 }
 
@@ -886,9 +922,10 @@ impl BitcoinNetwork {
             "regtest" => BitcoinNetwork::Regtest,
             "testnet" => BitcoinNetwork::Testnet,
             "mainnet" => BitcoinNetwork::Mainnet,
+            "signet" => BitcoinNetwork::Signet,
             _ => {
                 return Err(format!(
-                    "network '{}' unsupported (mainnet, testnet, regtest)",
+                    "network '{}' unsupported (mainnet, testnet, regtest, signet)",
                     network
                 ))
             }

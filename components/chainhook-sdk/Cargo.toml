@@ -1,6 +1,6 @@
 [package]
 name = "chainhook-sdk"
-version = "0.10.0"
+version = "0.12.1"
 description = "Stateless Transaction Indexing Engine for Stacks and Bitcoin"
 license = "GPL-3.0"
 edition = "2021"
@@ -8,21 +8,19 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = {version = "1", features = ["rc"]}
+serde = { version = "1", features = ["rc"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde-hex = "0.1.0"
 serde_derive = "1"
-stacks-rpc-client = "=1.0.8"
-clarinet-utils = "1.0.0"
-hiro-system-kit = "0.1.0"
+stacks-rpc-client = "2"
+hiro-system-kit = { version = "0.3.1", optional = true }
 # stacks-rpc-client = { version = "1", path = "../../../clarinet/components/stacks-rpc-client" }
-# clarinet-utils = { version = "1", path = "../../../clarinet/components/clarinet-utils" }
 # hiro-system-kit = { version = "0.1.0", path = "../../../clarinet/components/hiro-system-kit" }
-chainhook-types = { version = "1.1.0", path = "../chainhook-types-rs" }
+chainhook-types = { version = "1.3.0", path = "../chainhook-types-rs" }
 rocket = { version = "=0.5.0-rc.3", features = ["json"] }
-bitcoincore-rpc = "0.16.0"
-bitcoincore-rpc-json = "0.16.0"
-base64 = "0.13.0"
+bitcoincore-rpc = "0.18.0"
+bitcoincore-rpc-json = "0.18.0"
+base64 = "0.21.5"
 reqwest = { version = "0.11", default-features = false, features = [
     "blocking",
     "json",
@@ -33,7 +31,7 @@ base58 = "0.2.0"
 schemars = { version = "0.8.10", git = "https://github.com/hirosystems/schemars.git", branch = "feat-chainhook-fixes" }
 crossbeam-channel = "0.5.6"
 futures = "0.3.21"
-hyper = { version = "0.14.24", features = ["http1", "client"] }
+hyper = { version = "=0.14.27", features = ["http1", "client"] }
 hex = "0.4.3"
 threadpool = "1.8.1"
 rand = "0.8.5"
@@ -42,14 +40,13 @@ dashmap = "5.4.0"
 fxhash = "0.2.1"
 lazy_static = "1.4.0"
 regex = "1.9.3"
+miniscript = "11.0.0"
 
 [dev-dependencies]
 test-case = "3.1.0"
 
-[replace]
-"jsonrpc:0.13.0" = { git = 'https://github.com/apoelstra/rust-jsonrpc', rev = "1063671f122a8985c1b7c29030071253da515839" }
-
 [features]
-default = ["log"]
+default = ["hiro-system-kit/log"]
 zeromq = ["zmq"]
-log = ["hiro-system-kit/log"]
+debug = ["hiro-system-kit/debug"]
+release = ["hiro-system-kit/release"]
