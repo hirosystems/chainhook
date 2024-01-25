@@ -367,6 +367,7 @@ pub struct OrdinalInscriptionRevealData {
     pub inscription_pointer: u64,
     pub inscriber_address: Option<String>,
     pub delegate: Option<String>,
+    pub metaprotocol: Option<String>,
     pub metadata: Option<Value>,
     pub parent: Option<String>,
     pub ordinal_number: u64,
