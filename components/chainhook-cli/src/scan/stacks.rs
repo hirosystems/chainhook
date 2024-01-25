@@ -62,20 +62,20 @@ pub enum RecordKind {
 
 pub async fn get_canonical_fork_from_tsv(
     config: &mut Config,
+    start_block: Option<u64>,
     ctx: &Context,
 ) -> Result<VecDeque<(BlockIdentifier, BlockIdentifier, String)>, String> {
     let seed_tsv_path = config.expected_local_stacks_tsv_file().clone();
 
     let (record_tx, record_rx) = std::sync::mpsc::channel();
 
-    let start_block = 0;
-    let ctx_moved = ctx.clone();
+    let start_block = start_block.unwrap_or(0);
+    info!(
+        ctx.expect_logger(),
+        "Parsing tsv file to determine canoncial fork; starting at block {}", start_block
+    );
     let parsing_handle = hiro_system_kit::thread_named("Stacks chainstate CSV parsing")
         .spawn(move || {
-            info!(
-                ctx_moved.expect_logger(),
-                "Starting Stacks chainstate ingestion."
-            );
             let mut reader_builder = csv::ReaderBuilder::default()
                 .has_headers(false)
                 .delimiter(b'\t')
@@ -96,10 +96,6 @@ pub async fn get_canonical_fork_from_tsv(
                 };
             }
             let _ = record_tx.send(None);
-            info!(
-                ctx_moved.expect_logger(),
-                "Completed Stacks chainstate ingestion."
-            );
         })
         .expect("unable to spawn thread");
 
@@ -148,6 +144,10 @@ pub async fn get_canonical_fork_from_tsv(
     };
     let _ = parsing_handle.join();
 
+    info!(
+        ctx.expect_logger(),
+        "Finished parsing tsv file to determine canonical fork"
+    );
     Ok(canonical_fork)
 }
 
@@ -450,7 +450,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 
-    let mut canonical_fork = get_canonical_fork_from_tsv(config, ctx).await?;
+    let mut canonical_fork = get_canonical_fork_from_tsv(config, None, ctx).await?;
 
     let mut indexer = Indexer::new(config.network.clone());
 
@@ -546,13 +546,18 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 
-    let mut canonical_fork = get_canonical_fork_from_tsv(config, ctx).await?;
+    let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
+    let confirmed_tip = get_last_block_height_inserted(&stacks_db_rw, &ctx);
+    let mut canonical_fork = get_canonical_fork_from_tsv(config, confirmed_tip, ctx).await?;
 
     let mut indexer = Indexer::new(config.network.clone());
     let mut blocks_inserted = 0;
     let mut blocks_read = 0;
     let blocks_to_insert = canonical_fork.len();
-    let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
+    info!(
+        ctx.expect_logger(),
+        "Begining import of {} Stacks blocks into rocks db", blocks_to_insert
+    );
     for (block_identifier, _parent_block_identifier, blob) in canonical_fork.drain(..) {
         blocks_read += 1;
 
@@ -581,7 +586,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         if blocks_inserted % 2500 == 0 {
             info!(
                 ctx.expect_logger(),
-                "Importing Stacks blocks: {}/{}", blocks_read, blocks_to_insert
+                "Importing Stacks blocks into rocks db: {}/{}", blocks_read, blocks_to_insert
             );
             let _ = stacks_db_rw.flush();
         }
