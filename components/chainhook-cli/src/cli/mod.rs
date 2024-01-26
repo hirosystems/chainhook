@@ -7,8 +7,9 @@ use crate::scan::stacks::{
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
-    get_last_block_height_inserted, get_stacks_block_at_block_height, is_stacks_block_present,
-    open_readonly_stacks_db_conn,
+    delete_confirmed_entry_from_stacks_blocks, get_last_block_height_inserted,
+    get_stacks_block_at_block_height, is_stacks_block_present, open_readonly_stacks_db_conn,
+    open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -213,6 +214,15 @@ enum StacksDbCommand {
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
+    #[clap(name = "delete", bin_name = "delete")]
+    DeleteBlock(DeleteBlockDbCommand),
+}
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct DeleteBlockDbCommand {
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+    block_height: u64,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -533,6 +543,34 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 match get_stacks_block_at_block_height(cmd.block_height, true, 3, &stacks_db) {
                     Ok(Some(block)) => {
                         info!(ctx.expect_logger(), "{}", json!(block));
+                    }
+                    Ok(None) => {
+                        warn!(
+                            ctx.expect_logger(),
+                            "Block {} not present in database", cmd.block_height
+                        );
+                    }
+                    Err(e) => {
+                        error!(ctx.expect_logger(), "{e}",);
+                    }
+                }
+            }
+            StacksCommand::Db(StacksDbCommand::DeleteBlock(cmd)) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+                let stacks_db = open_readwrite_stacks_db_conn(&config.expected_cache_path(), &ctx)
+                    .expect("unable to read stacks_db");
+                match get_stacks_block_at_block_height(cmd.block_height, true, 3, &stacks_db) {
+                    Ok(Some(block)) => {
+                        info!(
+                            ctx.expect_logger(),
+                            "deleting stacks block {}",
+                            json!(block.block_identifier.index)
+                        );
+                        delete_confirmed_entry_from_stacks_blocks(
+                            &block.block_identifier,
+                            &stacks_db,
+                            &ctx,
+                        );
                     }
                     Ok(None) => {
                         warn!(
