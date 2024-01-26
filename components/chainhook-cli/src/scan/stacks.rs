@@ -72,7 +72,7 @@ pub async fn get_canonical_fork_from_tsv(
     let mut start_block = start_block.unwrap_or(0);
     info!(
         ctx.expect_logger(),
-        "Parsing tsv file to determine canoncial fork; starting at block {}", start_block
+        "Parsing tsv file to determine canoncial fork"
     );
     let parsing_handle = hiro_system_kit::thread_named("Stacks chainstate CSV parsing")
         .spawn(move || {
@@ -99,7 +99,7 @@ pub async fn get_canonical_fork_from_tsv(
         })
         .expect("unable to spawn thread");
 
-    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx)?;
+    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx).unwrap();
     let canonical_fork = {
         let mut cursor = BlockIdentifier::default();
         let mut dump = HashMap::new();
@@ -121,10 +121,13 @@ pub async fn get_canonical_fork_from_tsv(
             if start_block > block_identifier.index {
                 // don't insert blocks that are already in the db,
                 // but do fill any gaps in our data
-                if is_stacks_block_present(&block_identifier, 0, &stacks_db) {
+                if is_stacks_block_present(&block_identifier, 0, &stacks_db)
+                    || block_identifier.index == 0
+                {
                     continue;
                 } else {
                     start_block = block_identifier.index;
+                    info!(ctx.expect_logger(), "Found missing block ({start_block}) during tsv parsing; will insert into db",);
                 }
             }
 
@@ -553,14 +556,15 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 
-    let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
-    let confirmed_tip = get_last_block_height_inserted(&stacks_db_rw, &ctx);
+    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx).unwrap();
+    let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx);
     let mut canonical_fork = get_canonical_fork_from_tsv(config, confirmed_tip, ctx).await?;
 
     let mut indexer = Indexer::new(config.network.clone());
     let mut blocks_inserted = 0;
     let mut blocks_read = 0;
     let blocks_to_insert = canonical_fork.len();
+    let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
     info!(
         ctx.expect_logger(),
         "Begining import of {} Stacks blocks into rocks db", blocks_to_insert
