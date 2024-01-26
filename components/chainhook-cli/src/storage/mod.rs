@@ -91,12 +91,15 @@ pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB,
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
         .expect("unable to insert blocks");
-    stacks_db_rw
-        .put(
-            get_last_confirmed_insert_key(),
-            block.block_identifier.index.to_be_bytes(),
-        )
-        .expect("unable to insert metadata");
+    let previous_last_inserted = get_last_block_height_inserted(stacks_db_rw, _ctx).unwrap_or(0);
+    if block.block_identifier.index > previous_last_inserted {
+        stacks_db_rw
+            .put(
+                get_last_confirmed_insert_key(),
+                block.block_identifier.index.to_be_bytes(),
+            )
+            .expect("unable to insert metadata");
+    }
 }
 
 pub fn insert_unconfirmed_entry_in_stacks_blocks(
