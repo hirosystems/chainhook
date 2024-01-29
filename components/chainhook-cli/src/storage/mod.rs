@@ -28,6 +28,30 @@ fn get_default_stacks_db_file_path(base_dir: &PathBuf) -> PathBuf {
     destination_path
 }
 
+pub fn open_readonly_stacks_db_conn_with_retry(
+    base_dir: &PathBuf,
+    retry: u8,
+    ctx: &Context,
+) -> Result<DB, String> {
+    let mut attempt = 0;
+    loop {
+        match open_readonly_stacks_db_conn(base_dir, ctx) {
+            Ok(conn) => return Ok(conn),
+            Err(e) => {
+                debug!(
+                    ctx.expect_logger(),
+                    "Failed to open stadcks.rocksdb. Trying again in a few seconds."
+                );
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                if attempt > retry {
+                    return Err(e);
+                }
+            }
+        }
+    }
+}
+
 pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result<DB, String> {
     let path = get_default_stacks_db_file_path(&base_dir);
     let opts = get_db_default_options();

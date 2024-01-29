@@ -10,7 +10,7 @@ use crate::{
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
-        open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+        open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
     },
 };
 use chainhook_sdk::types::{BlockIdentifier, Chain};
@@ -99,7 +99,7 @@ pub async fn get_canonical_fork_from_tsv(
         })
         .expect("unable to spawn thread");
 
-    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx).unwrap();
+    let stacks_db = open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
     let canonical_fork = {
         let mut cursor = BlockIdentifier::default();
         let mut dump = HashMap::new();
@@ -556,7 +556,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 
-    let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), ctx).unwrap();
+    let stacks_db = open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
     let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx);
     let mut canonical_fork = get_canonical_fork_from_tsv(config, confirmed_tip, ctx).await?;
 
