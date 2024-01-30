@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/hirosystems/chainhook/compare/v1.2.0...v1.2.1) (2024-01-30)
+
+
+### Bug Fixes
+
+* reduce memory usage in archive file ingestion  ([#480](https://github.com/hirosystems/chainhook/issues/480)) ([83af58b](https://github.com/hirosystems/chainhook/commit/83af58bfdbbdcb5d310a8bcd0a6079325bac2804))
+
 ## [1.2.0](https://github.com/hirosystems/chainhook/compare/v1.1.1...v1.2.0) (2024-01-25)
 
 
