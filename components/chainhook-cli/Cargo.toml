@@ -52,7 +52,6 @@ features = ["lz4", "snappy"]
 [dev-dependencies]
 criterion = "0.3"
 redis = "0.21.5"
-clarity-vm = "=2.1.1"
 hex = "0.4.3"
 test-case = "3.1.0"
 serial_test = "2.0.0"

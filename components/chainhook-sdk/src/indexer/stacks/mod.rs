@@ -10,8 +10,8 @@ use chainhook_types::*;
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 use rocket::serde::Deserialize;
+use stacks_rpc_client::clarity::codec::StacksMessageCodec;
 use stacks_rpc_client::clarity::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
-use stacks_rpc_client::clarity::stacks_common::codec::StacksMessageCodec;
 use stacks_rpc_client::clarity::vm::types::{SequenceData, Value as ClarityValue};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
@@ -818,10 +818,16 @@ pub fn get_tx_description(
                 StacksTransactionKind::ContractDeployment(data),
             )
         }
-        TransactionPayload::Coinbase(_, _) => {
+        TransactionPayload::Coinbase(_, _, _) => {
             (format!("coinbase"), StacksTransactionKind::Coinbase)
         }
-        _ => (format!("other"), StacksTransactionKind::Unsupported),
+        TransactionPayload::TenureChange(_) => (
+            format!("tenure change"),
+            StacksTransactionKind::TenureChange,
+        ),
+        TransactionPayload::PoisonMicroblock(_, _) => {
+            unimplemented!()
+        }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))
 }
