@@ -1146,7 +1146,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 inscription_output_value: cursor,
                                 inscription_id: format!("{cursor}"),
                                 inscription_input_index: 0,
-                                inscription_pointer: 0,
+                                inscription_pointer: None,
                                 inscriber_address: None,
                                 metadata: None,
                                 metaprotocol: None,
