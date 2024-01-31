@@ -375,25 +375,29 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
             let expecting_burn = expected_event.actions.contains(&"burn".to_string());
 
+            let mut is_match;
             for event in transaction.metadata.receipt.events.iter() {
                 match (event, expecting_mint, expecting_transfer, expecting_burn) {
                     (StacksTransactionEvent::FTMintEvent(ft_event), true, _, _) => {
-                        return ft_event
+                        is_match = ft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     (StacksTransactionEvent::FTTransferEvent(ft_event), _, true, _) => {
-                        return ft_event
+                        is_match = ft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     (StacksTransactionEvent::FTBurnEvent(ft_event), _, _, true) => {
-                        return ft_event
+                        is_match = ft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     _ => continue,
                 }
+                if is_match {
+                    return true;
+                };
             }
             false
         }
@@ -401,25 +405,30 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             let expecting_mint = expected_event.actions.contains(&"mint".to_string());
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
             let expecting_burn = expected_event.actions.contains(&"burn".to_string());
+
+            let mut is_match;
             for event in transaction.metadata.receipt.events.iter() {
                 match (event, expecting_mint, expecting_transfer, expecting_burn) {
                     (StacksTransactionEvent::NFTMintEvent(nft_event), true, _, _) => {
-                        return nft_event
+                        is_match = nft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     (StacksTransactionEvent::NFTTransferEvent(nft_event), _, true, _) => {
-                        return nft_event
+                        is_match = nft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     (StacksTransactionEvent::NFTBurnEvent(nft_event), _, _, true) => {
-                        return nft_event
+                        is_match = nft_event
                             .asset_class_identifier
-                            .eq(&expected_event.asset_identifier)
+                            .eq(&expected_event.asset_identifier);
                     }
                     _ => continue,
                 }
+                if is_match {
+                    return true;
+                };
             }
             false
         }
