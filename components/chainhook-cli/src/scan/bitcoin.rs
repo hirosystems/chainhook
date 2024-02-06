@@ -52,12 +52,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             },
         }
     } else {
-        let start_block = match predicate_spec.start_block {
-            Some(start_block) => match &unfinished_scan_data {
-                Some(scan_data) => scan_data.last_evaluated_block_height,
-                None => start_block,
-            },
-            None => 0,
+        let start_block = match &unfinished_scan_data {
+            Some(scan_data) => scan_data.last_evaluated_block_height,
+            None => predicate_spec.start_block.unwrap_or(0),
         };
         let chain_tip = match bitcoin_rpc.get_blockchain_info() {
             Ok(result) => result.blocks,
