@@ -297,7 +297,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let mut config =
                     Config::default(cmd.devnet, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
 
-                config.monitoring.prometheus_monitoring_port = cmd.prometheus_monitoring_port;
+                if cmd.prometheus_monitoring_port.is_some() {
+                    config.monitoring.prometheus_monitoring_port = cmd.prometheus_monitoring_port;
+                }
 
                 let predicates = cmd
                     .predicates_paths
