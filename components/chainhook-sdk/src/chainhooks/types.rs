@@ -239,11 +239,29 @@ impl ChainhookFullSpecification {
             Self::Bitcoin(data) => {
                 for (_, spec) in data.networks.iter() {
                     let _ = spec.action.validate()?;
+                    if let Some(end_block) = spec.end_block {
+                        let start_block = spec.start_block.unwrap_or(0);
+                        if start_block > end_block {
+                            return Err(
+                                "Chainhook specification field `end_block` should be greater than `start_block`."
+                                    .into(),
+                            );
+                        }
+                    }
                 }
             }
             Self::Stacks(data) => {
                 for (_, spec) in data.networks.iter() {
                     let _ = spec.action.validate()?;
+                    if let Some(end_block) = spec.end_block {
+                        let start_block = spec.start_block.unwrap_or(0);
+                        if start_block > end_block {
+                            return Err(
+                                "Chainhook specification field `end_block` should be greater than `start_block`."
+                                    .into(),
+                            );
+                        }
+                    }
                 }
             }
         }
