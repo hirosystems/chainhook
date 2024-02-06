@@ -59,8 +59,8 @@ serial_test = "2.0.0"
 
 
 [features]
-default = ["cli"]
-cli = ["clap", "clap_generate", "toml", "ctrlc", "release"]
+default = ["cli", "release"]
+cli = ["clap", "clap_generate", "toml", "ctrlc"]
 debug = ["chainhook-sdk/debug"]
 release = ["chainhook-sdk/release"]
 redis_tests = []
