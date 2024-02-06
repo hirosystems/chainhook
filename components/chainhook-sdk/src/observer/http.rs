@@ -364,14 +364,15 @@ pub async fn handle_bitcoin_wallet_rpc_call(
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /wallet"));
 
-    use base64::encode;
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::engine::Engine as _;
     use reqwest::Client;
 
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
 
     let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
 
-    let token = encode(format!(
+    let token = BASE64.encode(format!(
         "{}:{}",
         bitcoin_config.username, bitcoin_config.password
     ));
@@ -401,7 +402,8 @@ pub async fn handle_bitcoin_rpc_call(
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /"));
 
-    use base64::encode;
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::engine::Engine as _;
     use reqwest::Client;
 
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
@@ -409,7 +411,7 @@ pub async fn handle_bitcoin_rpc_call(
 
     let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
 
-    let token = encode(format!(
+    let token = BASE64.encode(format!(
         "{}:{}",
         bitcoin_config.username, bitcoin_config.password
     ));
