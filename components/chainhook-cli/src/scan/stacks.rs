@@ -13,7 +13,6 @@ use crate::{
         open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
     },
 };
-use chainhook_sdk::types::{BlockIdentifier, Chain};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
@@ -25,6 +24,10 @@ use chainhook_sdk::{
         types::StacksChainhookSpecification,
     },
     utils::{file_append, send_request, AbstractStacksBlock},
+};
+use chainhook_sdk::{
+    types::{BlockIdentifier, Chain},
+    utils::BlockHeightsError,
 };
 use rocksdb::DB;
 
@@ -167,67 +170,79 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     stacks_db_conn: &DB,
     config: &Config,
     ctx: &Context,
-) -> Result<(BlockIdentifier, bool), String> {
+) -> Result<(Option<BlockIdentifier>, bool), String> {
     let mut floating_end_block = false;
 
     let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
-        BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
+        match BlockHeights::Blocks(blocks.clone()).get_sorted_entries() {
+            Ok(heights) => heights,
+            Err(e) => match e {
+                BlockHeightsError::ExceedsMaxEntries(max, specified) => {
+                    return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", max, specified));
+                }
+                BlockHeightsError::StartLargerThanEnd => unreachable!(),
+            },
+        }
     } else {
         let start_block = match predicate_spec.start_block {
             Some(start_block) => match &unfinished_scan_data {
                 Some(scan_data) => scan_data.last_evaluated_block_height,
                 None => start_block,
             },
-            None => {
-                return Err(
-                    "Chainhook specification must include fields 'start_block' when using the scan command"
-                        .into(),
-                );
-            }
+            None => 0,
         };
-
-        let (end_block, update_end_block) = match predicate_spec.end_block {
-            Some(end_block) => {
-                // if the user provided an end block that is above the chain tip, we'll
-                // only scan up to the chain tip, then go to streaming mode
-                match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                    Some(chain_tip) => {
-                        if end_block > chain_tip {
-                            (chain_tip, true)
-                        } else {
-                            (end_block, false)
-                        }
-                    }
-                    None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                        Some(chain_tip) => {
-                            if end_block > chain_tip {
-                                (chain_tip, true)
-                            } else {
-                                (end_block, false)
-                            }
-                        }
-                        None => {
-                            return Err("Chainhook specification must include fields 'end_block' when using the scan command".into());
-                        }
-                    },
+        let chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
+            Some(chain_tip) => chain_tip,
+            None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
+                Some(chain_tip) => chain_tip,
+                None => {
+                    info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                    return Ok((None, false));
                 }
-            }
-            None => match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                Some(end_block) => (end_block, true),
-                None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                    Some(end_block) => (end_block, true),
-                    None => {
-                        return Err(
-                            "Chainhook specification must include fields 'end_block' when using the scan command"
-                                .into(),
-                        );
-                    }
-                },
             },
         };
 
+        let (end_block, update_end_block) = if let Some(end_block) = predicate_spec.end_block {
+            if start_block > end_block {
+                return Err(
+                    "Chainhook specification field `end_block` should be greater than `start_block`."
+                        .into(),
+                );
+            }
+            // if the user provided an end block that is above the chain tip, we'll
+            // only scan up to the chain tip, then go to streaming mode
+            if end_block > chain_tip {
+                (chain_tip, true)
+            } else {
+                (end_block, false)
+            }
+        } else {
+            (chain_tip, true)
+        };
+
+        // we've already made this check with a user-provided end_block. But if the user didn't provide one, or if
+        // they provided one greater than chain tip, we could still have a start block that's greater then end block.
+        // but this time, it's not an error, we just want to start streaming.
+        if start_block > end_block {
+            info!(ctx.expect_logger(), "Chainhook specification field `start_block` is greater than Stacks chain tip for predicate {}. Switching to streaming mode.", predicate_spec.uuid);
+            return Ok((None, false));
+        }
+
         floating_end_block = update_end_block;
-        BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
+        match BlockHeights::BlockRange(start_block, end_block).get_sorted_entries() {
+            Ok(heights) => heights,
+            Err(e) => match e {
+                BlockHeightsError::ExceedsMaxEntries(max, specified) => {
+                    return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", max, specified));
+                }
+                BlockHeightsError::StartLargerThanEnd => {
+                    return Err(
+                        "Chainhook specification field `end_block` should be greater than `start_block`."
+                            .into(),
+                    );
+                }
+            },
+        }
     };
 
     let mut predicates_db_conn = match config.http_api {
@@ -436,11 +451,11 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 if is_confirmed {
                     set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
                 }
-                return Ok((last_block_scanned, true));
+                return Ok((Some(last_block_scanned), true));
             }
         }
     }
-    Ok((last_block_scanned, false))
+    Ok((Some(last_block_scanned), false))
 }
 
 pub async fn scan_stacks_chainstate_via_csv_using_predicate(
@@ -450,13 +465,16 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
 ) -> Result<BlockIdentifier, String> {
     let start_block = match predicate_spec.start_block {
         Some(start_block) => start_block,
-        None => {
+        None => 0,
+    };
+    if let Some(end_block) = predicate_spec.end_block {
+        if start_block > end_block {
             return Err(
-                "Chainhook specification must include fields 'start_block' when using the scan command"
+                "Chainhook specification field `end_block` should be greater than `start_block`."
                     .into(),
             );
         }
-    };
+    }
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 

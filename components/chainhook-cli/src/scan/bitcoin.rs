@@ -19,7 +19,7 @@ use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier, Chain,
 };
-use chainhook_sdk::utils::{file_append, send_request, BlockHeights, Context};
+use chainhook_sdk::utils::{file_append, send_request, BlockHeights, BlockHeightsError, Context};
 use std::collections::HashMap;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
@@ -42,34 +42,25 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut floating_end_block = false;
 
     let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
-        // todo: if a user provides a number of blocks where start_block + blocks > chain tip,
-        // the predicate will fail to scan all blocks. we should calculate a valid end_block and
-        // switch to streaming mode at some point
-        BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
+        match BlockHeights::Blocks(blocks.clone()).get_sorted_entries() {
+            Ok(heights) => heights,
+            Err(e) => match e {
+                BlockHeightsError::ExceedsMaxEntries(max, specified) => {
+                    return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", max, specified));
+                }
+                BlockHeightsError::StartLargerThanEnd => unreachable!(),
+            },
+        }
     } else {
         let start_block = match predicate_spec.start_block {
             Some(start_block) => match &unfinished_scan_data {
                 Some(scan_data) => scan_data.last_evaluated_block_height,
                 None => start_block,
             },
-            None => {
-                return Err(
-                    "Bitcoin chainhook specification must include a field start_block in replay mode"
-                        .into(),
-                );
-            }
+            None => 0,
         };
-        let (end_block, update_end_block) = match bitcoin_rpc.get_blockchain_info() {
-            Ok(result) => match predicate_spec.end_block {
-                Some(end_block) => {
-                    if end_block > result.blocks {
-                        (result.blocks, true)
-                    } else {
-                        (end_block, false)
-                    }
-                }
-                None => (result.blocks, true),
-            },
+        let chain_tip = match bitcoin_rpc.get_blockchain_info() {
+            Ok(result) => result.blocks,
             Err(e) => {
                 return Err(format!(
                     "unable to retrieve Bitcoin chain tip ({})",
@@ -77,8 +68,47 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 ));
             }
         };
+        let (end_block, update_end_block) = if let Some(end_block) = predicate_spec.end_block {
+            if start_block > end_block {
+                return Err(
+                    "Chainhook specification field `end_block` should be greater than `start_block`."
+                        .into(),
+                );
+            }
+            // if the user provided an end block that is above the chain tip, we'll
+            // only scan up to the chain tip, then go to streaming mode
+            if end_block > chain_tip {
+                (chain_tip, true)
+            } else {
+                (end_block, false)
+            }
+        } else {
+            (chain_tip, true)
+        };
+
+        // we've already made this check with a user-provided end_block. But if the user didn't provide one, or if
+        // they provided one greater than chain tip, we could still have a start block that's greater then end block.
+        // but this time, it's not an error, we just want to start streaming.
+        if start_block > end_block {
+            info!(ctx.expect_logger(), "Chainhook specification field `start_block` is greater than Bitcoin chain tip for predicate {}. Switching to streaming mode.", predicate_spec.uuid);
+            return Ok(false);
+        }
+
         floating_end_block = update_end_block;
-        BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
+        match BlockHeights::BlockRange(start_block, end_block).get_sorted_entries() {
+            Ok(heights) => heights,
+            Err(e) => match e {
+                BlockHeightsError::ExceedsMaxEntries(max, specified) => {
+                    return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", max, specified));
+                }
+                BlockHeightsError::StartLargerThanEnd => {
+                    return Err(
+                        "Chainhook specification field `end_block` should be greater than `start_block`."
+                            .into(),
+                    );
+                }
+            },
+        }
     };
 
     let mut predicates_db_conn = match config.http_api {

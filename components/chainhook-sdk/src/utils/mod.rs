@@ -253,23 +253,42 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
     Ok(())
 }
 
+#[derive(Debug)]
+pub enum BlockHeightsError {
+    ExceedsMaxEntries(u64, u64),
+    StartLargerThanEnd,
+}
+
 pub enum BlockHeights {
     BlockRange(u64, u64),
     Blocks(Vec<u64>),
 }
-
+const MAX_ENTRIES: u64 = 1_000_000;
 impl BlockHeights {
-    pub fn get_sorted_entries(&self) -> VecDeque<u64> {
+    pub fn get_sorted_entries(&self) -> Result<VecDeque<u64>, BlockHeightsError> {
         let mut entries = VecDeque::new();
         match &self {
             BlockHeights::BlockRange(start, end) => {
-                let min = *start.min(end);
-                let max = *start.max(end);
-                for i in min..=max {
+                if start > end {
+                    return Err(BlockHeightsError::StartLargerThanEnd);
+                }
+                if (end - start) > MAX_ENTRIES {
+                    return Err(BlockHeightsError::ExceedsMaxEntries(
+                        MAX_ENTRIES,
+                        end - start,
+                    ));
+                }
+                for i in *start..=*end {
                     entries.push_back(i);
                 }
             }
             BlockHeights::Blocks(heights) => {
+                if heights.len() as u64 > MAX_ENTRIES {
+                    return Err(BlockHeightsError::ExceedsMaxEntries(
+                        MAX_ENTRIES,
+                        heights.len() as u64,
+                    ));
+                }
                 let mut sorted_entries = heights.clone();
                 sorted_entries.sort();
                 let mut unique_sorted_entries = BTreeSet::new();
@@ -281,14 +300,14 @@ impl BlockHeights {
                 }
             }
         }
-        entries
+        Ok(entries)
     }
 }
 
 #[test]
 fn test_block_heights_range_construct() {
     let range = BlockHeights::BlockRange(0, 10);
-    let mut entries = range.get_sorted_entries();
+    let mut entries = range.get_sorted_entries().unwrap();
 
     let mut cursor = 0;
     while let Some(entry) = entries.pop_front() {
@@ -299,14 +318,60 @@ fn test_block_heights_range_construct() {
 }
 
 #[test]
+fn test_block_heights_range_limits_entries() {
+    let range = BlockHeights::BlockRange(0, MAX_ENTRIES + 1);
+    match range.get_sorted_entries() {
+        Ok(_) => panic!("Expected block heights range to error when exceeding max entries"),
+        Err(e) => match e {
+            BlockHeightsError::ExceedsMaxEntries(_, _) => {}
+            BlockHeightsError::StartLargerThanEnd => {
+                panic!("Wrong error reported from exceeding block heights range max entries")
+            }
+        },
+    };
+}
+
+#[test]
+fn test_block_heights_range_enforces_order() {
+    let range = BlockHeights::BlockRange(1, 0);
+    match range.get_sorted_entries() {
+        Ok(_) => panic!("Expected block heights range to error when exceeding max entries"),
+        Err(e) => match e {
+            BlockHeightsError::ExceedsMaxEntries(_, _) => {
+                panic!("Wrong error reported from supplying start/end out of order in block heights range")
+            }
+            BlockHeightsError::StartLargerThanEnd => {}
+        },
+    };
+}
+
+#[test]
 fn test_block_heights_blocks_construct() {
     let range = BlockHeights::Blocks(vec![0, 3, 5, 6, 6, 10, 9]);
     let expected = vec![0, 3, 5, 6, 9, 10];
-    let entries = range.get_sorted_entries();
+    let entries = range.get_sorted_entries().unwrap();
 
     for (entry, expectation) in entries.iter().zip(expected) {
         assert_eq!(*entry, expectation);
     }
+}
+
+#[test]
+fn test_block_heights_blocks_limits_entries() {
+    let mut too_big = vec![];
+    for i in 0..MAX_ENTRIES + 1 {
+        too_big.push(i);
+    }
+    let range = BlockHeights::Blocks(too_big);
+    match range.get_sorted_entries() {
+        Ok(_) => panic!("Expected block heights blocks to error when exceeding max entries"),
+        Err(e) => match e {
+            BlockHeightsError::ExceedsMaxEntries(_, _) => {}
+            BlockHeightsError::StartLargerThanEnd => {
+                panic!("Wrong error reported from exceeding block heights blocks max entries")
+            }
+        },
+    };
 }
 
 pub fn read_file_content_at_path(file_path: &PathBuf) -> Result<Vec<u8>, String> {
