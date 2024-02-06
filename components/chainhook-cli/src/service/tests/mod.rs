@@ -882,8 +882,8 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn test_deregister_predicate(chain: Chain) {
     let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _) = match &chain {
-        Chain::Stacks => setup_stacks_chainhook_test(0, None, None).await,
-        Chain::Bitcoin => setup_bitcoin_chainhook_test(0).await,
+        Chain::Stacks => setup_stacks_chainhook_test(3, None, None).await,
+        Chain::Bitcoin => setup_bitcoin_chainhook_test(3).await,
     };
 
     let uuid = &get_random_uuid();
