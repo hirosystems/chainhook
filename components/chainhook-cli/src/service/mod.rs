@@ -956,11 +956,7 @@ pub fn set_confirmed_expiration_status(
             }
         },
         None => {
-            warn!(
-                ctx.expect_logger(),
-                "found no status for predicate when trying to set confirmed expiration: {}",
-                predicate_key
-            );
+            // None means the predicate was deleted, so we can just ignore this predicate expiring
             return;
         }
     };
