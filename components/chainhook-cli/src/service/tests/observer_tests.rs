@@ -88,8 +88,8 @@ async fn prometheus_endpoint_returns_encoded_metrics() {
         redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
-    const EXPECTED: &'static str = "# HELP stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE stx_registered_predicates gauge\nstx_registered_predicates 1\n";
-    assert!(metrics.ends_with(EXPECTED));
+    const EXPECTED: &'static str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
+    assert!(metrics.contains(EXPECTED));
 
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);

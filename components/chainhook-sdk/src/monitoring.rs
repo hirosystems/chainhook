@@ -40,75 +40,75 @@ impl PrometheusMonitoring {
         let registry = Registry::new();
         let stx_highest_block_ingested = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "stx_highest_block_ingested",
+            "chainhook_stx_highest_block_ingested",
             "The highest Stacks block ingested by the Chainhook node.",
         );
         let stx_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
             &registry,
-            "stx_last_reorg_timestamp",
+            "chainhook_stx_last_reorg_timestamp",
             "The timestamp of the latest Stacks reorg ingested by the Chainhook node.",
         );
         let stx_last_reorg_applied_blocks = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "stx_last_reorg_applied_blocks",
+            "chainhook_stx_last_reorg_applied_blocks",
             "The number of blocks applied to the Stacks chain as part of the latest Stacks reorg.",
         );
         let stx_last_reorg_rolled_back_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
                 &registry,
-                "stx_last_reorg_rolled_back_blocks",
+                "chainhook_stx_last_reorg_rolled_back_blocks",
                 "The number of blocks rolled back from the Stacks chain as part of the latest Stacks reorg.",
             );
         let stx_last_block_ingestion_time = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "stx_last_block_ingestion_time",
+            "chainhook_stx_last_block_ingestion_time",
             "The time that the Chainhook node last ingested a Stacks block.",
         );
         let stx_registered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "stx_registered_predicates",
+            "chainhook_stx_registered_predicates",
             "The number of Stacks predicates that have been registered by the Chainhook node.",
         );
         let stx_deregistered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "stx_deregistered_predicates",
+            "chainhook_stx_deregistered_predicates",
             "The number of Stacks predicates that have been deregistered by the Chainhook node.",
         );
         let btc_highest_block_ingested = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "btc_highest_block_ingested",
+            "chainhook_btc_highest_block_ingested",
             "The highest Bitcoin block ingested by the Chainhook node.",
         );
         let btc_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
             &registry,
-            "btc_last_reorg_timestamp",
+            "chainhook_btc_last_reorg_timestamp",
             "The timestamp of the latest Bitcoin reorg ingested by the Chainhook node.",
         );
         let btc_last_reorg_applied_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
                 &registry,
-                "btc_last_reorg_applied_blocks",
+                "chainhook_btc_last_reorg_applied_blocks",
                 "The number of blocks applied to the Bitcoin chain as part of the latest Bitcoin reorg.",
             );
         let btc_last_reorg_rolled_back_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
                 &registry,
-                "btc_last_reorg_rolled_back_blocks",
+                "chainhook_btc_last_reorg_rolled_back_blocks",
                 "The number of blocks rolled back from the Bitcoin chain as part of the latest Bitcoin reorg.",
             );
         let btc_last_block_ingestion_time = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "btc_last_block_ingestion_time",
+            "chainhook_btc_last_block_ingestion_time",
             "The time that the Chainhook node last ingested a Bitcoin block.",
         );
         let btc_registered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "btc_registered_predicates",
+            "chainhook_btc_registered_predicates",
             "The number of Bitcoin predicates that have been registered by the Chainhook node.",
         );
         let btc_deregistered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "btc_deregistered_predicates",
+            "chainhook_btc_deregistered_predicates",
             "The number of Bitcoin predicates that have been deregistered by the Chainhook node.",
         );
 
