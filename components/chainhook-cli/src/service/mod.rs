@@ -955,7 +955,14 @@ pub fn set_confirmed_expiration_status(
                 return;
             }
         },
-        None => unreachable!("found no status for predicate: {}", predicate_key),
+        None => {
+            warn!(
+                ctx.expect_logger(),
+                "found no status for predicate when trying to set confirmed expiration: {}",
+                predicate_key
+            );
+            return;
+        }
     };
     update_predicate_status(
         predicate_key,
