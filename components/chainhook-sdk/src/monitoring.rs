@@ -301,7 +301,7 @@ async fn serve_req(
 }
 
 pub async fn start_serving_prometheus_metrics(port: u16, registry: Registry, ctx: Context) {
-    let addr = ([127, 0, 0, 1], port).into();
+    let addr = ([0, 0, 0, 0], port).into();
     let ctx_clone = ctx.clone();
     let make_svc = make_service_fn(|_| {
         let registry = registry.clone();
