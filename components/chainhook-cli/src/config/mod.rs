@@ -31,6 +31,7 @@ pub struct Config {
     pub event_sources: Vec<EventSourceConfig>,
     pub limits: LimitsConfig,
     pub network: IndexerConfig,
+    pub monitoring: MonitoringConfig,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +81,10 @@ pub struct LimitsConfig {
     pub max_caching_memory_size_mb: usize,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct MonitoringConfig {
+    pub prometheus_monitoring_port: Option<u16>,
+}
 impl Config {
     pub fn from_file_path(file_path: &str) -> Result<Config, String> {
         let file = File::open(file_path)
@@ -120,6 +125,7 @@ impl Config {
             bitcoin_network: self.network.bitcoin_network.clone(),
             stacks_network: self.network.stacks_network.clone(),
             data_handler_tx: None,
+            prometheus_monitoring_port: self.monitoring.prometheus_monitoring_port,
         }
     }
 
@@ -144,7 +150,11 @@ impl Config {
                 continue;
             }
         }
-
+        let prometheus_monitoring_port = if let Some(monitoring) = config_file.monitoring {
+            monitoring.prometheus_monitoring_port
+        } else {
+            None
+        };
         let config = Config {
             storage: StorageConfig {
                 working_dir: config_file.storage.working_dir.unwrap_or("cache".into()),
@@ -152,7 +162,7 @@ impl Config {
             http_api: match config_file.http_api {
                 None => PredicatesApi::Off,
                 Some(http_api) => match http_api.disabled {
-                    Some(false) => PredicatesApi::Off,
+                    Some(true) => PredicatesApi::Off,
                     _ => PredicatesApi::On(PredicatesApiConfig {
                         http_port: http_api.http_port.unwrap_or(DEFAULT_CONTROL_PORT),
                         display_logs: http_api.display_logs.unwrap_or(true),
@@ -208,6 +218,9 @@ impl Config {
                 },
                 stacks_network,
                 bitcoin_network,
+            },
+            monitoring: MonitoringConfig {
+                prometheus_monitoring_port,
             },
         };
         Ok(config)
@@ -340,6 +353,9 @@ impl Config {
                 stacks_network: StacksNetwork::Devnet,
                 bitcoin_network: BitcoinNetwork::Regtest,
             },
+            monitoring: MonitoringConfig {
+                prometheus_monitoring_port: None,
+            },
         }
     }
 
@@ -371,6 +387,9 @@ impl Config {
                 stacks_network: StacksNetwork::Testnet,
                 bitcoin_network: BitcoinNetwork::Testnet,
             },
+            monitoring: MonitoringConfig {
+                prometheus_monitoring_port: None,
+            },
         }
     }
 
@@ -401,6 +420,9 @@ impl Config {
                 ),
                 stacks_network: StacksNetwork::Mainnet,
                 bitcoin_network: BitcoinNetwork::Mainnet,
+            },
+            monitoring: MonitoringConfig {
+                prometheus_monitoring_port: None,
             },
         }
     }
