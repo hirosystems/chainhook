@@ -111,13 +111,13 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                     ));
                 }
             };
-            // if not, break out so we can enter streaming mode
+            // if the chain hasn't progressed, break out so we can enter streaming mode
             // and put back the block we weren't able to scan
             if current_block_height > chain_tip {
                 block_heights_to_scan.push_front(current_block_height);
                 break;
             } else {
-                // if so, update our total number of blocks to scan
+                // if the chain has progressed, update our total number of blocks to scan and keep scanning
                 number_of_blocks_to_scan += chain_tip - prev_chain_tip;
             }
         }

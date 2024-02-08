@@ -225,7 +225,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             let prev_chain_tip = chain_tip;
             // we've scanned up to the chain tip as of the start of this scan
             // so see if the chain has progressed since then
-
             chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
                 Some(chain_tip) => chain_tip,
                 None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
@@ -236,13 +235,13 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     }
                 },
             };
-            // if not, break out so we can enter streaming mode
+            // if the chain hasn't progressed, break out so we can enter streaming mode
             // and put back the block we weren't able to scan
             if current_block_height > chain_tip {
                 block_heights_to_scan.push_front(current_block_height);
                 break;
             } else {
-                // if so, update our total number of blocks to scan
+                // if the chain has progressed, update our total number of blocks to scan and keep scanning
                 number_of_blocks_to_scan += chain_tip - prev_chain_tip;
             }
         }
