@@ -213,23 +213,28 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             predicates_db_conn,
             ctx,
         );
-        // otherwise, we are finished scanning so we can expire the predicate if an end_block was provided
-        if let Some(predicate_end_block) = predicate_spec.end_block {
-            if block_heights_to_scan.is_empty() && predicate_end_block == last_block_scanned.index {
-                set_unconfirmed_expiration_status(
-                    &Chain::Bitcoin,
-                    number_of_blocks_scanned,
-                    predicate_end_block,
-                    &predicate_spec.key(),
-                    predicates_db_conn,
-                    ctx,
-                );
-                if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
-                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
-                }
-                return Ok(true);
+    }
+    // if an end block was provided, or a fixed number of blocks were set to be scanned,
+    // check to see if we've processed all of the blocks and can expire the predicate.
+    if (predicate_spec.blocks.is_some()
+        || (predicate_spec.end_block.is_some()
+            && predicate_spec.end_block.unwrap() == last_block_scanned.index))
+        && block_heights_to_scan.is_empty()
+    {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            set_unconfirmed_expiration_status(
+                &Chain::Bitcoin,
+                number_of_blocks_scanned,
+                last_block_scanned.index,
+                &predicate_spec.key(),
+                predicates_db_conn,
+                ctx,
+            );
+            if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
+                set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
+        return Ok(true);
     }
 
     return Ok(false);

@@ -356,42 +356,50 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             predicates_db_conn,
             ctx,
         );
-        if let Some(predicate_end_block) = predicate_spec.end_block {
-            if block_heights_to_scan.is_empty() && predicate_end_block == last_block_scanned.index {
-                let is_confirmed = match get_stacks_block_at_block_height(
-                    predicate_end_block,
-                    true,
-                    3,
-                    stacks_db_conn,
-                ) {
-                    Ok(block) => match block {
-                        Some(_) => true,
-                        None => false,
-                    },
-                    Err(e) => {
-                        warn!(
-                            ctx.expect_logger(),
-                            "Failed to get stacks block for status update: {}",
-                            e.to_string()
-                        );
-                        false
-                    }
-                };
-                set_unconfirmed_expiration_status(
-                    &Chain::Stacks,
-                    number_of_blocks_scanned,
-                    predicate_end_block,
-                    &predicate_spec.key(),
-                    predicates_db_conn,
-                    ctx,
-                );
-                if is_confirmed {
-                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
+    }
+
+    // if an end block was provided, or a fixed number of blocks were set to be scanned,
+    // check to see if we've processed all of the blocks and can expire the predicate.
+    if (predicate_spec.blocks.is_some()
+        || (predicate_spec.end_block.is_some()
+            && predicate_spec.end_block.unwrap() == last_block_scanned.index))
+        && block_heights_to_scan.is_empty()
+    {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            let is_confirmed = match get_stacks_block_at_block_height(
+                last_block_scanned.index,
+                true,
+                3,
+                stacks_db_conn,
+            ) {
+                Ok(block) => match block {
+                    Some(_) => true,
+                    None => false,
+                },
+                Err(e) => {
+                    warn!(
+                        ctx.expect_logger(),
+                        "Failed to get stacks block for status update: {}",
+                        e.to_string()
+                    );
+                    false
                 }
-                return Ok((Some(last_block_scanned), true));
+            };
+            set_unconfirmed_expiration_status(
+                &Chain::Stacks,
+                number_of_blocks_scanned,
+                last_block_scanned.index,
+                &predicate_spec.key(),
+                predicates_db_conn,
+                ctx,
+            );
+            if is_confirmed {
+                set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
+        return Ok((Some(last_block_scanned), true));
     }
+
     Ok((Some(last_block_scanned), false))
 }
 
