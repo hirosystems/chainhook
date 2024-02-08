@@ -17,8 +17,11 @@ pub fn get_block_heights_to_scan(
                     return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", max, specified));
                 }
                 BlockHeightsError::StartLargerThanEnd => {
-                    //todo: improve error
-                    return Err(format!("Unreachable codepath while scanning predicate"));
+                    // this code path should not be reachable
+                    return Err(
+                        "Chainhook specification field `end_block` should be greater than `start_block`."
+                            .into(),
+                    );
                 }
             },
         }
