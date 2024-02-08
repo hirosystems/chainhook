@@ -7,6 +7,7 @@ pub struct ConfigFile {
     pub event_source: Option<Vec<EventSourceConfigFile>>,
     pub limits: LimitsConfigFile,
     pub network: NetworkConfigFile,
+    pub monitoring: Option<MonitoringConfigFile>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -80,4 +81,9 @@ impl NetworkConfigMode {
             NetworkConfigMode::Signet => "signet",
         }
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MonitoringConfigFile {
+    pub prometheus_monitoring_port: Option<u16>,
 }

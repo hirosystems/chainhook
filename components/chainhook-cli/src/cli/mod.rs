@@ -193,6 +193,9 @@ struct StartCommand {
     /// Start REST API for managing predicates
     #[clap(long = "start-http-api")]
     pub start_http_api: bool,
+    /// If provided, serves Prometheus metrics at localhost:{port}/metrics. If not specified, does not start Prometheus server.
+    #[clap(long = "prometheus-port")]
+    pub prometheus_monitoring_port: Option<u16>,
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -291,8 +294,12 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
     match opts.command {
         Command::Service(subcmd) => match subcmd {
             ServiceCommand::Start(cmd) => {
-                let config =
+                let mut config =
                     Config::default(cmd.devnet, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
+
+                if cmd.prometheus_monitoring_port.is_some() {
+                    config.monitoring.prometheus_monitoring_port = cmd.prometheus_monitoring_port;
+                }
 
                 let predicates = cmd
                     .predicates_paths
