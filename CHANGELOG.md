@@ -1,3 +1,19 @@
+## [1.3.0](https://github.com/hirosystems/chainhook/compare/v1.2.1...v1.3.0) (2024-02-08)
+
+
+### Features
+
+* optionally serve Prometheus metrics ([#473](https://github.com/hirosystems/chainhook/issues/473)) ([67a38ac](https://github.com/hirosystems/chainhook/commit/67a38ac3c3777a52104b2eab4846a1adbc7d55dd))
+
+
+### Bug Fixes
+
+* adjust ordinal_number entry in ts client inscription transfer event, add new reveal data ([#476](https://github.com/hirosystems/chainhook/issues/476)) ([28bf5c4](https://github.com/hirosystems/chainhook/commit/28bf5c41723df5a186153f9cd626225adc261896))
+* remove early return for event evaluation ([#484](https://github.com/hirosystems/chainhook/issues/484)) ([98f9e86](https://github.com/hirosystems/chainhook/commit/98f9e86187ba3e9534ca7d333936595a706179d0)), closes [#469](https://github.com/hirosystems/chainhook/issues/469)
+* remove unreachable panic; return instead ([#490](https://github.com/hirosystems/chainhook/issues/490)) ([abe0fd5](https://github.com/hirosystems/chainhook/commit/abe0fd5b8b84352d081367477dadb3b8dc135a9b))
+* use cli feature for `cargo chainhook-install` ([#486](https://github.com/hirosystems/chainhook/issues/486)) ([32f4d4e](https://github.com/hirosystems/chainhook/commit/32f4d4e6700be8aa8bf73740b8a2e590915b94df))
+* validate predicate `start_block` and `end_block` ([#489](https://github.com/hirosystems/chainhook/issues/489)) ([e70025b](https://github.com/hirosystems/chainhook/commit/e70025bfd3d8f5588eb178781fdc87158245edb7)), closes [#477](https://github.com/hirosystems/chainhook/issues/477) [#464](https://github.com/hirosystems/chainhook/issues/464)
+
 ## [1.2.1](https://github.com/hirosystems/chainhook/compare/v1.2.0...v1.2.1) (2024-01-30)
 
 
