@@ -49,6 +49,25 @@ pub mod fixtures;
     "FtEvent predicates match transfer event"
 )]
 #[test_case(
+    vec![vec![StacksTransactionEvent::FTTransferEvent(chainhook_types::FTTransferEventData {
+        sender: "".to_string(),
+        asset_class_identifier: "different-id".to_string(),
+        amount: "".to_string(),
+        recipient: "".to_string(),
+    }), StacksTransactionEvent::FTTransferEvent(chainhook_types::FTTransferEventData {
+        sender: "".to_string(),
+        asset_class_identifier: "asset-id".to_string(),
+        amount: "".to_string(),
+        recipient: "".to_string(),
+    })]], 
+    StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
+        asset_identifier: "asset-id".to_string(),
+        actions: vec!["transfer".to_string()]
+    }),
+    1;
+    "FtEvent predicates match transfer event if matching event is not first in transaction"
+)]
+#[test_case(
     vec![vec![get_test_event_by_type("ft_burn")]], 
     StacksPredicate::FtEvent(StacksFtEventBasedPredicate {
         asset_identifier: "asset-id".to_string(),
@@ -120,6 +139,25 @@ pub mod fixtures;
     }),
     1;
     "NftEvent predicates match transfer event"
+)]
+#[test_case(
+    vec![vec![StacksTransactionEvent::NFTTransferEvent(chainhook_types::NFTTransferEventData {
+        sender: "".to_string(),
+        asset_class_identifier: "different-id".to_string(),
+        hex_asset_identifier: "different-id".to_string(),
+        recipient: "".to_string(),
+    }), StacksTransactionEvent::NFTTransferEvent(chainhook_types::NFTTransferEventData {
+        sender: "".to_string(),
+        asset_class_identifier: "asset-id".to_string(),
+        hex_asset_identifier: "asset-id".to_string(),
+        recipient: "".to_string(),
+    })]], 
+    StacksPredicate::NftEvent(StacksNftEventBasedPredicate {
+        asset_identifier: "asset-id".to_string(),
+        actions: vec!["transfer".to_string()]
+    }),
+    1;
+    "NftEvent predicates match transfer event if matching event is not first in transaction"
 )]
 #[test_case(
     vec![vec![get_test_event_by_type("nft_burn")]], 

@@ -2,6 +2,7 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, NewBitcoinBlock,
 };
 use crate::indexer::{self, Indexer};
+use crate::monitoring::PrometheusMonitoring;
 use crate::utils::Context;
 use hiro_system_kit::slog;
 use rocket::serde::json::{json, Json, Value as JsonValue};
@@ -10,19 +11,20 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
 use super::{
-    BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand, ObserverMetrics,
+    BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand,
     StacksChainMempoolEvent,
 };
 
 #[rocket::get("/ping", format = "application/json")]
 pub fn handle_ping(
     ctx: &State<Context>,
-    metrics_rw_lock: &State<Arc<RwLock<ObserverMetrics>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "GET /ping"));
+
     Json(json!({
         "status": 200,
-        "result": metrics_rw_lock.inner(),
+        "result": prometheus_monitoring.get_metrics(),
     }))
 }
 
@@ -364,14 +366,15 @@ pub async fn handle_bitcoin_wallet_rpc_call(
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /wallet"));
 
-    use base64::encode;
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::engine::Engine as _;
     use reqwest::Client;
 
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
 
     let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
 
-    let token = encode(format!(
+    let token = BASE64.encode(format!(
         "{}:{}",
         bitcoin_config.username, bitcoin_config.password
     ));
@@ -401,7 +404,8 @@ pub async fn handle_bitcoin_rpc_call(
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /"));
 
-    use base64::encode;
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::engine::Engine as _;
     use reqwest::Client;
 
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
@@ -409,7 +413,7 @@ pub async fn handle_bitcoin_rpc_call(
 
     let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
 
-    let token = encode(format!(
+    let token = BASE64.encode(format!(
         "{}:{}",
         bitcoin_config.username, bitcoin_config.password
     ));

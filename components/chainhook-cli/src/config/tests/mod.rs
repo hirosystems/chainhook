@@ -1,8 +1,14 @@
 use std::path::PathBuf;
 
-use crate::config::{file::NetworkConfigMode, PredicatesApi, PredicatesApiConfig};
+use crate::config::{
+    file::{NetworkConfigMode, PredicatesApiConfigFile},
+    PredicatesApi, PredicatesApiConfig,
+};
 
-use super::{generator::generate_config, Config, ConfigFile, EventSourceConfig, PathConfig};
+use super::{
+    file::MonitoringConfigFile, generator::generate_config, Config, ConfigFile, EventSourceConfig,
+    PathConfig,
+};
 use chainhook_sdk::types::{BitcoinNetwork, StacksNetwork};
 use test_case::test_case;
 
@@ -22,6 +28,28 @@ fn config_from_file_matches_generator_for_all_networks(network: BitcoinNetwork) 
     let generated_config_file: ConfigFile = toml::from_str(&generated_config_str).unwrap();
     let generated_config = Config::from_config_file(generated_config_file).unwrap();
     assert_eq!(generated_config, from_path_config);
+}
+
+#[test]
+fn config_from_file_allows_setting_disabled_fields() {
+    let generated_config_str = generate_config(&BitcoinNetwork::Regtest);
+    let mut generated_config_file: ConfigFile = toml::from_str(&generated_config_str).unwrap();
+    // http_api and monitoring are optional, so they are disabled in generated config file
+    generated_config_file.http_api = Some(PredicatesApiConfigFile {
+        http_port: Some(0),
+        database_uri: Some(format!("")),
+        display_logs: Some(false),
+        disabled: Some(false),
+    });
+    generated_config_file.monitoring = Some(MonitoringConfigFile {
+        prometheus_monitoring_port: Some(20457),
+    });
+    let generated_config = Config::from_config_file(generated_config_file).unwrap();
+    assert!(generated_config.is_http_api_enabled());
+    assert_eq!(
+        generated_config.monitoring.prometheus_monitoring_port,
+        Some(20457)
+    );
 }
 
 #[test]

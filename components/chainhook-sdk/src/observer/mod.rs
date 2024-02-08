@@ -19,6 +19,7 @@ use crate::indexer::bitcoin::{
     BitcoinBlockFullBreakdown,
 };
 use crate::indexer::{Indexer, IndexerConfig};
+use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
 use crate::utils::{send_request, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
@@ -42,7 +43,6 @@ use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
 
@@ -79,6 +79,7 @@ pub struct EventObserverConfig {
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
     pub data_handler_tx: Option<crossbeam_channel::Sender<DataHandlerEvent>>,
+    pub prometheus_monitoring_port: Option<u16>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -137,6 +138,9 @@ impl EventObserverConfig {
         }
     }
 
+    /// Helper to allow overriding some default fields in creating a new EventObserverConfig.
+    ///
+    /// *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
     pub fn new_using_overrides(
         overrides: Option<&EventObserverConfigOverrides>,
     ) -> Result<EventObserverConfig, String> {
@@ -186,6 +190,7 @@ impl EventObserverConfig {
             bitcoin_network,
             stacks_network,
             data_handler_tx: None,
+            prometheus_monitoring_port: None,
         };
         Ok(config)
     }
@@ -346,35 +351,6 @@ impl ChainhookStore {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct ReorgMetrics {
-    timestamp: i64,
-    applied_blocks: usize,
-    rolled_back_blocks: usize,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct ChainMetrics {
-    pub tip_height: u64,
-    pub last_reorg: Option<ReorgMetrics>,
-    pub last_block_ingestion_at: u128,
-    pub registered_predicates: usize,
-    pub deregistered_predicates: usize,
-}
-
-impl ChainMetrics {
-    pub fn deregister_prediate(&mut self) {
-        self.registered_predicates -= 1;
-        self.deregistered_predicates += 1;
-    }
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct ObserverMetrics {
-    pub bitcoin: ChainMetrics,
-    pub stacks: ChainMetrics,
-}
-
 #[derive(Debug, Clone)]
 pub struct BitcoinBlockDataCached {
     pub block: BitcoinBlockData,
@@ -515,18 +491,6 @@ pub async fn start_bitcoin_event_observer(
 ) -> Result<(), Box<dyn Error>> {
     let chainhook_store = config.get_chainhook_store();
 
-    let observer_metrics = ObserverMetrics {
-        bitcoin: ChainMetrics {
-            registered_predicates: 0,
-            ..Default::default()
-        },
-        stacks: ChainMetrics {
-            registered_predicates: 0,
-            ..Default::default()
-        },
-    };
-    let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
-
     #[cfg(feature = "zeromq")]
     {
         let ctx_moved = ctx.clone();
@@ -538,6 +502,26 @@ pub async fn start_bitcoin_event_observer(
         });
     }
 
+    let prometheus_monitoring = PrometheusMonitoring::new();
+    prometheus_monitoring.stx_metrics_set_registered_predicates(
+        chainhook_store.predicates.stacks_chainhooks.len() as u64,
+    );
+    prometheus_monitoring.btc_metrics_set_registered_predicates(
+        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+    );
+
+    if let Some(port) = config.prometheus_monitoring_port {
+        let registry_moved = prometheus_monitoring.registry.clone();
+        let ctx_cloned = ctx.clone();
+        let _ = std::thread::spawn(move || {
+            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+                port,
+                registry_moved,
+                ctx_cloned,
+            ));
+        });
+    }
+
     // This loop is used for handling background jobs, emitted by HTTP calls.
     start_observer_commands_handler(
         config,
@@ -545,7 +529,7 @@ pub async fn start_bitcoin_event_observer(
         observer_commands_rx,
         observer_events_tx,
         None,
-        observer_metrics_rw_lock.clone(),
+        prometheus_monitoring,
         observer_sidecar,
         ctx,
     )
@@ -591,17 +575,25 @@ pub async fn start_stacks_event_observer(
 
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
-    let observer_metrics = ObserverMetrics {
-        bitcoin: ChainMetrics {
-            registered_predicates: chainhook_store.predicates.bitcoin_chainhooks.len(),
-            ..Default::default()
-        },
-        stacks: ChainMetrics {
-            registered_predicates: chainhook_store.predicates.stacks_chainhooks.len(),
-            ..Default::default()
-        },
-    };
-    let observer_metrics_rw_lock = Arc::new(RwLock::new(observer_metrics));
+    let prometheus_monitoring = PrometheusMonitoring::new();
+    prometheus_monitoring.stx_metrics_set_registered_predicates(
+        chainhook_store.predicates.stacks_chainhooks.len() as u64,
+    );
+    prometheus_monitoring.btc_metrics_set_registered_predicates(
+        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+    );
+
+    if let Some(port) = config.prometheus_monitoring_port {
+        let registry_moved = prometheus_monitoring.registry.clone();
+        let ctx_cloned = ctx.clone();
+        let _ = std::thread::spawn(move || {
+            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+                port,
+                registry_moved,
+                ctx_cloned,
+            ));
+        });
+    }
 
     let limits = Limits::default().limit("json", 20.megabytes());
     let mut shutdown_config = config::Shutdown::default();
@@ -645,7 +637,7 @@ pub async fn start_stacks_event_observer(
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
-        .manage(observer_metrics_rw_lock.clone())
+        .manage(prometheus_monitoring.clone())
         .mount("/", routes)
         .ignite()
         .await?;
@@ -662,7 +654,7 @@ pub async fn start_stacks_event_observer(
         observer_commands_rx,
         observer_events_tx,
         ingestion_shutdown,
-        observer_metrics_rw_lock.clone(),
+        prometheus_monitoring,
         observer_sidecar,
         ctx,
     )
@@ -743,7 +735,7 @@ pub async fn start_observer_commands_handler(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
-    observer_metrics: Arc<RwLock<ObserverMetrics>>,
+    prometheus_monitoring: PrometheusMonitoring,
     observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
@@ -816,21 +808,9 @@ pub async fn start_observer_commands_handler(
                         }
                     };
                 };
-                match observer_metrics.write() {
-                    Ok(mut metrics) => {
-                        if block.block_identifier.index > metrics.bitcoin.tip_height {
-                            metrics.bitcoin.tip_height = block.block_identifier.index;
-                        }
-                        metrics.bitcoin.last_block_ingestion_at = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("Could not get current time in ms")
-                            .as_millis()
-                            .into();
-                    }
-                    Err(e) => ctx.try_log(|logger| {
-                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                    }),
-                };
+
+                prometheus_monitoring.btc_metrics_ingest_block(block.block_identifier.index);
+
                 bitcoin_block_store.insert(
                     block.block_identifier.clone(),
                     BitcoinBlockDataCached {
@@ -991,22 +971,11 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block_identifier.index)
                         {
-                            Some(highest_tip_block) => match observer_metrics.write() {
-                                Ok(mut metrics) => {
-                                    metrics.bitcoin.last_reorg = Some(ReorgMetrics {
-                                        timestamp: highest_tip_block.timestamp.into(),
-                                        applied_blocks: blocks_to_apply.len(),
-                                        rolled_back_blocks: blocks_to_rollback.len(),
-                                    });
-                                }
-                                Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(
-                                        logger,
-                                        "unable to acquire observer_metrics_rw_lock:{}",
-                                        e
-                                    )
-                                }),
-                            },
+                            Some(highest_tip_block) => prometheus_monitoring.btc_metrics_set_reorg(
+                                highest_tip_block.timestamp.into(),
+                                blocks_to_apply.len() as u64,
+                                blocks_to_rollback.len() as u64,
+                            ),
                             None => {}
                         }
 
@@ -1149,16 +1118,7 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
                     {
-                        match observer_metrics.write() {
-                            Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
-                            Err(e) => ctx.try_log(|logger| {
-                                slog::warn!(
-                                    logger,
-                                    "unable to acquire observer_metrics_rw_lock:{}",
-                                    e
-                                )
-                            }),
-                        }
+                        prometheus_monitoring.btc_metrics_deregister_predicate();
 
                         if let Some(ref tx) = observer_events_tx {
                             let _ = tx.send(ObserverEvent::PredicateDeregistered(
@@ -1210,28 +1170,10 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => match observer_metrics.write() {
-                                Ok(mut metrics) => {
-                                    if highest_tip_update.block.block_identifier.index
-                                        > metrics.stacks.tip_height
-                                    {
-                                        metrics.stacks.tip_height =
-                                            highest_tip_update.block.block_identifier.index;
-                                    }
-                                    metrics.stacks.last_block_ingestion_at = SystemTime::now()
-                                        .duration_since(UNIX_EPOCH)
-                                        .expect("Could not get current time in ms")
-                                        .as_millis()
-                                        .into();
-                                }
-                                Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(
-                                        logger,
-                                        "unable to acquire observer_metrics_rw_lock:{}",
-                                        e
-                                    )
-                                }),
-                            },
+                            Some(highest_tip_update) => prometheus_monitoring
+                                .stx_metrics_ingest_block(
+                                    highest_tip_update.block.block_identifier.index,
+                                ),
                             None => {}
                         }
                     }
@@ -1241,22 +1183,12 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => match observer_metrics.write() {
-                                Ok(mut metrics) => {
-                                    metrics.stacks.last_reorg = Some(ReorgMetrics {
-                                        timestamp: highest_tip_update.block.timestamp.into(),
-                                        applied_blocks: update.blocks_to_apply.len(),
-                                        rolled_back_blocks: update.blocks_to_rollback.len(),
-                                    });
-                                }
-                                Err(e) => ctx.try_log(|logger| {
-                                    slog::warn!(
-                                        logger,
-                                        "unable to acquire observer_metrics_rw_lock:{}",
-                                        e
-                                    )
-                                }),
-                            },
+                            Some(highest_tip_update) => prometheus_monitoring
+                                .stx_metrics_set_reorg(
+                                    highest_tip_update.block.timestamp,
+                                    update.blocks_to_apply.len() as u64,
+                                    update.blocks_to_rollback.len() as u64,
+                                ),
                             None => {}
                         }
                     }
@@ -1344,17 +1276,7 @@ pub async fn start_observer_commands_handler(
                         .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
                     {
-                        match observer_metrics.write() {
-                            Ok(mut metrics) => metrics.stacks.deregister_prediate(),
-
-                            Err(e) => ctx.try_log(|logger| {
-                                slog::warn!(
-                                    logger,
-                                    "unable to acquire observer_metrics_rw_lock:{}",
-                                    e
-                                )
-                            }),
-                        }
+                        prometheus_monitoring.stx_metrics_deregister_predicate();
 
                         if let Some(ref tx) = observer_events_tx {
                             let _ = tx.send(ObserverEvent::PredicateDeregistered(
@@ -1417,18 +1339,13 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
-                match observer_metrics.write() {
-                    Ok(mut metrics) => match spec {
-                        ChainhookSpecification::Bitcoin(_) => {
-                            metrics.bitcoin.registered_predicates += 1
-                        }
-                        ChainhookSpecification::Stacks(_) => {
-                            metrics.stacks.registered_predicates += 1
-                        }
-                    },
-                    Err(e) => ctx.try_log(|logger| {
-                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                    }),
+                match spec {
+                    ChainhookSpecification::Bitcoin(_) => {
+                        prometheus_monitoring.btc_metrics_register_predicate()
+                    }
+                    ChainhookSpecification::Stacks(_) => {
+                        prometheus_monitoring.stx_metrics_register_predicate()
+                    }
                 };
 
                 ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
@@ -1452,12 +1369,7 @@ pub async fn start_observer_commands_handler(
                 });
                 let hook = chainhook_store.predicates.deregister_stacks_hook(hook_uuid);
 
-                match observer_metrics.write() {
-                    Ok(mut metrics) => metrics.stacks.deregister_prediate(),
-                    Err(e) => ctx.try_log(|logger| {
-                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                    }),
-                }
+                prometheus_monitoring.stx_metrics_deregister_predicate();
 
                 if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
@@ -1473,12 +1385,7 @@ pub async fn start_observer_commands_handler(
                     .predicates
                     .deregister_bitcoin_hook(hook_uuid);
 
-                match observer_metrics.write() {
-                    Ok(mut metrics) => metrics.bitcoin.deregister_prediate(),
-                    Err(e) => ctx.try_log(|logger| {
-                        slog::warn!(logger, "unable to acquire observer_metrics_rw_lock:{}", e)
-                    }),
-                }
+                prometheus_monitoring.btc_metrics_deregister_predicate();
 
                 if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(

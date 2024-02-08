@@ -1,6 +1,6 @@
 [package]
 name = "chainhook"
-version = "1.1.1"
+version = "1.3.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -59,8 +59,8 @@ serial_test = "2.0.0"
 
 
 [features]
-default = ["cli"]
-cli = ["clap", "clap_generate", "toml", "ctrlc", "release"]
+default = ["cli", "release"]
+cli = ["clap", "clap_generate", "toml", "ctrlc"]
 debug = ["chainhook-sdk/debug"]
 release = ["chainhook-sdk/release"]
 redis_tests = []

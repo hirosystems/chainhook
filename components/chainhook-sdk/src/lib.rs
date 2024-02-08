@@ -24,6 +24,7 @@ pub use chainhook_types as types;
 
 pub mod chainhooks;
 pub mod indexer;
+pub mod monitoring;
 pub mod observer;
 pub mod utils;
 
