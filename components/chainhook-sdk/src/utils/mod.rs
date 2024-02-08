@@ -263,7 +263,7 @@ pub enum BlockHeights {
     BlockRange(u64, u64),
     Blocks(Vec<u64>),
 }
-const MAX_ENTRIES: u64 = 1_000_000;
+pub const MAX_BLOCK_HEIGHTS_ENTRIES: u64 = 1_000_000;
 impl BlockHeights {
     pub fn get_sorted_entries(&self) -> Result<VecDeque<u64>, BlockHeightsError> {
         let mut entries = VecDeque::new();
@@ -272,9 +272,9 @@ impl BlockHeights {
                 if start > end {
                     return Err(BlockHeightsError::StartLargerThanEnd);
                 }
-                if (end - start) > MAX_ENTRIES {
+                if (end - start) > MAX_BLOCK_HEIGHTS_ENTRIES {
                     return Err(BlockHeightsError::ExceedsMaxEntries(
-                        MAX_ENTRIES,
+                        MAX_BLOCK_HEIGHTS_ENTRIES,
                         end - start,
                     ));
                 }
@@ -283,9 +283,9 @@ impl BlockHeights {
                 }
             }
             BlockHeights::Blocks(heights) => {
-                if heights.len() as u64 > MAX_ENTRIES {
+                if heights.len() as u64 > MAX_BLOCK_HEIGHTS_ENTRIES {
                     return Err(BlockHeightsError::ExceedsMaxEntries(
-                        MAX_ENTRIES,
+                        MAX_BLOCK_HEIGHTS_ENTRIES,
                         heights.len() as u64,
                     ));
                 }
@@ -319,7 +319,7 @@ fn test_block_heights_range_construct() {
 
 #[test]
 fn test_block_heights_range_limits_entries() {
-    let range = BlockHeights::BlockRange(0, MAX_ENTRIES + 1);
+    let range = BlockHeights::BlockRange(0, MAX_BLOCK_HEIGHTS_ENTRIES + 1);
     match range.get_sorted_entries() {
         Ok(_) => panic!("Expected block heights range to error when exceeding max entries"),
         Err(e) => match e {
@@ -359,7 +359,7 @@ fn test_block_heights_blocks_construct() {
 #[test]
 fn test_block_heights_blocks_limits_entries() {
     let mut too_big = vec![];
-    for i in 0..MAX_ENTRIES + 1 {
+    for i in 0..MAX_BLOCK_HEIGHTS_ENTRIES + 1 {
         too_big.push(i);
     }
     let range = BlockHeights::Blocks(too_big);
