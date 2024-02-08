@@ -723,9 +723,8 @@ fn set_predicate_streaming_status(
                     number_of_times_triggered,
                     last_evaluated_block_height,
                 ),
-                PredicateStatus::New
-                | PredicateStatus::Interrupted(_)
-                | PredicateStatus::ConfirmedExpiration(_) => {
+                PredicateStatus::New => (None, 0, 0, 0),
+                PredicateStatus::Interrupted(_) | PredicateStatus::ConfirmedExpiration(_) => {
                     warn!(ctx.expect_logger(), "Attempting to set Streaming status when previous status was {:?} for predicate {}", status, predicate_key);
                     return;
                 }

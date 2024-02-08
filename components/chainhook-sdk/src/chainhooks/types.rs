@@ -7,6 +7,8 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 use schemars::JsonSchema;
 
+use crate::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ChainhookConfig {
     pub stacks_chainhooks: Vec<StacksChainhookSpecification>,
@@ -239,11 +241,35 @@ impl ChainhookFullSpecification {
             Self::Bitcoin(data) => {
                 for (_, spec) in data.networks.iter() {
                     let _ = spec.action.validate()?;
+                    if let Some(end_block) = spec.end_block {
+                        let start_block = spec.start_block.unwrap_or(0);
+                        if start_block > end_block {
+                            return Err(
+                                "Chainhook specification field `end_block` should be greater than `start_block`."
+                                    .into(),
+                            );
+                        }
+                        if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                            return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+                        }
+                    }
                 }
             }
             Self::Stacks(data) => {
                 for (_, spec) in data.networks.iter() {
                     let _ = spec.action.validate()?;
+                    if let Some(end_block) = spec.end_block {
+                        let start_block = spec.start_block.unwrap_or(0);
+                        if start_block > end_block {
+                            return Err(
+                                "Chainhook specification field `end_block` should be greater than `start_block`."
+                                    .into(),
+                            );
+                        }
+                        if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                            return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+                        }
+                    }
                 }
             }
         }

@@ -1,4 +1,5 @@
 use crate::config::{Config, PredicatesApi};
+use crate::scan::common::get_block_heights_to_scan;
 use crate::service::{
     open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
     set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
@@ -19,7 +20,7 @@ use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
     BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData, BlockIdentifier, Chain,
 };
-use chainhook_sdk::utils::{file_append, send_request, BlockHeights, Context};
+use chainhook_sdk::utils::{file_append, send_request, Context};
 use std::collections::HashMap;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
@@ -39,46 +40,28 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             return Err(format!("Bitcoin RPC error: {}", message.to_string()));
         }
     };
-    let mut floating_end_block = false;
 
-    let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
-        // todo: if a user provides a number of blocks where start_block + blocks > chain tip,
-        // the predicate will fail to scan all blocks. we should calculate a valid end_block and
-        // switch to streaming mode at some point
-        BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
-    } else {
-        let start_block = match predicate_spec.start_block {
-            Some(start_block) => match &unfinished_scan_data {
-                Some(scan_data) => scan_data.last_evaluated_block_height,
-                None => start_block,
-            },
-            None => {
-                return Err(
-                    "Bitcoin chainhook specification must include a field start_block in replay mode"
-                        .into(),
-                );
-            }
-        };
-        let (end_block, update_end_block) = match bitcoin_rpc.get_blockchain_info() {
-            Ok(result) => match predicate_spec.end_block {
-                Some(end_block) => {
-                    if end_block > result.blocks {
-                        (result.blocks, true)
-                    } else {
-                        (end_block, false)
-                    }
-                }
-                None => (result.blocks, true),
-            },
-            Err(e) => {
-                return Err(format!(
-                    "unable to retrieve Bitcoin chain tip ({})",
-                    e.to_string()
-                ));
-            }
-        };
-        floating_end_block = update_end_block;
-        BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
+    let mut chain_tip = match bitcoin_rpc.get_blockchain_info() {
+        Ok(result) => result.blocks,
+        Err(e) => {
+            return Err(format!(
+                "unable to retrieve Bitcoin chain tip ({})",
+                e.to_string()
+            ));
+        }
+    };
+
+    let block_heights_to_scan = get_block_heights_to_scan(
+        &predicate_spec.blocks,
+        &predicate_spec.start_block,
+        &predicate_spec.end_block,
+        &chain_tip,
+        &unfinished_scan_data,
+    )?;
+    let mut block_heights_to_scan = match block_heights_to_scan {
+        Some(h) => h,
+        // no blocks to scan, go straight to streaming
+        None => return Ok(false),
     };
 
     let mut predicates_db_conn = match config.http_api {
@@ -115,6 +98,30 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if current_block_height > chain_tip {
+            let prev_chain_tip = chain_tip;
+            // we've scanned up to the chain tip as of the start of this scan
+            // so see if the chain has progressed since then
+            chain_tip = match bitcoin_rpc.get_blockchain_info() {
+                Ok(result) => result.blocks,
+                Err(e) => {
+                    return Err(format!(
+                        "unable to retrieve Bitcoin chain tip ({})",
+                        e.to_string()
+                    ));
+                }
+            };
+            // if the chain hasn't progressed, break out so we can enter streaming mode
+            // and put back the block we weren't able to scan
+            if current_block_height > chain_tip {
+                block_heights_to_scan.push_front(current_block_height);
+                break;
+            } else {
+                // if the chain has progressed, update our total number of blocks to scan and keep scanning
+                number_of_blocks_to_scan += chain_tip - prev_chain_tip;
+            }
+        }
+
         number_of_blocks_scanned += 1;
 
         let block_hash = retrieve_block_hash_with_retry(
@@ -189,30 +196,8 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 );
             }
         }
-
-        if block_heights_to_scan.is_empty() && floating_end_block {
-            let new_tip = match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => match predicate_spec.end_block {
-                    Some(end_block) => {
-                        if end_block > result.blocks {
-                            result.blocks
-                        } else {
-                            end_block
-                        }
-                    }
-                    None => result.blocks,
-                },
-                Err(_e) => {
-                    continue;
-                }
-            };
-
-            for entry in (current_block_height + 1)..new_tip {
-                block_heights_to_scan.push_back(entry);
-            }
-            number_of_blocks_to_scan += block_heights_to_scan.len() as u64;
-        }
     }
+
     info!(
         ctx.expect_logger(),
         "{number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
@@ -228,24 +213,28 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             predicates_db_conn,
             ctx,
         );
-        if let Some(predicate_end_block) = predicate_spec.end_block {
-            if predicate_end_block == last_block_scanned.index {
-                // todo: we need to find a way to check if this block is confirmed
-                // and if so, set the status to confirmed expiration
-                set_unconfirmed_expiration_status(
-                    &Chain::Bitcoin,
-                    number_of_blocks_scanned,
-                    predicate_end_block,
-                    &predicate_spec.key(),
-                    predicates_db_conn,
-                    ctx,
-                );
-                if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
-                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
-                }
-                return Ok(true);
+    }
+    // if an end block was provided, or a fixed number of blocks were set to be scanned,
+    // check to see if we've processed all of the blocks and can expire the predicate.
+    if (predicate_spec.blocks.is_some()
+        || (predicate_spec.end_block.is_some()
+            && predicate_spec.end_block.unwrap() == last_block_scanned.index))
+        && block_heights_to_scan.is_empty()
+    {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            set_unconfirmed_expiration_status(
+                &Chain::Bitcoin,
+                number_of_blocks_scanned,
+                last_block_scanned.index,
+                &predicate_spec.key(),
+                predicates_db_conn,
+                ctx,
+            );
+            if last_scanned_block_confirmations >= CONFIRMED_SEGMENT_MINIMUM_LENGTH {
+                set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
+        return Ok(true);
     }
 
     return Ok(false);

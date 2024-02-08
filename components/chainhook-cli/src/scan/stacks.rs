@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
+    scan::common::get_block_heights_to_scan,
     service::{
         open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
         set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
@@ -17,7 +18,7 @@ use chainhook_sdk::types::{BlockIdentifier, Chain};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
-    utils::{BlockHeights, Context},
+    utils::Context,
 };
 use chainhook_sdk::{
     chainhooks::{
@@ -167,67 +168,29 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     stacks_db_conn: &DB,
     config: &Config,
     ctx: &Context,
-) -> Result<(BlockIdentifier, bool), String> {
-    let mut floating_end_block = false;
-
-    let mut block_heights_to_scan = if let Some(ref blocks) = predicate_spec.blocks {
-        BlockHeights::Blocks(blocks.clone()).get_sorted_entries()
-    } else {
-        let start_block = match predicate_spec.start_block {
-            Some(start_block) => match &unfinished_scan_data {
-                Some(scan_data) => scan_data.last_evaluated_block_height,
-                None => start_block,
-            },
+) -> Result<(Option<BlockIdentifier>, bool), String> {
+    let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
+        Some(chain_tip) => chain_tip,
+        None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
+            Some(chain_tip) => chain_tip,
             None => {
-                return Err(
-                    "Chainhook specification must include fields 'start_block' when using the scan command"
-                        .into(),
-                );
+                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                return Ok((None, false));
             }
-        };
+        },
+    };
 
-        let (end_block, update_end_block) = match predicate_spec.end_block {
-            Some(end_block) => {
-                // if the user provided an end block that is above the chain tip, we'll
-                // only scan up to the chain tip, then go to streaming mode
-                match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                    Some(chain_tip) => {
-                        if end_block > chain_tip {
-                            (chain_tip, true)
-                        } else {
-                            (end_block, false)
-                        }
-                    }
-                    None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                        Some(chain_tip) => {
-                            if end_block > chain_tip {
-                                (chain_tip, true)
-                            } else {
-                                (end_block, false)
-                            }
-                        }
-                        None => {
-                            return Err("Chainhook specification must include fields 'end_block' when using the scan command".into());
-                        }
-                    },
-                }
-            }
-            None => match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                Some(end_block) => (end_block, true),
-                None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                    Some(end_block) => (end_block, true),
-                    None => {
-                        return Err(
-                            "Chainhook specification must include fields 'end_block' when using the scan command"
-                                .into(),
-                        );
-                    }
-                },
-            },
-        };
-
-        floating_end_block = update_end_block;
-        BlockHeights::BlockRange(start_block, end_block).get_sorted_entries()
+    let block_heights_to_scan = get_block_heights_to_scan(
+        &predicate_spec.blocks,
+        &predicate_spec.start_block,
+        &predicate_spec.end_block,
+        &chain_tip,
+        &unfinished_scan_data,
+    )?;
+    let mut block_heights_to_scan = match block_heights_to_scan {
+        Some(h) => h,
+        // no blocks to scan, go straight to streaming
+        None => return Ok((None, false)),
     };
 
     let mut predicates_db_conn = match config.http_api {
@@ -258,7 +221,33 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if current_block_height > chain_tip {
+            let prev_chain_tip = chain_tip;
+            // we've scanned up to the chain tip as of the start of this scan
+            // so see if the chain has progressed since then
+            chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
+                Some(chain_tip) => chain_tip,
+                None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
+                    Some(chain_tip) => chain_tip,
+                    None => {
+                        info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                        return Ok((None, false));
+                    }
+                },
+            };
+            // if the chain hasn't progressed, break out so we can enter streaming mode
+            // and put back the block we weren't able to scan
+            if current_block_height > chain_tip {
+                block_heights_to_scan.push_front(current_block_height);
+                break;
+            } else {
+                // if the chain has progressed, update our total number of blocks to scan and keep scanning
+                number_of_blocks_to_scan += chain_tip - prev_chain_tip;
+            }
+        }
+
         number_of_blocks_scanned += 1;
+
         let block_data =
             match get_stacks_block_at_block_height(current_block_height, true, 3, stacks_db_conn) {
                 Ok(Some(block)) => block,
@@ -350,44 +339,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 );
             }
         }
-
-        // Update end_block, in case a new block was discovered during the scan
-        if block_heights_to_scan.is_empty() && floating_end_block {
-            let new_tip = match predicate_spec.end_block {
-                Some(end_block) => {
-                    match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                        Some(chain_tip) => {
-                            if end_block > chain_tip {
-                                chain_tip
-                            } else {
-                                end_block
-                            }
-                        }
-                        None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                            Some(chain_tip) => {
-                                if end_block > chain_tip {
-                                    chain_tip
-                                } else {
-                                    end_block
-                                }
-                            }
-                            None => current_block_height,
-                        },
-                    }
-                }
-                None => match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
-                    Some(end_block) => end_block,
-                    None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
-                        Some(end_block) => end_block,
-                        None => current_block_height,
-                    },
-                },
-            };
-            for entry in (current_block_height + 1)..=new_tip {
-                block_heights_to_scan.push_back(entry);
-            }
-            number_of_blocks_to_scan += block_heights_to_scan.len() as u64;
-        }
     }
     info!(
         ctx.expect_logger(),
@@ -404,43 +355,51 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             predicates_db_conn,
             ctx,
         );
-        if let Some(predicate_end_block) = predicate_spec.end_block {
-            if predicate_end_block == last_block_scanned.index {
-                let is_confirmed = match get_stacks_block_at_block_height(
-                    predicate_end_block,
-                    true,
-                    3,
-                    stacks_db_conn,
-                ) {
-                    Ok(block) => match block {
-                        Some(_) => true,
-                        None => false,
-                    },
-                    Err(e) => {
-                        warn!(
-                            ctx.expect_logger(),
-                            "Failed to get stacks block for status update: {}",
-                            e.to_string()
-                        );
-                        false
-                    }
-                };
-                set_unconfirmed_expiration_status(
-                    &Chain::Stacks,
-                    number_of_blocks_scanned,
-                    predicate_end_block,
-                    &predicate_spec.key(),
-                    predicates_db_conn,
-                    ctx,
-                );
-                if is_confirmed {
-                    set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
+    }
+
+    // if an end block was provided, or a fixed number of blocks were set to be scanned,
+    // check to see if we've processed all of the blocks and can expire the predicate.
+    if (predicate_spec.blocks.is_some()
+        || (predicate_spec.end_block.is_some()
+            && predicate_spec.end_block.unwrap() == last_block_scanned.index))
+        && block_heights_to_scan.is_empty()
+    {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            let is_confirmed = match get_stacks_block_at_block_height(
+                last_block_scanned.index,
+                true,
+                3,
+                stacks_db_conn,
+            ) {
+                Ok(block) => match block {
+                    Some(_) => true,
+                    None => false,
+                },
+                Err(e) => {
+                    warn!(
+                        ctx.expect_logger(),
+                        "Failed to get stacks block for status update: {}",
+                        e.to_string()
+                    );
+                    false
                 }
-                return Ok((last_block_scanned, true));
+            };
+            set_unconfirmed_expiration_status(
+                &Chain::Stacks,
+                number_of_blocks_scanned,
+                last_block_scanned.index,
+                &predicate_spec.key(),
+                predicates_db_conn,
+                ctx,
+            );
+            if is_confirmed {
+                set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
+        return Ok((Some(last_block_scanned), true));
     }
-    Ok((last_block_scanned, false))
+
+    Ok((Some(last_block_scanned), false))
 }
 
 pub async fn scan_stacks_chainstate_via_csv_using_predicate(
@@ -450,13 +409,16 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
 ) -> Result<BlockIdentifier, String> {
     let start_block = match predicate_spec.start_block {
         Some(start_block) => start_block,
-        None => {
+        None => 0,
+    };
+    if let Some(end_block) = predicate_spec.end_block {
+        if start_block > end_block {
             return Err(
-                "Chainhook specification must include fields 'start_block' when using the scan command"
+                "Chainhook specification field `end_block` should be greater than `start_block`."
                     .into(),
             );
         }
-    };
+    }
 
     let _ = download_stacks_dataset_if_required(config, ctx).await;
 
