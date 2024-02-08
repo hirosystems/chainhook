@@ -89,7 +89,7 @@ fn get_huge_vec() -> Vec<u64> {
 #[test_case(None, Some(1), None, 3, None, Some(VecDeque::from([1,2,3])) => using expect_entries; "chain_tip > start_block, no end_block yields vec from start to chain")]
 #[test_case(None, None, Some(3), 2, None, Some(VecDeque::from([0,1,2,3])) => using expect_entries; "end_block > chain_tip, no start_block yields vec from 0 to end")]
 #[test_case(None, None, Some(2), 3, None, Some(VecDeque::from([0,1,2])) => using expect_entries; "chain_tip > end_block, no yields vec from 0 to end_block")]
-#[test_case(None, Some(0), Some(MAX_BLOCK_HEIGHTS_ENTRIES), 0, None, None => using expect_exceeded_max_entries_error; "limits max number of entries")]
+#[test_case(None, Some(0), Some(MAX_BLOCK_HEIGHTS_ENTRIES + 1), 0, None, None => using expect_exceeded_max_entries_error; "limits max number of entries")]
 #[test_case(None, Some(0), Some(3), 0, Some(ScanningData { number_of_blocks_to_scan: 0, number_of_blocks_evaluated: 0, number_of_times_triggered: 0, last_occurrence: None, last_evaluated_block_height: 2}), Some(VecDeque::from([2,3])) => using expect_entries; "uses previous scan data for start_block if available")]
 #[test_case(Some(vec![0,1,2]), None, None, 0, None, Some(VecDeque::from([0,1,2])) => using expect_entries; "providing blocks returns the same blocks as vec")]
 #[test_case(Some(get_huge_vec()), None, None, 0, None, None => using expect_exceeded_max_entries_error; "providing too many blocks errors")]
