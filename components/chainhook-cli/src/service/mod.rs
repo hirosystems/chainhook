@@ -955,7 +955,10 @@ pub fn set_confirmed_expiration_status(
                 return;
             }
         },
-        None => unreachable!("found no status for predicate: {}", predicate_key),
+        None => {
+            // None means the predicate was deleted, so we can just ignore this predicate expiring
+            return;
+        }
     };
     update_predicate_status(
         predicate_key,
