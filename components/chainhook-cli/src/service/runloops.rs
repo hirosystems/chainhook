@@ -86,10 +86,21 @@ pub fn start_stacks_scan_runloop(
                     return;
                 }
             };
-            info!(
-                moved_ctx.expect_logger(),
-                "Stacks chainstate scan completed up to block: {}", last_block_scanned.index
-            );
+            match last_block_scanned {
+                Some(last_block_scanned) => {
+                    info!(
+                        moved_ctx.expect_logger(),
+                        "Stacks chainstate scan completed up to block: {}",
+                        last_block_scanned.index
+                    );
+                }
+                None => {
+                    info!(
+                        moved_ctx.expect_logger(),
+                        "Stacks chainstate scan completed. 0 blocks scanned."
+                    );
+                }
+            }
             if !predicate_is_expired {
                 let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
                     ChainhookSpecification::Stacks(predicate_spec),
