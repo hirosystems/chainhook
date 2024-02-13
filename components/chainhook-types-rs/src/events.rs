@@ -145,10 +145,17 @@ pub enum StacksTransactionEventPayload {
 pub struct StacksTransactionEvent {
     #[serde(flatten)]
     pub event_payload: StacksTransactionEventPayload,
+    #[serde(default)]
     pub position: StacksTransactionEventPosition,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StacksTransactionEventPosition {
     pub index: u32,
+}
+
+impl Default for StacksTransactionEventPosition {
+    fn default() -> Self {
+        Self { index: 0 }
+    }
 }
