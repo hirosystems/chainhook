@@ -1,3 +1,11 @@
+## [1.3.1](https://github.com/hirosystems/chainhook/compare/v1.3.0...v1.3.1) (2024-02-14)
+
+
+### Bug Fixes
+
+* add event index to transaction events ([#495](https://github.com/hirosystems/chainhook/issues/495)) ([d67d1e4](https://github.com/hirosystems/chainhook/commit/d67d1e405e34f5a6a97e057181d467ed1a208332)), closes [#417](https://github.com/hirosystems/chainhook/issues/417) [#387](https://github.com/hirosystems/chainhook/issues/387)
+* correctly determine PoX vs PoB block commitments ([#499](https://github.com/hirosystems/chainhook/issues/499)) ([50dd26f](https://github.com/hirosystems/chainhook/commit/50dd26f19d1004a4ab60b4a67f1885cce89fc1e9)), closes [#496](https://github.com/hirosystems/chainhook/issues/496)
+
 ## [1.3.0](https://github.com/hirosystems/chainhook/compare/v1.2.1...v1.3.0) (2024-02-08)
 
 
