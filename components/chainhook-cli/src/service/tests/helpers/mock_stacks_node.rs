@@ -5,7 +5,7 @@ use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction};
 use chainhook_sdk::types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
-    STXTransferEventData, SmartContractEventData, StacksTransactionEvent,
+    STXTransferEventData, SmartContractEventData, StacksTransactionEventPayload,
 };
 
 use super::{branch_and_height_to_prefixed_hash, height_to_prefixed_hash};
@@ -21,69 +21,73 @@ pub fn create_tmp_working_dir() -> Result<(String, String), String> {
         .map_err(|e| format!("failed to create temp working dir: {}", e.to_string()))?;
     Ok((working_dir, tsv_dir))
 }
-fn create_stacks_new_event(tx_index: u64, index: u32, event: StacksTransactionEvent) -> NewEvent {
+fn create_stacks_new_event(
+    tx_index: u64,
+    index: u32,
+    event: StacksTransactionEventPayload,
+) -> NewEvent {
     let mut event_type = String::new();
-    let stx_transfer_event = if let StacksTransactionEvent::STXTransferEvent(data) = &event {
+    let stx_transfer_event = if let StacksTransactionEventPayload::STXTransferEvent(data) = &event {
         event_type = format!("stx_transfer");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let stx_mint_event = if let StacksTransactionEvent::STXMintEvent(data) = &event {
+    let stx_mint_event = if let StacksTransactionEventPayload::STXMintEvent(data) = &event {
         event_type = format!("stx_mint");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let stx_burn_event = if let StacksTransactionEvent::STXBurnEvent(data) = &event {
+    let stx_burn_event = if let StacksTransactionEventPayload::STXBurnEvent(data) = &event {
         event_type = format!("stx_burn");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let stx_lock_event = if let StacksTransactionEvent::STXLockEvent(data) = &event {
+    let stx_lock_event = if let StacksTransactionEventPayload::STXLockEvent(data) = &event {
         event_type = format!("stx_lock");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let nft_transfer_event = if let StacksTransactionEvent::NFTTransferEvent(data) = &event {
+    let nft_transfer_event = if let StacksTransactionEventPayload::NFTTransferEvent(data) = &event {
         event_type = format!("nft_transfer");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let nft_mint_event = if let StacksTransactionEvent::NFTMintEvent(data) = &event {
+    let nft_mint_event = if let StacksTransactionEventPayload::NFTMintEvent(data) = &event {
         event_type = format!("nft_mint");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let nft_burn_event = if let StacksTransactionEvent::NFTBurnEvent(data) = &event {
+    let nft_burn_event = if let StacksTransactionEventPayload::NFTBurnEvent(data) = &event {
         event_type = format!("nft_burn");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let ft_transfer_event = if let StacksTransactionEvent::FTTransferEvent(data) = &event {
+    let ft_transfer_event = if let StacksTransactionEventPayload::FTTransferEvent(data) = &event {
         event_type = format!("ft_transfer");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let ft_mint_event = if let StacksTransactionEvent::FTMintEvent(data) = &event {
+    let ft_mint_event = if let StacksTransactionEventPayload::FTMintEvent(data) = &event {
         event_type = format!("ft_mint");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let ft_burn_event = if let StacksTransactionEvent::FTBurnEvent(data) = &event {
+    let ft_burn_event = if let StacksTransactionEventPayload::FTBurnEvent(data) = &event {
         event_type = format!("ft_burn");
         Some(serde_json::to_value(data).unwrap())
     } else {
         None
     };
-    let contract_event = if let StacksTransactionEvent::SmartContractEvent(data) = &event {
+    let contract_event = if let StacksTransactionEventPayload::SmartContractEvent(data) = &event {
         event_type = format!("smart_contract_print_event");
         Some(serde_json::to_value(data).unwrap())
     } else {
@@ -136,7 +140,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::STXTransferEvent(STXTransferEventData {
+        StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
             sender: format!(""),
             recipient: format!(""),
             amount: format!("1"),
@@ -145,7 +149,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::STXMintEvent(STXMintEventData {
+        StacksTransactionEventPayload::STXMintEvent(STXMintEventData {
             recipient: format!(""),
             amount: format!("1"),
         }),
@@ -153,7 +157,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::STXBurnEvent(STXBurnEventData {
+        StacksTransactionEventPayload::STXBurnEvent(STXBurnEventData {
             sender: format!(""),
             amount: format!("1"),
         }),
@@ -161,7 +165,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::STXLockEvent(STXLockEventData {
+        StacksTransactionEventPayload::STXLockEvent(STXLockEventData {
             locked_amount: format!("1"),
             unlock_height: format!(""),
             locked_address: format!(""),
@@ -170,7 +174,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::NFTTransferEvent(NFTTransferEventData {
+        StacksTransactionEventPayload::NFTTransferEvent(NFTTransferEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
             sender: format!(""),
@@ -180,7 +184,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::NFTMintEvent(NFTMintEventData {
+        StacksTransactionEventPayload::NFTMintEvent(NFTMintEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
             recipient: format!(""),
@@ -189,7 +193,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::NFTBurnEvent(NFTBurnEventData {
+        StacksTransactionEventPayload::NFTBurnEvent(NFTBurnEventData {
             asset_class_identifier: format!(""),
             hex_asset_identifier: format!(""),
             sender: format!(""),
@@ -198,7 +202,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::FTTransferEvent(FTTransferEventData {
+        StacksTransactionEventPayload::FTTransferEvent(FTTransferEventData {
             asset_class_identifier: format!(""),
             sender: format!(""),
             recipient: format!(""),
@@ -208,7 +212,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::FTMintEvent(FTMintEventData {
+        StacksTransactionEventPayload::FTMintEvent(FTMintEventData {
             asset_class_identifier: format!(""),
             recipient: format!(""),
             amount: format!("1"),
@@ -217,7 +221,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::FTBurnEvent(FTBurnEventData {
+        StacksTransactionEventPayload::FTBurnEvent(FTBurnEventData {
             asset_class_identifier: format!(""),
             sender: format!(""),
             amount: format!("1"),
@@ -226,7 +230,7 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     events.push(create_stacks_new_event(
         0,
         events.len() as u32,
-        StacksTransactionEvent::SmartContractEvent(SmartContractEventData {
+        StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
             contract_identifier: format!(""),
             topic: format!("print"),
             hex_value: format!(""),
