@@ -2,6 +2,7 @@ use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::events::*;
 use schemars::JsonSchema;
+use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -363,8 +364,12 @@ pub struct OrdinalInscriptionRevealData {
     pub inscription_output_value: u64,
     pub inscription_id: String,
     pub inscription_input_index: usize,
-    pub inscription_pointer: u64,
+    pub inscription_pointer: Option<u64>,
     pub inscriber_address: Option<String>,
+    pub delegate: Option<String>,
+    pub metaprotocol: Option<String>,
+    pub metadata: Option<Value>,
+    pub parent: Option<String>,
     pub ordinal_number: u64,
     pub ordinal_block_height: u64,
     pub ordinal_offset: u64,

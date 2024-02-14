@@ -148,6 +148,7 @@ pub async fn start_zeromq_runloop(
                         "Possible re-org detected, retrieving parent block {parent_block_hash}"
                     )
                 });
+                block_hashes.push_front(block_hash);
                 block_hashes.push_front(parent_block_hash);
             }
         }
