@@ -573,10 +573,6 @@ pub struct PoxConfig {
 }
 
 impl PoxConfig {
-    pub fn is_consensus_rewarding_participants_at_block_height(&self, block_height: u64) -> bool {
-        self.get_pos_in_pox_cycle(block_height) < self.reward_phase_len
-    }
-
     pub fn get_pox_cycle_len(&self) -> u64 {
         self.prepare_phase_len + self.reward_phase_len
     }
