@@ -509,64 +509,83 @@ fn try_parse_stacks_operation(
             let mut pox_sats_burnt = 0;
             let mut pox_sats_transferred = vec![];
 
-            // We need to determine wether the transaction was a PoB or a Pox commitment
-            let mining_output_index = if pox_config
-                .is_consensus_rewarding_participants_at_block_height(block_height)
+            let output_1 = outputs
+                .get(1)
+                .ok_or(format!("expected output 1 not found"))
+                .ok()?;
+            let script_1 = output_1
+                .script_pub_key
+                .script()
+                .map_err(|_e| format!("expected output 1 corrupted"))
+                .ok()?;
+            let address_1 = Address::from_script(&script_1, bitcoin::Network::Bitcoin)
+                .map_err(|_e| format!("expected output 1 corrupted"))
+                .ok()?;
+
+            let output_2 = outputs
+                .get(2)
+                .ok_or(format!("expected output 2 not found"))
+                .ok()?;
+            let script_2 = output_2
+                .script_pub_key
+                .script()
+                .map_err(|_e| format!("expected output 2 corrupted"))
+                .ok()?;
+            let address_2 = Address::from_script(&script_2, bitcoin::Network::Bitcoin)
+                .map_err(|_e| format!("expected output 2 corrupted"))
+                .ok()?;
+
+            let output_1_is_burn = address_1.to_string().eq(pox_config.get_burn_address());
+            let output_2_is_burn = address_2.to_string().eq(pox_config.get_burn_address());
+
+            // PoX commitments have the following outputs:
+            //  - 0: OP_RETURN
+            //  - 1: rewarding address (could be a reward address, could be burn address in some rare cases)
+            //  - 2: rewarding address (could be a reward address, could be burn address in some rare cases; always burn address if 1 was burn address)
+            //  - [3-n]: change outputs
+            //
+            // PoB commitments have:
+            //  - 0: OP_RETURN
+            //  - 1: Burn address
+            //  - [3-n]: change outputs
+            //
+            // So, to determine if PoX vs PoB, we check if output 1 is the burn address
+            //  - If not, we definitely have a PoX block commitment
+            //  - If it is, we need to check if output 2 is the burn address
+            //    - If it is, we have a PoX block commitment
+            //    - If not, we have a PoB block commitment
+            //
+            // The only assumption we're making in this logic is that the first change output doesn't
+            // get sent to the burn address, in which case we'd incorrectly label a PoB block commitment as Pox.
+            let mining_output_index = if !output_1_is_burn || (output_1_is_burn && output_2_is_burn)
             {
+                // We have a PoX Block Commitment
                 // Output 0 is OP_RETURN
                 // Output 1 is rewarding Address 1
-                let pox_output_1 = outputs
-                    .get(1)
-                    .ok_or(format!("expected pox output 1 not found"))
-                    .ok()?;
-                let pox_script_1 = pox_output_1
-                    .script_pub_key
-                    .script()
-                    .map_err(|_e| format!("expected pox output 1 corrupted"))
-                    .ok()?;
-                let pox_address_1 = Address::from_script(&pox_script_1, bitcoin::Network::Bitcoin)
-                    .map_err(|_e| format!("expected pox output 1 corrupted"))
-                    .ok()?;
-                if pox_address_1.to_string().eq(&pox_config.get_burn_address()) {
-                    pox_sats_burnt += pox_output_1.value.to_sat();
+                if output_1_is_burn {
+                    pox_sats_burnt += output_1.value.to_sat();
                 } else {
                     pox_sats_transferred.push(PoxReward {
-                        recipient_address: pox_address_1.to_string(),
-                        amount: pox_output_1.value.to_sat(),
+                        recipient_address: address_1.to_string(),
+                        amount: output_1.value.to_sat(),
                     });
                 }
                 // Output 2 is rewarding Address 2
-                let pox_output_2 = outputs
-                    .get(2)
-                    .ok_or(format!("expected pox output 2 not found"))
-                    .ok()?;
-                let pox_script_2 = pox_output_2
-                    .script_pub_key
-                    .script()
-                    .map_err(|_e| format!("expected pox output 2 corrupted"))
-                    .ok()?;
-                let pox_address_2 = Address::from_script(&pox_script_2, bitcoin::Network::Bitcoin)
-                    .map_err(|_e| format!("expected pox output 2 corrupted"))
-                    .ok()?;
-                if pox_address_2.to_string().eq(&pox_config.get_burn_address()) {
-                    pox_sats_burnt += pox_output_2.value.to_sat();
+                if output_2_is_burn {
+                    pox_sats_burnt += output_2.value.to_sat();
                 } else {
                     pox_sats_transferred.push(PoxReward {
-                        recipient_address: pox_address_2.to_string(),
-                        amount: pox_output_2.value.to_sat(),
+                        recipient_address: address_2.to_string(),
+                        amount: output_2.value.to_sat(),
                     });
                 }
                 // Output 3 is used for miner chained commitments
                 3
             } else {
+                // We have a PoB Block Commitment
                 // Output 0 is OP_RETURN
-                // Output 1 should be a Burn Address
-                let burn_output = outputs
-                    .get(1)
-                    .ok_or(format!("expected burn address not found"))
-                    .ok()?;
-                // Todo: Ensure that we're looking at a burn address
-                pox_sats_burnt += burn_output.value.to_sat();
+                // Output 1 is be a Burn Address
+                pox_sats_burnt += output_1.value.to_sat();
                 // Output 2 is used for miner chained commitments
                 2
             };
