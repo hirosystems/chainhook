@@ -183,18 +183,21 @@ pub async fn retrieve_block_hash_with_retry(
     ctx: &Context,
 ) -> Result<String, String> {
     let mut errors_count = 0;
+    let max_retries = 10;
     let block_hash = loop {
         match retrieve_block_hash(http_client, block_height, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(_e) => {
+            Err(e) => {
                 errors_count += 1;
-                if errors_count > 3 {
+                if errors_count > 3 && errors_count < max_retries {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}).",
+                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}). Error: {e}",
                         )
                     });
+                } else if errors_count == max_retries {
+                    return Err(format!("unable to retrieve block hash #{block_height} after {errors_count} attempts. Error: {e}"));
                 }
                 std::thread::sleep(std::time::Duration::from_secs(2));
             }
