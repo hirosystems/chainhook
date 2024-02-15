@@ -153,18 +153,21 @@ pub async fn download_and_parse_block_with_retry(
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
+    let max_retries = 10;
     let block = loop {
         match download_and_parse_block(http_client, block_hash, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(_e) => {
+            Err(e) => {
                 errors_count += 1;
-                if errors_count > 3 {
+                if errors_count > 3 && errors_count < max_retries {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}). Error: {e}",
                         )
                     });
+                } else if errors_count == max_retries {
+                    return Err(format!("unable to fetch and parse block #{block_hash} after {errors_count} attempts. Error: {e}"));
                 }
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
