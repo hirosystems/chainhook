@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use chainhook_sdk::types::{BlockIdentifier, StacksBlockData, StacksBlockUpdate};
 use chainhook_sdk::utils::Context;
-use rocksdb::{Options, DB};
+use rocksdb::{Direction, IteratorMode, Options, DB};
 
 fn get_db_default_options() -> Options {
     let mut opts = Options::default();
@@ -162,6 +162,35 @@ pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
             ]))
         })
+}
+
+pub fn get_all_unconfirmed_blocks(
+    stacks_db: &DB,
+    _ctx: &Context,
+) -> Result<Vec<StacksBlockData>, String> {
+    let unconfirmed_key_prefix = b"~:";
+    let mut blocks = vec![];
+    let iter = stacks_db.iterator(IteratorMode::From(
+        unconfirmed_key_prefix,
+        Direction::Forward,
+    )); // From a key in Direction::{forward,reverse}
+    for item in iter {
+        match item {
+            Ok((k, v)) => {
+                if k.starts_with(unconfirmed_key_prefix) {
+                    let spec: StacksBlockData = serde_json::from_slice(&v[..]).map_err(|e| {
+                        format!("unable to deserialize Stacks block {}", e.to_string())
+                    })?;
+                    blocks.push(spec);
+                } else {
+                    // we're past the set of keys we're looking for, so we've found all unconfirmed
+                    return Ok(blocks);
+                }
+            }
+            Err(e) => return Err(format!("failed to get all unconfirmed blocks: {e}")),
+        };
+    }
+    Ok(blocks)
 }
 
 pub fn get_last_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
