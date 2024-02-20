@@ -3,14 +3,22 @@ use crate::utils::{AbstractBlock, Context};
 
 use self::helpers::BlockEvent;
 use super::{fork_scratch_pad::ForkScratchPad, StacksBlockPool};
-use chainhook_types::{BitcoinBlockData, BlockchainEvent, StacksChainEvent};
+use chainhook_types::{BitcoinBlockData, BlockchainEvent, StacksBlockData, StacksChainEvent};
 
 pub type StacksChainEventExpectation = Box<dyn Fn(Option<StacksChainEvent>) -> ()>;
 
 pub fn process_stacks_blocks_and_check_expectations(
-    steps: Vec<(BlockEvent, StacksChainEventExpectation)>,
+    (steps, block_pool_seed): (
+        Vec<(BlockEvent, StacksChainEventExpectation)>,
+        Option<Vec<StacksBlockData>>,
+    ),
 ) {
     let mut blocks_processor = StacksBlockPool::new();
+
+    if let Some(block_pool_seed) = block_pool_seed {
+        // blocks_processor.seed_block_pool(block_pool_seed, &ctx);
+    }
+
     for (block_event, check_chain_event_expectations) in steps.into_iter() {
         match block_event {
             BlockEvent::Block(block) => {
