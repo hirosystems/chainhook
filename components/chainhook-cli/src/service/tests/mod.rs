@@ -851,6 +851,148 @@ fn it_generates_open_api_spec() {
     )
 }
 
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn it_saves_unconfirmed_blocks() -> Result<(), String> {
+    let starting_chain_tip = 3;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        stacks_rpc_port,
+        bitcoin_rpc_port,
+        prometheus_port: _,
+        observer_command_tx,
+    } = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
+
+    let blocks_to_mine = 4;
+    for i in 1..blocks_to_mine + 1 {
+        mine_stacks_block(
+            stacks_ingestion_port,
+            0,
+            i + starting_chain_tip,
+            0,
+            i + starting_chain_tip + 100,
+        )
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    }
+    // we need these blocks to propagate through new stacks block events and save to the db, so give it some time
+    sleep(Duration::new(1, 0));
+
+    let logger = hiro_system_kit::log::setup_logger();
+    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+    let ctx = Context {
+        logger: Some(logger),
+        tracer: false,
+    };
+    let db_path = {
+        let mut destination_path = PathBuf::new();
+        destination_path.push(&working_dir);
+        destination_path
+    };
+    let stacks_db = open_readonly_stacks_db_conn(&db_path, &ctx).expect("unable to read stacks_db");
+    // validate that all blocks we just mined are saved as unconfirmed blocks in the database
+    let unconfirmed_blocks = get_all_unconfirmed_blocks(&stacks_db, &ctx)
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    let mut unconfirmed_height = starting_chain_tip + 1;
+    assert_eq!(
+        blocks_to_mine,
+        unconfirmed_blocks.len() as u64,
+        "Number of blocks left unconfirmed in db is not what expected. Expected: {}, Actual: {}",
+        blocks_to_mine,
+        unconfirmed_blocks.len()
+    );
+    for block in unconfirmed_blocks.iter() {
+        assert_eq!(
+            unconfirmed_height, block.block_identifier.index,
+            "Unexpected unconfirmed block height. Expected: {}, Actual: {}",
+            unconfirmed_height, block.block_identifier.index
+        );
+        unconfirmed_height += 1;
+    }
+    // terminate chainhook service
+    let _ = observer_command_tx.send(ObserverCommand::Terminate);
+    sleep(Duration::new(1, 0));
+    let tsv_dir = format!("./{working_dir}/stacks_blocks.tsv");
+    let mut config = get_chainhook_config(
+        redis_port,
+        chainhook_service_port,
+        stacks_rpc_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+        &working_dir,
+        &tsv_dir,
+        None,
+    );
+    // the API is still running, so don't restart it
+    config.http_api = PredicatesApi::Off;
+    let _ = start_chainhook_service(config, stacks_ingestion_port, None, &ctx).await;
+    // validate that all of the unconfirmed blocks we just saved are still available after a restart
+    let unconfirmed_blocks = get_all_unconfirmed_blocks(&stacks_db, &ctx).unwrap();
+    let mut unconfirmed_height = starting_chain_tip + 1;
+    assert_eq!(
+        blocks_to_mine,
+        unconfirmed_blocks.len() as u64,
+        "Number of blocks left unconfirmed in db is not what expected. Expected: {}, Actual: {}",
+        blocks_to_mine,
+        unconfirmed_blocks.len()
+    );
+    for block in unconfirmed_blocks.iter() {
+        assert_eq!(
+            unconfirmed_height, block.block_identifier.index,
+            "Unexpected unconfirmed block height. Expected: {}, Actual: {}",
+            unconfirmed_height, block.block_identifier.index
+        );
+        unconfirmed_height += 1;
+    }
+    // mine a block on that same fork
+    let next_block_height = blocks_to_mine + starting_chain_tip + 1;
+    mine_stacks_block(
+        stacks_ingestion_port,
+        0,
+        next_block_height,
+        0,
+        next_block_height + 100,
+    )
+    .await
+    .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+
+    // mine the same block number we just mined, but on a different fork
+    mine_stacks_block(
+        stacks_ingestion_port,
+        1,
+        next_block_height,
+        0,
+        next_block_height + 100,
+    )
+    .await
+    .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+
+    sleep(Duration::new(1, 0));
+    // confirm that there was a reorg
+    let metrics = call_ping(stacks_ingestion_port)
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    let stacks_last_reorg_data = metrics.get("stacks").unwrap().get("last_reorg").unwrap();
+    let applied_blocks = stacks_last_reorg_data
+        .get("applied_blocks")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    let rolled_back_blocks = stacks_last_reorg_data
+        .get("rolled_back_blocks")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    assert_eq!(applied_blocks, 1);
+    assert_eq!(rolled_back_blocks, 1);
+    Ok(())
+}
+
 fn cleanup_err(
     error: String,
     working_dir: &str,
