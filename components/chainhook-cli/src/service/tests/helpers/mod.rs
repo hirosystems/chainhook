@@ -5,11 +5,13 @@ pub mod mock_bitcoin_rpc;
 pub mod mock_service;
 pub mod mock_stacks_node;
 
-pub fn height_to_prefixed_hash(height: u64) -> String {
-    format!("0x{}", height_to_hash_str(height))
-}
-fn height_to_hash_str(height: u64) -> String {
-    format!("{:0>64}", height.to_string())
+pub fn make_block_hash(fork_id: u8, block_height: u64) -> String {
+    #![cfg_attr(rustfmt, rustfmt_skip)]
+    let mut hash = vec![
+        fork_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+    ];
+    hash.append(&mut block_height.to_be_bytes().to_vec());
+    hex::encode(&hash[..])
 }
 
 pub fn branch_and_height_to_prefixed_hash(branch: Option<char>, height: u64) -> String {

@@ -14,6 +14,7 @@ use crate::service::tests::{
         build_predicates::build_stacks_payload,
         mock_service::{
             call_observer_svc, call_ping, call_prometheus, call_register_predicate, flush_redis,
+            TestSetupResult,
         },
     },
     setup_bitcoin_chainhook_test, setup_stacks_chainhook_test,
@@ -26,15 +27,17 @@ use super::helpers::{
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn ping_endpoint_returns_metrics() {
-    let (
+    let TestSetupResult {
         mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
-        _,
-        _,
-    ) = setup_stacks_chainhook_test(1, None, None).await;
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(1, None, None).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
@@ -68,8 +71,17 @@ async fn ping_endpoint_returns_metrics() {
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn prometheus_endpoint_returns_encoded_metrics() {
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, prometheus_port) =
-        setup_stacks_chainhook_test(1, None, None).await;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port: _,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(1, None, None).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
@@ -128,8 +140,17 @@ async fn await_observer_started(port: u16) {
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn bitcoin_rpc_requests_are_forwarded(endpoint: &str, body: Value) {
-    let (mut redis_process, working_dir, _, redis_port, stacks_ingestion_port, _, _) =
-        setup_bitcoin_chainhook_test(1).await;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port: _,
+        redis_port,
+        stacks_ingestion_port,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_bitcoin_chainhook_test(1).await;
 
     await_observer_started(stacks_ingestion_port).await;
 
@@ -158,6 +179,7 @@ async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_po
         observer_commands_rx,
         None,
         None,
+        // None,
         ctx,
     )
     .unwrap();
