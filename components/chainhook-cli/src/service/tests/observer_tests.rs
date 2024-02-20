@@ -179,7 +179,7 @@ async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_po
         observer_commands_rx,
         None,
         None,
-        // None,
+        None,
         ctx,
     )
     .unwrap();

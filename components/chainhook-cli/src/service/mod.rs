@@ -236,7 +236,7 @@ impl Service {
             observer_command_rx,
             Some(observer_event_tx_moved),
             None,
-            // unconfirmed_blocks,
+            unconfirmed_blocks,
             self.ctx.clone(),
         );
 

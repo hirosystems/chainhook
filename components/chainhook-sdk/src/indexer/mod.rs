@@ -6,7 +6,7 @@ use crate::utils::{AbstractBlock, Context};
 
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinNetwork, BlockHeader, BlockIdentifier, BlockchainEvent,
-    StacksChainEvent, StacksNetwork, StacksNodeConfig,
+    StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig,
 };
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
@@ -90,6 +90,10 @@ impl Indexer {
             stacks_context,
             bitcoin_context,
         }
+    }
+
+    pub fn seed_stacks_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
+        self.stacks_blocks_pool.seed_block_pool(blocks, ctx);
     }
 
     pub fn handle_bitcoin_header(

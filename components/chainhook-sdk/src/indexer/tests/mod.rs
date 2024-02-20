@@ -16,7 +16,7 @@ pub fn process_stacks_blocks_and_check_expectations(
     let mut blocks_processor = StacksBlockPool::new();
 
     if let Some(block_pool_seed) = block_pool_seed {
-        // blocks_processor.seed_block_pool(block_pool_seed, &ctx);
+        blocks_processor.seed_block_pool(block_pool_seed, &Context::empty());
     }
 
     for (block_event, check_chain_event_expectations) in steps.into_iter() {
