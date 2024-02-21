@@ -7,8 +7,8 @@ use crate::scan::stacks::{
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
-    get_all_unconfirmed_blocks, get_last_block_height_inserted, get_stacks_block_at_block_height,
-    is_stacks_block_present, open_readonly_stacks_db_conn,
+    get_last_block_height_inserted, get_stacks_block_at_block_height, is_stacks_block_present,
+    open_readonly_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -216,19 +216,10 @@ enum StacksDbCommand {
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
-    /// Prints all unconfirmed blocks store in db
-    #[clap(name = "see-unconfirmed", bin_name = "see-unconfirmed")]
-    PrintUnconfirmed(PrintUnconfirmedDbCommand),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 struct CheckDbCommand {
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct PrintUnconfirmedDbCommand {
     /// Load config file path
     #[clap(long = "config-path")]
     pub config_path: Option<String>,
@@ -598,30 +589,6 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             "Stacks db includes {} missing entries ({min}, {max}): {:?}",
                             missing_blocks.len(),
                             missing_blocks
-                        );
-                    }
-                }
-            }
-            StacksCommand::Db(StacksDbCommand::PrintUnconfirmed(cmd)) => {
-                let config = Config::default(false, false, false, &cmd.config_path)?;
-                // Delete data, if any
-                {
-                    let stacks_db =
-                        open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx)?;
-                    let unconfirmed_blocks = get_all_unconfirmed_blocks(&stacks_db, &ctx).unwrap();
-                    let mut heights = vec![];
-                    for block in unconfirmed_blocks.iter() {
-                        heights.push(block.block_identifier.index);
-                    }
-
-                    if unconfirmed_blocks.is_empty() {
-                        info!(ctx.expect_logger(), "Found no unconfirmed blocks in db");
-                    } else {
-                        warn!(
-                            ctx.expect_logger(),
-                            "Stacks db includes {} unconfirmed blocks: {:?}",
-                            unconfirmed_blocks.len(),
-                            heights
                         );
                     }
                 }
