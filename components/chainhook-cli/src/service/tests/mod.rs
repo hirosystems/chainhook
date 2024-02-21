@@ -853,7 +853,7 @@ fn it_generates_open_api_spec() {
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn it_saves_unconfirmed_blocks() -> Result<(), String> {
+async fn it_seeds_block_pool_on_startup() -> Result<(), String> {
     let starting_chain_tip = 3;
     let TestSetupResult {
         mut redis_process,
