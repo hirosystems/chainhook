@@ -4,6 +4,12 @@ use chainhook_sdk::types::{BlockIdentifier, StacksBlockData, StacksBlockUpdate};
 use chainhook_sdk::utils::Context;
 use rocksdb::{Direction, IteratorMode, Options, DB};
 
+const UNCONFIRMED_KEY_PREFIX: &[u8; 2] = b"~:";
+const CONFIRMED_KEY_PREFIX: &[u8; 2] = b"b:";
+const KEY_SUFFIX: &[u8; 2] = b":d";
+const LAST_UNCONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:~";
+const LAST_CONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:t";
+
 fn get_db_default_options() -> Options {
     let mut opts = Options::default();
     opts.create_if_missing(true);
@@ -87,26 +93,26 @@ pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Resu
 
 fn get_block_key(block_identifier: &BlockIdentifier) -> [u8; 12] {
     let mut key = [0u8; 12];
-    key[..2].copy_from_slice(b"b:");
+    key[..2].copy_from_slice(CONFIRMED_KEY_PREFIX);
     key[2..10].copy_from_slice(&block_identifier.index.to_be_bytes());
-    key[10..].copy_from_slice(b":d");
+    key[10..].copy_from_slice(KEY_SUFFIX);
     key
 }
 
 fn get_unconfirmed_block_key(block_identifier: &BlockIdentifier) -> [u8; 12] {
     let mut key = [0u8; 12];
-    key[..2].copy_from_slice(b"~:");
+    key[..2].copy_from_slice(UNCONFIRMED_KEY_PREFIX);
     key[2..10].copy_from_slice(&block_identifier.index.to_be_bytes());
-    key[10..].copy_from_slice(b":d");
+    key[10..].copy_from_slice(KEY_SUFFIX);
     key
 }
 
 fn get_last_confirmed_insert_key() -> [u8; 3] {
-    *b"m:t"
+    *LAST_CONFIRMED_KEY_PREFIX
 }
 
 fn get_last_unconfirmed_insert_key() -> [u8; 3] {
-    *b"m:~"
+    *LAST_UNCONFIRMED_KEY_PREFIX
 }
 
 pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB, _ctx: &Context) {
@@ -168,12 +174,12 @@ pub fn get_all_unconfirmed_blocks(
     stacks_db: &DB,
     _ctx: &Context,
 ) -> Result<Vec<StacksBlockData>, String> {
-    let unconfirmed_key_prefix = b"~:";
+    let unconfirmed_key_prefix = UNCONFIRMED_KEY_PREFIX;
     let mut blocks = vec![];
     let iter = stacks_db.iterator(IteratorMode::From(
         unconfirmed_key_prefix,
         Direction::Forward,
-    )); // From a key in Direction::{forward,reverse}
+    ));
     for item in iter {
         match item {
             Ok((k, v)) => {
