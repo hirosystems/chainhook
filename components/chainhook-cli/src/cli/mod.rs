@@ -4,7 +4,7 @@ use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
 use crate::scan::stacks::{
     consolidate_local_stacks_chainstate_using_csv, scan_stacks_chainstate_via_csv_using_predicate,
 };
-use crate::service::http_api::document_predicate_api_server;
+use crate::service::http_api::{document_predicate_api_server, get_entries_from_predicates_db};
 use crate::service::Service;
 use crate::storage::{
     get_last_block_height_inserted, get_stacks_block_at_block_height, is_stacks_block_present,
@@ -213,11 +213,19 @@ enum StacksDbCommand {
     /// Update database using latest Stacks archive file
     #[clap(name = "update", bin_name = "update")]
     Update(UpdateDbCommand),
+    #[clap(name = "scanning", bin_name = "scanning")]
+    Scanning(ScanningDbCommand),
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
 }
 
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct ScanningDbCommand {
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+}
 #[derive(Parser, PartialEq, Clone, Debug)]
 struct CheckDbCommand {
     /// Load config file path
@@ -593,7 +601,50 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                 }
             }
+            StacksCommand::Db(StacksDbCommand::Scanning(_cmd)) => {
+                // Delete data, if any
+                {
+                    let client = redis::Client::open(format!("redis://localhost:6379/")).unwrap();
+                    let mut connection = client.get_connection().unwrap();
+                    let predicates = get_entries_from_predicates_db(&mut connection, &ctx).unwrap();
+                    for (spec, status) in predicates.iter() {
+                        match status {
+                            crate::service::PredicateStatus::Scanning(_) => {
+                                println!("found scanning predicate: {}", spec.uuid());
+                                println!(
+                                    "status: {}",
+                                    serde_json::to_string_pretty(status).unwrap()
+                                );
+                                //println!("spec: {}", serde_json::to_string_pretty(spec).unwrap());
+                                println!();
+                            }
+                            crate::service::PredicateStatus::Streaming(_) => {
+                                println!("found streaming predicate: {}", spec.uuid());
+                                println!(
+                                    "status: {}",
+                                    serde_json::to_string_pretty(status).unwrap()
+                                );
+                                //println!("spec: {}", serde_json::to_string_pretty(spec).unwrap());
+                                println!();
+                            }
+                            crate::service::PredicateStatus::New => {
+                                println!("found new predicate: {}", spec.uuid());
+                                println!(
+                                    "status: {}",
+                                    serde_json::to_string_pretty(status).unwrap()
+                                );
+                                //println!("spec: {}", serde_json::to_string_pretty(spec).unwrap());
+                                println!();
+                            }
+                            crate::service::PredicateStatus::UnconfirmedExpiration(_) => {}
+                            crate::service::PredicateStatus::ConfirmedExpiration(_) => {}
+                            crate::service::PredicateStatus::Interrupted(_) => {}
+                        };
+                    }
+                }
+            }
         },
+
         Command::Docs(subcmd) => match subcmd {
             DocsCommand::Api(api_docs_cmd) => match api_docs_cmd {
                 ApiDocsCommand::Generate => {
