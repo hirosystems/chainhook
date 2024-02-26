@@ -213,19 +213,13 @@ enum StacksDbCommand {
     /// Update database using latest Stacks archive file
     #[clap(name = "update", bin_name = "update")]
     Update(UpdateDbCommand),
-    #[clap(name = "scanning", bin_name = "scanning")]
-    Scanning(ScanningDbCommand),
+    #[clap(name = "status", bin_name = "status")]
+    Status,
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
 }
 
-#[derive(Parser, PartialEq, Clone, Debug)]
-struct ScanningDbCommand {
-    /// Load config file path
-    #[clap(long = "config-path")]
-    pub config_path: Option<String>,
-}
 #[derive(Parser, PartialEq, Clone, Debug)]
 struct CheckDbCommand {
     /// Load config file path
@@ -601,7 +595,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                 }
             }
-            StacksCommand::Db(StacksDbCommand::Scanning(_cmd)) => {
+            StacksCommand::Db(StacksDbCommand::Status) => {
                 // Delete data, if any
                 {
                     let client = redis::Client::open(format!("redis://localhost:6379/")).unwrap();
