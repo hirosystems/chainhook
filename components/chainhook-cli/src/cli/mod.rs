@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
 use crate::scan::stacks::{
     consolidate_local_stacks_chainstate_using_csv, scan_stacks_chainstate_via_csv_using_predicate,
+    scan_stacks_chainstate_via_rocksdb_using_predicate,
 };
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
@@ -485,14 +486,35 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 ));
                             }
                         };
-                        // TODO: if a stacks.rocksdb is present, use it.
-                        // TODO: update Stacks archive file if required.
-                        scan_stacks_chainstate_via_csv_using_predicate(
-                            &predicate_spec,
-                            &mut config,
-                            &ctx,
-                        )
-                        .await?;
+                        match open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx) {
+                            Ok(db_conn) => {
+                                let _ = consolidate_local_stacks_chainstate_using_csv(
+                                    &mut config,
+                                    &ctx,
+                                )
+                                .await;
+                                scan_stacks_chainstate_via_rocksdb_using_predicate(
+                                    &predicate_spec,
+                                    None,
+                                    &db_conn,
+                                    &config,
+                                    &ctx,
+                                )
+                                .await?;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    ctx.expect_logger(),
+                                    "Could not open db. This will greatly increase scan times. Error: {}", e
+                                );
+                                scan_stacks_chainstate_via_csv_using_predicate(
+                                    &predicate_spec,
+                                    &mut config,
+                                    &ctx,
+                                )
+                                .await?;
+                            }
+                        };
                     }
                 }
             }
