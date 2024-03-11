@@ -8,6 +8,7 @@ use crate::observer::BitcoinConfig;
 use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};
+use bitcoincore_rpc::jsonrpc::error::RpcError;
 use bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
 use chainhook_types::bitcoin::{OutPoint, TxIn, TxOut};
 use chainhook_types::{
@@ -264,6 +265,11 @@ pub async fn try_download_block_bytes_with_retry(
     Ok(response)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RpcErrorResponse {
+    pub error: RpcError,
+}
+
 pub async fn download_block(
     http_client: &HttpClient,
     block_hash: &str,
@@ -276,7 +282,7 @@ pub async fn download_block(
         "method": "getblock",
         "params": [block_hash, 3]
     });
-    let block = http_client
+    let res = http_client
         .post(&bitcoin_config.rpc_url)
         .basic_auth(&bitcoin_config.username, Some(&bitcoin_config.password))
         .header("Content-Type", "application/json")
@@ -284,12 +290,31 @@ pub async fn download_block(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("unable to send request ({})", e))?
+        .map_err(|e| format!("unable to send request ({})", e))?;
+
+    // Check status code
+    if !res.status().is_success() {
+        return Err(format!(
+            "http request unsuccessful ({:?})",
+            res.error_for_status()
+        ));
+    }
+
+    let rpc_response_bytes = res
         .bytes()
         .await
         .map_err(|e| format!("unable to get bytes ({})", e))?
         .to_vec();
-    Ok(block)
+
+    // Check rpc error presence
+    if let Ok(rpc_error) = serde_json::from_slice::<RpcErrorResponse>(&rpc_response_bytes[..]) {
+        return Err(format!(
+            "rpc request unsuccessful ({})",
+            rpc_error.error.message
+        ));
+    }
+
+    Ok(rpc_response_bytes)
 }
 
 pub fn parse_downloaded_block(
