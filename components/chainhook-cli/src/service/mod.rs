@@ -429,7 +429,7 @@ impl Service {
                                 }
                             }
                         }
-                        update_stats_from_report(
+                        update_status_from_report(
                             Chain::Bitcoin,
                             report,
                             &mut predicates_db_conn,
@@ -546,7 +546,7 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                         };
-                        update_stats_from_report(
+                        update_status_from_report(
                             Chain::Stacks,
                             report,
                             &mut predicates_db_conn,
@@ -615,7 +615,7 @@ pub struct ExpiredData {
     pub expired_at_block_height: u64,
 }
 
-fn update_stats_from_report(
+fn update_status_from_report(
     chain: Chain,
     report: PredicateEvaluationReport,
     predicates_db_conn: &mut Connection,
