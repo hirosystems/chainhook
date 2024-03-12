@@ -766,18 +766,13 @@ pub async fn start_observer_commands_handler(
         };
         match command {
             ObserverCommand::Terminate => {
-                ctx.try_log(|logger| slog::info!(logger, "Handling Termination command"));
-                if let Some(ingestion_shutdown) = ingestion_shutdown {
-                    ingestion_shutdown.notify();
-                }
-                if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::Info("Terminating event observer".into()));
-                    let _ = tx.send(ObserverEvent::Terminate);
-                }
+                terminate(ingestion_shutdown, observer_events_tx, &ctx);
                 break;
             }
             ObserverCommand::ProcessBitcoinBlock(mut block_data) => {
                 let block_hash = block_data.hash.to_string();
+                let mut attempts = 0;
+                let max_attempts = 10;
                 let block = loop {
                     match standardize_bitcoin_block(
                         block_data.clone(),
@@ -785,11 +780,22 @@ pub async fn start_observer_commands_handler(
                         &ctx,
                     ) {
                         Ok(block) => break block,
-                        Err((e, retry)) => {
+                        Err((e, refetch_block)) => {
+                            attempts += 1;
+                            if attempts > max_attempts {
+                                terminate(ingestion_shutdown, observer_events_tx, &ctx);
+                                let err_msg = format!(
+                                    "Could not process bitcoin block after {} attempts.",
+                                    attempts
+                                );
+
+                                ctx.try_log(|logger| slog::crit!(logger, "{}", err_msg));
+                                panic!("{}", err_msg);
+                            }
                             ctx.try_log(|logger| {
                                 slog::error!(logger, "Error standardizing block: {}", e)
                             });
-                            if retry {
+                            if refetch_block {
                                 block_data = match download_and_parse_block_with_retry(
                                     &http_client,
                                     &block_hash,
@@ -1432,5 +1438,19 @@ pub async fn start_observer_commands_handler(
     Ok(())
 }
 
+fn terminate(
+    ingestion_shutdown: Option<Shutdown>,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    ctx: &Context,
+) {
+    ctx.try_log(|logger| slog::info!(logger, "Handling Termination command"));
+    if let Some(ingestion_shutdown) = ingestion_shutdown {
+        ingestion_shutdown.notify();
+    }
+    if let Some(ref tx) = observer_events_tx {
+        let _ = tx.send(ObserverEvent::Info("Terminating event observer".into()));
+        let _ = tx.send(ObserverEvent::Terminate);
+    }
+}
 #[cfg(test)]
 pub mod tests;
