@@ -262,7 +262,7 @@ impl Config {
                 return &config.file_path;
             }
         }
-        panic!("expected local-tsv source")
+        panic!("expected local tsv source")
     }
 
     pub fn expected_cache_path(&self) -> PathBuf {
@@ -277,7 +277,7 @@ impl Config {
                 return &config.file_url;
             }
         }
-        panic!("expected remote-tsv source")
+        panic!("expected remote tsv source")
     }
 
     pub fn expected_remote_stacks_tsv_sha256(&self) -> String {

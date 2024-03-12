@@ -108,7 +108,7 @@ fn should_download_remote_stacks_tsv_handles_both_modes() {
 }
 
 #[test]
-#[should_panic(expected = "expected remote-tsv source")]
+#[should_panic(expected = "expected remote tsv source")]
 fn expected_remote_stacks_tsv_base_url_panics_if_missing() {
     let url_src = EventSourceConfig::StacksTsvUrl(super::UrlConfig {
         file_url: format!("test"),
@@ -123,7 +123,7 @@ fn expected_remote_stacks_tsv_base_url_panics_if_missing() {
 }
 
 #[test]
-#[should_panic(expected = "expected local-tsv source")]
+#[should_panic(expected = "expected local tsv source")]
 fn expected_local_stacks_tsv_base_url_panics_if_missing() {
     let path = PathBuf::from("test");
     let path_src = EventSourceConfig::StacksTsvPath(PathConfig {

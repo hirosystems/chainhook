@@ -293,7 +293,7 @@ impl ForkScratchPad {
                         ctx.try_log(|logger| {
                             slog::error!(
                                 logger,
-                                "unable to retrive Bitcoin {} from block store",
+                                "unable to retrieve Bitcoin block {} from block store",
                                 block_identifier
                             )
                         });
