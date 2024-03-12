@@ -317,7 +317,16 @@ impl ForkScratchPad {
                     let block_identifier = &divergence.block_ids_to_apply[i];
                     let header = match self.headers_store.get(block_identifier) {
                         Some(header) => header.clone(),
-                        None => panic!("unable to retrive block from block store"),
+                        None => {
+                            ctx.try_log(|logger| {
+                                slog::error!(
+                                    logger,
+                                    "unable to retrieve Bitcoin block {} from block store",
+                                    block_identifier
+                                )
+                            });
+                            return Err(ChainSegmentIncompatibility::Unknown);
+                        }
                     };
                     new_headers.push(header)
                 }
@@ -336,22 +345,40 @@ impl ForkScratchPad {
                             .map(|block_id| {
                                 let block = match self.headers_store.get(block_id) {
                                     Some(block) => block.clone(),
-                                    None => panic!("unable to retrive block from block store"),
+                                    None => {
+                                        ctx.try_log(|logger| {
+                                            slog::error!(
+                                            logger,
+                                            "unable to retrieve Bitcoin block {} from block store",
+                                            block_id
+                                        )
+                                        });
+                                        return Err(ChainSegmentIncompatibility::Unknown);
+                                    }
                                 };
-                                block
+                                Ok(block)
                             })
-                            .collect::<Vec<_>>(),
+                            .collect::<Result<Vec<_>, _>>()?,
                         headers_to_apply: divergence
                             .block_ids_to_apply
                             .iter()
                             .map(|block_id| {
                                 let block = match self.headers_store.get(block_id) {
                                     Some(block) => block.clone(),
-                                    None => panic!("unable to retrive block from block store"),
+                                    None => {
+                                        ctx.try_log(|logger| {
+                                            slog::error!(
+                                            logger,
+                                            "unable to retrieve Bitcoin block {} from block store",
+                                            block_id
+                                        )
+                                        });
+                                        return Err(ChainSegmentIncompatibility::Unknown);
+                                    }
                                 };
-                                block
+                                Ok(block)
                             })
-                            .collect::<Vec<_>>(),
+                            .collect::<Result<Vec<_>, _>>()?,
                         confirmed_headers: vec![],
                     },
                 ));
