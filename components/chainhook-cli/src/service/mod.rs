@@ -281,7 +281,7 @@ impl Service {
             let event = match observer_event_rx.recv() {
                 Ok(cmd) => cmd,
                 Err(e) => {
-                    error!(
+                    crit!(
                         self.ctx.expect_logger(),
                         "Error: broken channel {}",
                         e.to_string()
