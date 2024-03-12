@@ -206,7 +206,7 @@ impl Service {
 
         // Enable HTTP Predicates API, if required
         let config = self.config.clone();
-        if let PredicatesApi::On(ref api_config) = config.http_api {
+        let predicate_api_shutdown = if let PredicatesApi::On(ref api_config) = config.http_api {
             info!(
                 self.ctx.expect_logger(),
                 "Listening on port {} for chainhook predicate registrations", api_config.http_port
@@ -215,11 +215,29 @@ impl Service {
             let api_config = api_config.clone();
             let moved_observer_command_tx = observer_command_tx.clone();
             // Test and initialize a database connection
-            let _ = hiro_system_kit::thread_named("HTTP Predicate API").spawn(move || {
-                let future = start_predicate_api_server(api_config, moved_observer_command_tx, ctx);
-                let _ = hiro_system_kit::nestable_block_on(future);
-            });
-        }
+            let res = hiro_system_kit::thread_named("HTTP Predicate API")
+                .spawn(move || {
+                    let future = start_predicate_api_server(
+                        api_config,
+                        moved_observer_command_tx.clone(),
+                        ctx.clone(),
+                    );
+                    hiro_system_kit::nestable_block_on(future)
+                })
+                .expect("unable to spawn thread");
+            let res = res.join().expect("unable to terminate thread");
+            match res {
+                Ok(predicate_api_shutdown) => Some(predicate_api_shutdown),
+                Err(e) => {
+                    return Err(format!(
+                        "Predicate API Registration server failed to start: {}",
+                        e
+                    ));
+                }
+            }
+        } else {
+            None
+        };
 
         let ctx = self.ctx.clone();
         let stacks_db =
@@ -571,7 +589,17 @@ impl Service {
                     }
                 }
                 ObserverEvent::Terminate => {
-                    info!(self.ctx.expect_logger(), "Terminating runloop");
+                    info!(
+                        self.ctx.expect_logger(),
+                        "Terminating ObserverEvent runloop"
+                    );
+                    if let Some(predicate_api_shutdown) = predicate_api_shutdown {
+                        info!(
+                            self.ctx.expect_logger(),
+                            "Terminating Predicate Registration API"
+                        );
+                        predicate_api_shutdown.notify();
+                    }
                     break;
                 }
                 _ => {}
