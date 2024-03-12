@@ -176,9 +176,12 @@ impl Service {
                 start_stacks_scan_runloop(
                     &config,
                     stacks_scan_op_rx,
-                    observer_command_tx_moved,
+                    observer_command_tx_moved.clone(),
                     &ctx,
                 );
+                // the scan runloop should loop forever; if it finishes, something is wrong
+                crit!(ctx.expect_logger(), "Stacks scan runloop stopped.",);
+                let _ = observer_command_tx_moved.send(ObserverCommand::Terminate);
             })
             .expect("unable to spawn thread");
 
@@ -192,9 +195,12 @@ impl Service {
                 start_bitcoin_scan_runloop(
                     &config,
                     bitcoin_scan_op_rx,
-                    observer_command_tx_moved,
+                    observer_command_tx_moved.clone(),
                     &ctx,
                 );
+                // the scan runloop should loop forever; if it finishes, something is wrong
+                crit!(ctx.expect_logger(), "Bitcoin scan runloop stopped.",);
+                let _ = observer_command_tx_moved.send(ObserverCommand::Terminate);
             })
             .expect("unable to spawn thread");
 
