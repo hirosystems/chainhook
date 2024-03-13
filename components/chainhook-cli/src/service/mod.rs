@@ -1069,13 +1069,13 @@ fn insert_predicate_expiration(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&key, "predicates", &serialized_expiring_predicates)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
             "Error updating expired predicates index: {}",
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating expired predicates at block height {expired_at_block_height} with predicate: {predicate_key}"
         );
@@ -1094,7 +1094,7 @@ fn get_predicates_expiring_at_block(
             Ok(data) => {
                 if let Err(e) = predicates_db_conn.hdel::<_, _, u64>(key.to_string(), "predicates")
                 {
-                    error!(
+                    warn!(
                         ctx.expect_logger(),
                         "Error removing expired predicates index: {}",
                         e.to_string()
@@ -1118,13 +1118,14 @@ pub fn update_predicate_status(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "status", &serialized_status)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
-            "Error updating status: {}",
+            "Error updating status for {}: {}",
+            predicate_key,
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating predicate {predicate_key} status: {serialized_status}"
         );
@@ -1141,13 +1142,14 @@ fn update_predicate_spec(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "specification", &serialized_spec)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
-            "Error updating status: {}",
+            "Error updating status for {}: {}",
+            predicate_key,
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating predicate {predicate_key} with spec: {serialized_spec}"
         );
