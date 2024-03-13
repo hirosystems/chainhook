@@ -28,6 +28,11 @@ export const StacksTransactionCoinbaseKindSchema = Type.Object({
 });
 export type StacksTransactionCoinbaseKind = Static<typeof StacksTransactionCoinbaseKindSchema>;
 
+export const StacksTransactionTenureChangeKindSchema = Type.Object({
+  type: Type.Literal('TenureChange'),
+});
+export type StacksTransactionTenureChangeKind = Static<typeof StacksTransactionTenureChangeKindSchema>;
+
 export const StacksTransactionNativeTokenTransferKindSchema = Type.Object({
   type: Type.Literal('NativeTokenTransfer'),
 });
@@ -70,6 +75,7 @@ export type StacksTransactionUnsupportedKind = Static<
 
 export const StacksTransactionKindSchema = Type.Union([
   StacksTransactionCoinbaseKindSchema,
+  StacksTransactionTenureChangeKindSchema,
   StacksTransactionContractCallKindSchema,
   StacksTransactionContractDeploymentKindSchema,
   StacksTransactionNativeTokenTransferKindSchema,
