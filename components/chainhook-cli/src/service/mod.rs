@@ -367,20 +367,20 @@ impl Service {
                         );
                     }
                 }
-                ObserverEvent::PredicateDeregistered(spec) => {
+                ObserverEvent::PredicateDeregistered(uuid) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
                             open_readwrite_predicates_db_conn_verbose(&config, &ctx)
                         else {
                             continue;
                         };
-                        let predicate_key = spec.key();
+                        let predicate_key = ChainhookSpecification::either_stx_or_btc_key(&uuid);
                         let res: Result<(), redis::RedisError> =
-                            predicates_db_conn.del(predicate_key);
+                            predicates_db_conn.del(predicate_key.clone());
                         if let Err(e) = res {
-                            error!(
+                            warn!(
                                 self.ctx.expect_logger(),
-                                "unable to delete predicate: {}",
+                                "unable to delete predicate {predicate_key}: {}",
                                 e.to_string()
                             );
                         }

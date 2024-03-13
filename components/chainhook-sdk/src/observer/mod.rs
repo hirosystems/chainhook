@@ -304,7 +304,7 @@ pub enum ObserverEvent {
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
     PredicateRegistered(ChainhookSpecification),
-    PredicateDeregistered(ChainhookSpecification),
+    PredicateDeregistered(String),
     PredicateEnabled(ChainhookSpecification),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
@@ -1162,17 +1162,15 @@ pub async fn start_observer_commands_handler(
                 });
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if let Some(chainhook) = chainhook_store
+                    if chainhook_store
                         .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
+                        .is_some()
                     {
                         prometheus_monitoring.btc_metrics_deregister_predicate();
-
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Bitcoin(chainhook),
-                            ));
-                        }
+                    }
+                    if let Some(ref tx) = observer_events_tx {
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
                     }
                 }
 
@@ -1324,17 +1322,15 @@ pub async fn start_observer_commands_handler(
                 }
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if let Some(chainhook) = chainhook_store
+                    if chainhook_store
                         .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
+                        .is_some()
                     {
                         prometheus_monitoring.stx_metrics_deregister_predicate();
-
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Stacks(chainhook),
-                            ));
-                        }
+                    }
+                    if let Some(ref tx) = observer_events_tx {
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
                     }
                 }
 
@@ -1418,15 +1414,19 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
-                let hook = chainhook_store.predicates.deregister_stacks_hook(hook_uuid);
+                let hook = chainhook_store
+                    .predicates
+                    .deregister_stacks_hook(hook_uuid.clone());
 
-                prometheus_monitoring.stx_metrics_deregister_predicate();
-
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Stacks(hook),
-                    ));
-                }
+                if hook.is_some() {
+                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
+                    // so only those that we find in the store should be removed
+                    prometheus_monitoring.stx_metrics_deregister_predicate();
+                };
+                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                if let Some(tx) = &observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                };
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
                 ctx.try_log(|logger| {
@@ -1434,15 +1434,17 @@ pub async fn start_observer_commands_handler(
                 });
                 let hook = chainhook_store
                     .predicates
-                    .deregister_bitcoin_hook(hook_uuid);
+                    .deregister_bitcoin_hook(hook_uuid.clone());
 
-                prometheus_monitoring.btc_metrics_deregister_predicate();
-
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Bitcoin(hook),
-                    ));
-                }
+                if hook.is_some() {
+                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
+                    // so only those that we find in the store should be removed
+                    prometheus_monitoring.btc_metrics_deregister_predicate();
+                };
+                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                if let Some(tx) = &observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                };
             }
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
                 hook_uuid,
