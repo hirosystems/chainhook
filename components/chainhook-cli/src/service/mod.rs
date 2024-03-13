@@ -657,7 +657,7 @@ fn update_status_from_report(
 ) {
     for (predicate_uuid, blocks_ids) in report.predicates_triggered.iter() {
         if let Some(last_triggered_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let triggered_count = blocks_ids.len().try_into().unwrap();
+            let triggered_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Occurrence {
                     last_triggered_height,
@@ -686,7 +686,7 @@ fn update_status_from_report(
             }
         }
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let evaluated_count = blocks_ids.len().try_into().unwrap();
+            let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Evaluation {
                     last_evaluated_height,
@@ -700,7 +700,7 @@ fn update_status_from_report(
     }
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let evaluated_count = blocks_ids.len().try_into().unwrap();
+            let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_unconfirmed_expiration_status(
                 &chain,
                 evaluated_count,
