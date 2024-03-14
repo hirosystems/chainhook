@@ -498,10 +498,7 @@ fn test_stacks_chainhook_register_deregister() {
     ));
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_chainhook)) => {
-            assert_eq!(
-                ChainhookSpecification::Stacks(chainhook),
-                deregistered_chainhook
-            );
+            assert_eq!(chainhook.uuid, deregistered_chainhook);
             true
         }
         _ => false,
@@ -692,7 +689,7 @@ fn test_stacks_chainhook_auto_deregister() {
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
-            assert_eq!(deregistered_hook.uuid(), chainhook.uuid);
+            assert_eq!(deregistered_hook, chainhook.uuid);
             true
         }
         _ => false,
@@ -858,10 +855,7 @@ fn test_bitcoin_chainhook_register_deregister() {
     ));
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_chainhook)) => {
-            assert_eq!(
-                ChainhookSpecification::Bitcoin(chainhook),
-                deregistered_chainhook
-            );
+            assert_eq!(chainhook.uuid, deregistered_chainhook);
             true
         }
         _ => false,
@@ -1069,7 +1063,7 @@ fn test_bitcoin_chainhook_auto_deregister() {
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
         Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
-            assert_eq!(deregistered_hook.uuid(), chainhook.uuid);
+            assert_eq!(deregistered_hook, chainhook.uuid);
             true
         }
         _ => false,
