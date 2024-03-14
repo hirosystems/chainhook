@@ -6,7 +6,8 @@ use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
 use crate::storage::{
-    confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
+    confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
+    open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
@@ -20,7 +21,7 @@ use chainhook_sdk::types::{Chain, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::http_api::get_entry_from_predicates_db;
@@ -38,6 +39,7 @@ impl Service {
     pub async fn run(
         &mut self,
         predicates_from_startup: Vec<ChainhookFullSpecification>,
+        observer_commands_tx_rx: Option<(Sender<ObserverCommand>, Receiver<ObserverCommand>)>,
     ) -> Result<(), String> {
         let mut chainhook_config = ChainhookConfig::new();
 
@@ -149,7 +151,8 @@ impl Service {
             }
         }
 
-        let (observer_command_tx, observer_command_rx) = channel();
+        let (observer_command_tx, observer_command_rx) =
+            observer_commands_tx_rx.unwrap_or(channel());
         let (observer_event_tx, observer_event_rx) = crossbeam_channel::unbounded();
         // let (ordinal_indexer_command_tx, ordinal_indexer_command_rx) = channel();
 
@@ -211,6 +214,20 @@ impl Service {
             });
         }
 
+        let ctx = self.ctx.clone();
+        let stacks_db =
+            open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, &ctx)?;
+        let unconfirmed_blocks = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
+            Ok(blocks) => Some(blocks),
+            Err(e) => {
+                info!(
+                    self.ctx.expect_logger(),
+                    "Failed to get stacks blocks from db to seed block pool: {}", e
+                );
+                None
+            }
+        };
+
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
         let _ = start_event_observer(
@@ -219,6 +236,7 @@ impl Service {
             observer_command_rx,
             Some(observer_event_tx_moved),
             None,
+            unconfirmed_blocks,
             self.ctx.clone(),
         );
 

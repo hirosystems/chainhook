@@ -1,7 +1,5 @@
-use chainhook_sdk::chainhooks::types::{
-    ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
-};
-use chainhook_sdk::types::{Chain, StacksNetwork};
+use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
+use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
@@ -16,26 +14,23 @@ use test_case::test_case;
 use chainhook_sdk::observer::ObserverCommand;
 
 use self::helpers::build_predicates::{build_bitcoin_payload, build_stacks_payload, DEFAULT_UUID};
-use self::helpers::mock_bitcoin_rpc::mock_bitcoin_rpc;
 use self::helpers::mock_service::{
     call_deregister_predicate, filter_predicate_status_from_all_predicates, flush_redis,
-    start_chainhook_service, start_redis,
+    start_chainhook_service,
 };
-use self::helpers::mock_stacks_node::{
-    create_tmp_working_dir, mine_burn_block, mine_stacks_block, write_stacks_blocks_to_tsv,
-};
-use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
+use self::helpers::mock_stacks_node::{mine_burn_block, mine_stacks_block};
+use crate::config::PredicatesApi;
 use crate::service::tests::helpers::build_predicates::get_random_uuid;
-use crate::service::tests::helpers::get_free_port;
 use crate::service::tests::helpers::mock_service::{
-    build_predicate_api_server, call_get_predicate, call_register_predicate, get_chainhook_config,
-    get_predicate_status,
+    build_predicate_api_server, call_get_predicate, call_ping, call_register_predicate,
+    get_chainhook_config, get_predicate_status, setup_bitcoin_chainhook_test,
+    setup_stacks_chainhook_test, TestSetupResult,
 };
 use crate::service::tests::helpers::mock_stacks_node::create_burn_fork_at;
 use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, StreamingData};
+use crate::storage::{get_all_unconfirmed_blocks, open_readonly_stacks_db_conn};
 
 use super::http_api::document_predicate_api_server;
-use super::{update_predicate_spec, update_predicate_status};
 
 pub mod helpers;
 mod observer_tests;
@@ -346,23 +341,6 @@ fn _assert_interrupted_status((status, _, _): (PredicateStatus, Option<u64>, Opt
     }
 }
 
-fn setup_chainhook_service_ports() -> Result<(u16, u16, u16, u16, u16, u16), String> {
-    let redis_port = get_free_port()?;
-    let chainhook_service_port = get_free_port()?;
-    let stacks_rpc_port = get_free_port()?;
-    let stacks_ingestion_port = get_free_port()?;
-    let bitcoin_rpc_port = get_free_port()?;
-    let prometheus_port = get_free_port()?;
-    Ok((
-        redis_port,
-        chainhook_service_port,
-        stacks_rpc_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        prometheus_port,
-    ))
-}
-
 async fn await_new_scanning_status_complete(
     uuid: &str,
     chainhook_service_port: u16,
@@ -381,110 +359,6 @@ async fn await_new_scanning_status_complete(
         }
     }
 }
-
-async fn setup_stacks_chainhook_test(
-    starting_chain_tip: u64,
-    redis_seed: Option<(StacksChainhookFullSpecification, PredicateStatus)>,
-    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
-) -> (Child, String, u16, u16, u16, u16, u16) {
-    let (
-        redis_port,
-        chainhook_service_port,
-        stacks_rpc_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        prometheus_port,
-    ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
-
-    let mut redis_process = start_redis(redis_port)
-        .await
-        .unwrap_or_else(|e| panic!("test failed with error: {e}"));
-    flush_redis(redis_port);
-
-    let logger = hiro_system_kit::log::setup_logger();
-    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
-    let ctx = Context {
-        logger: Some(logger),
-        tracer: false,
-    };
-
-    if let Some((predicate, status)) = redis_seed {
-        let client = redis::Client::open(format!("redis://localhost:{redis_port}/"))
-            .unwrap_or_else(|e| {
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            });
-        let mut connection = client.get_connection().unwrap_or_else(|e| {
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
-        let stacks_spec = predicate
-            .into_selected_network_specification(&StacksNetwork::Devnet)
-            .unwrap_or_else(|e| {
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            });
-
-        let spec = ChainhookSpecification::Stacks(stacks_spec);
-        update_predicate_spec(&spec.key(), &spec, &mut connection, &ctx);
-        update_predicate_status(&spec.key(), status, &mut connection, &ctx);
-    }
-
-    let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
-
-    write_stacks_blocks_to_tsv(starting_chain_tip, &tsv_dir).unwrap_or_else(|e| {
-        std::fs::remove_dir_all(&working_dir).unwrap();
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
-
-    let mut config = get_chainhook_config(
-        redis_port,
-        chainhook_service_port,
-        stacks_rpc_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        &working_dir,
-        &tsv_dir,
-        Some(prometheus_port),
-    );
-
-    consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx)
-        .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
-
-    start_chainhook_service(config, chainhook_service_port, startup_predicates, &ctx)
-        .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
-    (
-        redis_process,
-        working_dir,
-        chainhook_service_port,
-        redis_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        prometheus_port,
-    )
-}
-
 #[test_case(5, 0, Some(1), Some(3), Some(3), Some(3) => using assert_confirmed_expiration_status; "predicate_end_block lower than starting_chain_tip ends with ConfirmedExpiration status")]
 #[test_case(5, 0, Some(1), None, Some(5), Some(5) => using assert_streaming_status; "no predicate_end_block ends with Streaming status")]
 #[test_case(3, 0, Some(1), Some(5), Some(3), Some(3) => using assert_streaming_status; "predicate_end_block greater than chain_tip ends with Streaming status")]
@@ -502,15 +376,17 @@ async fn test_stacks_predicate_status_is_updated(
     expected_evaluations: Option<u64>,
     expected_occurrences: Option<u64>,
 ) -> (PredicateStatus, Option<u64>, Option<u64>) {
-    let (
+    let TestSetupResult {
         mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
-        _,
-        _,
-    ) = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
@@ -522,128 +398,41 @@ async fn test_stacks_predicate_status_is_updated(
     );
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     for i in 1..blocks_to_mine + 1 {
         mine_stacks_block(
             stacks_ingestion_port,
+            0,
             i + starting_chain_tip,
+            0,
             i + starting_chain_tip + 100,
         )
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
     }
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     let found_predicate_status =
         filter_predicate_status_from_all_predicates(uuid, chainhook_service_port)
             .await
-            .unwrap_or_else(|e| {
-                std::fs::remove_dir_all(&working_dir).unwrap();
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            });
+            .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+            .unwrap();
+
+    cleanup(&working_dir, redis_port, &mut redis_process);
     assert_eq!(found_predicate_status, result);
-
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
     (result, expected_evaluations, expected_occurrences)
-}
-
-async fn setup_bitcoin_chainhook_test(
-    starting_chain_tip: u64,
-) -> (Child, String, u16, u16, u16, u16, u16) {
-    let (
-        redis_port,
-        chainhook_service_port,
-        stacks_rpc_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        prometheus_port,
-    ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
-
-    let mut redis_process = start_redis(redis_port)
-        .await
-        .unwrap_or_else(|e| panic!("test failed with error: {e}"));
-
-    flush_redis(redis_port);
-    let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
-
-    let logger = hiro_system_kit::log::setup_logger();
-    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
-    let ctx = Context {
-        logger: Some(logger),
-        tracer: false,
-    };
-
-    let _ = hiro_system_kit::thread_named("Bitcoin rpc service")
-        .spawn(move || {
-            let future = mock_bitcoin_rpc(bitcoin_rpc_port, starting_chain_tip);
-            let _ = hiro_system_kit::nestable_block_on(future);
-        })
-        .expect("unable to spawn thread");
-
-    let config = get_chainhook_config(
-        redis_port,
-        chainhook_service_port,
-        stacks_rpc_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        &working_dir,
-        &tsv_dir,
-        Some(prometheus_port),
-    );
-
-    start_chainhook_service(config, chainhook_service_port, None, &ctx)
-        .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
-    (
-        redis_process,
-        working_dir,
-        chainhook_service_port,
-        redis_port,
-        stacks_ingestion_port,
-        bitcoin_rpc_port,
-        prometheus_port,
-    )
 }
 
 #[test_case(5, 1, Some(1), Some(3), Some(3), Some(3) => using assert_unconfirmed_expiration_status; "predicate_end_block lower than starting_chain_tip with predicate_end_block confirmations < CONFIRMED_SEGMENT_MINIMUM_LENGTH ends with UnconfirmedExpiration status")]
@@ -661,15 +450,17 @@ async fn test_bitcoin_predicate_status_is_updated(
     expected_evaluations: Option<u64>,
     expected_occurrences: Option<u64>,
 ) -> (PredicateStatus, Option<u64>, Option<u64>) {
-    let (
+    let TestSetupResult {
         mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
+        stacks_rpc_port: _,
         bitcoin_rpc_port,
-        _,
-    ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_bitcoin_chainhook_test(starting_chain_tip).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_bitcoin_payload(
@@ -684,21 +475,13 @@ async fn test_bitcoin_predicate_status_is_updated(
 
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     for i in 1..blocks_to_mine + 1 {
         mine_burn_block(
@@ -708,36 +491,22 @@ async fn test_bitcoin_predicate_status_is_updated(
             i + starting_chain_tip,
         )
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
     }
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
     let found_predicate_status =
         filter_predicate_status_from_all_predicates(uuid, chainhook_service_port)
             .await
-            .unwrap_or_else(|e| {
-                std::fs::remove_dir_all(&working_dir).unwrap();
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            });
-    assert_eq!(found_predicate_status, result);
+            .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+            .unwrap();
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    assert_eq!(found_predicate_status, result);
     (result, expected_evaluations, expected_occurrences)
 }
 
@@ -758,17 +527,19 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
     fork_blocks_to_mine: u64,
     predicate_start_block: Option<u64>,
     predicate_end_block: Option<u64>,
-) {
+) -> Result<(), String> {
     let starting_chain_tip = 0;
-    let (
+    let TestSetupResult {
         mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
         stacks_ingestion_port,
+        stacks_rpc_port: _,
         bitcoin_rpc_port,
-        _,
-    ) = setup_bitcoin_chainhook_test(starting_chain_tip).await;
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_bitcoin_chainhook_test(starting_chain_tip).await;
 
     let uuid = &get_random_uuid();
     let predicate = build_bitcoin_payload(
@@ -783,12 +554,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
 
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
     let genesis_branch_key = '0';
     let first_block_mined_height = starting_chain_tip + 1;
@@ -801,23 +567,13 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
             block_height,
         )
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
     }
 
     sleep(Duration::new(2, 0));
     let status = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
     assert_streaming_status((status, None, None));
 
     let branch_key = '1';
@@ -831,12 +587,7 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
         fork_point,
     )
     .await
-    .unwrap_or_else(|e| {
-        std::fs::remove_dir_all(&working_dir).unwrap();
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
+    .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
     let reorg_point = last_block_mined_height + 1;
     let first_fork_block_mined_height = first_fork_block_mined_height + 1;
@@ -850,22 +601,12 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
             block_height,
         )
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
         if block_height == reorg_point {
             sleep(Duration::new(2, 0));
             let status = get_predicate_status(uuid, chainhook_service_port)
                 .await
-                .unwrap_or_else(|e| {
-                    std::fs::remove_dir_all(&working_dir).unwrap();
-                    flush_redis(redis_port);
-                    redis_process.kill().unwrap();
-                    panic!("test failed with error: {e}");
-                });
+                .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
             assert_streaming_status((status, None, None));
         }
     }
@@ -873,27 +614,29 @@ async fn test_bitcoin_predicate_status_is_updated_with_reorg(
     sleep(Duration::new(2, 0));
     let status = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
+    cleanup(&working_dir, redis_port, &mut redis_process);
     assert_confirmed_expiration_status((status, None, None));
-
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    Ok(())
 }
 
 #[test_case(Chain::Stacks; "for stacks chain")]
 #[test_case(Chain::Bitcoin; "for bitcoin chain")]
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn test_deregister_predicate(chain: Chain) {
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) = match &chain
-    {
+async fn test_deregister_predicate(chain: Chain) -> Result<(), String> {
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port: _,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = match &chain {
         Chain::Stacks => setup_stacks_chainhook_test(3, None, None).await,
         Chain::Bitcoin => setup_bitcoin_chainhook_test(3).await,
     };
@@ -919,49 +662,27 @@ async fn test_deregister_predicate(chain: Chain) {
 
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
     let result = call_get_predicate(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
     assert_eq!(result.get("status"), Some(&json!(200)));
 
     let result = call_deregister_predicate(&chain, uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
     assert_eq!(result.get("status"), Some(&json!(200)));
 
     let mut attempts = 0;
     loop {
         let result = call_get_predicate(uuid, chainhook_service_port)
             .await
-            .unwrap_or_else(|e| {
-                std::fs::remove_dir_all(&working_dir).unwrap();
-                flush_redis(redis_port);
-                redis_process.kill().unwrap();
-                panic!("test failed with error: {e}");
-            });
+            .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
         if result.get("status") == Some(&json!(404)) {
             break;
         } else if attempts == 3 {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
+            cleanup(&working_dir, redis_port, &mut redis_process);
             panic!("predicate was not successfully derigistered");
         } else {
             attempts += 1;
@@ -969,9 +690,8 @@ async fn test_deregister_predicate(chain: Chain) {
         }
     }
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    Ok(())
 }
 
 #[test_case(New, 6 => using assert_confirmed_expiration_status; "preloaded predicate with new status should get scanned until completion")]
@@ -1013,38 +733,37 @@ async fn test_restarting_with_saved_predicates(
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
 
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
-        setup_stacks_chainhook_test(starting_chain_tip, Some((predicate, starting_status)), None)
-            .await;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port: _,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(starting_chain_tip, Some((predicate, starting_status)), None)
+        .await;
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))
+        .unwrap();
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
     (result, None, None)
 }
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn it_allows_specifying_startup_predicate() {
+async fn it_allows_specifying_startup_predicate() -> Result<(), String> {
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
         Some("devnet"),
@@ -1056,37 +775,35 @@ async fn it_allows_specifying_startup_predicate() {
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
     let startup_predicate = ChainhookFullSpecification::Stacks(predicate);
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
-        setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port: _,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
     assert_confirmed_expiration_status((result, None, None));
+    Ok(())
 }
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn register_predicate_responds_409_if_uuid_in_use() {
+async fn register_predicate_responds_409_if_uuid_in_use() -> Result<(), String> {
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(
         Some("devnet"),
@@ -1099,22 +816,25 @@ async fn register_predicate_responds_409_if_uuid_in_use() {
         .expect("failed to set up stacks chanhook spec for test");
     let startup_predicate = ChainhookFullSpecification::Stacks(stacks_spec);
 
-    let (mut redis_process, working_dir, chainhook_service_port, redis_port, _, _, _) =
-        setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port: _,
+        stacks_rpc_port: _,
+        bitcoin_rpc_port: _,
+        prometheus_port: _,
+        observer_command_tx: _,
+    } = setup_stacks_chainhook_test(3, None, Some(vec![startup_predicate])).await;
 
     let result = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
-    assert_eq!(result.get("status"), Some(&json!(409)));
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    assert_eq!(result.get("status"), Some(&json!(409)));
+    Ok(())
 }
 
 #[test]
@@ -1129,4 +849,162 @@ fn it_generates_open_api_spec() {
         current_spec, new_spec,
         "breaking change detected: open api spec has been updated"
     )
+}
+
+#[tokio::test]
+#[cfg_attr(not(feature = "redis_tests"), ignore)]
+async fn it_seeds_block_pool_on_startup() -> Result<(), String> {
+    let starting_chain_tip = 3;
+    let TestSetupResult {
+        mut redis_process,
+        working_dir,
+        chainhook_service_port,
+        redis_port,
+        stacks_ingestion_port,
+        stacks_rpc_port,
+        bitcoin_rpc_port,
+        prometheus_port: _,
+        observer_command_tx,
+    } = setup_stacks_chainhook_test(starting_chain_tip, None, None).await;
+
+    let blocks_to_mine = 4;
+    for i in 1..blocks_to_mine + 1 {
+        mine_stacks_block(
+            stacks_ingestion_port,
+            0,
+            i + starting_chain_tip,
+            0,
+            i + starting_chain_tip + 100,
+        )
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    }
+    // we need these blocks to propagate through new stacks block events and save to the db, so give it some time
+    sleep(Duration::new(1, 0));
+
+    let logger = hiro_system_kit::log::setup_logger();
+    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+    let ctx = Context {
+        logger: Some(logger),
+        tracer: false,
+    };
+    let db_path = {
+        let mut destination_path = PathBuf::new();
+        destination_path.push(&working_dir);
+        destination_path
+    };
+    let stacks_db = open_readonly_stacks_db_conn(&db_path, &ctx).expect("unable to read stacks_db");
+    // validate that all blocks we just mined are saved as unconfirmed blocks in the database
+    let unconfirmed_blocks = get_all_unconfirmed_blocks(&stacks_db, &ctx)
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    let mut unconfirmed_height = starting_chain_tip + 1;
+    assert_eq!(
+        blocks_to_mine,
+        unconfirmed_blocks.len() as u64,
+        "Number of blocks left unconfirmed in db is not what expected. Expected: {}, Actual: {}",
+        blocks_to_mine,
+        unconfirmed_blocks.len()
+    );
+    for block in unconfirmed_blocks.iter() {
+        assert_eq!(
+            unconfirmed_height, block.block_identifier.index,
+            "Unexpected unconfirmed block height. Expected: {}, Actual: {}",
+            unconfirmed_height, block.block_identifier.index
+        );
+        unconfirmed_height += 1;
+    }
+    // terminate chainhook service
+    let _ = observer_command_tx.send(ObserverCommand::Terminate);
+    sleep(Duration::new(1, 0));
+    let tsv_dir = format!("./{working_dir}/stacks_blocks.tsv");
+    let mut config = get_chainhook_config(
+        redis_port,
+        chainhook_service_port,
+        stacks_rpc_port,
+        stacks_ingestion_port,
+        bitcoin_rpc_port,
+        &working_dir,
+        &tsv_dir,
+        None,
+    );
+    // the API is still running, so don't restart it
+    config.http_api = PredicatesApi::Off;
+    let _ = start_chainhook_service(config, stacks_ingestion_port, None, &ctx).await;
+    // validate that all of the unconfirmed blocks we just saved are still available after a restart
+    let unconfirmed_blocks = get_all_unconfirmed_blocks(&stacks_db, &ctx).unwrap();
+    let mut unconfirmed_height = starting_chain_tip + 1;
+    assert_eq!(
+        blocks_to_mine,
+        unconfirmed_blocks.len() as u64,
+        "Number of blocks left unconfirmed in db is not what expected. Expected: {}, Actual: {}",
+        blocks_to_mine,
+        unconfirmed_blocks.len()
+    );
+    for block in unconfirmed_blocks.iter() {
+        assert_eq!(
+            unconfirmed_height, block.block_identifier.index,
+            "Unexpected unconfirmed block height. Expected: {}, Actual: {}",
+            unconfirmed_height, block.block_identifier.index
+        );
+        unconfirmed_height += 1;
+    }
+    // mine a block on that same fork
+    let next_block_height = blocks_to_mine + starting_chain_tip + 1;
+    mine_stacks_block(
+        stacks_ingestion_port,
+        0,
+        next_block_height,
+        0,
+        next_block_height + 100,
+    )
+    .await
+    .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+
+    // mine the same block number we just mined, but on a different fork
+    mine_stacks_block(
+        stacks_ingestion_port,
+        1,
+        next_block_height,
+        0,
+        next_block_height + 100,
+    )
+    .await
+    .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+
+    sleep(Duration::new(1, 0));
+    // confirm that there was a reorg
+    let metrics = call_ping(stacks_ingestion_port)
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+    let stacks_last_reorg_data = metrics.get("stacks").unwrap().get("last_reorg").unwrap();
+    let applied_blocks = stacks_last_reorg_data
+        .get("applied_blocks")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    let rolled_back_blocks = stacks_last_reorg_data
+        .get("rolled_back_blocks")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    assert_eq!(applied_blocks, 1);
+    assert_eq!(rolled_back_blocks, 1);
+    Ok(())
+}
+
+fn cleanup_err(
+    error: String,
+    working_dir: &str,
+    redis_port: u16,
+    redis_process: &mut Child,
+) -> String {
+    cleanup(working_dir, redis_port, redis_process);
+    format!("test failed with error: {error}")
+}
+
+fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
+    std::fs::remove_dir_all(&working_dir).unwrap();
+    flush_redis(redis_port);
+    redis_process.kill().unwrap();
 }

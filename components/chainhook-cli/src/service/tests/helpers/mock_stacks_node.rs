@@ -8,7 +8,7 @@ use chainhook_sdk::types::{
     STXTransferEventData, SmartContractEventData, StacksTransactionEventPayload,
 };
 
-use super::{branch_and_height_to_prefixed_hash, height_to_prefixed_hash};
+use super::{branch_and_height_to_prefixed_hash, make_block_hash};
 
 pub const TEST_WORKING_DIR: &str = "src/service/tests/fixtures/tmp";
 
@@ -128,12 +128,19 @@ fn create_stacks_new_transaction(index: u64) -> NewTransaction {
     }
 }
 
-pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock {
-    let parent_height = if height == 0 { 0 } else { height - 1 };
-    let parent_burn_block_height = if burn_block_height == 0 {
-        0
-    } else {
-        burn_block_height - 1
+pub fn create_stacks_new_block(
+    fork_id: u8,
+    height: u64,
+    parent_fork_id: u8,
+    burn_block_height: u64,
+) -> NewBlock {
+    let parent_height = match height {
+        0 => 0,
+        _ => height - 1,
+    };
+    let parent_burn_block_height = match burn_block_height {
+        0 => 0,
+        _ => burn_block_height - 1,
     };
 
     let mut events = vec![];
@@ -238,16 +245,16 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
     ));
     NewBlock {
         block_height: height,
-        block_hash: height_to_prefixed_hash(height),
-        index_block_hash: height_to_prefixed_hash(height),
+        block_hash: make_block_hash(fork_id, height),
+        index_block_hash: make_block_hash(fork_id, height),
         burn_block_height: burn_block_height,
-        burn_block_hash: height_to_prefixed_hash(burn_block_height),
-        parent_block_hash: height_to_prefixed_hash(parent_height),
-        parent_index_block_hash: height_to_prefixed_hash(parent_height),
+        burn_block_hash: make_block_hash(0, burn_block_height),
+        parent_block_hash: make_block_hash(parent_fork_id, parent_height),
+        parent_index_block_hash: make_block_hash(parent_fork_id, parent_height),
         parent_microblock: "0x0000000000000000000000000000000000000000000000000000000000000000"
             .into(),
         parent_microblock_sequence: 0,
-        parent_burn_block_hash: height_to_prefixed_hash(parent_burn_block_height),
+        parent_burn_block_hash: make_block_hash(0, parent_burn_block_height),
         parent_burn_block_height: burn_block_height,
         parent_burn_block_timestamp: 0,
         transactions: (0..4).map(|i| create_stacks_new_transaction(i)).collect(),
@@ -257,10 +264,12 @@ pub fn create_stacks_new_block(height: u64, burn_block_height: u64) -> NewBlock 
 }
 
 fn create_stacks_block_received_record(
+    fork_id: u8,
     height: u64,
+    parent_fork_id: u8,
     burn_block_height: u64,
 ) -> Result<Record, String> {
-    let block = create_stacks_new_block(height, burn_block_height);
+    let block = create_stacks_new_block(fork_id, height, parent_fork_id, burn_block_height);
     let serialized_block = serde_json::to_string(&block)
         .map_err(|e| format!("failed to serialize stacks block: {}", e.to_string()))?;
     Ok(Record {
@@ -281,7 +290,7 @@ pub fn write_stacks_blocks_to_tsv(block_count: u64, dir: &str) -> Result<(), Str
         .expect("unable to create csv writer");
     for i in 1..block_count + 1 {
         writer
-            .serialize(create_stacks_block_received_record(i, i + 100)?)
+            .serialize(create_stacks_block_received_record(0, i, 0, i + 100)?)
             .map_err(|e| format!("failed to write tsv file: {}", e.to_string()))?;
     }
     Ok(())
@@ -289,10 +298,12 @@ pub fn write_stacks_blocks_to_tsv(block_count: u64, dir: &str) -> Result<(), Str
 
 pub async fn mine_stacks_block(
     port: u16,
+    fork_id: u8,
     height: u64,
+    parent_fork_id: u8,
     burn_block_height: u64,
 ) -> Result<(), String> {
-    let block = create_stacks_new_block(height, burn_block_height);
+    let block = create_stacks_new_block(fork_id, height, parent_fork_id, burn_block_height);
     let serialized_block = serde_json::to_string(&block).unwrap();
     let client = reqwest::Client::new();
     let _res = client
