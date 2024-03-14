@@ -27,7 +27,7 @@ use bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_types::{
     BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
     BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
-    StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
+    StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
@@ -426,6 +426,7 @@ pub fn start_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
+    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -460,6 +461,7 @@ pub fn start_event_observer(
                     observer_commands_rx,
                     observer_events_tx,
                     observer_sidecar,
+                    stacks_block_pool_seed,
                     context_cloned,
                 );
                 let _ = hiro_system_kit::nestable_block_on(future);
@@ -542,6 +544,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
+    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -553,7 +556,10 @@ pub async fn start_stacks_event_observer(
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
     };
 
-    let indexer = Indexer::new(indexer_config.clone());
+    let mut indexer = Indexer::new(indexer_config.clone());
+    if let Some(stacks_block_pool_seed) = stacks_block_pool_seed {
+        indexer.seed_stacks_block_pool(stacks_block_pool_seed, &ctx);
+    }
 
     let log_level = if config.display_logs {
         if cfg!(feature = "cli") {

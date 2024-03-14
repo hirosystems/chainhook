@@ -2,7 +2,7 @@ use crate::utils::Context;
 
 use super::{super::StacksChainEventExpectation, BlockEvent};
 use super::{microblocks, stacks_blocks};
-use chainhook_types::StacksChainEvent;
+use chainhook_types::{StacksBlockData, StacksChainEvent};
 use hiro_system_kit::slog;
 
 pub fn expect_no_chain_update() -> StacksChainEventExpectation {
@@ -3738,4 +3738,92 @@ pub fn get_vector_052() -> Vec<(BlockEvent, StacksChainEventExpectation)> {
             expect_chain_updated_with_block(stacks_blocks::B1(None), vec![]),
         ),
     ]
+}
+
+/// Vector 053: Generate the following blocks
+///
+///  A1(0) - B1(1) - C1(3)
+///        \ B2(2)
+///
+///
+pub fn get_vector_053() -> (
+    Vec<(BlockEvent, StacksChainEventExpectation)>,
+    Option<Vec<StacksBlockData>>,
+) {
+    (
+        vec![
+            (
+                stacks_blocks::B1(None),
+                expect_chain_updated_with_block(stacks_blocks::B1(None), vec![]),
+            ),
+            (
+                stacks_blocks::B2(None),
+                expect_chain_updated_with_block_reorg(
+                    vec![stacks_blocks::B1(None)],
+                    vec![stacks_blocks::B2(None)],
+                    vec![],
+                ),
+            ),
+            (
+                stacks_blocks::C1(None),
+                expect_chain_updated_with_block_reorg(
+                    vec![stacks_blocks::B2(None)],
+                    vec![stacks_blocks::B1(None), stacks_blocks::C1(None)],
+                    vec![],
+                ),
+            ),
+        ],
+        Some(vec![get_block_from_block_event(stacks_blocks::A1(None))]),
+    )
+}
+/// Vector 054: Generate the following blocks
+///
+///  A1(0) - B1(0) - C1(1) - D1(4)
+///        \ B2(2) - C2(3)
+///
+///
+pub fn get_vector_054() -> (
+    Vec<(BlockEvent, StacksChainEventExpectation)>,
+    Option<Vec<StacksBlockData>>,
+) {
+    (
+        vec![
+            (
+                stacks_blocks::C1(None),
+                expect_chain_updated_with_block(stacks_blocks::C1(None), vec![]),
+            ),
+            (stacks_blocks::B2(None), expect_no_chain_update()),
+            (
+                stacks_blocks::C2(None),
+                expect_chain_updated_with_block_reorg(
+                    vec![stacks_blocks::B1(None), stacks_blocks::C1(None)],
+                    vec![stacks_blocks::B2(None), stacks_blocks::C2(None)],
+                    vec![],
+                ),
+            ),
+            (
+                stacks_blocks::D1(None),
+                expect_chain_updated_with_block_reorg(
+                    vec![stacks_blocks::B2(None), stacks_blocks::C2(None)],
+                    vec![
+                        stacks_blocks::B1(None),
+                        stacks_blocks::C1(None),
+                        stacks_blocks::D1(None),
+                    ],
+                    vec![],
+                ),
+            ),
+        ],
+        Some(vec![
+            get_block_from_block_event(stacks_blocks::A1(None)),
+            get_block_from_block_event(stacks_blocks::B1(None)),
+        ]),
+    )
+}
+
+fn get_block_from_block_event(block_event: BlockEvent) -> StacksBlockData {
+    match block_event {
+        BlockEvent::Block(block) => block,
+        _ => unreachable!(),
+    }
 }
