@@ -971,11 +971,16 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block_identifier.index)
                         {
-                            Some(highest_tip_block) => prometheus_monitoring.btc_metrics_set_reorg(
-                                highest_tip_block.timestamp.into(),
-                                blocks_to_apply.len() as u64,
-                                blocks_to_rollback.len() as u64,
-                            ),
+                            Some(highest_tip_block) => {
+                                prometheus_monitoring.btc_metrics_set_reorg(
+                                    highest_tip_block.timestamp.into(),
+                                    blocks_to_apply.len() as u64,
+                                    blocks_to_rollback.len() as u64,
+                                );
+                                prometheus_monitoring.btc_metrics_ingest_block(
+                                    highest_tip_block.block_identifier.index,
+                                );
+                            }
                             None => {}
                         }
 
@@ -1183,12 +1188,16 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => prometheus_monitoring
-                                .stx_metrics_set_reorg(
+                            Some(highest_tip_update) => {
+                                prometheus_monitoring.stx_metrics_set_reorg(
                                     highest_tip_update.block.timestamp,
                                     update.blocks_to_apply.len() as u64,
                                     update.blocks_to_rollback.len() as u64,
-                                ),
+                                );
+                                prometheus_monitoring.stx_metrics_ingest_block(
+                                    highest_tip_update.block.block_identifier.index,
+                                )
+                            }
                             None => {}
                         }
                     }
