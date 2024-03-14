@@ -737,7 +737,7 @@ pub fn gather_proofs<'a>(
         for transaction in transactions.iter() {
             if !proofs.contains_key(&transaction.transaction_identifier) {
                 ctx.try_log(|logger| {
-                    slog::info!(
+                    slog::debug!(
                         logger,
                         "Collecting proof for transaction {}",
                         transaction.transaction_identifier.hash
@@ -752,7 +752,7 @@ pub fn gather_proofs<'a>(
                         proofs.insert(&transaction.transaction_identifier, proof);
                     }
                     Err(e) => {
-                        ctx.try_log(|logger| slog::error!(logger, "{e}"));
+                        ctx.try_log(|logger| slog::warn!(logger, "{e}"));
                     }
                 }
             }
@@ -815,7 +815,7 @@ pub async fn start_observer_commands_handler(
                                 break None;
                             }
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "Error standardizing block: {}", e)
+                                slog::warn!(logger, "Error standardizing block: {}", e)
                             });
                             if refetch_block {
                                 block_data = match download_and_parse_block_with_retry(
@@ -1132,10 +1132,16 @@ pub async fn start_observer_commands_handler(
                     ));
                 }
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
+                    let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "unable to handle action {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to handle action for predicate {}: {}",
+                                    predicate_uuid,
+                                    e
+                                )
                             });
                         }
                         Ok(BitcoinChainhookOccurrence::Http(request, data)) => {
@@ -1143,7 +1149,7 @@ pub async fn start_observer_commands_handler(
                         }
                         Ok(BitcoinChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
-                                slog::info!(logger, "Writing to disk not supported in server mode")
+                                slog::warn!(logger, "Writing to disk not supported in server mode")
                             })
                         }
                         Ok(BitcoinChainhookOccurrence::Data(payload)) => {
@@ -1299,10 +1305,16 @@ pub async fn start_observer_commands_handler(
                 }
                 let proofs = HashMap::new();
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
+                    let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "unable to handle action {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to handle action for predicate {}: {}",
+                                    predicate_uuid,
+                                    e
+                                )
                             });
                         }
                         Ok(StacksChainhookOccurrence::Http(request)) => {
@@ -1310,7 +1322,7 @@ pub async fn start_observer_commands_handler(
                         }
                         Ok(StacksChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
-                                slog::info!(logger, "Writing to disk not supported in server mode")
+                                slog::warn!(logger, "Writing to disk not supported in server mode")
                             })
                         }
                         Ok(StacksChainhookOccurrence::Data(payload)) => {
@@ -1337,7 +1349,7 @@ pub async fn start_observer_commands_handler(
                 for request in requests.into_iter() {
                     // todo(lgalabru): collect responses for reporting
                     ctx.try_log(|logger| {
-                        slog::info!(
+                        slog::debug!(
                             logger,
                             "Dispatching request from stacks chainhook {:?}",
                             request
@@ -1360,7 +1372,7 @@ pub async fn start_observer_commands_handler(
             }
             ObserverCommand::NotifyBitcoinTransactionProxied => {
                 ctx.try_log(|logger| {
-                    slog::info!(logger, "Handling NotifyBitcoinTransactionProxied command")
+                    slog::debug!(logger, "Handling NotifyBitcoinTransactionProxied command")
                 });
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::NotifyBitcoinTransactionProxied);
@@ -1376,7 +1388,7 @@ pub async fn start_observer_commands_handler(
                     Ok(spec) => spec,
                     Err(e) => {
                         ctx.try_log(|logger| {
-                            slog::error!(
+                            slog::warn!(
                                 logger,
                                 "Unable to register new chainhook spec: {}",
                                 e.to_string()
@@ -1395,11 +1407,15 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
-                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
+                ctx.try_log(
+                    |logger| slog::debug!(logger, "Registering chainhook {}", spec.uuid(),),
+                );
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
                 } else {
-                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
+                    ctx.try_log(|logger| {
+                        slog::debug!(logger, "Enabling Predicate {}", spec.uuid())
+                    });
                     chainhook_store.predicates.enable_specification(&mut spec);
                 }
             }

@@ -89,15 +89,16 @@ impl Service {
                 }
                 match chainhook_config.register_specification(predicate) {
                     Ok(_) => {
-                        info!(
+                        debug!(
                             self.ctx.expect_logger(),
-                            "Predicate {} retrieved from storage and loaded", predicate_uuid,
+                            "Predicate {} retrieved from storage and registered", predicate_uuid,
                         );
                     }
                     Err(e) => {
-                        error!(
+                        warn!(
                             self.ctx.expect_logger(),
-                            "Failed loading predicate from storage: {}",
+                            "Failed to register predicate {} after retrieving from storage: {}",
+                            predicate_uuid,
                             e.to_string()
                         );
                     }
@@ -117,7 +118,7 @@ impl Service {
                         &self.ctx,
                     ) {
                         Ok(Some(_)) => {
-                            error!(
+                            warn!(
                                 self.ctx.expect_logger(),
                                 "Predicate uuid already in use: {uuid}",
                             );
@@ -136,16 +137,16 @@ impl Service {
             ) {
                 Ok(spec) => {
                     newly_registered_predicates.push(spec.clone());
-                    info!(
+                    debug!(
                         self.ctx.expect_logger(),
                         "Predicate {} retrieved from config and loaded",
                         spec.uuid(),
                     );
                 }
                 Err(e) => {
-                    error!(
+                    warn!(
                         self.ctx.expect_logger(),
-                        "Failed loading predicate from config: {}",
+                        "Failed to load predicate from config: {}",
                         e.to_string()
                     );
                 }
@@ -1190,6 +1191,7 @@ pub fn open_readwrite_predicates_db_conn_verbose(
     res
 }
 
+// todo: evaluate expects
 pub fn open_readwrite_predicates_db_conn_or_panic(
     config: &PredicatesApiConfig,
     ctx: &Context,

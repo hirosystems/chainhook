@@ -111,7 +111,10 @@ pub async fn get_canonical_fork_from_tsv(
                     match standardize_stacks_serialized_block_header(&blob) {
                         Ok(data) => data,
                         Err(e) => {
-                            error!(ctx.expect_logger(), "{e}");
+                            error!(
+                                ctx.expect_logger(),
+                                "Failed to standardize stacks header: {e}"
+                            );
                             continue;
                         }
                     }
@@ -169,12 +172,13 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     config: &Config,
     ctx: &Context,
 ) -> Result<(Option<BlockIdentifier>, bool), String> {
+    let predicate_uuid = &predicate_spec.uuid;
     let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
         Some(chain_tip) => chain_tip,
         None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
             Some(chain_tip) => chain_tip,
             None => {
-                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
                 return Ok((None, false));
             }
         },
@@ -201,9 +205,9 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     let proofs = HashMap::new();
-    info!(
+    debug!(
         ctx.expect_logger(),
-        "Starting predicate evaluation on Stacks blocks"
+        "Starting predicate evaluation on Stacks blocks for predicate {}", predicate_uuid
     );
     let mut last_block_scanned = BlockIdentifier::default();
     let mut err_count = 0;
@@ -243,7 +247,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
                     Some(chain_tip) => chain_tip,
                     None => {
-                        info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                        warn!(ctx.expect_logger(), "No blocks inserted in db; cannot determine Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
                         return Ok((None, false));
                     }
                 },
@@ -304,7 +308,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         };
         let res = match handle_stacks_hook_action(trigger, &proofs, &ctx) {
             Err(e) => {
-                error!(ctx.expect_logger(), "unable to handle action {}", e);
+                warn!(
+                    ctx.expect_logger(),
+                    "unable to handle action for predicate {}: {}", predicate_uuid, e
+                );
                 Ok(()) // todo: should this error increment our err_count?
             }
             Ok(action) => {
@@ -342,7 +349,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     }
     info!(
         ctx.expect_logger(),
-        "{number_of_blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate"
+        "Predicate {predicate_uuid} scan completed. {number_of_blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate.",
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -550,7 +557,10 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
             ) {
                 Ok(block) => block,
                 Err(e) => {
-                    error!(&ctx.expect_logger(), "{e}");
+                    error!(
+                        &ctx.expect_logger(),
+                        "Failed to standardize stacks block: {e}"
+                    );
                     continue;
                 }
             };

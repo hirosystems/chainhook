@@ -29,6 +29,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     config: &Config,
     ctx: &Context,
 ) -> Result<bool, String> {
+    let predicate_uuid = &predicate_spec.uuid;
     let auth = Auth::UserPass(
         config.network.bitcoind_rpc_username.clone(),
         config.network.bitcoind_rpc_password.clone(),
@@ -71,9 +72,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         PredicatesApi::Off => None,
     };
 
-    info!(
+    debug!(
         ctx.expect_logger(),
-        "Starting predicate evaluation on Bitcoin blocks",
+        "Starting predicate evaluation on Bitcoin blocks for predicate {predicate_uuid}",
     );
 
     let mut last_block_scanned = BlockIdentifier::default();
@@ -200,7 +201,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
     info!(
         ctx.expect_logger(),
-        "{number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
+        "Predicate {predicate_uuid} scan completed. {number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered."
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -269,9 +270,13 @@ pub async fn execute_predicates_action<'a>(
         if trigger.chainhook.include_proof {
             gather_proofs(&trigger, &mut proofs, &config, &ctx);
         }
+        let predicate_uuid = &trigger.chainhook.uuid;
         match handle_bitcoin_hook_action(trigger, &proofs) {
             Err(e) => {
-                error!(ctx.expect_logger(), "unable to handle action {}", e);
+                warn!(
+                    ctx.expect_logger(),
+                    "unable to handle action for predicate {}: {}", predicate_uuid, e
+                );
             }
             Ok(action) => {
                 actions_triggered += 1;

@@ -298,9 +298,12 @@ pub fn get_entry_from_predicates_db(
     let spec = ChainhookSpecification::deserialize_specification(&encoded_spec)?;
 
     let encoded_status = match entry.get("status") {
-        None => unimplemented!(),
-        Some(payload) => payload,
-    };
+        None => Err(format!(
+            "found predicate specification with no status for predicate {}",
+            predicate_key
+        )),
+        Some(payload) => Ok(payload),
+    }?;
 
     let status = serde_json::from_str(&encoded_status).map_err(|e| format!("{}", e.to_string()))?;
 

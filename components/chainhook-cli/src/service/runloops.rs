@@ -140,7 +140,7 @@ pub fn start_bitcoin_scan_runloop(
             let predicate_is_expired = match hiro_system_kit::nestable_block_on(op) {
                 Ok(predicate_is_expired) => predicate_is_expired,
                 Err(e) => {
-                    error!(
+                    warn!(
                         moved_ctx.expect_logger(),
                         "Unable to evaluate predicate on Bitcoin chainstate: {e}",
                     );

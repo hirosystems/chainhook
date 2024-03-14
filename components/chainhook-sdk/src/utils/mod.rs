@@ -164,7 +164,7 @@ pub async fn send_request(
         let err_msg = match request_builder.send().await {
             Ok(res) => {
                 if res.status().is_success() {
-                    ctx.try_log(|logger| slog::info!(logger, "Trigger {} successful", res.url()));
+                    ctx.try_log(|logger| slog::debug!(logger, "Trigger {} successful", res.url()));
                     return Ok(());
                 } else {
                     retry += 1;
