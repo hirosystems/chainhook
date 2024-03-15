@@ -1181,6 +1181,7 @@ pub async fn start_observer_commands_handler(
                 }
 
                 for (request, data) in requests.into_iter() {
+                    // todo: need to handle failure case - we should be setting interrupted status: https://github.com/hirosystems/chainhook/issues/523
                     if send_request(request, 3, 1, &ctx).await.is_ok() {
                         if let Some(ref tx) = observer_events_tx {
                             let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
