@@ -116,12 +116,16 @@ fn get_last_unconfirmed_insert_key() -> [u8; 3] {
     *LAST_UNCONFIRMED_KEY_PREFIX
 }
 
-pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB, _ctx: &Context) {
+pub fn insert_entry_in_stacks_blocks(
+    block: &StacksBlockData,
+    stacks_db_rw: &DB,
+    _ctx: &Context,
+) -> Result<(), String> {
     let key = get_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
-        .expect("unable to insert blocks");
+        .map_err(|e| format!("unable to insert blocks: {}", e))?;
     let previous_last_inserted = get_last_block_height_inserted(stacks_db_rw, _ctx).unwrap_or(0);
     if block.block_identifier.index > previous_last_inserted {
         stacks_db_rw
@@ -129,35 +133,39 @@ pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB,
                 get_last_confirmed_insert_key(),
                 block.block_identifier.index.to_be_bytes(),
             )
-            .expect("unable to insert metadata");
+            .map_err(|e| format!("unable to insert metadata: {}", e))?;
     }
+    Ok(())
 }
 
 pub fn insert_unconfirmed_entry_in_stacks_blocks(
     block: &StacksBlockData,
     stacks_db_rw: &DB,
     _ctx: &Context,
-) {
+) -> Result<(), String> {
     let key = get_unconfirmed_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
-        .expect("unable to insert blocks");
+        .map_err(|e| format!("unable to insert blocks: {}", e))?;
     stacks_db_rw
         .put(
             get_last_unconfirmed_insert_key(),
             block.block_identifier.index.to_be_bytes(),
         )
-        .expect("unable to insert metadata");
+        .map_err(|e| format!("unable to insert metadata: {}", e))?;
+    Ok(())
 }
 
 pub fn delete_unconfirmed_entry_from_stacks_blocks(
     block_identifier: &BlockIdentifier,
     stacks_db_rw: &DB,
     _ctx: &Context,
-) {
+) -> Result<(), String> {
     let key = get_unconfirmed_block_key(&block_identifier);
-    stacks_db_rw.delete(&key).expect("unable to delete blocks");
+    stacks_db_rw
+        .delete(&key)
+        .map_err(|e| format!("unable to delete blocks: {}", e))
 }
 
 pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
@@ -209,22 +217,24 @@ pub fn confirm_entries_in_stacks_blocks(
     blocks: &Vec<StacksBlockData>,
     stacks_db_rw: &DB,
     ctx: &Context,
-) {
+) -> Result<(), String> {
     for block in blocks.iter() {
-        insert_entry_in_stacks_blocks(block, stacks_db_rw, ctx);
-        delete_unconfirmed_entry_from_stacks_blocks(&block.block_identifier, stacks_db_rw, ctx);
+        insert_entry_in_stacks_blocks(block, stacks_db_rw, ctx)?;
+        delete_unconfirmed_entry_from_stacks_blocks(&block.block_identifier, stacks_db_rw, ctx)?;
     }
+    Ok(())
 }
 
 pub fn draft_entries_in_stacks_blocks(
     block_updates: &Vec<StacksBlockUpdate>,
     stacks_db_rw: &DB,
     ctx: &Context,
-) {
+) -> Result<(), String> {
     for update in block_updates.iter() {
         // TODO: Could be imperfect, from a microblock point of view
-        insert_unconfirmed_entry_in_stacks_blocks(&update.block, stacks_db_rw, ctx);
+        insert_unconfirmed_entry_in_stacks_blocks(&update.block, stacks_db_rw, ctx)?;
     }
+    Ok(())
 }
 
 pub fn get_stacks_block_at_block_height(

@@ -480,28 +480,48 @@ impl Service {
 
                     match &chain_event {
                         StacksChainEvent::ChainUpdatedWithBlocks(data) => {
-                            confirm_entries_in_stacks_blocks(
+                            if let Err(e) = confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            );
-                            draft_entries_in_stacks_blocks(
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add confirmed entries to stacks db: {}", e
+                                );
+                            };
+                            if let Err(e) = draft_entries_in_stacks_blocks(
                                 &data.new_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            )
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add unconfirmed entries to stacks db: {}", e
+                                );
+                            };
                         }
                         StacksChainEvent::ChainUpdatedWithReorg(data) => {
-                            confirm_entries_in_stacks_blocks(
+                            if let Err(e) = confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            );
-                            draft_entries_in_stacks_blocks(
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add confirmed entries to stacks db: {}", e
+                                );
+                            };
+                            if let Err(e) = draft_entries_in_stacks_blocks(
                                 &data.blocks_to_apply,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            )
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add unconfirmed entries to stacks db: {}", e
+                                );
+                            };
                         }
                         StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                         | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
