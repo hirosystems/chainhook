@@ -98,7 +98,7 @@ pub async fn get_canonical_fork_from_tsv(
             }
             let _ = record_tx.send(None);
         })
-        .expect("unable to spawn thread");
+        .map_err(|e| format!("unable to spawn thread: {e}"))?;
 
     let stacks_db = open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
     let canonical_fork = {
