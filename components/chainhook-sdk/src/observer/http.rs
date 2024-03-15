@@ -132,7 +132,7 @@ pub async fn handle_new_bitcoin_block(
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::info!(logger, "unable to infer chain progress"));
+            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
         }
         Err(e) => {
             ctx.try_log(|logger| slog::error!(logger, "unable to handle bitcoin block: {}", e))
@@ -202,7 +202,7 @@ pub fn handle_new_stacks_block(
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::info!(logger, "unable to infer chain progress"));
+            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
         }
         Err(e) => ctx.try_log(|logger| slog::error!(logger, "{}", e)),
     }
@@ -273,7 +273,7 @@ pub fn handle_new_microblocks(
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::info!(logger, "unable to infer chain progress"));
+            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
         }
         Err(e) => {
             ctx.try_log(|logger| slog::error!(logger, "unable to handle stacks microblock: {}", e));
