@@ -164,7 +164,7 @@ impl Service {
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {
             let _ =
-                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
+                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await?;
         }
 
         // Stacks scan operation threadpool
@@ -582,11 +582,20 @@ impl Service {
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
                         stacks_event = 0;
-                        let _ = consolidate_local_stacks_chainstate_using_csv(
+                        match consolidate_local_stacks_chainstate_using_csv(
                             &mut self.config,
                             &self.ctx,
                         )
-                        .await;
+                        .await
+                        {
+                            Err(e) => {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "Failed to update database from archive: {e}"
+                                )
+                            }
+                            Ok(()) => {}
+                        };
                     }
                 }
                 ObserverEvent::Terminate => {

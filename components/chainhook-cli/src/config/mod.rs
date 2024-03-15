@@ -256,13 +256,13 @@ impl Config {
         }
     }
 
-    pub fn expected_local_stacks_tsv_file(&self) -> &PathBuf {
+    pub fn expected_local_stacks_tsv_file(&self) -> Result<&PathBuf, String> {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvPath(config) = source {
-                return &config.file_path;
+                return Ok(&config.file_path);
             }
         }
-        panic!("expected local tsv source")
+        Err(format!("could not find expected local tsv source"))
     }
 
     pub fn expected_cache_path(&self) -> PathBuf {
@@ -271,21 +271,23 @@ impl Config {
         destination_path
     }
 
-    fn expected_remote_stacks_tsv_base_url(&self) -> &String {
+    fn expected_remote_stacks_tsv_base_url(&self) -> Result<&String, String> {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvUrl(config) = source {
-                return &config.file_url;
+                return Ok(&config.file_url);
             }
         }
-        panic!("expected remote tsv source")
+        Err(format!("could not find expected remote tsv source"))
     }
 
-    pub fn expected_remote_stacks_tsv_sha256(&self) -> String {
-        format!("{}.sha256", self.expected_remote_stacks_tsv_base_url())
+    pub fn expected_remote_stacks_tsv_sha256(&self) -> Result<String, String> {
+        self.expected_remote_stacks_tsv_base_url()
+            .map(|url| format!("{}.sha256", url))
     }
 
-    pub fn expected_remote_stacks_tsv_url(&self) -> String {
-        format!("{}.gz", self.expected_remote_stacks_tsv_base_url())
+    pub fn expected_remote_stacks_tsv_url(&self) -> Result<String, String> {
+        self.expected_remote_stacks_tsv_base_url()
+            .map(|url| format!("{}.gz", url))
     }
 
     pub fn rely_on_remote_stacks_tsv(&self) -> bool {

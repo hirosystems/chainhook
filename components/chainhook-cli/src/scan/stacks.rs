@@ -66,7 +66,7 @@ pub async fn get_canonical_fork_from_tsv(
     start_block: Option<u64>,
     ctx: &Context,
 ) -> Result<VecDeque<(BlockIdentifier, BlockIdentifier, String)>, String> {
-    let seed_tsv_path = config.expected_local_stacks_tsv_file().clone();
+    let seed_tsv_path = config.expected_local_stacks_tsv_file()?.clone();
 
     let (record_tx, record_rx) = std::sync::mpsc::channel();
 
@@ -427,7 +427,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         }
     }
 
-    let _ = download_stacks_dataset_if_required(config, ctx).await;
+    let _ = download_stacks_dataset_if_required(config, ctx).await?;
 
     let mut canonical_fork = get_canonical_fork_from_tsv(config, None, ctx).await?;
 
@@ -523,7 +523,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         "Building local chainstate from Stacks archive file"
     );
 
-    let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await;
+    let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await?;
 
     if downloaded_new_dataset {
         let stacks_db =

@@ -108,7 +108,6 @@ fn should_download_remote_stacks_tsv_handles_both_modes() {
 }
 
 #[test]
-#[should_panic(expected = "expected remote tsv source")]
 fn expected_remote_stacks_tsv_base_url_panics_if_missing() {
     let url_src = EventSourceConfig::StacksTsvUrl(super::UrlConfig {
         file_url: format!("test"),
@@ -116,15 +115,22 @@ fn expected_remote_stacks_tsv_base_url_panics_if_missing() {
     let mut config = Config::default(true, false, false, &None).unwrap();
 
     config.event_sources = vec![url_src.clone()];
-    assert_eq!(config.expected_remote_stacks_tsv_base_url(), "test");
+    match config.expected_remote_stacks_tsv_base_url() {
+        Ok(tsv_url) => assert_eq!(tsv_url, "test"),
+        Err(e) => {
+            panic!("expected tsv file: {e}")
+        }
+    }
 
     config.event_sources = vec![];
-    config.expected_remote_stacks_tsv_base_url();
+    match config.expected_remote_stacks_tsv_base_url() {
+        Ok(tsv_url) => panic!("expected no tsv file, found {}", tsv_url),
+        Err(e) => assert_eq!(e, "could not find expected remote tsv source".to_string()),
+    };
 }
 
 #[test]
-#[should_panic(expected = "expected local tsv source")]
-fn expected_local_stacks_tsv_base_url_panics_if_missing() {
+fn expected_local_stacks_tsv_base_url_errors_if_missing() {
     let path = PathBuf::from("test");
     let path_src = EventSourceConfig::StacksTsvPath(PathConfig {
         file_path: path.clone(),
@@ -132,10 +138,18 @@ fn expected_local_stacks_tsv_base_url_panics_if_missing() {
     let mut config = Config::default(true, false, false, &None).unwrap();
 
     config.event_sources = vec![path_src.clone()];
-    assert_eq!(config.expected_local_stacks_tsv_file(), &path);
+    match config.expected_local_stacks_tsv_file() {
+        Ok(tsv_path) => assert_eq!(tsv_path, &path),
+        Err(e) => {
+            panic!("expected tsv file: {e}")
+        }
+    }
 
     config.event_sources = vec![];
-    config.expected_local_stacks_tsv_file();
+    match config.expected_local_stacks_tsv_file() {
+        Ok(tsv_path) => panic!("expected no tsv file, found {}", tsv_path.to_string_lossy()),
+        Err(e) => assert_eq!(e, "could not find expected local tsv source".to_string()),
+    };
 }
 
 #[test]
