@@ -221,6 +221,19 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 0 {
+                set_predicate_scanning_status(
+                    &predicate_spec.key(),
+                    number_of_blocks_to_scan,
+                    number_of_blocks_scanned,
+                    number_of_times_triggered,
+                    current_block_height,
+                    predicates_db_conn,
+                    ctx,
+                );
+            }
+        }
         if current_block_height > chain_tip {
             let prev_chain_tip = chain_tip;
             // we've scanned up to the chain tip as of the start of this scan
@@ -279,6 +292,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
 
         let (hits_per_blocks, _predicates_expired) =
             evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
+
         if hits_per_blocks.is_empty() {
             continue;
         }
@@ -323,20 +337,6 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 ));
             } else {
                 return Err(format!("Scan aborted (consecutive action errors >= 3)"));
-            }
-        }
-
-        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 1 {
-                set_predicate_scanning_status(
-                    &predicate_spec.key(),
-                    number_of_blocks_to_scan,
-                    number_of_blocks_scanned,
-                    number_of_times_triggered,
-                    current_block_height,
-                    predicates_db_conn,
-                    ctx,
-                );
             }
         }
     }
