@@ -7,7 +7,8 @@ use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_s
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
 use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
-    open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
+    get_last_block_height_inserted, open_readonly_stacks_db_conn_with_retry,
+    open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
@@ -218,7 +219,17 @@ impl Service {
         let stacks_db =
             open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, &ctx)?;
         let unconfirmed_blocks = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
-            Ok(blocks) => Some(blocks),
+            Ok(blocks) => {
+                let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx).unwrap_or(0);
+                // any unconfirmed blocks that are earlier than confirmed blocks are invalid
+                Some(
+                    blocks
+                        .iter()
+                        .filter(|&b| b.block_identifier.index > confirmed_tip)
+                        .cloned()
+                        .collect(),
+                )
+            }
             Err(e) => {
                 info!(
                     self.ctx.expect_logger(),
