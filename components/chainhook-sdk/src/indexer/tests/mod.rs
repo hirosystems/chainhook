@@ -1,6 +1,5 @@
 pub mod helpers;
 use crate::utils::{AbstractBlock, Context};
-use std::collections::VecDeque;
 
 use self::helpers::BlockEvent;
 use super::{fork_scratch_pad::ForkScratchPad, StacksBlockPool};
@@ -11,7 +10,7 @@ pub type StacksChainEventExpectation = Box<dyn Fn(Option<StacksChainEvent>) -> (
 pub fn process_stacks_blocks_and_check_expectations(
     (steps, block_pool_seed): (
         Vec<(BlockEvent, StacksChainEventExpectation)>,
-        Option<VecDeque<StacksBlockData>>,
+        Option<Vec<StacksBlockData>>,
     ),
 ) {
     let mut blocks_processor = StacksBlockPool::new();
