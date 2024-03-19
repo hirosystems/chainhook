@@ -175,22 +175,21 @@ pub fn get_all_unconfirmed_blocks(
     stacks_db: &DB,
     ctx: &Context,
 ) -> Result<VecDeque<StacksBlockData>, String> {
-    let mut cursor = get_last_unconfirmed_block_height_inserted(stacks_db, ctx);
     let mut blocks = VecDeque::new();
+    let Some(mut cursor) = get_last_unconfirmed_block_height_inserted(stacks_db, ctx) else {
+        return Ok(blocks);
+    };
     loop {
-        match cursor {
-            Some(height) => match get_stacks_block_at_block_height(height, false, 3, stacks_db) {
-                Ok(block) => match block {
-                    Some(block) => {
-                        blocks.push_front(block.clone());
-                        cursor = Some(block.parent_block_identifier.index);
-                    }
-                    None => break,
-                },
-                Err(e) => return Err(e),
+        match get_stacks_block_at_block_height(cursor, false, 3, stacks_db) {
+            Ok(block) => match block {
+                Some(block) => {
+                    blocks.push_front(block.clone());
+                    cursor = block.parent_block_identifier.index;
+                }
+                None => break,
             },
-            None => break,
-        }
+            Err(e) => return Err(e),
+        };
     }
     Ok(blocks)
 }
