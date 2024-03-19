@@ -503,7 +503,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 .await?;
                             }
                             Err(e) => {
-                                warn!(
+                                info!(
                                     ctx.expect_logger(),
                                     "Could not open db. This will greatly increase scan times. Error: {}", e
                                 );
