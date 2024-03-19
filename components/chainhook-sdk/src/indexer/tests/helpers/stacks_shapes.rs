@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::utils::Context;
 
 use super::{super::StacksChainEventExpectation, BlockEvent};
@@ -3748,8 +3750,10 @@ pub fn get_vector_052() -> Vec<(BlockEvent, StacksChainEventExpectation)> {
 ///
 pub fn get_vector_053() -> (
     Vec<(BlockEvent, StacksChainEventExpectation)>,
-    Option<Vec<StacksBlockData>>,
+    Option<VecDeque<StacksBlockData>>,
 ) {
+    let mut seed = VecDeque::new();
+    seed.push_front(get_block_from_block_event(stacks_blocks::A1(None)));
     (
         vec![
             (
@@ -3773,7 +3777,7 @@ pub fn get_vector_053() -> (
                 ),
             ),
         ],
-        Some(vec![get_block_from_block_event(stacks_blocks::A1(None))]),
+        Some(seed),
     )
 }
 /// Vector 054: Generate the following blocks
@@ -3784,8 +3788,11 @@ pub fn get_vector_053() -> (
 ///
 pub fn get_vector_054() -> (
     Vec<(BlockEvent, StacksChainEventExpectation)>,
-    Option<Vec<StacksBlockData>>,
+    Option<VecDeque<StacksBlockData>>,
 ) {
+    let mut seed = VecDeque::new();
+    seed.push_front(get_block_from_block_event(stacks_blocks::B1(None)));
+    seed.push_front(get_block_from_block_event(stacks_blocks::A1(None)));
     (
         vec![
             (
@@ -3814,10 +3821,7 @@ pub fn get_vector_054() -> (
                 ),
             ),
         ],
-        Some(vec![
-            get_block_from_block_event(stacks_blocks::A1(None)),
-            get_block_from_block_event(stacks_blocks::B1(None)),
-        ]),
+        Some(seed),
     )
 }
 

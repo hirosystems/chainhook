@@ -12,7 +12,7 @@ use chainhook_types::{
     StacksMicroblockData,
 };
 use hiro_system_kit::slog;
-use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
@@ -43,11 +43,11 @@ impl StacksBlockPool {
         }
     }
 
-    pub fn seed_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
+    pub fn seed_block_pool(&mut self, blocks: VecDeque<StacksBlockData>, ctx: &Context) {
         ctx.try_log(|logger| {
             slog::info!(logger, "Seeding block pool with {} blocks", blocks.len())
         });
-        for block in blocks {
+        for block in blocks.into_iter() {
             let existing_entry = self.block_store.get(&block.block_identifier.clone());
             if existing_entry.is_some() {
                 ctx.try_log(|logger| {

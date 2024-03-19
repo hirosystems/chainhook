@@ -92,7 +92,7 @@ impl Indexer {
         }
     }
 
-    pub fn seed_stacks_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
+    pub fn seed_stacks_block_pool(&mut self, blocks: VecDeque<StacksBlockData>, ctx: &Context) {
         self.stacks_blocks_pool.seed_block_pool(blocks, ctx);
     }
 
