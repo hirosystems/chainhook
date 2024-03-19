@@ -531,7 +531,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
         info!(
             ctx.expect_logger(),
-            "Begining import of {} Stacks blocks into rocks db", blocks_to_insert
+            "Beginning import of {} Stacks blocks into rocks db", blocks_to_insert
         );
         for (block_identifier, _parent_block_identifier, blob) in canonical_fork.drain(..) {
             blocks_read += 1;
