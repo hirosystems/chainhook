@@ -602,20 +602,22 @@ impl Service {
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
                         stacks_event = 0;
-                        match consolidate_local_stacks_chainstate_using_csv(
-                            &mut self.config,
-                            &self.ctx,
-                        )
-                        .await
-                        {
-                            Err(e) => {
-                                error!(
-                                    self.ctx.expect_logger(),
-                                    "Failed to update database from archive: {e}"
-                                )
-                            }
-                            Ok(()) => {}
-                        };
+                        if self.config.rely_on_remote_stacks_tsv() {
+                            match consolidate_local_stacks_chainstate_using_csv(
+                                &mut self.config,
+                                &self.ctx,
+                            )
+                            .await
+                            {
+                                Err(e) => {
+                                    error!(
+                                        self.ctx.expect_logger(),
+                                        "Failed to update database from archive: {e}"
+                                    )
+                                }
+                                Ok(()) => {}
+                            };
+                        }
                     }
                 }
                 ObserverEvent::Terminate => {
