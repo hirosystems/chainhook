@@ -1,8 +1,9 @@
+use std::collections::VecDeque;
 use std::path::PathBuf;
 
 use chainhook_sdk::types::{BlockIdentifier, StacksBlockData, StacksBlockUpdate};
 use chainhook_sdk::utils::Context;
-use rocksdb::{Direction, IteratorMode, Options, DB};
+use rocksdb::{Options, DB};
 
 const UNCONFIRMED_KEY_PREFIX: &[u8; 2] = b"~:";
 const CONFIRMED_KEY_PREFIX: &[u8; 2] = b"b:";
@@ -172,28 +173,22 @@ pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context
 
 pub fn get_all_unconfirmed_blocks(
     stacks_db: &DB,
-    _ctx: &Context,
-) -> Result<Vec<StacksBlockData>, String> {
-    let unconfirmed_key_prefix = UNCONFIRMED_KEY_PREFIX;
-    let mut blocks = vec![];
-    let iter = stacks_db.iterator(IteratorMode::From(
-        unconfirmed_key_prefix,
-        Direction::Forward,
-    ));
-    for item in iter {
-        match item {
-            Ok((k, v)) => {
-                if k.starts_with(unconfirmed_key_prefix) {
-                    let spec: StacksBlockData = serde_json::from_slice(&v[..]).map_err(|e| {
-                        format!("unable to deserialize Stacks block {}", e.to_string())
-                    })?;
-                    blocks.push(spec);
-                } else {
-                    // we're past the set of keys we're looking for, so we've found all unconfirmed
-                    return Ok(blocks);
+    ctx: &Context,
+) -> Result<VecDeque<StacksBlockData>, String> {
+    let mut blocks = VecDeque::new();
+    let Some(mut cursor) = get_last_unconfirmed_block_height_inserted(stacks_db, ctx) else {
+        return Ok(blocks);
+    };
+    loop {
+        match get_stacks_block_at_block_height(cursor, false, 3, stacks_db) {
+            Ok(block) => match block {
+                Some(block) => {
+                    blocks.push_front(block.clone());
+                    cursor = block.parent_block_identifier.index;
                 }
-            }
-            Err(e) => return Err(format!("failed to get all unconfirmed blocks: {e}")),
+                None => break,
+            },
+            Err(e) => return Err(e),
         };
     }
     Ok(blocks)
