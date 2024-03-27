@@ -290,9 +290,11 @@ pub fn standardize_stacks_serialized_block_header(
         .parent_index_block_hash
         .take()
         .ok_or(format!("unable to retrieve parent_index_block_hash"))?;
+
+    let parent_height = block_identifier.index.saturating_sub(1);
     let parent_block_identifier = BlockIdentifier {
         hash: parent_hash,
-        index: block_identifier.index - 1,
+        index: parent_height,
     };
     Ok((block_identifier, parent_block_identifier))
 }
@@ -902,7 +904,7 @@ pub fn get_standardized_non_fungible_currency_from_asset_class_id(
         }),
     }
 }
-
+//todo: this function has a lot of expects/panics. should return result instead
 pub fn get_standardized_stacks_receipt(
     _txid: &str,
     events: Vec<StacksTransactionEvent>,

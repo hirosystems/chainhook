@@ -21,7 +21,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
         println!("{}", e.to_string());
     });
 
-    let remote_sha_url = config.expected_remote_stacks_tsv_sha256();
+    let remote_sha_url = config.expected_remote_stacks_tsv_sha256()?;
     let res = reqwest::get(&remote_sha_url)
         .await
         .or(Err(format!("Failed to GET from '{}'", &remote_sha_url)))?
@@ -34,7 +34,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
 
     write_file_content_at_path(&local_sha_file_path, &res.to_vec())?;
 
-    let file_url = config.expected_remote_stacks_tsv_url();
+    let file_url = config.expected_remote_stacks_tsv_url()?;
     let res = reqwest::get(&file_url)
         .await
         .or(Err(format!("Failed to GET from '{}'", &file_url)))?;
@@ -55,14 +55,17 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
                     Ok(0) => break,
                     Ok(n) => {
                         if let Err(e) = file.write_all(&buffer[..n]) {
-                            let err =
-                                format!("unable to update compressed archive: {}", e.to_string());
-                            return Err(err);
+                            return Err(format!(
+                                "unable to update compressed archive: {}",
+                                e.to_string()
+                            ));
                         }
                     }
                     Err(e) => {
-                        let err = format!("unable to write compressed archive: {}", e.to_string());
-                        return Err(err);
+                        return Err(format!(
+                            "unable to write compressed archive: {}",
+                            e.to_string()
+                        ));
                     }
                 }
             }
@@ -83,12 +86,11 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
                 .map_err(|e| format!("unable to download stacks archive: {}", e.to_string()))?;
         }
         drop(tx);
-
         tokio::task::spawn_blocking(|| decoder_thread.join())
             .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
+            .map_err(|e| format!("failed to spawn thread: {e}"))?
+            .map_err(|e| format!("decoder thread failed when downloading tsv: {:?}", e))?
+            .map_err(|e| format!("failed to download tsv: {}", e))?;
     }
 
     Ok(())
@@ -124,11 +126,14 @@ impl Read for ChannelRead {
     }
 }
 
-pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Context) -> bool {
+pub async fn download_stacks_dataset_if_required(
+    config: &mut Config,
+    ctx: &Context,
+) -> Result<bool, String> {
     if config.is_initial_ingestion_required() {
         // Download default tsv.
         if config.rely_on_remote_stacks_tsv() && config.should_download_remote_stacks_tsv() {
-            let url = config.expected_remote_stacks_tsv_url();
+            let url = config.expected_remote_stacks_tsv_url()?;
             let mut tsv_file_path = config.expected_cache_path();
             tsv_file_path.push(default_tsv_file_path(&config.network.stacks_network));
             let mut tsv_sha_file_path = config.expected_cache_path();
@@ -137,7 +142,7 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
             // Download archive if not already present in cache
             // Load the local
             let local_sha_file = read_file_content_at_path(&tsv_sha_file_path);
-            let sha_url = config.expected_remote_stacks_tsv_sha256();
+            let sha_url = config.expected_remote_stacks_tsv_sha256()?;
 
             let remote_sha_file = match reqwest::get(&sha_url).await {
                 Ok(response) => response.bytes().await,
@@ -164,28 +169,25 @@ pub async fn download_stacks_dataset_if_required(config: &mut Config, ctx: &Cont
                     "Stacks archive file already up to date"
                 );
                 config.add_local_stacks_tsv_source(&tsv_file_path);
-                return false;
+                return Ok(false);
             }
 
             info!(ctx.expect_logger(), "Downloading {}", url);
             match download_tsv_file(&config).await {
                 Ok(_) => {}
-                Err(e) => {
-                    error!(ctx.expect_logger(), "{}", e);
-                    std::process::exit(1);
-                }
+                Err(e) => return Err(e),
             }
             info!(ctx.expect_logger(), "Successfully downloaded tsv file");
             config.add_local_stacks_tsv_source(&tsv_file_path);
         }
-        true
+        Ok(true)
     } else {
         info!(
             ctx.expect_logger(),
             "Streaming blocks from stacks-node {}",
             config.network.get_stacks_node_config().rpc_url
         );
-        false
+        Ok(false)
     }
 }
 
