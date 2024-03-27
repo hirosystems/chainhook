@@ -262,7 +262,7 @@ impl Config {
                 return Ok(&config.file_path);
             }
         }
-        Err(format!("could not find expected local tsv source"))
+        Err("could not find expected local tsv source")?
     }
 
     pub fn expected_cache_path(&self) -> PathBuf {
@@ -277,7 +277,7 @@ impl Config {
                 return Ok(&config.file_url);
             }
         }
-        Err(format!("could not find expected remote tsv source"))
+        Err("could not find expected remote tsv source")?
     }
 
     pub fn expected_remote_stacks_tsv_sha256(&self) -> Result<String, String> {
