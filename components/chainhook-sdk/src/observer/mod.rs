@@ -639,7 +639,7 @@ pub async fn start_stacks_event_observer(
 
     let ingestion_config = Config {
         port: ingestion_port,
-        workers: 3,
+        workers: 1,
         address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         keep_alive: 5,
         temp_dir: std::env::temp_dir().into(),
