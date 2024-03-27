@@ -447,7 +447,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit 0.3.1",
+ "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=a36f22c1ac7f836b48da621c1ecea1ffa64c31be)",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -1499,18 +1499,6 @@ dependencies = [
  "slog-json",
  "slog-scope",
  "slog-term",
- "tokio",
-]
-
-[[package]]
-name = "hiro-system-kit"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a96596d2b33489f33f79b2df6f340dbbd2baba05a251715bb84661d33bf1c9"
-dependencies = [
- "ansi_term",
- "atty",
- "lazy_static",
  "tokio",
 ]
 
