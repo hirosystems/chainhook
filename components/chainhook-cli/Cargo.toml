@@ -18,7 +18,7 @@ rand = "0.8.5"
 chainhook-sdk = { version = "0.12.1", default-features = false, features = [
     "zeromq",
 ], path = "../chainhook-sdk" }
-hiro-system-kit = { version = "0.1.0", optional = false, rev="59209a6d5667c2640bafbe326dcae313070007cd", git = "https://github.com/hirosystems/clarinet.git" }
+hiro-system-kit = { version = "0.3.2" }
 # clarinet-files = { path = "../../../clarinet/components/clarinet-files" }
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
 clap = { version = "3.2.23", features = ["derive"], optional = true }

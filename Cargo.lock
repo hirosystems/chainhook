@@ -447,7 +447,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd)",
+ "hiro-system-kit 0.3.2",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -482,7 +482,7 @@ dependencies = [
  "futures",
  "fxhash",
  "hex",
- "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd)",
+ "hiro-system-kit 0.3.2",
  "hyper",
  "lazy_static",
  "miniscript",
@@ -620,7 +620,7 @@ dependencies = [
  "chrono",
  "clarity-vm",
  "getrandom 0.2.11",
- "hiro-system-kit 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hiro-system-kit 0.1.0",
  "integer-sqrt",
  "lazy_static",
  "regex",
@@ -1487,8 +1487,9 @@ dependencies = [
 
 [[package]]
 name = "hiro-system-kit"
-version = "0.1.0"
-source = "git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd#59209a6d5667c2640bafbe326dcae313070007cd"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc0029b908b021c2170ce55e1146fc85f347ebd2c3c21af7207c1d2d8c28982b"
 dependencies = [
  "ansi_term",
  "atty",
