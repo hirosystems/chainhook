@@ -447,7 +447,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=a36f22c1ac7f836b48da621c1ecea1ffa64c31be)",
+ "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd)",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -482,7 +482,7 @@ dependencies = [
  "futures",
  "fxhash",
  "hex",
- "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=a36f22c1ac7f836b48da621c1ecea1ffa64c31be)",
+ "hiro-system-kit 0.1.0 (git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd)",
  "hyper",
  "lazy_static",
  "miniscript",
@@ -1488,7 +1488,7 @@ dependencies = [
 [[package]]
 name = "hiro-system-kit"
 version = "0.1.0"
-source = "git+https://github.com/hirosystems/clarinet.git?rev=a36f22c1ac7f836b48da621c1ecea1ffa64c31be#a36f22c1ac7f836b48da621c1ecea1ffa64c31be"
+source = "git+https://github.com/hirosystems/clarinet.git?rev=59209a6d5667c2640bafbe326dcae313070007cd#59209a6d5667c2640bafbe326dcae313070007cd"
 dependencies = [
  "ansi_term",
  "atty",
