@@ -28,7 +28,7 @@ pub async fn start_predicate_api_server(
     api_config: PredicatesApiConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     ctx: Context,
-) -> Result<Shutdown, Box<dyn Error>> {
+) -> Result<Shutdown, Box<dyn Error + Send + Sync>> {
     let log_level = LogLevel::Off;
 
     let mut shutdown_config = config::Shutdown::default();
@@ -62,12 +62,12 @@ pub async fn start_predicate_api_server(
         .ignite()
         .await?;
 
-    let ingestion_shutdown = ignite.shutdown();
+    let predicate_api_shutdown = ignite.shutdown();
 
     let _ = std::thread::spawn(move || {
         let _ = hiro_system_kit::nestable_block_on(ignite.launch());
     });
-    Ok(ingestion_shutdown)
+    Ok(predicate_api_shutdown)
 }
 
 #[openapi(tag = "Health Check")]
@@ -298,9 +298,12 @@ pub fn get_entry_from_predicates_db(
     let spec = ChainhookSpecification::deserialize_specification(&encoded_spec)?;
 
     let encoded_status = match entry.get("status") {
-        None => unimplemented!(),
-        Some(payload) => payload,
-    };
+        None => Err(format!(
+            "found predicate specification with no status for predicate {}",
+            predicate_key
+        )),
+        Some(payload) => Ok(payload),
+    }?;
 
     let status = serde_json::from_str(&encoded_status).map_err(|e| format!("{}", e.to_string()))?;
 

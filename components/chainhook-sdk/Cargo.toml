@@ -50,4 +50,4 @@ test-case = "3.1.0"
 default = ["hiro-system-kit/log"]
 zeromq = ["zmq"]
 debug = ["hiro-system-kit/debug"]
-release = ["hiro-system-kit/release"]
+release = ["hiro-system-kit/debug"]

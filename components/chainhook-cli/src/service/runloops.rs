@@ -43,9 +43,12 @@ pub fn start_stacks_scan_runloop(
                 {
                     Ok(db_conn) => db_conn,
                     Err(e) => {
+                        // todo: if we repeatedly can't connect to the database, we should restart the
+                        // service to get to a healthy state. I don't know if this has been an issue, though
+                        // so we can monitor and possibly remove this todo
                         error!(
                             moved_ctx.expect_logger(),
-                            "unable to store stacks block: {}",
+                            "unable to open stacks db: {}",
                             e.to_string()
                         );
                         unimplemented!()
@@ -108,8 +111,7 @@ pub fn start_stacks_scan_runloop(
             }
         });
     }
-    let res = stacks_scan_pool.join();
-    res
+    let _ = stacks_scan_pool.join();
 }
 
 pub fn start_bitcoin_scan_runloop(
@@ -138,7 +140,7 @@ pub fn start_bitcoin_scan_runloop(
             let predicate_is_expired = match hiro_system_kit::nestable_block_on(op) {
                 Ok(predicate_is_expired) => predicate_is_expired,
                 Err(e) => {
-                    error!(
+                    warn!(
                         moved_ctx.expect_logger(),
                         "Unable to evaluate predicate on Bitcoin chainstate: {e}",
                     );

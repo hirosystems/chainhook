@@ -367,7 +367,7 @@ impl ChainSegment {
             }
             Err(incompatibility) => {
                 ctx.try_log(|logger| {
-                    slog::info!(logger, "Will have to fork: {:?}", incompatibility)
+                    slog::warn!(logger, "Will have to fork: {:?}", incompatibility)
                 });
                 match incompatibility {
                     ChainSegmentIncompatibility::BlockCollision => {
