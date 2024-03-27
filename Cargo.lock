@@ -535,7 +535,7 @@ dependencies = [
  "flume",
  "futures-util",
  "hex",
- "hiro-system-kit 0.3.2",
+ "hiro-system-kit 0.3.4",
  "num_cpus",
  "rand 0.8.5",
  "redis",
@@ -570,7 +570,7 @@ dependencies = [
  "futures",
  "fxhash",
  "hex",
- "hiro-system-kit 0.3.2",
+ "hiro-system-kit 0.3.4",
  "hyper",
  "lazy_static",
  "miniscript",
@@ -1827,9 +1827,9 @@ dependencies = [
 
 [[package]]
 name = "hiro-system-kit"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc0029b908b021c2170ce55e1146fc85f347ebd2c3c21af7207c1d2d8c28982b"
+checksum = "4d3bf5cf007a9973ef9b7dffe8d63fa5228e9bb1aa012e89da2b9f1e7119ce6e"
 dependencies = [
  "ansi_term",
  "atty",
@@ -1840,6 +1840,7 @@ dependencies = [
  "slog-json",
  "slog-scope",
  "slog-term",
+ "time",
  "tokio",
 ]
 
