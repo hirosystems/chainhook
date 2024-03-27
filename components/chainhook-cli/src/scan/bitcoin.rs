@@ -29,6 +29,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     config: &Config,
     ctx: &Context,
 ) -> Result<bool, String> {
+    let predicate_uuid = &predicate_spec.uuid;
     let auth = Auth::UserPass(
         config.network.bitcoind_rpc_username.clone(),
         config.network.bitcoind_rpc_password.clone(),
@@ -71,9 +72,9 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         PredicatesApi::Off => None,
     };
 
-    info!(
+    debug!(
         ctx.expect_logger(),
-        "Starting predicate evaluation on Bitcoin blocks",
+        "Starting predicate evaluation on Bitcoin blocks for predicate {predicate_uuid}",
     );
 
     let mut last_block_scanned = BlockIdentifier::default();
@@ -98,6 +99,20 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
+            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 0 {
+                set_predicate_scanning_status(
+                    &predicate_spec.key(),
+                    number_of_blocks_to_scan,
+                    number_of_blocks_scanned,
+                    number_of_times_triggered,
+                    current_block_height,
+                    predicates_db_conn,
+                    ctx,
+                );
+            }
+        }
+
         if current_block_height > chain_tip {
             let prev_chain_tip = chain_tip;
             // we've scanned up to the chain tip as of the start of this scan
@@ -182,25 +197,11 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 return Err(format!("Scan aborted (consecutive action errors >= 3)"));
             }
         }
-
-        if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 1 {
-                set_predicate_scanning_status(
-                    &predicate_spec.key(),
-                    number_of_blocks_to_scan,
-                    number_of_blocks_scanned,
-                    number_of_times_triggered,
-                    current_block_height,
-                    predicates_db_conn,
-                    ctx,
-                );
-            }
-        }
     }
 
     info!(
         ctx.expect_logger(),
-        "{number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered"
+        "Predicate {predicate_uuid} scan completed. {number_of_blocks_scanned} blocks scanned, {actions_triggered} actions triggered."
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -269,9 +270,13 @@ pub async fn execute_predicates_action<'a>(
         if trigger.chainhook.include_proof {
             gather_proofs(&trigger, &mut proofs, &config, &ctx);
         }
+        let predicate_uuid = &trigger.chainhook.uuid;
         match handle_bitcoin_hook_action(trigger, &proofs) {
             Err(e) => {
-                error!(ctx.expect_logger(), "unable to handle action {}", e);
+                warn!(
+                    ctx.expect_logger(),
+                    "unable to handle action for predicate {}: {}", predicate_uuid, e
+                );
             }
             Ok(action) => {
                 actions_triggered += 1;

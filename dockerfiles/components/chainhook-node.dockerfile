@@ -4,7 +4,7 @@ WORKDIR /src
 
 RUN apt update && apt install -y ca-certificates pkg-config libssl-dev libclang-11-dev
 
-RUN rustup update 1.70.0 && rustup default 1.70.0
+RUN rustup update 1.73.0 && rustup default 1.73.0
 
 COPY ./Cargo.* /src/
 

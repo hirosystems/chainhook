@@ -6,7 +6,9 @@ use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
 use crate::storage::{
-    confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, open_readwrite_stacks_db_conn,
+    confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
+    get_last_block_height_inserted, open_readonly_stacks_db_conn_with_retry,
+    open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecification};
@@ -20,7 +22,7 @@ use chainhook_sdk::types::{Chain, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::http_api::get_entry_from_predicates_db;
@@ -38,6 +40,7 @@ impl Service {
     pub async fn run(
         &mut self,
         predicates_from_startup: Vec<ChainhookFullSpecification>,
+        observer_commands_tx_rx: Option<(Sender<ObserverCommand>, Receiver<ObserverCommand>)>,
     ) -> Result<(), String> {
         let mut chainhook_config = ChainhookConfig::new();
 
@@ -86,15 +89,16 @@ impl Service {
                 }
                 match chainhook_config.register_specification(predicate) {
                     Ok(_) => {
-                        info!(
+                        debug!(
                             self.ctx.expect_logger(),
-                            "Predicate {} retrieved from storage and loaded", predicate_uuid,
+                            "Predicate {} retrieved from storage and registered", predicate_uuid,
                         );
                     }
                     Err(e) => {
-                        error!(
+                        warn!(
                             self.ctx.expect_logger(),
-                            "Failed loading predicate from storage: {}",
+                            "Failed to register predicate {} after retrieving from storage: {}",
+                            predicate_uuid,
                             e.to_string()
                         );
                     }
@@ -114,7 +118,7 @@ impl Service {
                         &self.ctx,
                     ) {
                         Ok(Some(_)) => {
-                            error!(
+                            warn!(
                                 self.ctx.expect_logger(),
                                 "Predicate uuid already in use: {uuid}",
                             );
@@ -133,23 +137,24 @@ impl Service {
             ) {
                 Ok(spec) => {
                     newly_registered_predicates.push(spec.clone());
-                    info!(
+                    debug!(
                         self.ctx.expect_logger(),
                         "Predicate {} retrieved from config and loaded",
                         spec.uuid(),
                     );
                 }
                 Err(e) => {
-                    error!(
+                    warn!(
                         self.ctx.expect_logger(),
-                        "Failed loading predicate from config: {}",
+                        "Failed to load predicate from config: {}",
                         e.to_string()
                     );
                 }
             }
         }
 
-        let (observer_command_tx, observer_command_rx) = channel();
+        let (observer_command_tx, observer_command_rx) =
+            observer_commands_tx_rx.unwrap_or(channel());
         let (observer_event_tx, observer_event_rx) = crossbeam_channel::unbounded();
         // let (ordinal_indexer_command_tx, ordinal_indexer_command_rx) = channel();
 
@@ -159,7 +164,7 @@ impl Service {
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {
             let _ =
-                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await;
+                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await?;
         }
 
         // Stacks scan operation threadpool
@@ -172,9 +177,12 @@ impl Service {
                 start_stacks_scan_runloop(
                     &config,
                     stacks_scan_op_rx,
-                    observer_command_tx_moved,
+                    observer_command_tx_moved.clone(),
                     &ctx,
                 );
+                // the scan runloop should loop forever; if it finishes, something is wrong
+                crit!(ctx.expect_logger(), "Stacks scan runloop stopped.",);
+                let _ = observer_command_tx_moved.send(ObserverCommand::Terminate);
             })
             .expect("unable to spawn thread");
 
@@ -188,15 +196,18 @@ impl Service {
                 start_bitcoin_scan_runloop(
                     &config,
                     bitcoin_scan_op_rx,
-                    observer_command_tx_moved,
+                    observer_command_tx_moved.clone(),
                     &ctx,
                 );
+                // the scan runloop should loop forever; if it finishes, something is wrong
+                crit!(ctx.expect_logger(), "Bitcoin scan runloop stopped.",);
+                let _ = observer_command_tx_moved.send(ObserverCommand::Terminate);
             })
             .expect("unable to spawn thread");
 
         // Enable HTTP Predicates API, if required
         let config = self.config.clone();
-        if let PredicatesApi::On(ref api_config) = config.http_api {
+        let predicate_api_shutdown = if let PredicatesApi::On(ref api_config) = config.http_api {
             info!(
                 self.ctx.expect_logger(),
                 "Listening on port {} for chainhook predicate registrations", api_config.http_port
@@ -205,11 +216,53 @@ impl Service {
             let api_config = api_config.clone();
             let moved_observer_command_tx = observer_command_tx.clone();
             // Test and initialize a database connection
-            let _ = hiro_system_kit::thread_named("HTTP Predicate API").spawn(move || {
-                let future = start_predicate_api_server(api_config, moved_observer_command_tx, ctx);
-                let _ = hiro_system_kit::nestable_block_on(future);
-            });
-        }
+            let res = hiro_system_kit::thread_named("HTTP Predicate API")
+                .spawn(move || {
+                    let future = start_predicate_api_server(
+                        api_config,
+                        moved_observer_command_tx.clone(),
+                        ctx.clone(),
+                    );
+                    hiro_system_kit::nestable_block_on(future)
+                })
+                .expect("unable to spawn thread");
+            let res = res.join().expect("unable to terminate thread");
+            match res {
+                Ok(predicate_api_shutdown) => Some(predicate_api_shutdown),
+                Err(e) => {
+                    return Err(format!(
+                        "Predicate API Registration server failed to start: {}",
+                        e
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+
+        let ctx = self.ctx.clone();
+        let stacks_db =
+            open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, &ctx)?;
+        let unconfirmed_blocks = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
+            Ok(blocks) => {
+                let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx).unwrap_or(0);
+                // any unconfirmed blocks that are earlier than confirmed blocks are invalid
+                Some(
+                    blocks
+                        .iter()
+                        .filter(|&b| b.block_identifier.index > confirmed_tip)
+                        .cloned()
+                        .collect(),
+                )
+            }
+            Err(e) => {
+                info!(
+                    self.ctx.expect_logger(),
+                    "Failed to get stacks blocks from db to seed block pool: {}", e
+                );
+                None
+            }
+        };
 
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
@@ -219,6 +272,7 @@ impl Service {
             observer_command_rx,
             Some(observer_event_tx_moved),
             None,
+            unconfirmed_blocks,
             self.ctx.clone(),
         );
 
@@ -252,7 +306,7 @@ impl Service {
             let event = match observer_event_rx.recv() {
                 Ok(cmd) => cmd,
                 Err(e) => {
-                    error!(
+                    crit!(
                         self.ctx.expect_logger(),
                         "Error: broken channel {}",
                         e.to_string()
@@ -314,20 +368,20 @@ impl Service {
                         );
                     }
                 }
-                ObserverEvent::PredicateDeregistered(spec) => {
+                ObserverEvent::PredicateDeregistered(uuid) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
                             open_readwrite_predicates_db_conn_verbose(&config, &ctx)
                         else {
                             continue;
                         };
-                        let predicate_key = spec.key();
+                        let predicate_key = ChainhookSpecification::either_stx_or_btc_key(&uuid);
                         let res: Result<(), redis::RedisError> =
-                            predicates_db_conn.del(predicate_key);
+                            predicates_db_conn.del(predicate_key.clone());
                         if let Err(e) = res {
-                            error!(
+                            warn!(
                                 self.ctx.expect_logger(),
-                                "unable to delete predicate: {}",
+                                "unable to delete predicate {predicate_key}: {}",
                                 e.to_string()
                             );
                         }
@@ -400,7 +454,7 @@ impl Service {
                                 }
                             }
                         }
-                        update_stats_from_report(
+                        update_status_from_report(
                             Chain::Bitcoin,
                             report,
                             &mut predicates_db_conn,
@@ -417,7 +471,7 @@ impl Service {
                         Err(e) => {
                             error!(
                                 self.ctx.expect_logger(),
-                                "unable to store stacks block: {}",
+                                "unable to open stacks db: {}",
                                 e.to_string()
                             );
                             continue;
@@ -426,28 +480,48 @@ impl Service {
 
                     match &chain_event {
                         StacksChainEvent::ChainUpdatedWithBlocks(data) => {
-                            confirm_entries_in_stacks_blocks(
+                            if let Err(e) = confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            );
-                            draft_entries_in_stacks_blocks(
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add confirmed entries to stacks db: {}", e
+                                );
+                            };
+                            if let Err(e) = draft_entries_in_stacks_blocks(
                                 &data.new_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            )
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add unconfirmed entries to stacks db: {}", e
+                                );
+                            };
                         }
                         StacksChainEvent::ChainUpdatedWithReorg(data) => {
-                            confirm_entries_in_stacks_blocks(
+                            if let Err(e) = confirm_entries_in_stacks_blocks(
                                 &data.confirmed_blocks,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            );
-                            draft_entries_in_stacks_blocks(
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add confirmed entries to stacks db: {}", e
+                                );
+                            };
+                            if let Err(e) = draft_entries_in_stacks_blocks(
                                 &data.blocks_to_apply,
                                 &stacks_db_conn_rw,
                                 &self.ctx,
-                            )
+                            ) {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "unable add unconfirmed entries to stacks db: {}", e
+                                );
+                            };
                         }
                         StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                         | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
@@ -517,7 +591,7 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                         };
-                        update_stats_from_report(
+                        update_status_from_report(
                             Chain::Stacks,
                             report,
                             &mut predicates_db_conn,
@@ -528,15 +602,36 @@ impl Service {
                     // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
                     if stacks_event > 32 {
                         stacks_event = 0;
-                        let _ = consolidate_local_stacks_chainstate_using_csv(
-                            &mut self.config,
-                            &self.ctx,
-                        )
-                        .await;
+                        if self.config.rely_on_remote_stacks_tsv() {
+                            match consolidate_local_stacks_chainstate_using_csv(
+                                &mut self.config,
+                                &self.ctx,
+                            )
+                            .await
+                            {
+                                Err(e) => {
+                                    error!(
+                                        self.ctx.expect_logger(),
+                                        "Failed to update database from archive: {e}"
+                                    )
+                                }
+                                Ok(()) => {}
+                            };
+                        }
                     }
                 }
                 ObserverEvent::Terminate => {
-                    info!(self.ctx.expect_logger(), "Terminating runloop");
+                    info!(
+                        self.ctx.expect_logger(),
+                        "Terminating ObserverEvent runloop"
+                    );
+                    if let Some(predicate_api_shutdown) = predicate_api_shutdown {
+                        info!(
+                            self.ctx.expect_logger(),
+                            "Terminating Predicate Registration API"
+                        );
+                        predicate_api_shutdown.notify();
+                    }
                     break;
                 }
                 _ => {}
@@ -586,7 +681,7 @@ pub struct ExpiredData {
     pub expired_at_block_height: u64,
 }
 
-fn update_stats_from_report(
+fn update_status_from_report(
     chain: Chain,
     report: PredicateEvaluationReport,
     predicates_db_conn: &mut Connection,
@@ -594,7 +689,7 @@ fn update_stats_from_report(
 ) {
     for (predicate_uuid, blocks_ids) in report.predicates_triggered.iter() {
         if let Some(last_triggered_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let triggered_count = blocks_ids.len().try_into().unwrap();
+            let triggered_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Occurrence {
                     last_triggered_height,
@@ -623,7 +718,7 @@ fn update_stats_from_report(
             }
         }
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let evaluated_count = blocks_ids.len().try_into().unwrap();
+            let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Evaluation {
                     last_evaluated_height,
@@ -637,7 +732,7 @@ fn update_stats_from_report(
     }
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
         if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
-            let evaluated_count = blocks_ids.len().try_into().unwrap();
+            let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_unconfirmed_expiration_status(
                 &chain,
                 evaluated_count,
@@ -1006,13 +1101,13 @@ fn insert_predicate_expiration(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&key, "predicates", &serialized_expiring_predicates)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
             "Error updating expired predicates index: {}",
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating expired predicates at block height {expired_at_block_height} with predicate: {predicate_key}"
         );
@@ -1031,7 +1126,7 @@ fn get_predicates_expiring_at_block(
             Ok(data) => {
                 if let Err(e) = predicates_db_conn.hdel::<_, _, u64>(key.to_string(), "predicates")
                 {
-                    error!(
+                    warn!(
                         ctx.expect_logger(),
                         "Error removing expired predicates index: {}",
                         e.to_string()
@@ -1055,13 +1150,14 @@ pub fn update_predicate_status(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "status", &serialized_status)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
-            "Error updating status: {}",
+            "Error updating status for {}: {}",
+            predicate_key,
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating predicate {predicate_key} status: {serialized_status}"
         );
@@ -1078,13 +1174,14 @@ fn update_predicate_spec(
     if let Err(e) =
         predicates_db_conn.hset::<_, _, _, ()>(&predicate_key, "specification", &serialized_spec)
     {
-        error!(
+        warn!(
             ctx.expect_logger(),
-            "Error updating status: {}",
+            "Error updating status for {}: {}",
+            predicate_key,
             e.to_string()
         );
     } else {
-        info!(
+        debug!(
             ctx.expect_logger(),
             "Updating predicate {predicate_key} with spec: {serialized_spec}"
         );
@@ -1125,6 +1222,7 @@ pub fn open_readwrite_predicates_db_conn_verbose(
     res
 }
 
+// todo: evaluate expects
 pub fn open_readwrite_predicates_db_conn_or_panic(
     config: &PredicatesApiConfig,
     ctx: &Context,

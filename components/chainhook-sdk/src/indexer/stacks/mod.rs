@@ -10,8 +10,8 @@ use chainhook_types::*;
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 use rocket::serde::Deserialize;
+use stacks_rpc_client::clarity::codec::StacksMessageCodec;
 use stacks_rpc_client::clarity::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
-use stacks_rpc_client::clarity::stacks_common::codec::StacksMessageCodec;
 use stacks_rpc_client::clarity::vm::types::{SequenceData, Value as ClarityValue};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
@@ -290,9 +290,11 @@ pub fn standardize_stacks_serialized_block_header(
         .parent_index_block_hash
         .take()
         .ok_or(format!("unable to retrieve parent_index_block_hash"))?;
+
+    let parent_height = block_identifier.index.saturating_sub(1);
     let parent_block_identifier = BlockIdentifier {
         hash: parent_hash,
-        index: block_identifier.index - 1,
+        index: parent_height,
     };
     Ok((block_identifier, parent_block_identifier))
 }
@@ -330,7 +332,7 @@ pub fn standardize_stacks_block(
         .into();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
-        1 + chain_ctx.pox_info.first_burnchain_block_height,
+        1 + (chain_ctx.pox_info.first_burnchain_block_height as u64),
     );
     let pox_cycle_id: u32 = (current_len / pox_cycle_length).try_into().unwrap_or(0);
     let mut events: HashMap<&String, Vec<&NewEvent>> = HashMap::new();
@@ -816,10 +818,16 @@ pub fn get_tx_description(
                 StacksTransactionKind::ContractDeployment(data),
             )
         }
-        TransactionPayload::Coinbase(_, _) => {
+        TransactionPayload::Coinbase(_, _, _) => {
             (format!("coinbase"), StacksTransactionKind::Coinbase)
         }
-        _ => (format!("other"), StacksTransactionKind::Unsupported),
+        TransactionPayload::TenureChange(_) => (
+            format!("tenure change"),
+            StacksTransactionKind::TenureChange,
+        ),
+        TransactionPayload::PoisonMicroblock(_, _) => {
+            unimplemented!()
+        }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))
 }
@@ -902,7 +910,7 @@ pub fn get_standardized_non_fungible_currency_from_asset_class_id(
         }),
     }
 }
-
+//todo: this function has a lot of expects/panics. should return result instead
 pub fn get_standardized_stacks_receipt(
     _txid: &str,
     events: Vec<StacksTransactionEvent>,

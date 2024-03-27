@@ -8,6 +8,7 @@ use crate::observer::BitcoinConfig;
 use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};
+use bitcoincore_rpc::jsonrpc::error::RpcError;
 use bitcoincore_rpc_json::GetRawTransactionResultVoutScriptPubKey;
 use chainhook_types::bitcoin::{OutPoint, TxIn, TxOut};
 use chainhook_types::{
@@ -152,18 +153,21 @@ pub async fn download_and_parse_block_with_retry(
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
+    let max_retries = 10;
     let block = loop {
         match download_and_parse_block(http_client, block_hash, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(_e) => {
+            Err(e) => {
                 errors_count += 1;
-                if errors_count > 3 {
+                if errors_count > 3 && errors_count < max_retries {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}).",
+                            "unable to fetch and parse block #{block_hash}: will retry in a few seconds (attempt #{errors_count}). Error: {e}",
                         )
                     });
+                } else if errors_count == max_retries {
+                    return Err(format!("unable to fetch and parse block #{block_hash} after {errors_count} attempts. Error: {e}"));
                 }
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
@@ -179,18 +183,21 @@ pub async fn retrieve_block_hash_with_retry(
     ctx: &Context,
 ) -> Result<String, String> {
     let mut errors_count = 0;
+    let max_retries = 10;
     let block_hash = loop {
         match retrieve_block_hash(http_client, block_height, bitcoin_config, ctx).await {
             Ok(result) => break result,
-            Err(_e) => {
+            Err(e) => {
                 errors_count += 1;
-                if errors_count > 3 {
+                if errors_count > 3 && errors_count < max_retries {
                     ctx.try_log(|logger| {
                         slog::warn!(
                             logger,
-                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}).",
+                            "unable to retrieve block hash #{block_height}: will retry in a few seconds (attempt #{errors_count}). Error: {e}",
                         )
                     });
+                } else if errors_count == max_retries {
+                    return Err(format!("unable to retrieve block hash #{block_height} after {errors_count} attempts. Error: {e}"));
                 }
                 std::thread::sleep(std::time::Duration::from_secs(2));
             }
@@ -264,6 +271,11 @@ pub async fn try_download_block_bytes_with_retry(
     Ok(response)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RpcErrorResponse {
+    pub error: RpcError,
+}
+
 pub async fn download_block(
     http_client: &HttpClient,
     block_hash: &str,
@@ -276,7 +288,7 @@ pub async fn download_block(
         "method": "getblock",
         "params": [block_hash, 3]
     });
-    let block = http_client
+    let res = http_client
         .post(&bitcoin_config.rpc_url)
         .basic_auth(&bitcoin_config.username, Some(&bitcoin_config.password))
         .header("Content-Type", "application/json")
@@ -284,12 +296,31 @@ pub async fn download_block(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("unable to send request ({})", e))?
+        .map_err(|e| format!("unable to send request ({})", e))?;
+
+    // Check status code
+    if !res.status().is_success() {
+        return Err(format!(
+            "http request unsuccessful ({:?})",
+            res.error_for_status()
+        ));
+    }
+
+    let rpc_response_bytes = res
         .bytes()
         .await
         .map_err(|e| format!("unable to get bytes ({})", e))?
         .to_vec();
-    Ok(block)
+
+    // Check rpc error presence
+    if let Ok(rpc_error) = serde_json::from_slice::<RpcErrorResponse>(&rpc_response_bytes[..]) {
+        return Err(format!(
+            "rpc request unsuccessful ({})",
+            rpc_error.error.message
+        ));
+    }
+
+    Ok(rpc_response_bytes)
 }
 
 pub fn parse_downloaded_block(

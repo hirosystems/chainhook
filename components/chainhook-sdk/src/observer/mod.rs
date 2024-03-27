@@ -27,7 +27,7 @@ use bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_types::{
     BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
     BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
-    StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
+    StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
@@ -304,7 +304,7 @@ pub enum ObserverEvent {
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
     PredicateRegistered(ChainhookSpecification),
-    PredicateDeregistered(ChainhookSpecification),
+    PredicateDeregistered(String),
     PredicateEnabled(ChainhookSpecification),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
@@ -426,6 +426,7 @@ pub fn start_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
+    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -436,34 +437,65 @@ pub fn start_event_observer(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
-            let _ = hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
-                let future = start_bitcoin_event_observer(
-                    event_observer_config_moved,
-                    observer_commands_tx_moved,
-                    observer_commands_rx,
-                    observer_events_tx,
-                    observer_sidecar,
-                    context_cloned,
-                );
-                let _ = hiro_system_kit::nestable_block_on(future);
-            });
+            let _ = hiro_system_kit::thread_named("Chainhook event observer")
+                .spawn(move || {
+                    let future = start_bitcoin_event_observer(
+                        event_observer_config_moved,
+                        observer_commands_tx_moved,
+                        observer_commands_rx,
+                        observer_events_tx.clone(),
+                        observer_sidecar,
+                        context_cloned.clone(),
+                    );
+                    match hiro_system_kit::nestable_block_on(future) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if let Some(tx) = observer_events_tx {
+                                context_cloned.try_log(|logger| {
+                                    slog::crit!(
+                                        logger,
+                                        "Chainhook event observer thread failed with error: {e}",
+                                    )
+                                });
+                                let _ = tx.send(ObserverEvent::Terminate);
+                            }
+                        }
+                    }
+                })
+                .expect("unable to spawn thread");
         }
         BitcoinBlockSignaling::Stacks(ref _url) => {
             // Start chainhook event observer
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
-            let _ = hiro_system_kit::thread_named("Chainhook event observer").spawn(move || {
-                let future = start_stacks_event_observer(
-                    event_observer_config_moved,
-                    observer_commands_tx_moved,
-                    observer_commands_rx,
-                    observer_events_tx,
-                    observer_sidecar,
-                    context_cloned,
-                );
-                let _ = hiro_system_kit::nestable_block_on(future);
-            });
+            let _ = hiro_system_kit::thread_named("Chainhook event observer")
+                .spawn(move || {
+                    let future = start_stacks_event_observer(
+                        event_observer_config_moved,
+                        observer_commands_tx_moved,
+                        observer_commands_rx,
+                        observer_events_tx.clone(),
+                        observer_sidecar,
+                        stacks_block_pool_seed,
+                        context_cloned.clone(),
+                    );
+                    match hiro_system_kit::nestable_block_on(future) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if let Some(tx) = observer_events_tx {
+                                context_cloned.try_log(|logger| {
+                                    slog::crit!(
+                                        logger,
+                                        "Chainhook event observer thread failed with error: {e}",
+                                    )
+                                });
+                                let _ = tx.send(ObserverEvent::Terminate);
+                            }
+                        }
+                    }
+                })
+                .expect("unable to spawn thread");
 
             ctx.try_log(|logger| {
                 slog::info!(
@@ -542,6 +574,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
+    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -553,7 +586,10 @@ pub async fn start_stacks_event_observer(
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
     };
 
-    let indexer = Indexer::new(indexer_config.clone());
+    let mut indexer = Indexer::new(indexer_config.clone());
+    if let Some(stacks_block_pool_seed) = stacks_block_pool_seed {
+        indexer.seed_stacks_block_pool(stacks_block_pool_seed, &ctx);
+    }
 
     let log_level = if config.display_logs {
         if cfg!(feature = "cli") {
@@ -603,7 +639,7 @@ pub async fn start_stacks_event_observer(
 
     let ingestion_config = Config {
         port: ingestion_port,
-        workers: 3,
+        workers: 1,
         address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         keep_alive: 5,
         temp_dir: std::env::temp_dir().into(),
@@ -701,7 +737,7 @@ pub fn gather_proofs<'a>(
         for transaction in transactions.iter() {
             if !proofs.contains_key(&transaction.transaction_identifier) {
                 ctx.try_log(|logger| {
-                    slog::info!(
+                    slog::debug!(
                         logger,
                         "Collecting proof for transaction {}",
                         transaction.transaction_identifier.hash
@@ -716,7 +752,7 @@ pub fn gather_proofs<'a>(
                         proofs.insert(&transaction.transaction_identifier, proof);
                     }
                     Err(e) => {
-                        ctx.try_log(|logger| slog::error!(logger, "{e}"));
+                        ctx.try_log(|logger| slog::warn!(logger, "{e}"));
                     }
                 }
             }
@@ -752,38 +788,36 @@ pub async fn start_observer_commands_handler(
         let command = match observer_commands_rx.recv() {
             Ok(cmd) => cmd,
             Err(e) => {
-                if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::Error(format!("Channel error: {:?}", e)));
-                }
-                continue;
+                ctx.try_log(|logger| {
+                    slog::crit!(logger, "Error: broken channel {}", e.to_string())
+                });
+                break;
             }
         };
         match command {
             ObserverCommand::Terminate => {
-                ctx.try_log(|logger| slog::info!(logger, "Handling Termination command"));
-                if let Some(ingestion_shutdown) = ingestion_shutdown {
-                    ingestion_shutdown.notify();
-                }
-                if let Some(ref tx) = observer_events_tx {
-                    let _ = tx.send(ObserverEvent::Info("Terminating event observer".into()));
-                    let _ = tx.send(ObserverEvent::Terminate);
-                }
                 break;
             }
             ObserverCommand::ProcessBitcoinBlock(mut block_data) => {
                 let block_hash = block_data.hash.to_string();
+                let mut attempts = 0;
+                let max_attempts = 10;
                 let block = loop {
                     match standardize_bitcoin_block(
                         block_data.clone(),
                         &config.bitcoin_network,
                         &ctx,
                     ) {
-                        Ok(block) => break block,
-                        Err((e, retry)) => {
+                        Ok(block) => break Some(block),
+                        Err((e, refetch_block)) => {
+                            attempts += 1;
+                            if attempts > max_attempts {
+                                break None;
+                            }
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "Error standardizing block: {}", e)
+                                slog::warn!(logger, "Error standardizing block: {}", e)
                             });
-                            if retry {
+                            if refetch_block {
                                 block_data = match download_and_parse_block_with_retry(
                                     &http_client,
                                     &block_hash,
@@ -808,7 +842,16 @@ pub async fn start_observer_commands_handler(
                         }
                     };
                 };
-
+                let Some(block) = block else {
+                    ctx.try_log(|logger| {
+                        slog::crit!(
+                            logger,
+                            "Could not process bitcoin block after {} attempts.",
+                            attempts
+                        )
+                    });
+                    break;
+                };
                 prometheus_monitoring.btc_metrics_ingest_block(block.block_identifier.index);
 
                 bitcoin_block_store.insert(
@@ -971,11 +1014,16 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block_identifier.index)
                         {
-                            Some(highest_tip_block) => prometheus_monitoring.btc_metrics_set_reorg(
-                                highest_tip_block.timestamp.into(),
-                                blocks_to_apply.len() as u64,
-                                blocks_to_rollback.len() as u64,
-                            ),
+                            Some(highest_tip_block) => {
+                                prometheus_monitoring.btc_metrics_set_reorg(
+                                    highest_tip_block.timestamp.into(),
+                                    blocks_to_apply.len() as u64,
+                                    blocks_to_rollback.len() as u64,
+                                );
+                                prometheus_monitoring.btc_metrics_ingest_block(
+                                    highest_tip_block.block_identifier.index,
+                                );
+                            }
                             None => {}
                         }
 
@@ -1084,10 +1132,16 @@ pub async fn start_observer_commands_handler(
                     ));
                 }
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
+                    let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "unable to handle action {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to handle action for predicate {}: {}",
+                                    predicate_uuid,
+                                    e
+                                )
                             });
                         }
                         Ok(BitcoinChainhookOccurrence::Http(request, data)) => {
@@ -1095,7 +1149,7 @@ pub async fn start_observer_commands_handler(
                         }
                         Ok(BitcoinChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
-                                slog::info!(logger, "Writing to disk not supported in server mode")
+                                slog::warn!(logger, "Writing to disk not supported in server mode")
                             })
                         }
                         Ok(BitcoinChainhookOccurrence::Data(payload)) => {
@@ -1114,21 +1168,20 @@ pub async fn start_observer_commands_handler(
                 });
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if let Some(chainhook) = chainhook_store
+                    if chainhook_store
                         .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
+                        .is_some()
                     {
                         prometheus_monitoring.btc_metrics_deregister_predicate();
-
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Bitcoin(chainhook),
-                            ));
-                        }
+                    }
+                    if let Some(ref tx) = observer_events_tx {
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
                     }
                 }
 
                 for (request, data) in requests.into_iter() {
+                    // todo: need to handle failure case - we should be setting interrupted status: https://github.com/hirosystems/chainhook/issues/523
                     if send_request(request, 3, 1, &ctx).await.is_ok() {
                         if let Some(ref tx) = observer_events_tx {
                             let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
@@ -1183,12 +1236,16 @@ pub async fn start_observer_commands_handler(
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => prometheus_monitoring
-                                .stx_metrics_set_reorg(
+                            Some(highest_tip_update) => {
+                                prometheus_monitoring.stx_metrics_set_reorg(
                                     highest_tip_update.block.timestamp,
                                     update.blocks_to_apply.len() as u64,
                                     update.blocks_to_rollback.len() as u64,
-                                ),
+                                );
+                                prometheus_monitoring.stx_metrics_ingest_block(
+                                    highest_tip_update.block.block_identifier.index,
+                                )
+                            }
                             None => {}
                         }
                     }
@@ -1249,10 +1306,16 @@ pub async fn start_observer_commands_handler(
                 }
                 let proofs = HashMap::new();
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
+                    let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::error!(logger, "unable to handle action {}", e)
+                                slog::warn!(
+                                    logger,
+                                    "unable to handle action for predicate {}: {}",
+                                    predicate_uuid,
+                                    e
+                                )
                             });
                         }
                         Ok(StacksChainhookOccurrence::Http(request)) => {
@@ -1260,7 +1323,7 @@ pub async fn start_observer_commands_handler(
                         }
                         Ok(StacksChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
-                                slog::info!(logger, "Writing to disk not supported in server mode")
+                                slog::warn!(logger, "Writing to disk not supported in server mode")
                             })
                         }
                         Ok(StacksChainhookOccurrence::Data(payload)) => {
@@ -1272,24 +1335,22 @@ pub async fn start_observer_commands_handler(
                 }
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if let Some(chainhook) = chainhook_store
+                    if chainhook_store
                         .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
+                        .is_some()
                     {
                         prometheus_monitoring.stx_metrics_deregister_predicate();
-
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                                ChainhookSpecification::Stacks(chainhook),
-                            ));
-                        }
+                    }
+                    if let Some(ref tx) = observer_events_tx {
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
                     }
                 }
 
                 for request in requests.into_iter() {
                     // todo(lgalabru): collect responses for reporting
                     ctx.try_log(|logger| {
-                        slog::info!(
+                        slog::debug!(
                             logger,
                             "Dispatching request from stacks chainhook {:?}",
                             request
@@ -1312,7 +1373,7 @@ pub async fn start_observer_commands_handler(
             }
             ObserverCommand::NotifyBitcoinTransactionProxied => {
                 ctx.try_log(|logger| {
-                    slog::info!(logger, "Handling NotifyBitcoinTransactionProxied command")
+                    slog::debug!(logger, "Handling NotifyBitcoinTransactionProxied command")
                 });
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::NotifyBitcoinTransactionProxied);
@@ -1328,14 +1389,13 @@ pub async fn start_observer_commands_handler(
                     Ok(spec) => spec,
                     Err(e) => {
                         ctx.try_log(|logger| {
-                            slog::error!(
+                            slog::warn!(
                                 logger,
                                 "Unable to register new chainhook spec: {}",
                                 e.to_string()
                             )
                         });
-                        panic!("Unable to register new chainhook spec: {}", e.to_string());
-                        //continue;
+                        continue;
                     }
                 };
 
@@ -1348,11 +1408,15 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
-                ctx.try_log(|logger| slog::info!(logger, "Registering chainhook {}", spec.uuid(),));
+                ctx.try_log(
+                    |logger| slog::debug!(logger, "Registering chainhook {}", spec.uuid(),),
+                );
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
                 } else {
-                    ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
+                    ctx.try_log(|logger| {
+                        slog::debug!(logger, "Enabling Predicate {}", spec.uuid())
+                    });
                     chainhook_store.predicates.enable_specification(&mut spec);
                 }
             }
@@ -1367,15 +1431,19 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
-                let hook = chainhook_store.predicates.deregister_stacks_hook(hook_uuid);
+                let hook = chainhook_store
+                    .predicates
+                    .deregister_stacks_hook(hook_uuid.clone());
 
-                prometheus_monitoring.stx_metrics_deregister_predicate();
-
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Stacks(hook),
-                    ));
-                }
+                if hook.is_some() {
+                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
+                    // so only those that we find in the store should be removed
+                    prometheus_monitoring.stx_metrics_deregister_predicate();
+                };
+                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                if let Some(tx) = &observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                };
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
                 ctx.try_log(|logger| {
@@ -1383,15 +1451,17 @@ pub async fn start_observer_commands_handler(
                 });
                 let hook = chainhook_store
                     .predicates
-                    .deregister_bitcoin_hook(hook_uuid);
+                    .deregister_bitcoin_hook(hook_uuid.clone());
 
-                prometheus_monitoring.btc_metrics_deregister_predicate();
-
-                if let (Some(tx), Some(hook)) = (&observer_events_tx, hook) {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
-                        ChainhookSpecification::Bitcoin(hook),
-                    ));
-                }
+                if hook.is_some() {
+                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
+                    // so only those that we find in the store should be removed
+                    prometheus_monitoring.btc_metrics_deregister_predicate();
+                };
+                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                if let Some(tx) = &observer_events_tx {
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                };
             }
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
                 hook_uuid,
@@ -1415,8 +1485,23 @@ pub async fn start_observer_commands_handler(
             }
         }
     }
+    terminate(ingestion_shutdown, observer_events_tx, &ctx);
     Ok(())
 }
 
+fn terminate(
+    ingestion_shutdown: Option<Shutdown>,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    ctx: &Context,
+) {
+    ctx.try_log(|logger| slog::info!(logger, "Handling Termination command"));
+    if let Some(ingestion_shutdown) = ingestion_shutdown {
+        ingestion_shutdown.notify();
+    }
+    if let Some(ref tx) = observer_events_tx {
+        let _ = tx.send(ObserverEvent::Info("Terminating event observer".into()));
+        let _ = tx.send(ObserverEvent::Terminate);
+    }
+}
 #[cfg(test)]
 pub mod tests;

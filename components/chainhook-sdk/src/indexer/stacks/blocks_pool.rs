@@ -43,6 +43,32 @@ impl StacksBlockPool {
         }
     }
 
+    pub fn seed_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
+        ctx.try_log(|logger| {
+            slog::info!(logger, "Seeding block pool with {} blocks", blocks.len())
+        });
+        for block in blocks.into_iter() {
+            let existing_entry = self.block_store.get(&block.block_identifier.clone());
+            if existing_entry.is_some() {
+                ctx.try_log(|logger| {
+                    slog::info!(
+                        logger,
+                        "Seeding block pool: Stacks {} has already been processed; skipping",
+                        block.block_identifier
+                    )
+                });
+                continue;
+            }
+
+            match self.process_block(block, ctx) {
+                Ok(_) => {}
+                Err(e) => {
+                    ctx.try_log(|logger| slog::info!(logger, "Error seeding block pool: {}", e));
+                }
+            }
+        }
+    }
+
     pub fn process_block(
         &mut self,
         block: StacksBlockData,

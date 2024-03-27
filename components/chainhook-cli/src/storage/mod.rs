@@ -1,8 +1,15 @@
+use std::collections::VecDeque;
 use std::path::PathBuf;
 
 use chainhook_sdk::types::{BlockIdentifier, StacksBlockData, StacksBlockUpdate};
 use chainhook_sdk::utils::Context;
 use rocksdb::{Options, DB};
+
+const UNCONFIRMED_KEY_PREFIX: &[u8; 2] = b"~:";
+const CONFIRMED_KEY_PREFIX: &[u8; 2] = b"b:";
+const KEY_SUFFIX: &[u8; 2] = b":d";
+const LAST_UNCONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:~";
+const LAST_CONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:t";
 
 fn get_db_default_options() -> Options {
     let mut opts = Options::default();
@@ -87,34 +94,38 @@ pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Resu
 
 fn get_block_key(block_identifier: &BlockIdentifier) -> [u8; 12] {
     let mut key = [0u8; 12];
-    key[..2].copy_from_slice(b"b:");
+    key[..2].copy_from_slice(CONFIRMED_KEY_PREFIX);
     key[2..10].copy_from_slice(&block_identifier.index.to_be_bytes());
-    key[10..].copy_from_slice(b":d");
+    key[10..].copy_from_slice(KEY_SUFFIX);
     key
 }
 
 fn get_unconfirmed_block_key(block_identifier: &BlockIdentifier) -> [u8; 12] {
     let mut key = [0u8; 12];
-    key[..2].copy_from_slice(b"~:");
+    key[..2].copy_from_slice(UNCONFIRMED_KEY_PREFIX);
     key[2..10].copy_from_slice(&block_identifier.index.to_be_bytes());
-    key[10..].copy_from_slice(b":d");
+    key[10..].copy_from_slice(KEY_SUFFIX);
     key
 }
 
 fn get_last_confirmed_insert_key() -> [u8; 3] {
-    *b"m:t"
+    *LAST_CONFIRMED_KEY_PREFIX
 }
 
 fn get_last_unconfirmed_insert_key() -> [u8; 3] {
-    *b"m:~"
+    *LAST_UNCONFIRMED_KEY_PREFIX
 }
 
-pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB, _ctx: &Context) {
+pub fn insert_entry_in_stacks_blocks(
+    block: &StacksBlockData,
+    stacks_db_rw: &DB,
+    _ctx: &Context,
+) -> Result<(), String> {
     let key = get_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
-        .expect("unable to insert blocks");
+        .map_err(|e| format!("unable to insert blocks: {}", e))?;
     let previous_last_inserted = get_last_block_height_inserted(stacks_db_rw, _ctx).unwrap_or(0);
     if block.block_identifier.index > previous_last_inserted {
         stacks_db_rw
@@ -122,35 +133,39 @@ pub fn insert_entry_in_stacks_blocks(block: &StacksBlockData, stacks_db_rw: &DB,
                 get_last_confirmed_insert_key(),
                 block.block_identifier.index.to_be_bytes(),
             )
-            .expect("unable to insert metadata");
+            .map_err(|e| format!("unable to insert metadata: {}", e))?;
     }
+    Ok(())
 }
 
 pub fn insert_unconfirmed_entry_in_stacks_blocks(
     block: &StacksBlockData,
     stacks_db_rw: &DB,
     _ctx: &Context,
-) {
+) -> Result<(), String> {
     let key = get_unconfirmed_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
-        .expect("unable to insert blocks");
+        .map_err(|e| format!("unable to insert blocks: {}", e))?;
     stacks_db_rw
         .put(
             get_last_unconfirmed_insert_key(),
             block.block_identifier.index.to_be_bytes(),
         )
-        .expect("unable to insert metadata");
+        .map_err(|e| format!("unable to insert metadata: {}", e))?;
+    Ok(())
 }
 
 pub fn delete_unconfirmed_entry_from_stacks_blocks(
     block_identifier: &BlockIdentifier,
     stacks_db_rw: &DB,
     _ctx: &Context,
-) {
+) -> Result<(), String> {
     let key = get_unconfirmed_block_key(&block_identifier);
-    stacks_db_rw.delete(&key).expect("unable to delete blocks");
+    stacks_db_rw
+        .delete(&key)
+        .map_err(|e| format!("unable to delete blocks: {}", e))
 }
 
 pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
@@ -162,6 +177,29 @@ pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
             ]))
         })
+}
+
+pub fn get_all_unconfirmed_blocks(
+    stacks_db: &DB,
+    ctx: &Context,
+) -> Result<VecDeque<StacksBlockData>, String> {
+    let mut blocks = VecDeque::new();
+    let Some(mut cursor) = get_last_unconfirmed_block_height_inserted(stacks_db, ctx) else {
+        return Ok(blocks);
+    };
+    loop {
+        match get_stacks_block_at_block_height(cursor, false, 3, stacks_db) {
+            Ok(block) => match block {
+                Some(block) => {
+                    blocks.push_front(block.clone());
+                    cursor = block.parent_block_identifier.index;
+                }
+                None => break,
+            },
+            Err(e) => return Err(e),
+        };
+    }
+    Ok(blocks)
 }
 
 pub fn get_last_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
@@ -179,22 +217,24 @@ pub fn confirm_entries_in_stacks_blocks(
     blocks: &Vec<StacksBlockData>,
     stacks_db_rw: &DB,
     ctx: &Context,
-) {
+) -> Result<(), String> {
     for block in blocks.iter() {
-        insert_entry_in_stacks_blocks(block, stacks_db_rw, ctx);
-        delete_unconfirmed_entry_from_stacks_blocks(&block.block_identifier, stacks_db_rw, ctx);
+        insert_entry_in_stacks_blocks(block, stacks_db_rw, ctx)?;
+        delete_unconfirmed_entry_from_stacks_blocks(&block.block_identifier, stacks_db_rw, ctx)?;
     }
+    Ok(())
 }
 
 pub fn draft_entries_in_stacks_blocks(
     block_updates: &Vec<StacksBlockUpdate>,
     stacks_db_rw: &DB,
     ctx: &Context,
-) {
+) -> Result<(), String> {
     for update in block_updates.iter() {
         // TODO: Could be imperfect, from a microblock point of view
-        insert_unconfirmed_entry_in_stacks_blocks(&update.block, stacks_db_rw, ctx);
+        insert_unconfirmed_entry_in_stacks_blocks(&update.block, stacks_db_rw, ctx)?;
     }
+    Ok(())
 }
 
 pub fn get_stacks_block_at_block_height(
