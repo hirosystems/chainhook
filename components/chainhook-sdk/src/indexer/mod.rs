@@ -12,7 +12,7 @@ use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 
 use stacks::StacksBlockPool;
-use stacks_rpc_client::PoxInfo;
+use stacks_codec::pox::PoxInfo;
 use std::collections::{HashMap, VecDeque};
 
 use self::fork_scratch_pad::ForkScratchPad;
