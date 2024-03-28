@@ -12,8 +12,8 @@ serde = { version = "1", features = ["rc"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde-hex = "0.1.0"
 serde_derive = "1"
-# stacks-codec = { git = "https://github.com/hirosystems/clarinet.git", branch = "feat/handle-epoch3_0" }
-stacks-codec = { path = "../../../clarinet/components/stacks-codec" }
+stacks-codec = { git = "https://github.com/hirosystems/clarinet.git", branch = "feat/stacks-codec" }
+# stacks-codec = { path = "../../../clarinet/components/stacks-codec" }
 # hiro-system-kit = { version = "0.1.0", path = "../../../clarinet/components/hiro-system-kit" }
 hiro-system-kit = { version = "0.3.1", optional = true }
 chainhook-types = { version = "1.3.3", path = "../chainhook-types-rs" }
