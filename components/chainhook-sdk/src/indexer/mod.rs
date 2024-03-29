@@ -63,14 +63,14 @@ impl Default for PoxConfig {
 
 pub struct StacksChainContext {
     asset_class_map: HashMap<String, AssetClassCache>,
-    pox_info: PoxConfig,
+    pox_config: PoxConfig,
 }
 
 impl StacksChainContext {
     pub fn new(network: &StacksNetwork) -> StacksChainContext {
         StacksChainContext {
             asset_class_map: HashMap::new(),
-            pox_info: match network {
+            pox_config: match network {
                 StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
                 StacksNetwork::Testnet => PoxConfig::testnet_default(),
                 _ => PoxConfig::devnet_default(),
@@ -187,8 +187,8 @@ impl Indexer {
             .process_microblocks(microblocks, ctx)
     }
 
-    pub fn get_pox_info(&mut self) -> PoxConfig {
-        self.stacks_context.pox_info.clone()
+    pub fn get_pox_config(&mut self) -> PoxConfig {
+        self.stacks_context.pox_config.clone()
     }
 }
 

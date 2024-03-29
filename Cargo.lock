@@ -3696,6 +3696,7 @@ dependencies = [
 [[package]]
 name = "stacks-codec"
 version = "2.4.1"
+source = "git+https://github.com/hirosystems/clarinet.git?branch=feat/stacks-codec#a9da55627efdbc5c72e468dfb2d5ab39d0be2c60"
 dependencies = [
  "clarity",
  "serde",
