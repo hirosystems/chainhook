@@ -156,13 +156,13 @@ pub fn handle_new_stacks_block(
     // Standardize the structure of the block, and identify the
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
-    // TODO(lgalabru): use _pox_info
-    let (_pox_info, chain_event) = match indexer_rw_lock.inner().write() {
+    // TODO(lgalabru): use _pox_config
+    let (_pox_config, chain_event) = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => {
-            let pox_info = indexer.get_pox_info();
+            let pox_config = indexer.get_pox_config();
             let chain_event =
                 indexer.handle_stacks_marshalled_block(marshalled_block.into_inner(), &ctx);
-            (pox_info, chain_event)
+            (pox_config, chain_event)
         }
         Err(e) => {
             ctx.try_log(|logger| {
