@@ -826,7 +826,7 @@ pub fn get_tx_description(
             StacksTransactionKind::TenureChange,
         ),
         TransactionPayload::PoisonMicroblock(_, _) => {
-            unimplemented!()
+            (format!("other"), StacksTransactionKind::Unsupported)
         }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))
