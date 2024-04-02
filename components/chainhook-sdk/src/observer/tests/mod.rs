@@ -130,7 +130,7 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookFullSpecification {
             end_block: None,
             blocks: None,
             expire_after_occurrence: None,
-            predicate: BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed),
+            predicate: BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(None)),
             action: HookAction::Noop,
             include_proof: None,
             include_inputs: None,

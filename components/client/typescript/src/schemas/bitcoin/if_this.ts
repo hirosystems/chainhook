@@ -93,9 +93,18 @@ export const BitcoinIfThisStacksStxLockedSchema = Type.Object({
 });
 export type BitcoinIfThisStacksStxLocked = Static<typeof BitcoinIfThisStacksStxLockedSchema>;
 
+export const BitcoinIfThisOrdinalsMetaProtocolSchema = Type.Union([
+  Type.Literal('all'),
+  Type.Literal('brc-20'),
+]);
+export type BitcoinIfThisOrdinalsMetaProtocol = Static<
+  typeof BitcoinIfThisOrdinalsMetaProtocolSchema
+>;
+
 export const BitcoinIfThisOrdinalsFeedSchema = Type.Object({
   scope: Type.Literal('ordinals_protocol'),
   operation: Type.Literal('inscription_feed'),
+  meta_protocols: Type.Optional(Type.Array(BitcoinIfThisOrdinalsMetaProtocolSchema)),
 });
 export type BitcoinIfThisOrdinalsFeed = Static<typeof BitcoinIfThisOrdinalsFeedSchema>;
 

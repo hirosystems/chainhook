@@ -391,7 +391,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 end_block: Some(767430),
                                 blocks: None,
                                 predicate: BitcoinPredicateType::OrdinalsProtocol(
-                                    OrdinalOperations::InscriptionFeed,
+                                    OrdinalOperations::InscriptionFeed(None),
                                 ),
                                 expire_after_occurrence: None,
                                 action: HookAction::FileAppend(FileHook {
