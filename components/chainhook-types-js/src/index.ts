@@ -323,7 +323,7 @@ export interface StacksTransactionMetadata {
    * @memberof StacksTransactionMetadata
    */
   position: AnchorBlockPosition | MicroBlockPosition;
-   /**
+  /**
    * @type {string}
    * @memberof StacksTransactionMetadata
    */
@@ -335,9 +335,9 @@ export interface StacksTransactionMetadata {
  * @export
  * @interface MicroBlockPosition
  */
- export interface MicroBlockPosition {
-  micro_block_identifier: BlockIdentifier,
-  index: number
+export interface MicroBlockPosition {
+  micro_block_identifier: BlockIdentifier;
+  index: number;
 }
 
 /**
@@ -345,8 +345,8 @@ export interface StacksTransactionMetadata {
  * @export
  * @interface AnchorBlockPosition
  */
- export interface AnchorBlockPosition {
-  index: number
+export interface AnchorBlockPosition {
+  index: number;
 }
 
 export interface StacksTransactionReceipt {
@@ -428,11 +428,13 @@ export interface StacksTransactionExecutionCost {
   runtime: number;
 }
 
+// todo: tenure change
 export enum StacksTransactionKind {
   ContractCall = "ContractCall",
   ContractDeployment = "ContractDeployment",
   NativeTokenTransfer = "NativeTokenTransfer",
   Coinbase = "Coinbase",
+  TenureChange = "TenureChange",
   Other = "Other",
 }
 
@@ -1061,9 +1063,7 @@ export function checkBitcoinProof(
   blockHash: string,
   merkleProof: string[],
   index: number
-): boolean {
-
-}
+): boolean {}
 
 // I'll add some documentation, but this is a "standard" bitcoin proof, so it goes as follow:
 // So for instance, you'll receive something like this:

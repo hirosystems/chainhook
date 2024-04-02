@@ -1,6 +1,6 @@
 [package]
 name = "chainhook"
-version = "1.3.1"
+version = "1.4.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -18,8 +18,7 @@ rand = "0.8.5"
 chainhook-sdk = { version = "0.12.1", default-features = false, features = [
     "zeromq",
 ], path = "../chainhook-sdk" }
-hiro-system-kit = "0.3.1"
-# clarinet-files = { path = "../../../clarinet/components/clarinet-files" }
+hiro-system-kit = "0.3.4" 
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
 clap = { version = "3.2.23", features = ["derive"], optional = true }
 clap_generate = { version = "3.0.3", optional = true }
@@ -31,7 +30,7 @@ reqwest = { version = "0.11", default-features = false, features = [
     "json",
     "rustls-tls",
 ] }
-tokio = { version = "=1.24", features = ["full"] }
+tokio = { version = "1.35.1", features = ["full"] }
 futures-util = "0.3.24"
 flate2 = "1.0.24"
 tar = "0.4.38"
@@ -52,14 +51,13 @@ features = ["lz4", "snappy"]
 [dev-dependencies]
 criterion = "0.3"
 redis = "0.21.5"
-clarity-vm = "=2.1.1"
 hex = "0.4.3"
 test-case = "3.1.0"
 serial_test = "2.0.0"
 
 
 [features]
-default = ["cli", "release"]
+default = ["cli", "debug"]
 cli = ["clap", "clap_generate", "toml", "ctrlc"]
 debug = ["chainhook-sdk/debug"]
 release = ["chainhook-sdk/release"]

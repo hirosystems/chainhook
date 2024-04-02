@@ -163,6 +163,7 @@ pub enum StacksTransactionKind {
     ContractDeployment(StacksContractDeploymentData),
     NativeTokenTransfer,
     Coinbase,
+    TenureChange,
     BitcoinOp(BitcoinOpData),
     Unsupported,
 }

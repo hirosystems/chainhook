@@ -72,8 +72,14 @@ async fn it_downloads_stacks_dataset_if_required() {
         tracer: false,
     };
     let mut config_clone = config.clone();
-    assert!(download_stacks_dataset_if_required(&mut config, &ctx).await);
-    assert!(!download_stacks_dataset_if_required(&mut config_clone, &ctx).await);
+    assert!(download_stacks_dataset_if_required(&mut config, &ctx)
+        .await
+        .unwrap());
+    assert!(
+        !download_stacks_dataset_if_required(&mut config_clone, &ctx)
+            .await
+            .unwrap()
+    );
 
     let mut tsv_file_path = config.expected_cache_path();
     tsv_file_path.push(default_tsv_file_path(&config.network.stacks_network));
