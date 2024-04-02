@@ -117,11 +117,12 @@ fn script_pubkey_evaluation(output: OutputPredicate, script_pubkey: &str, matche
         operations: vec![],
         metadata: BitcoinTransactionMetadata {
             fee: 0,
+            index: 0,
             proof: None,
             inputs: vec![],
             stacks_operations: vec![],
             ordinal_operations: vec![],
-
+            brc20_operation: None,
             outputs,
         },
     };
