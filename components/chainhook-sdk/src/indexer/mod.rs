@@ -55,8 +55,8 @@ impl Default for PoxConfig {
     fn default() -> PoxConfig {
         PoxConfig {
             first_burnchain_block_height: 100,
-            prepare_phase_block_length: 4,
-            reward_phase_block_length: 6,
+            prepare_phase_block_length: 5,
+            reward_phase_block_length: 15,
         }
     }
 }
