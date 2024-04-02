@@ -1,3 +1,12 @@
+## [1.4.1](https://github.com/hirosystems/chainhook/compare/v1.4.0...v1.4.1) (2024-04-02)
+
+
+### Bug Fixes
+
+* limit scope of stacks_rw_db usage to free lock ([#543](https://github.com/hirosystems/chainhook/issues/543)) ([0c287ca](https://github.com/hirosystems/chainhook/commit/0c287ca8ced9d5466fb0b3f4c8aac6aa7a914793))
+* resolve dependencies ([#548](https://github.com/hirosystems/chainhook/issues/548)) ([86334f4](https://github.com/hirosystems/chainhook/commit/86334f4fc4a469d826c31b31cfb82e07eb8b5756))
+* return unsupported kind for PoisonMicroblock ([#545](https://github.com/hirosystems/chainhook/issues/545)) ([123ec9d](https://github.com/hirosystems/chainhook/commit/123ec9de0e74504e616fb50deb323cb5ca138fda))
+
 ## [1.4.0](https://github.com/hirosystems/chainhook/compare/v1.3.1...v1.4.0) (2024-03-27)
 
 
