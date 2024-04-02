@@ -476,7 +476,7 @@ impl Service {
                                 ) {
                                     error!(
                                         self.ctx.expect_logger(),
-                                        "unable add confirmed entries to stacks db: {}", e
+                                        "unable to add confirmed entries to stacks db: {}", e
                                     );
                                 };
                                 if let Err(e) = draft_entries_in_stacks_blocks(
@@ -486,7 +486,7 @@ impl Service {
                                 ) {
                                     error!(
                                         self.ctx.expect_logger(),
-                                        "unable add unconfirmed entries to stacks db: {}", e
+                                        "unable to add unconfirmed entries to stacks db: {}", e
                                     );
                                 };
                             }
@@ -498,7 +498,7 @@ impl Service {
                                 ) {
                                     error!(
                                         self.ctx.expect_logger(),
-                                        "unable add confirmed entries to stacks db: {}", e
+                                        "unable to add confirmed entries to stacks db: {}", e
                                     );
                                 };
                                 if let Err(e) = draft_entries_in_stacks_blocks(
@@ -508,7 +508,7 @@ impl Service {
                                 ) {
                                     error!(
                                         self.ctx.expect_logger(),
-                                        "unable add unconfirmed entries to stacks db: {}", e
+                                        "unable to add unconfirmed entries to stacks db: {}", e
                                     );
                                 };
                             }
