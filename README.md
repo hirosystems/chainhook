@@ -449,14 +449,23 @@ The current `stacks` predicates support the following `if_this` constructs:
 // Get any transaction emitting given print events predicate
 // `contract-identifier` mandatory argument admits:
 //  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
-// `contains` mandatory argument admits:
-//  - string type, used for matching event
+// `contains` or `matches_regex` argument admits:
+//  - `contains` string type, used for matching event containing the specific string.
+//  - `matches_regex` string type that should be a valid regex, used for matching event that regex matches with specific string.
 {
     "if_this": {
         "scope": "print_event",
         "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09",
         "contains": "vault"
     },
+}
+
+{
+  "if_this": {
+        "scope": "print_event",
+        "contract_identifier": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09",
+        "matches_regex": "(?:^|\\W)vault(?:$|\\W)"
+  }
 }
 
 // Get any transaction calling a specific method for a given contract **directly**.
