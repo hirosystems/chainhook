@@ -127,7 +127,10 @@ async fn it_handles_bitcoin_predicates_with_network(network: &str) {
 #[test_case(json!({"scope": "stacks_protocol","operation": "leader_registered"}) ; "with scope stacks_protocol operation leader_registered")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "stx_transferred"}) ; "with scope stacks_protocol operation stx_transferred")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "stx_locked"}) ; "with scope stacks_protocol operation stx_locked")]
-#[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed"}) ; "with scope ordinals_protocol operation inscription_feed")]
+#[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed"}) ; "with scope ordinals_protocol operation inscription_feed with no meta_protocols")]
+#[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed", "meta_protocols": ["all"]}) ; "with scope ordinals_protocol operation inscription_feed with all meta_protocols")]
+#[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed", "meta_protocols": ["brc-20"]}) ; "with scope ordinals_protocol operation inscription_feed with brc-20 meta_protocols")]
+#[test_case(json!({"scope": "ordinals_protocol","operation": "inscription_feed", "meta_protocols": ["all","brc-20"]}) ; "with scope ordinals_protocol operation inscription_feed with both meta_protocols")]
 #[tokio::test]
 async fn it_handles_bitcoin_if_this_predicates(if_this: JsonValue) {
     let predicate = build_bitcoin_payload(None, Some(if_this), None, None, None);
