@@ -2,7 +2,7 @@ use crate::chainhooks::types::{
     BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification,
     BitcoinChainhookSpecification, BitcoinPredicateType, ChainhookConfig,
     ChainhookFullSpecification, ChainhookSpecification, ExactMatchingRule, HookAction,
-    OrdinalOperations, OutputPredicate, StacksChainhookFullSpecification,
+    InscriptionFeedData, OrdinalOperations, OutputPredicate, StacksChainhookFullSpecification,
     StacksChainhookNetworkSpecification, StacksChainhookSpecification,
     StacksContractCallBasedPredicate, StacksPredicate,
 };
@@ -130,7 +130,11 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookFullSpecification {
             end_block: None,
             blocks: None,
             expire_after_occurrence: None,
-            predicate: BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(None)),
+            predicate: BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(
+                InscriptionFeedData {
+                    meta_protocols: None,
+                },
+            )),
             action: HookAction::Noop,
             include_proof: None,
             include_inputs: None,

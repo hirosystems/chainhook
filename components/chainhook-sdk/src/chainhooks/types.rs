@@ -554,19 +554,20 @@ pub enum StacksOperations {
 #[serde(rename_all = "kebab-case")]
 pub enum OrdinalsMetaProtocol {
     All,
-    Brc20
+    #[serde(rename = "brc-20")]
+    Brc20,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub struct InscriptionFeedData {
-    pub meta_protocols: HashSet<OrdinalsMetaProtocol>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta_protocols: Option<HashSet<OrdinalsMetaProtocol>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "operation")]
 pub enum OrdinalOperations {
-    InscriptionFeed(Option<InscriptionFeedData>),
+    InscriptionFeed(InscriptionFeedData),
 }
 
 pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {

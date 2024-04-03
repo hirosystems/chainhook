@@ -1,5 +1,7 @@
 use super::types::{
-    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule, HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol, OutputPredicate, StacksOperations
+    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
+    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol,
+    OutputPredicate, StacksOperations,
 };
 use crate::utils::Context;
 
@@ -530,18 +532,24 @@ impl BitcoinPredicateType {
                 }
                 false
             }
-            BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(None)) => {
-                !tx.metadata.ordinal_operations.is_empty()
-            }
-            BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(Some(feed_data))) => {
-                for meta_protocol in feed_data.meta_protocols.iter() {
-                    match meta_protocol {
-                        OrdinalsMetaProtocol::All => return !tx.metadata.ordinal_operations.is_empty(),
-                        OrdinalsMetaProtocol::Brc20 => return !tx.metadata.brc20_operation.is_none(),
+            BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(
+                feed_data,
+            )) => match &feed_data.meta_protocols {
+                Some(meta_protocols) => {
+                    for meta_protocol in meta_protocols.iter() {
+                        match meta_protocol {
+                            OrdinalsMetaProtocol::All => {
+                                return !tx.metadata.ordinal_operations.is_empty()
+                            }
+                            OrdinalsMetaProtocol::Brc20 => {
+                                return !tx.metadata.brc20_operation.is_none()
+                            }
+                        }
                     }
+                    false
                 }
-                false
-            }
+                None => !tx.metadata.ordinal_operations.is_empty(),
+            },
         }
     }
 }
