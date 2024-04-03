@@ -14,7 +14,7 @@ use crate::storage::{
 
 use chainhook_sdk::chainhooks::types::{
     BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification, BitcoinPredicateType,
-    ChainhookFullSpecification, FileHook, HookAction, OrdinalOperations,
+    ChainhookFullSpecification, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
     StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
     StacksPrintEventBasedPredicate,
 };
@@ -391,7 +391,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 end_block: Some(767430),
                                 blocks: None,
                                 predicate: BitcoinPredicateType::OrdinalsProtocol(
-                                    OrdinalOperations::InscriptionFeed,
+                                    OrdinalOperations::InscriptionFeed(InscriptionFeedData {
+                                        meta_protocols: None,
+                                    }),
                                 ),
                                 expire_after_occurrence: None,
                                 action: HookAction::FileAppend(FileHook {

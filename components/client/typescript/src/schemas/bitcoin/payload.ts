@@ -63,8 +63,62 @@ export const BitcoinOutputSchema = Type.Object({
 });
 export type BitcoinOutput = Static<typeof BitcoinOutputSchema>;
 
+export const BitcoinBrc20DeployOperationSchema = Type.Object({
+  deploy: Type.Object({
+    tick: Type.String(),
+    max: Type.String(),
+    lim: Type.String(),
+    dec: Type.String(),
+    address: Type.String(),
+    inscription_id: Type.String(),
+    self_mint: Type.Boolean(),
+  }),
+});
+export type BitcoinBrc20DeployOperation = Static<typeof BitcoinBrc20DeployOperationSchema>;
+
+export const BitcoinBrc20MintOperationSchema = Type.Object({
+  mint: Type.Object({
+    tick: Type.String(),
+    amt: Type.String(),
+    address: Type.String(),
+    inscription_id: Type.String(),
+  }),
+});
+export type BitcoinBrc20MintOperation = Static<typeof BitcoinBrc20MintOperationSchema>;
+
+export const BitcoinBrc20TransferOperationSchema = Type.Object({
+  transfer: Type.Object({
+    tick: Type.String(),
+    amt: Type.String(),
+    address: Type.String(),
+    inscription_id: Type.String(),
+  }),
+});
+export type BitcoinBrc20TransferOperation = Static<typeof BitcoinBrc20TransferOperationSchema>;
+
+export const BitcoinBrc20TransferSendOperationSchema = Type.Object({
+  transfer_send: Type.Object({
+    tick: Type.String(),
+    amt: Type.String(),
+    sender_address: Type.String(),
+    receiver_address: Type.String(),
+    inscription_id: Type.String(),
+  }),
+});
+export type BitcoinBrc20TransferSendOperation = Static<
+  typeof BitcoinBrc20TransferSendOperationSchema
+>;
+
+export const BitcoinBrc20OperationSchema = Type.Union([
+  BitcoinBrc20DeployOperationSchema,
+  BitcoinBrc20MintOperationSchema,
+  BitcoinBrc20TransferOperationSchema,
+  BitcoinBrc20TransferSendOperationSchema,
+]);
+
 export const BitcoinTransactionMetadataSchema = Type.Object({
   ordinal_operations: Type.Array(BitcoinOrdinalOperationSchema),
+  brc20_operation: Type.Optional(BitcoinBrc20OperationSchema),
   outputs: Type.Optional(Type.Array(BitcoinOutputSchema)),
   proof: Nullable(Type.String()),
 });

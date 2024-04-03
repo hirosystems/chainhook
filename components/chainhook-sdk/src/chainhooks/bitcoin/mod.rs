@@ -1,12 +1,13 @@
 use super::types::{
     BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
-    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OutputPredicate, StacksOperations,
+    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol,
+    OutputPredicate, StacksOperations,
 };
 use crate::utils::Context;
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
-    BitcoinBlockData, BitcoinChainEvent, BitcoinTransactionData, BlockIdentifier, OrdinalOperation,
+    BitcoinBlockData, BitcoinChainEvent, BitcoinTransactionData, BlockIdentifier,
     StacksBaseChainOperation, TransactionIdentifier,
 };
 
@@ -531,15 +532,24 @@ impl BitcoinPredicateType {
                 }
                 false
             }
-            BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed) => {
-                for op in tx.metadata.ordinal_operations.iter() {
-                    match op {
-                        OrdinalOperation::InscriptionRevealed(_)
-                        | OrdinalOperation::InscriptionTransferred(_) => return true,
+            BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(
+                feed_data,
+            )) => match &feed_data.meta_protocols {
+                Some(meta_protocols) => {
+                    for meta_protocol in meta_protocols.iter() {
+                        match meta_protocol {
+                            OrdinalsMetaProtocol::All => {
+                                return !tx.metadata.ordinal_operations.is_empty()
+                            }
+                            OrdinalsMetaProtocol::Brc20 => {
+                                return !tx.metadata.brc20_operation.is_none()
+                            }
+                        }
                     }
+                    false
                 }
-                false
-            }
+                None => !tx.metadata.ordinal_operations.is_empty(),
+            },
         }
     }
 }

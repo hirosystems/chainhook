@@ -355,7 +355,7 @@ pub fn standardize_bitcoin_block(
 
     ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin block {}", block.hash,));
 
-    for mut tx in block.tx.into_iter() {
+    for (tx_index, mut tx) in block.tx.into_iter().enumerate() {
         let txid = tx.txid.to_string();
 
         let mut stacks_operations = vec![];
@@ -450,8 +450,10 @@ pub fn standardize_bitcoin_block(
                 outputs,
                 stacks_operations,
                 ordinal_operations: vec![],
+                brc20_operation: None,
                 proof: None,
                 fee: sats_in.saturating_sub(sats_out),
+                index: tx_index as u32,
             },
         };
         transactions.push(tx);
