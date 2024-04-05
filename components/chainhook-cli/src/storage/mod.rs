@@ -168,6 +168,17 @@ pub fn delete_unconfirmed_entry_from_stacks_blocks(
         .map_err(|e| format!("unable to delete blocks: {}", e))
 }
 
+pub fn delete_confirmed_entry_from_stacks_blocks(
+    block_identifier: &BlockIdentifier,
+    stacks_db_rw: &DB,
+    _ctx: &Context,
+) -> Result<(), String> {
+    let key = get_block_key(&block_identifier);
+    stacks_db_rw
+        .delete(&key)
+        .map_err(|e| format!("unable to delete blocks: {}", e))
+}
+
 pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
     stacks_db
         .get(get_last_unconfirmed_insert_key())
