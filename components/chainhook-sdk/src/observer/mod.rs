@@ -469,6 +469,7 @@ pub fn start_event_observer(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
+
             let _ = hiro_system_kit::thread_named("Chainhook event observer")
                 .spawn(move || {
                     let future = start_stacks_event_observer(
