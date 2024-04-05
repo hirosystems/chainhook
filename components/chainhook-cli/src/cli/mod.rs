@@ -8,8 +8,9 @@ use crate::scan::stacks::{
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
-    get_last_block_height_inserted, get_stacks_block_at_block_height, is_stacks_block_present,
-    open_readonly_stacks_db_conn,
+    delete_confirmed_entry_from_stacks_blocks, get_last_block_height_inserted,
+    get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
+    is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -217,6 +218,19 @@ enum StacksDbCommand {
     /// Retrieve a block from the Stacks db
     #[clap(name = "get", bin_name = "get")]
     GetBlock(GetBlockDbCommand),
+    /// Deletes a block from the confirmed block db and moves it to the unconfirmed block db.
+    #[clap(name = "unconfirm", bin_name = "unconfirm")]
+    UnconfirmBlock(UnconfirmBlockDbCommand),
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct UnconfirmBlockDbCommand {
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+    /// The block height to unconfirm
+    #[clap(long = "block-height")]
+    pub block_height: u64,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -557,6 +571,57 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             }
         },
         Command::Stacks(subcmd) => match subcmd {
+            StacksCommand::Db(StacksDbCommand::UnconfirmBlock(cmd)) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+                let stacks_db_rw =
+                    open_readwrite_stacks_db_conn(&config.expected_cache_path(), &ctx)
+                        .expect("unable to read stacks_db");
+
+                match get_stacks_block_at_block_height(cmd.block_height, true, 3, &stacks_db_rw) {
+                    Ok(Some(block)) => {
+                        let mut delete_confirmed = false;
+                        let mut insert_unconfirmed = false;
+                        match get_stacks_block_at_block_height(
+                            cmd.block_height,
+                            false,
+                            3,
+                            &stacks_db_rw,
+                        ) {
+                            Ok(Some(_)) => {
+                                warn!(ctx.expect_logger(), "Block {} was found in both the confirmed and unconfirmed database. Deleting from confirmed database.", cmd.block_height);
+                                delete_confirmed = true;
+                            }
+                            Ok(None) => {
+                                info!(ctx.expect_logger(), "Block {} found in confirmed database. Deleting from confirmed database and inserting into unconfirmed.", cmd.block_height);
+                                delete_confirmed = true;
+                                insert_unconfirmed = true;
+                            }
+                            Err(e) => {
+                                error!(
+                                    ctx.expect_logger(),
+                                    "Error making request to database: {e}",
+                                );
+                            }
+                        }
+                        if delete_confirmed {
+                            delete_confirmed_entry_from_stacks_blocks(
+                                &block.block_identifier,
+                                &stacks_db_rw,
+                                &ctx,
+                            )?;
+                        }
+                        if insert_unconfirmed {
+                            insert_unconfirmed_entry_in_stacks_blocks(&block, &stacks_db_rw, &ctx)?;
+                        }
+                    }
+                    Ok(None) => {
+                        warn!(ctx.expect_logger(), "Block {} not present in the confirmed database. No database changes were made by this command.", cmd.block_height);
+                    }
+                    Err(e) => {
+                        error!(ctx.expect_logger(), "Error making request to database: {e}",);
+                    }
+                }
+            }
             StacksCommand::Db(StacksDbCommand::GetBlock(cmd)) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
                 let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx)
