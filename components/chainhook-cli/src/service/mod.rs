@@ -264,30 +264,6 @@ impl Service {
             }
         };
 
-        let ctx = self.ctx.clone();
-        let stacks_db =
-            open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, &ctx)?;
-        let unconfirmed_blocks = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
-            Ok(blocks) => {
-                let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx).unwrap_or(0);
-                // any unconfirmed blocks that are earlier than confirmed blocks are invalid
-                Some(
-                    blocks
-                        .iter()
-                        .filter(|&b| b.block_identifier.index > confirmed_tip)
-                        .cloned()
-                        .collect(),
-                )
-            }
-            Err(e) => {
-                info!(
-                    self.ctx.expect_logger(),
-                    "Failed to get stacks blocks from db to seed block pool: {}", e
-                );
-                None
-            }
-        };
-
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
         let _ = start_event_observer(
