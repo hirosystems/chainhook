@@ -232,7 +232,7 @@ impl ForkScratchPad {
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned
-        let cut_off = &canonical_segment[5];
+        let cut_off = &canonical_segment[(CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
 
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
