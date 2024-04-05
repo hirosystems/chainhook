@@ -11,7 +11,7 @@ use chainhook_types::{
     StacksChainUpdatedWithMicroblocksReorgData, StacksChainUpdatedWithReorgData,
     StacksMicroblockData,
 };
-use hiro_system_kit::{crit, slog};
+use hiro_system_kit::slog;
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 
 pub struct StacksBlockPool {
@@ -195,7 +195,6 @@ impl StacksBlockPool {
         let mut highest_bitcoin_height = 0;
         // we want to track the chain tip of all of the known competing forks
         let mut highest_heights = vec![];
-        crit!(ctx.expect_logger(), "processing {} forks", self.forks.len());
         for (fork_id, fork) in self.forks.iter() {
             let tip_bitcoin_height = self
                 .block_store
@@ -228,11 +227,6 @@ impl StacksBlockPool {
         }
         highest_heights.sort();
         let len = highest_heights.len();
-        crit!(
-            ctx.expect_logger(),
-            "setting highest competing fork height delta based off {:?}",
-            highest_heights
-        );
         self.highest_competing_fork_height_delta = if len == 0 || len == 1 {
             u16::MAX
         } else {
@@ -241,12 +235,15 @@ impl StacksBlockPool {
                 .try_into()
                 .unwrap_or(0)
         };
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Highest competing fork height delta computed as {} with data {:?}",
+                self.highest_competing_fork_height_delta,
+                highest_heights
+            )
+        });
 
-        crit!(
-            ctx.expect_logger(),
-            "set highest competing fork height delta to {:?}",
-            self.highest_competing_fork_height_delta
-        );
         ctx.try_log(|logger| {
             slog::info!(
                 logger,
