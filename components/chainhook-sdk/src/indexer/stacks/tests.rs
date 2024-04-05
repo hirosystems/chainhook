@@ -281,6 +281,10 @@ fn test_stacks_vector_053() {
 fn test_stacks_vector_054() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_054());
 }
+#[test]
+fn test_stacks_vector_055() {
+    process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_055());
+}
 
 #[test_case(StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
     sender: format!(""),
