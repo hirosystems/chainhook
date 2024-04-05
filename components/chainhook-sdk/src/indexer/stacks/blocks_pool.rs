@@ -234,7 +234,7 @@ impl StacksBlockPool {
             highest_heights
         );
         self.highest_competing_fork_height_delta = if len == 0 || len == 1 {
-            0
+            u16::MAX
         } else {
             // canonical - next highest
             (highest_heights[len - 1] - highest_heights[len - 2])
