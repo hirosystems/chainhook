@@ -1,3 +1,40 @@
+## [1.4.1](https://github.com/hirosystems/chainhook/compare/v1.4.0...v1.4.1) (2024-04-02)
+
+
+### Bug Fixes
+
+* limit scope of stacks_rw_db usage to free lock ([#543](https://github.com/hirosystems/chainhook/issues/543)) ([0c287ca](https://github.com/hirosystems/chainhook/commit/0c287ca8ced9d5466fb0b3f4c8aac6aa7a914793))
+* resolve dependencies ([#548](https://github.com/hirosystems/chainhook/issues/548)) ([86334f4](https://github.com/hirosystems/chainhook/commit/86334f4fc4a469d826c31b31cfb82e07eb8b5756))
+* return unsupported kind for PoisonMicroblock ([#545](https://github.com/hirosystems/chainhook/issues/545)) ([123ec9d](https://github.com/hirosystems/chainhook/commit/123ec9de0e74504e616fb50deb323cb5ca138fda))
+
+## [1.4.0](https://github.com/hirosystems/chainhook/compare/v1.3.1...v1.4.0) (2024-03-27)
+
+
+### Features
+
+* detect http / rpc errors as early as possible ([ad78669](https://github.com/hirosystems/chainhook/commit/ad78669204c7631af4f00ad0cadcb617bbff54d8))
+* use stacks.rocksdb for predicate scan ([#514](https://github.com/hirosystems/chainhook/issues/514)) ([a4f1663](https://github.com/hirosystems/chainhook/commit/a4f16635dcd8cc6a7d4a3ce6608013007b78b0a5)), closes [#513](https://github.com/hirosystems/chainhook/issues/513) [#485](https://github.com/hirosystems/chainhook/issues/485)
+
+
+### Bug Fixes
+
+* enable debug logs in release mode ([#537](https://github.com/hirosystems/chainhook/issues/537)) ([fb49e28](https://github.com/hirosystems/chainhook/commit/fb49e28d3621a0db8d725a66985be3f18d99abee))
+* improve error handling, and more! ([#524](https://github.com/hirosystems/chainhook/issues/524)) ([86b5c78](https://github.com/hirosystems/chainhook/commit/86b5c7859c8395a470e1b7d3249901624dc3c682)), closes [#498](https://github.com/hirosystems/chainhook/issues/498) [#521](https://github.com/hirosystems/chainhook/issues/521) [#404](https://github.com/hirosystems/chainhook/issues/404) [/github.com/hirosystems/chainhook/issues/517#issuecomment-1992135101](https://github.com/hirosystems//github.com/hirosystems/chainhook/issues/517/issues/issuecomment-1992135101) [#517](https://github.com/hirosystems/chainhook/issues/517) [#506](https://github.com/hirosystems/chainhook/issues/506) [#510](https://github.com/hirosystems/chainhook/issues/510) [#519](https://github.com/hirosystems/chainhook/issues/519)
+* log errors on block download failure; implement max retries ([#503](https://github.com/hirosystems/chainhook/issues/503)) ([0fc38cb](https://github.com/hirosystems/chainhook/commit/0fc38cbce00a3a1cfde38e9d2b9d6eb984bdd8cd))
+* **metrics:** update latest ingested block on reorg ([#515](https://github.com/hirosystems/chainhook/issues/515)) ([8f728f7](https://github.com/hirosystems/chainhook/commit/8f728f7e3f82306154478eceeb5c9d0ef4931028))
+* order and filter blocks used to seed forking block pool ([#534](https://github.com/hirosystems/chainhook/issues/534)) ([a11bc1c](https://github.com/hirosystems/chainhook/commit/a11bc1c0f9120f11fa0a27cbeb336fd1fa78d7b3))
+* seed forking handler with unconfirmed blocks to improve startup stability ([#505](https://github.com/hirosystems/chainhook/issues/505)) ([485394e](https://github.com/hirosystems/chainhook/commit/485394e9f3eb35089e0b0082ca0c23fbb0e9028f)), closes [#487](https://github.com/hirosystems/chainhook/issues/487)
+* skip db consolidation if no new dataset was downloaded ([#513](https://github.com/hirosystems/chainhook/issues/513)) ([983a165](https://github.com/hirosystems/chainhook/commit/983a1658b52cb5b4a89ac46bb85f7355b346a1fb))
+* update scan status for non-triggering predicates ([#511](https://github.com/hirosystems/chainhook/issues/511)) ([9073f42](https://github.com/hirosystems/chainhook/commit/9073f42285605ed7625039b3aae2316949dfc127)), closes [#498](https://github.com/hirosystems/chainhook/issues/498)
+
+## [1.3.1](https://github.com/hirosystems/chainhook/compare/v1.3.0...v1.3.1) (2024-02-14)
+
+
+### Bug Fixes
+
+* add event index to transaction events ([#495](https://github.com/hirosystems/chainhook/issues/495)) ([d67d1e4](https://github.com/hirosystems/chainhook/commit/d67d1e405e34f5a6a97e057181d467ed1a208332)), closes [#417](https://github.com/hirosystems/chainhook/issues/417) [#387](https://github.com/hirosystems/chainhook/issues/387)
+* correctly determine PoX vs PoB block commitments ([#499](https://github.com/hirosystems/chainhook/issues/499)) ([50dd26f](https://github.com/hirosystems/chainhook/commit/50dd26f19d1004a4ab60b4a67f1885cce89fc1e9)), closes [#496](https://github.com/hirosystems/chainhook/issues/496)
+
 ## [1.3.0](https://github.com/hirosystems/chainhook/compare/v1.2.1...v1.3.0) (2024-02-08)
 
 

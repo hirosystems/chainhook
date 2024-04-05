@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use chainhook_types::{BitcoinNetwork, StacksNetwork};
 use reqwest::Url;
@@ -550,10 +550,24 @@ pub enum StacksOperations {
     StxLocked,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum OrdinalsMetaProtocol {
+    All,
+    #[serde(rename = "brc-20")]
+    Brc20,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct InscriptionFeedData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta_protocols: Option<HashSet<OrdinalsMetaProtocol>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "operation")]
 pub enum OrdinalOperations {
-    InscriptionFeed,
+    InscriptionFeed(InscriptionFeedData),
 }
 
 pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {

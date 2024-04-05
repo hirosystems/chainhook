@@ -12,7 +12,6 @@ use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 
 use stacks::StacksBlockPool;
-use stacks_rpc_client::PoxInfo;
 use std::collections::{HashMap, VecDeque};
 
 use self::fork_scratch_pad::ForkScratchPad;
@@ -23,19 +22,58 @@ pub struct AssetClassCache {
     pub decimals: u8,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct PoxConfig {
+    pub first_burnchain_block_height: u32,
+    pub prepare_phase_block_length: u32,
+    pub reward_phase_block_length: u32,
+}
+
+impl PoxConfig {
+    pub fn mainnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 666050,
+            prepare_phase_block_length: 100,
+            reward_phase_block_length: 2000,
+        }
+    }
+
+    pub fn testnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 2000000,
+            prepare_phase_block_length: 50,
+            reward_phase_block_length: 1000,
+        }
+    }
+
+    pub fn devnet_default() -> PoxConfig {
+        Self::default()
+    }
+}
+
+impl Default for PoxConfig {
+    fn default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 100,
+            prepare_phase_block_length: 4,
+            reward_phase_block_length: 6,
+        }
+    }
+}
+
 pub struct StacksChainContext {
     asset_class_map: HashMap<String, AssetClassCache>,
-    pox_info: PoxInfo,
+    pox_config: PoxConfig,
 }
 
 impl StacksChainContext {
     pub fn new(network: &StacksNetwork) -> StacksChainContext {
         StacksChainContext {
             asset_class_map: HashMap::new(),
-            pox_info: match network {
-                StacksNetwork::Mainnet => PoxInfo::mainnet_default(),
-                StacksNetwork::Testnet => PoxInfo::testnet_default(),
-                _ => PoxInfo::devnet_default(),
+            pox_config: match network {
+                StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
+                StacksNetwork::Testnet => PoxConfig::testnet_default(),
+                _ => PoxConfig::devnet_default(),
             },
         }
     }
@@ -149,8 +187,8 @@ impl Indexer {
             .process_microblocks(microblocks, ctx)
     }
 
-    pub fn get_pox_info(&mut self) -> PoxInfo {
-        self.stacks_context.pox_info.clone()
+    pub fn get_pox_config(&mut self) -> PoxConfig {
+        self.stacks_context.pox_config.clone()
     }
 }
 
@@ -367,7 +405,7 @@ impl ChainSegment {
             }
             Err(incompatibility) => {
                 ctx.try_log(|logger| {
-                    slog::info!(logger, "Will have to fork: {:?}", incompatibility)
+                    slog::warn!(logger, "Will have to fork: {:?}", incompatibility)
                 });
                 match incompatibility {
                     ChainSegmentIncompatibility::BlockCollision => {

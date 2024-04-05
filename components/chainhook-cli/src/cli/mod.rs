@@ -14,7 +14,7 @@ use crate::storage::{
 
 use chainhook_sdk::chainhooks::types::{
     BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification, BitcoinPredicateType,
-    ChainhookFullSpecification, FileHook, HookAction, OrdinalOperations,
+    ChainhookFullSpecification, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
     StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
     StacksPrintEventBasedPredicate,
 };
@@ -277,14 +277,14 @@ pub fn main() {
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
-            error!(ctx.expect_logger(), "{e}");
+            crit!(ctx.expect_logger(), "{e}");
             process::exit(1);
         }
     };
 
     match hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
         Err(e) => {
-            error!(ctx.expect_logger(), "{e}");
+            crit!(ctx.expect_logger(), "{e}");
             process::exit(1);
         }
         Ok(_) => {}
@@ -391,7 +391,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 end_block: Some(767430),
                                 blocks: None,
                                 predicate: BitcoinPredicateType::OrdinalsProtocol(
-                                    OrdinalOperations::InscriptionFeed,
+                                    OrdinalOperations::InscriptionFeed(InscriptionFeedData {
+                                        meta_protocols: None,
+                                    }),
                                 ),
                                 expire_after_occurrence: None,
                                 action: HookAction::FileAppend(FileHook {

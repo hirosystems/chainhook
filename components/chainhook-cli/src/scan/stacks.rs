@@ -66,7 +66,7 @@ pub async fn get_canonical_fork_from_tsv(
     start_block: Option<u64>,
     ctx: &Context,
 ) -> Result<VecDeque<(BlockIdentifier, BlockIdentifier, String)>, String> {
-    let seed_tsv_path = config.expected_local_stacks_tsv_file().clone();
+    let seed_tsv_path = config.expected_local_stacks_tsv_file()?.clone();
 
     let (record_tx, record_rx) = std::sync::mpsc::channel();
 
@@ -98,7 +98,7 @@ pub async fn get_canonical_fork_from_tsv(
             }
             let _ = record_tx.send(None);
         })
-        .expect("unable to spawn thread");
+        .map_err(|e| format!("unable to spawn thread: {e}"))?;
 
     let stacks_db = open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
     let canonical_fork = {
@@ -111,7 +111,10 @@ pub async fn get_canonical_fork_from_tsv(
                     match standardize_stacks_serialized_block_header(&blob) {
                         Ok(data) => data,
                         Err(e) => {
-                            error!(ctx.expect_logger(), "{e}");
+                            error!(
+                                ctx.expect_logger(),
+                                "Failed to standardize stacks header: {e}"
+                            );
                             continue;
                         }
                     }
@@ -169,12 +172,13 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     config: &Config,
     ctx: &Context,
 ) -> Result<(Option<BlockIdentifier>, bool), String> {
+    let predicate_uuid = &predicate_spec.uuid;
     let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
         Some(chain_tip) => chain_tip,
         None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
             Some(chain_tip) => chain_tip,
             None => {
-                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
                 return Ok((None, false));
             }
         },
@@ -201,9 +205,9 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     };
 
     let proofs = HashMap::new();
-    info!(
+    debug!(
         ctx.expect_logger(),
-        "Starting predicate evaluation on Stacks blocks"
+        "Starting predicate evaluation on Stacks blocks for predicate {}", predicate_uuid
     );
     let mut last_block_scanned = BlockIdentifier::default();
     let mut err_count = 0;
@@ -243,7 +247,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
                     Some(chain_tip) => chain_tip,
                     None => {
-                        info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_spec.uuid);
+                        warn!(ctx.expect_logger(), "No blocks inserted in db; cannot determine Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
                         return Ok((None, false));
                     }
                 },
@@ -304,7 +308,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         };
         let res = match handle_stacks_hook_action(trigger, &proofs, &ctx) {
             Err(e) => {
-                error!(ctx.expect_logger(), "unable to handle action {}", e);
+                warn!(
+                    ctx.expect_logger(),
+                    "unable to handle action for predicate {}: {}", predicate_uuid, e
+                );
                 Ok(()) // todo: should this error increment our err_count?
             }
             Ok(action) => {
@@ -342,7 +349,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     }
     info!(
         ctx.expect_logger(),
-        "{number_of_blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate"
+        "Predicate {predicate_uuid} scan completed. {number_of_blocks_scanned} blocks scanned, {number_of_times_triggered} blocks triggering predicate.",
     );
 
     if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -420,7 +427,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         }
     }
 
-    let _ = download_stacks_dataset_if_required(config, ctx).await;
+    let _ = download_stacks_dataset_if_required(config, ctx).await?;
 
     let mut canonical_fork = get_canonical_fork_from_tsv(config, None, ctx).await?;
 
@@ -516,7 +523,8 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         "Building local chainstate from Stacks archive file"
     );
 
-    let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await;
+
+    let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await?;
 
     if downloaded_new_dataset {
         let stacks_db =
@@ -550,13 +558,16 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
             ) {
                 Ok(block) => block,
                 Err(e) => {
-                    error!(&ctx.expect_logger(), "{e}");
+
+                    error!(
+                        &ctx.expect_logger(),
+                        "Failed to standardize stacks block: {e}"
+                    );
                     continue;
                 }
             };
 
-            // TODO: return a result
-            insert_entry_in_stacks_blocks(&block_data, &stacks_db_rw, ctx);
+            insert_entry_in_stacks_blocks(&block_data, &stacks_db_rw, ctx)?;
 
             if blocks_inserted % 2500 == 0 {
                 info!(
