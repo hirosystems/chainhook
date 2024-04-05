@@ -523,7 +523,6 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
         "Building local chainstate from Stacks archive file"
     );
 
-
     let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await?;
 
     if downloaded_new_dataset {
@@ -558,7 +557,6 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
             ) {
                 Ok(block) => block,
                 Err(e) => {
-
                     error!(
                         &ctx.expect_logger(),
                         "Failed to standardize stacks block: {e}"
