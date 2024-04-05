@@ -1,4 +1,6 @@
 pub mod helpers;
+use std::{thread::sleep, time::Duration};
+
 use crate::utils::{AbstractBlock, Context};
 
 use self::helpers::BlockEvent;
@@ -13,23 +15,28 @@ pub fn process_stacks_blocks_and_check_expectations(
         Option<Vec<StacksBlockData>>,
     ),
 ) {
+    let logger = hiro_system_kit::log::setup_logger();
+    let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
+    let ctx = Context {
+        logger: Some(logger),
+        tracer: false,
+    };
     let mut blocks_processor = StacksBlockPool::new();
 
     if let Some(block_pool_seed) = block_pool_seed {
-        blocks_processor.seed_block_pool(block_pool_seed, &Context::empty());
+        blocks_processor.seed_block_pool(block_pool_seed, &ctx);
     }
 
     for (block_event, check_chain_event_expectations) in steps.into_iter() {
+        sleep(Duration::new(0, 200_000_000));
         match block_event {
             BlockEvent::Block(block) => {
-                let chain_event = blocks_processor
-                    .process_block(block, &Context::empty())
-                    .unwrap();
+                let chain_event = blocks_processor.process_block(block, &ctx).unwrap();
                 check_chain_event_expectations(chain_event);
             }
             BlockEvent::Microblock(microblock) => {
                 let chain_event = blocks_processor
-                    .process_microblocks(vec![microblock], &Context::empty())
+                    .process_microblocks(vec![microblock], &ctx)
                     .unwrap();
                 check_chain_event_expectations(chain_event);
             }
