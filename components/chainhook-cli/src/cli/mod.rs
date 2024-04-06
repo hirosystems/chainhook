@@ -9,8 +9,9 @@ use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
     delete_confirmed_entry_from_stacks_blocks, get_last_block_height_inserted,
-    get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
-    is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+    get_last_unconfirmed_block_height_inserted, get_stacks_block_at_block_height,
+    insert_unconfirmed_entry_in_stacks_blocks, is_stacks_block_present,
+    open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -221,6 +222,19 @@ enum StacksDbCommand {
     /// Deletes a block from the confirmed block db and moves it to the unconfirmed block db.
     #[clap(name = "unconfirm", bin_name = "unconfirm")]
     UnconfirmBlock(UnconfirmBlockDbCommand),
+    /// Get latest blocks from the unconfirmed and confirmed block db.
+    #[clap(name = "get-latest", bin_name = "get-latest")]
+    GetLatest(GetLatestBlocksDbCommand),
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct GetLatestBlocksDbCommand {
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+    /// The number of blocks from the chain tip to fetch.
+    #[clap(long = "count")]
+    pub count: u64,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -621,6 +635,83 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         error!(ctx.expect_logger(), "Error making request to database: {e}",);
                     }
                 }
+            }
+            StacksCommand::Db(StacksDbCommand::GetLatest(cmd)) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+                let stacks_db = open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx)
+                    .expect("unable to read stacks_db");
+
+                match get_last_block_height_inserted(&stacks_db, &ctx) {
+                    Some(confirmed_tip) => {
+                        let min_block = confirmed_tip - cmd.count;
+                        info!(
+                            ctx.expect_logger(),
+                            "Getting confirmed blocks {} through {}", min_block, confirmed_tip
+                        );
+                        let mut confirmed_blocks = vec![];
+                        let mut cursor = confirmed_tip;
+                        while cursor > min_block {
+                            match get_stacks_block_at_block_height(cursor, true, 3, &stacks_db) {
+                                Ok(Some(block)) => {
+                                    confirmed_blocks.push(block.block_identifier.index);
+                                    cursor -= 1;
+                                }
+                                Ok(None) => {
+                                    warn!(
+                                        ctx.expect_logger(),
+                                        "Block {} not present in confirmed database", cursor
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(ctx.expect_logger(), "{e}",);
+                                }
+                            }
+                        }
+                        info!(
+                            ctx.expect_logger(),
+                            "Found confirmed blocks: {:?}", confirmed_blocks
+                        );
+                    }
+                    None => {
+                        warn!(ctx.expect_logger(), "No confirmed blocks found in db");
+                    }
+                };
+
+                match get_last_unconfirmed_block_height_inserted(&stacks_db, &ctx) {
+                    Some(unconfirmed_tip) => {
+                        let min_block = unconfirmed_tip - cmd.count;
+                        info!(
+                            ctx.expect_logger(),
+                            "Getting unconfirmed blocks {} through {}", min_block, unconfirmed_tip
+                        );
+                        let mut confirmed_blocks = vec![];
+                        let mut cursor = unconfirmed_tip;
+                        while cursor > min_block {
+                            match get_stacks_block_at_block_height(cursor, false, 3, &stacks_db) {
+                                Ok(Some(block)) => {
+                                    confirmed_blocks.push(block.block_identifier.index);
+                                    cursor -= 1;
+                                }
+                                Ok(None) => {
+                                    warn!(
+                                        ctx.expect_logger(),
+                                        "Block {} not present in unconfirmed database", cursor
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(ctx.expect_logger(), "{e}",);
+                                }
+                            }
+                        }
+                        info!(
+                            ctx.expect_logger(),
+                            "Found unconfirmed blocks: {:?}", confirmed_blocks
+                        );
+                    }
+                    None => {
+                        warn!(ctx.expect_logger(), "No confirmed blocks found in db");
+                    }
+                };
             }
             StacksCommand::Db(StacksDbCommand::GetBlock(cmd)) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
