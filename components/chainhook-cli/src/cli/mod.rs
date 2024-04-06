@@ -12,6 +12,7 @@ use crate::storage::{
     get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
     get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
     is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+    set_last_confirmed_insert_key,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -634,6 +635,17 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             }
                         }
                         if delete_confirmed {
+                            if let Some(last_inserted) =
+                                get_last_block_height_inserted(&stacks_db_rw, &ctx)
+                            {
+                                if last_inserted == block.block_identifier.index {
+                                    set_last_confirmed_insert_key(
+                                        &block.parent_block_identifier,
+                                        &stacks_db_rw,
+                                        &ctx,
+                                    )?;
+                                }
+                            }
                             delete_confirmed_entry_from_stacks_blocks(
                                 &block.block_identifier,
                                 &stacks_db_rw,
