@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "1.4.1"
+    "version": "1.5.0"
   },
   "paths": {
     "/ping": {
@@ -659,6 +659,14 @@
                     "enum": [
                       "inscription_feed"
                     ]
+                  },
+                  "meta_protocols": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/OrdinalsMetaProtocol"
+                    },
+                    "uniqueItems": true,
+                    "nullable": true
                   }
                 }
               }
@@ -772,6 +780,13 @@
             "nullable": true
           }
         }
+      },
+      "OrdinalsMetaProtocol": {
+        "type": "string",
+        "enum": [
+          "all",
+          "brc-20"
+        ]
       },
       "HookAction": {
         "oneOf": [

@@ -16,7 +16,7 @@ use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
-    number_of_blocks_since_last_reorg: u16,
+    highest_competing_fork_height_delta: Option<u16>,
     orphans: BTreeSet<BlockIdentifier>,
     block_store: HashMap<BlockIdentifier, StacksBlockData>,
     forks: BTreeMap<usize, ChainSegment>,
@@ -32,7 +32,7 @@ impl StacksBlockPool {
         forks.insert(0, ChainSegment::new());
         StacksBlockPool {
             canonical_fork_id: 0,
-            number_of_blocks_since_last_reorg: 0,
+            highest_competing_fork_height_delta: None,
             block_store: HashMap::new(),
             orphans: BTreeSet::new(),
             forks,
@@ -193,6 +193,8 @@ impl StacksBlockPool {
         let mut canonical_fork_id = 0;
         let mut highest_height = 0;
         let mut highest_bitcoin_height = 0;
+        // we want to track the chain tip of all of the known competing forks
+        let mut highest_heights = vec![];
         for (fork_id, fork) in self.forks.iter() {
             let tip_bitcoin_height = self
                 .block_store
@@ -208,17 +210,41 @@ impl StacksBlockPool {
                     tip_bitcoin_height
                 )
             });
+            let tip_height = fork.get_tip().index;
+            // a fork is only competing to be the canonical if ...
+            highest_heights.push(tip_height); // todo (I think we need to double-check reasoning on this)
+
+            // the tip of the canonical stacks chain must belong to the bitcoin fork with the highest tip
             if tip_bitcoin_height > highest_bitcoin_height
                 || (tip_bitcoin_height == highest_bitcoin_height && fork_id > &canonical_fork_id)
             {
                 highest_bitcoin_height = tip_bitcoin_height;
-                let tip_height = fork.get_tip().index;
                 if tip_height >= highest_height {
                     highest_height = tip_height;
                     canonical_fork_id = *fork_id;
                 }
             }
         }
+        highest_heights.sort();
+        let len = highest_heights.len();
+        self.highest_competing_fork_height_delta = if len > 1 {
+            // canonical - next highest
+            let t = (highest_heights[len - 1] - highest_heights[len - 2])
+                .try_into()
+                .map_err(|e| format!("unable to retrieve competing fork height: {}", e))?;
+            Some(t)
+        } else {
+            None
+        };
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Highest competing fork height delta computed as {} with data {:?}",
+                self.highest_competing_fork_height_delta.unwrap_or(0),
+                highest_heights
+            )
+        });
+
         ctx.try_log(|logger| {
             slog::info!(
                 logger,
@@ -245,8 +271,14 @@ impl StacksBlockPool {
             _ => return Ok(None),
         };
 
-        if self.number_of_blocks_since_last_reorg > 4 {
-            self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+        match self.highest_competing_fork_height_delta {
+            None => {
+                self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+            }
+            Some(e) if e > 6 => {
+                self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+            }
+            _ => {}
         }
 
         Ok(Some(chain_event))
@@ -298,7 +330,7 @@ impl StacksBlockPool {
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned
-        let cut_off = &canonical_segment[5];
+        let cut_off = &canonical_segment[(CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
 
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
@@ -828,8 +860,6 @@ impl StacksBlockPool {
         if let Ok(divergence) = canonical_segment.try_identify_divergence(other_segment, false, ctx)
         {
             if divergence.block_ids_to_rollback.is_empty() {
-                self.number_of_blocks_since_last_reorg =
-                    self.number_of_blocks_since_last_reorg.saturating_add(1);
                 let mut new_blocks = vec![];
                 for i in 0..divergence.block_ids_to_apply.len() {
                     let block_identifier = &divergence.block_ids_to_apply[i];
@@ -879,7 +909,6 @@ impl StacksBlockPool {
                     },
                 ));
             } else {
-                self.number_of_blocks_since_last_reorg = 0;
                 let blocks_to_rollback = divergence
                     .block_ids_to_rollback
                     .iter()

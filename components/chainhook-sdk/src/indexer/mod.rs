@@ -194,10 +194,7 @@ impl Indexer {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChainSegment {
-    pub amount_of_btc_spent: u64,
-    pub most_recent_confirmed_block_height: u64,
     pub block_ids: VecDeque<BlockIdentifier>,
-    confirmed_blocks_inbox: Vec<BlockIdentifier>,
 }
 
 #[derive(Clone, Debug)]
@@ -220,20 +217,11 @@ pub struct ChainSegmentDivergence {
 impl ChainSegment {
     pub fn new() -> ChainSegment {
         let block_ids = VecDeque::new();
-        ChainSegment {
-            block_ids,
-            most_recent_confirmed_block_height: 0,
-            confirmed_blocks_inbox: vec![],
-            amount_of_btc_spent: 0,
-        }
+        ChainSegment { block_ids }
     }
 
     fn is_empty(&self) -> bool {
         self.block_ids.is_empty()
-    }
-
-    fn is_block_id_older_than_segment(&self, block_identifier: &BlockIdentifier) -> bool {
-        block_identifier.index < self.most_recent_confirmed_block_height
     }
 
     fn is_block_id_newer_than_segment(&self, block_identifier: &BlockIdentifier) -> bool {
@@ -256,10 +244,6 @@ impl ChainSegment {
         block: &dyn AbstractBlock,
         ctx: &Context,
     ) -> Result<(), ChainSegmentIncompatibility> {
-        if self.is_block_id_older_than_segment(&block.get_identifier()) {
-            // Could be facing a deep fork...
-            return Err(ChainSegmentIncompatibility::OutdatedBlock);
-        }
         if self.is_block_id_newer_than_segment(&block.get_identifier()) {
             // Chain segment looks outdated, we should just prune it?
             return Err(ChainSegmentIncompatibility::OutdatedSegment);
@@ -319,8 +303,7 @@ impl ChainSegment {
     }
 
     pub fn get_length(&self) -> u64 {
-        let len: u64 = self.block_ids.len().try_into().unwrap();
-        self.most_recent_confirmed_block_height + len
+        self.block_ids.len().try_into().unwrap()
     }
 
     pub fn keep_blocks_from_oldest_to_block_identifier(
