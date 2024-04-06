@@ -16,7 +16,7 @@ use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
-    highest_competing_fork_height_delta: u16,
+    highest_competing_fork_height_delta: Option<u16>,
     orphans: BTreeSet<BlockIdentifier>,
     block_store: HashMap<BlockIdentifier, StacksBlockData>,
     forks: BTreeMap<usize, ChainSegment>,
@@ -32,7 +32,7 @@ impl StacksBlockPool {
         forks.insert(0, ChainSegment::new());
         StacksBlockPool {
             canonical_fork_id: 0,
-            highest_competing_fork_height_delta: 0,
+            highest_competing_fork_height_delta: None,
             block_store: HashMap::new(),
             orphans: BTreeSet::new(),
             forks,
@@ -227,19 +227,20 @@ impl StacksBlockPool {
         }
         highest_heights.sort();
         let len = highest_heights.len();
-        self.highest_competing_fork_height_delta = if len == 0 || len == 1 {
-            u16::MAX
-        } else {
+        self.highest_competing_fork_height_delta = if len > 1 {
             // canonical - next highest
-            (highest_heights[len - 1] - highest_heights[len - 2])
+            let t = (highest_heights[len - 1] - highest_heights[len - 2])
                 .try_into()
-                .unwrap_or(0)
+                .map_err(|e| format!("unable to retrieve competing fork height: {}", e))?;
+            Some(t)
+        } else {
+            None
         };
         ctx.try_log(|logger| {
             slog::info!(
                 logger,
                 "Highest competing fork height delta computed as {} with data {:?}",
-                self.highest_competing_fork_height_delta,
+                self.highest_competing_fork_height_delta.unwrap_or(0),
                 highest_heights
             )
         });
@@ -270,8 +271,14 @@ impl StacksBlockPool {
             _ => return Ok(None),
         };
 
-        if self.highest_competing_fork_height_delta > 6 {
-            self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+        match self.highest_competing_fork_height_delta {
+            None => {
+                self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+            }
+            Some(e) if e > 6 => {
+                self.collect_and_prune_confirmed_blocks(&mut chain_event, ctx);
+            }
+            _ => {}
         }
 
         Ok(Some(chain_event))
