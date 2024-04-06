@@ -1,3 +1,25 @@
+## [1.5.0](https://github.com/hirosystems/chainhook/compare/v1.4.1...v1.5.0) (2024-04-06)
+
+
+### Features
+
+* add brc-20 schemas for ordhook ([#551](https://github.com/hirosystems/chainhook/issues/551)) ([1e25a8f](https://github.com/hirosystems/chainhook/commit/1e25a8f30664d814f510292665c6de17bc5e5c20))
+* detect http / rpc errors as early as possible ([e515116](https://github.com/hirosystems/chainhook/commit/e5151168d75b2568a4a396e675b49bc917edad50))
+* rm blocks ([f35498d](https://github.com/hirosystems/chainhook/commit/f35498d7f5efc3d9a92bf6e88f7f79df1ff879a0))
+* use stacks.rocksdb for predicate scan ([#514](https://github.com/hirosystems/chainhook/issues/514)) ([0baae10](https://github.com/hirosystems/chainhook/commit/0baae107e65b329751a7c41ca738948ba65b6d40)), closes [#513](https://github.com/hirosystems/chainhook/issues/513) [#485](https://github.com/hirosystems/chainhook/issues/485)
+
+
+### Bug Fixes
+
+* build error ([03b3938](https://github.com/hirosystems/chainhook/commit/03b3938245232be00aa47d9464c5ed215942fc7d))
+* log errors on block download failure; implement max retries ([#503](https://github.com/hirosystems/chainhook/issues/503)) ([3bfb0e1](https://github.com/hirosystems/chainhook/commit/3bfb0e1ae4c36ddddb424f928bbdd6c6121ef7ab))
+* **metrics:** update latest ingested block on reorg ([#515](https://github.com/hirosystems/chainhook/issues/515)) ([823713a](https://github.com/hirosystems/chainhook/commit/823713aa8b850324b10ef94e6f104e8fec711eeb))
+* order and filter blocks used to seed forking block pool ([#534](https://github.com/hirosystems/chainhook/issues/534)) ([a2865b7](https://github.com/hirosystems/chainhook/commit/a2865b7611e592f4c329fa6404da3fbcb662161f))
+* revisit 7+ blocks reorg handling ([#553](https://github.com/hirosystems/chainhook/issues/553)) ([184fd07](https://github.com/hirosystems/chainhook/commit/184fd07f7767a25c2c3be20a474b972d773269e4))
+* seed forking handler with unconfirmed blocks to improve startup stability ([#505](https://github.com/hirosystems/chainhook/issues/505)) ([b77aca2](https://github.com/hirosystems/chainhook/commit/b77aca2b8cd320491a67d275f97369c7547c61c0)), closes [#487](https://github.com/hirosystems/chainhook/issues/487)
+* skip db consolidation if no new dataset was downloaded ([#513](https://github.com/hirosystems/chainhook/issues/513)) ([b1469a6](https://github.com/hirosystems/chainhook/commit/b1469a6753bf429ec54a3ffddfac49ddf96027eb))
+* update scan status for non-triggering predicates ([#511](https://github.com/hirosystems/chainhook/issues/511)) ([32cdfee](https://github.com/hirosystems/chainhook/commit/32cdfeea66bb7b223e436a94fe4058056c05e3d2)), closes [#498](https://github.com/hirosystems/chainhook/issues/498)
+
 ## [1.4.1](https://github.com/hirosystems/chainhook/compare/v1.4.0...v1.4.1) (2024-04-02)
 
 
