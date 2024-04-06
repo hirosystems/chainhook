@@ -148,12 +148,16 @@ pub fn insert_unconfirmed_entry_in_stacks_blocks(
     stacks_db_rw
         .put(&key, &block_bytes.to_string().as_bytes())
         .map_err(|e| format!("unable to insert blocks: {}", e))?;
-    stacks_db_rw
-        .put(
-            get_last_unconfirmed_insert_key(),
-            block.block_identifier.index.to_be_bytes(),
-        )
-        .map_err(|e| format!("unable to insert metadata: {}", e))?;
+    let previous_last_inserted =
+        get_last_unconfirmed_block_height_inserted(stacks_db_rw, _ctx).unwrap_or(0);
+    if block.block_identifier.index > previous_last_inserted {
+        stacks_db_rw
+            .put(
+                get_last_unconfirmed_insert_key(),
+                block.block_identifier.index.to_be_bytes(),
+            )
+            .map_err(|e| format!("unable to insert metadata: {}", e))?;
+    }
     Ok(())
 }
 
@@ -163,6 +167,17 @@ pub fn delete_unconfirmed_entry_from_stacks_blocks(
     _ctx: &Context,
 ) -> Result<(), String> {
     let key = get_unconfirmed_block_key(&block_identifier);
+    stacks_db_rw
+        .delete(&key)
+        .map_err(|e| format!("unable to delete blocks: {}", e))
+}
+
+pub fn delete_confirmed_entry_from_stacks_blocks(
+    block_identifier: &BlockIdentifier,
+    stacks_db_rw: &DB,
+    _ctx: &Context,
+) -> Result<(), String> {
+    let key = get_block_key(&block_identifier);
     stacks_db_rw
         .delete(&key)
         .map_err(|e| format!("unable to delete blocks: {}", e))
