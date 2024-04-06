@@ -709,7 +709,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         );
                     }
                     None => {
-                        warn!(ctx.expect_logger(), "No confirmed blocks found in db");
+                        warn!(ctx.expect_logger(), "No unconfirmed blocks found in db");
                     }
                 };
             }
