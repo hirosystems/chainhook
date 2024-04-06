@@ -8,10 +8,10 @@ use crate::scan::stacks::{
 use crate::service::http_api::document_predicate_api_server;
 use crate::service::Service;
 use crate::storage::{
-    delete_confirmed_entry_from_stacks_blocks, get_last_block_height_inserted,
-    get_last_unconfirmed_block_height_inserted, get_stacks_block_at_block_height,
-    insert_unconfirmed_entry_in_stacks_blocks, is_stacks_block_present,
-    open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+    delete_confirmed_entry_from_stacks_blocks, delete_unconfirmed_entry_from_stacks_blocks,
+    get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
+    get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
+    is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
 };
 
 use chainhook_sdk::chainhooks::types::{
@@ -21,7 +21,7 @@ use chainhook_sdk::chainhooks::types::{
     StacksPrintEventBasedPredicate,
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
-use chainhook_sdk::utils::Context;
+use chainhook_sdk::utils::{BlockHeights, Context};
 use clap::{Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
@@ -225,6 +225,9 @@ enum StacksDbCommand {
     /// Get latest blocks from the unconfirmed and confirmed block db.
     #[clap(name = "get-latest", bin_name = "get-latest")]
     GetLatest(GetLatestBlocksDbCommand),
+    /// Update blocks from database
+    #[clap(name = "drop", bin_name = "drop")]
+    Drop(DropBlockCommand),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -235,6 +238,19 @@ struct GetLatestBlocksDbCommand {
     /// The number of blocks from the chain tip to fetch.
     #[clap(long = "count")]
     pub count: u64,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+struct DropBlockCommand {
+    /// Load config file path
+    #[clap(long = "config-path")]
+    pub config_path: Option<String>,
+    /// Interval of blocks (--interval 767430:800000)
+    #[clap(long = "interval", conflicts_with = "blocks")]
+    pub blocks_interval: Option<String>,
+    /// List of blocks (--blocks 767430,767431,767433,800000)
+    #[clap(long = "blocks", conflicts_with = "interval")]
+    pub blocks: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -713,9 +729,42 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         );
                     }
                     None => {
-                        warn!(ctx.expect_logger(), "No unconfirmed blocks found in db");
+                        warn!(ctx.expect_logger(), "No confirmed blocks found in db");
                     }
                 };
+            }
+            StacksCommand::Db(StacksDbCommand::Drop(cmd)) => {
+                let config = Config::default(false, false, false, &cmd.config_path)?;
+                let stacks_db_rw =
+                    open_readwrite_stacks_db_conn(&config.expected_cache_path(), &ctx)
+                        .expect("unable to read stacks_db");
+
+                let block_heights = parse_blocks_heights_spec(&cmd.blocks_interval, &cmd.blocks)
+                    .get_sorted_entries()
+                    .unwrap();
+                let total_blocks = block_heights.len();
+                println!("{} blocks will be deleted. Confirm? [Y/n]", total_blocks);
+                let mut buffer = String::new();
+                std::io::stdin().read_line(&mut buffer).unwrap();
+                if buffer.starts_with('n') {
+                    return Err("Deletion aborted".to_string());
+                }
+
+                for index in block_heights.into_iter() {
+                    let block_identifier = BlockIdentifier {
+                        index,
+                        hash: "".into(),
+                    };
+                    let _ = delete_unconfirmed_entry_from_stacks_blocks(
+                        &block_identifier,
+                        &stacks_db_rw,
+                        &ctx,
+                    );
+                }
+                info!(
+                    ctx.expect_logger(),
+                    "Cleaning stacks_db: {} blocks dropped", total_blocks
+                );
             }
             StacksCommand::Db(StacksDbCommand::GetBlock(cmd)) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
@@ -814,4 +863,35 @@ pub fn load_predicate_from_path(
     let predicate: ChainhookFullSpecification = serde_json::from_slice(&file_buffer)
         .map_err(|e| format!("unable to parse json file {}\n{:?}", predicate_path, e))?;
     Ok(predicate)
+}
+
+fn parse_blocks_heights_spec(
+    blocks_interval: &Option<String>,
+    blocks: &Option<String>,
+) -> BlockHeights {
+    let blocks = match (blocks_interval, blocks) {
+        (Some(interval), None) => {
+            let blocks = interval.split(':').collect::<Vec<_>>();
+            let start_block: u64 = blocks
+                .first()
+                .expect("unable to get start_block")
+                .parse::<u64>()
+                .expect("unable to parse start_block");
+            let end_block: u64 = blocks
+                .get(1)
+                .expect("unable to get end_block")
+                .parse::<u64>()
+                .expect("unable to parse end_block");
+            BlockHeights::BlockRange(start_block, end_block)
+        }
+        (None, Some(blocks)) => {
+            let blocks = blocks
+                .split(',')
+                .map(|b| b.parse::<u64>().expect("unable to parse block"))
+                .collect::<Vec<_>>();
+            BlockHeights::Blocks(blocks)
+        }
+        _ => unreachable!(),
+    };
+    blocks
 }
