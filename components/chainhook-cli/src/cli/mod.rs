@@ -661,9 +661,11 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                         ctx.expect_logger(),
                                         "Block {} not present in confirmed database", cursor
                                     );
+                                    cursor -= 1;
                                 }
                                 Err(e) => {
                                     error!(ctx.expect_logger(), "{e}",);
+                                    break;
                                 }
                             }
                         }
@@ -697,9 +699,11 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                         ctx.expect_logger(),
                                         "Block {} not present in unconfirmed database", cursor
                                     );
+                                    cursor -= 1;
                                 }
                                 Err(e) => {
                                     error!(ctx.expect_logger(), "{e}",);
+                                    break;
                                 }
                             }
                         }
