@@ -88,8 +88,6 @@ jobs:
   dist_chainhook:
     name: Build Chainhook Distributions
     runs-on: ${{ matrix.os }}
-    needs: 
-     - test
 
     strategy:
       fail-fast: false
