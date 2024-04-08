@@ -1,3 +1,3 @@
 [alias]
 chainhook-install = "install --path components/chainhook-cli --locked --force --features cli --features debug --no-default-features"
-cov = "llvm-cov nextest --workspace --locked --features redis_tests --lcov --output-path lcov.info -- --test-threads=1"
+cov = "llvm-cov nextest --workspace --locked --features redis_tests --lcov --output-path lcov.info"
