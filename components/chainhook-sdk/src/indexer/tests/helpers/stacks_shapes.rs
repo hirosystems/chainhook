@@ -3891,8 +3891,9 @@ pub fn get_vector_054() -> (
 
 /// Vector 055: Generate the following blocks
 ///
-///  A1(1) - B1(2)  -  C1(3)  -  D1(4)  -  E1(5)  -  F1(6)  -  G1(7)
-///        \ A2(8)
+///  A1(0) - B1(0)
+///        \ B2(0) - C2(0) - D2(0) - E2(1) - F2(2) - G2(3) - H2(4) - I2(7) - J2(11)
+///                        \ D3(5) - E3(6) - F3(8) - G3(9) - H3(10) - I3(12) - J3(13) - K3(14) - L3(15) - M3(16) - N3(17) - O3(18) - P3(19) - Q3(20)
 ///
 pub fn get_vector_055() -> (
     Vec<(BlockEvent, StacksChainEventExpectation)>,
