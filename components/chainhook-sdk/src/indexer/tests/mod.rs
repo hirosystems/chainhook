@@ -17,10 +17,7 @@ pub fn process_stacks_blocks_and_check_expectations(
 ) {
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
-    let ctx = Context {
-        logger: Some(logger),
-        tracer: false,
-    };
+    let ctx = Context::empty();
     let mut blocks_processor = StacksBlockPool::new();
 
     if let Some(block_pool_seed) = block_pool_seed {
