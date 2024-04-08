@@ -166,8 +166,8 @@ jobs:
 
       - name: Build - Cargo
         if: matrix.target != 'x86_64-unknown-linux-musl'
-        run: cargo build --release --features=telemetry --locked --target ${{ matrix.target }}
-
+        run: cargo build --release --features cli --features debug --no-default-features --target ${{ matrix.target }}
+        
       # Steps for Windows Code Signing with DigiCert
       - name: Windows - Setup Certificate
         if: startsWith(github.ref, 'refs/heads/main') && matrix.os == 'windows-latest'
