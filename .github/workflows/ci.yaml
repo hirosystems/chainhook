@@ -127,8 +127,8 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
       
-      - name: Add Rust Toolchain Target
-        run: rustup toolchain add ${{ matrix.target }}
+      - name: List rust targets
+        run: rustup target list
 
       - name: "Get Rust version (unix)"
         if: matrix.os != 'windows-latest'
