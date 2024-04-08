@@ -211,7 +211,6 @@ impl StacksBlockPool {
                 )
             });
             let tip_height = fork.get_tip().index;
-            // a fork is only competing to be the canonical if ...
             highest_heights.push(tip_height); // todo (I think we need to double-check reasoning on this)
 
             // the tip of the canonical stacks chain must belong to the bitcoin fork with the highest tip
