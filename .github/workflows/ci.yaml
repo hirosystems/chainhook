@@ -75,10 +75,8 @@ jobs:
         with:
           tool: cargo-llvm-cov,nextest
 
-      - name: Cargo test
-        run: |
-          rustup update
-          RUST_BACKTRACE=1 cargo cov test --all --features redis_tests -- --test-threads=1
+      - name: Run unit test with coverage
+        run: cargo cov
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
