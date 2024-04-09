@@ -124,6 +124,9 @@ jobs:
 
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+
+      - name: Install Rust Target
+        run: rustup target add ${{ matrix.target }}
       
       - name: List rust targets
         run: rustup target list
