@@ -42,7 +42,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='Chainhook is a reorg-aware indexing engine for the Stacks & Bitcoin blockchains.'
+            Description='Chainhook is a reorg-aware indexing engine for the Stacks and Bitcoin blockchains.'
             Manufacturer='Hiro Systems'
             InstallerVersion='450'
             Languages='1033'
