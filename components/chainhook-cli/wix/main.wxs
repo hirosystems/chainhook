@@ -137,7 +137,7 @@
         <Icon Id='ProductICO' SourceFile='docs/images/chainhook.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO' />
         
-        <Property Id='ARPHELPLINK' Value='https://github.com/hirosystems/chainhook'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/hirosystems/chainhook/tree/build/upload-builds'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
