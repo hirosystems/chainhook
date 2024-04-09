@@ -134,8 +134,8 @@
           Add/Remove Programs control panel requires commenting out or
           removing the following `Icon` and `Property` tags.
         -->
-        <Icon Id='ProductICO' SourceFile='docs/images/chainhook.ico'/>
-        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
+        <!-- <Icon Id='ProductICO' SourceFile='docs/images/chainhook.ico'/> -->
+        <!-- <Property Id='ARPPRODUCTICON' Value='ProductICO' /> -->
         
         <Property Id='ARPHELPLINK' Value='https://github.com/hirosystems/chainhook/tree/build/upload-builds'/>
         
@@ -157,7 +157,7 @@
           Disabling the EULA dialog in the installer requires commenting out
           or removing the following `WixVariable` tag
         -->
-        <WixVariable Id='WixUILicenseRtf' Value='wix/License.rtf'/>
+        <WixVariable Id='WixUILicenseRtf' Value='components/chainhook-cli/wix/License.rtf'/>
         
         
         <!--
