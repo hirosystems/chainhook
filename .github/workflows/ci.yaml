@@ -72,6 +72,9 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            # Cache crates.toml & crates2.json to allow `cargo install`
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
