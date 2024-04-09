@@ -624,8 +624,8 @@ const POX_CONFIG_TESTNET: PoxConfig = PoxConfig {
 
 const POX_CONFIG_DEVNET: PoxConfig = PoxConfig {
     genesis_block_height: 100,
-    prepare_phase_len: 4,
-    reward_phase_len: 10,
+    prepare_phase_len: 5,
+    reward_phase_len: 20,
     rewarded_addresses_per_block: 2,
 };
 
