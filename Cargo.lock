@@ -660,10 +660,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "clarity-vm"
+name = "clarity"
 version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0af203c4eea9bb753ff2798c3bcf9f3fd8ea7a24bde7222d96f82fd9beb6d165"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#35cce11f4a7e49f29dd1cf06680abfbd31099669"
 dependencies = [
  "hashbrown 0.14.3",
  "integer-sqrt",
@@ -3696,19 +3695,17 @@ dependencies = [
 [[package]]
 name = "stacks-codec"
 version = "2.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d5791855bf9de767f55042f1a034a2575373c6433b0965f1efac14e7215f71b"
+source = "git+https://github.com/hirosystems/clarinet.git#423635d51f3c55751df3a8007064e61c540c2588"
 dependencies = [
- "clarity-vm",
+ "clarity",
  "serde",
  "wsts",
 ]
 
 [[package]]
 name = "stacks-common"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c78cb37406e4b6a269f0b6aa0ee222922c9d30c263a43af7e005169e20edf12b"
+version = "0.0.2"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-next#35cce11f4a7e49f29dd1cf06680abfbd31099669"
 dependencies = [
  "chrono",
  "curve25519-dalek 2.0.0",
