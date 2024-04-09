@@ -72,7 +72,7 @@
                         <File Id='LicenseFile'
                             Name='License.rtf'
                             DiskId='1'
-                            Source='wix/License.rtf'
+                            Source='components/chainhook-cli/wix/License.rtf'
                             KeyPath='yes'/>
                     </Component>
                     
