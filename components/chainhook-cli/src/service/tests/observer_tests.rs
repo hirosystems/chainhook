@@ -63,7 +63,7 @@ async fn ping_endpoint_returns_metrics() {
         .unwrap();
     assert_eq!(result, 1);
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
+    let _ = std::fs::remove_dir_all(&working_dir);
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }
@@ -103,7 +103,7 @@ async fn prometheus_endpoint_returns_encoded_metrics() {
     const EXPECTED: &'static str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
     assert!(metrics.contains(EXPECTED));
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
+    let _ = std::fs::remove_dir_all(&working_dir);
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }
