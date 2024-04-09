@@ -33,7 +33,7 @@
 
     <Product
         Id='*'
-        Name='clarinet'
+        Name='chainhook'
         UpgradeCode='E41901A3-0B71-4D86-9175-B12D7C7533BE'
         Manufacturer='Hiro Systems'
         Language='1033'
@@ -42,7 +42,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='Clarinet is a clarity runtime packaged as a command line tool, designed to facilitate smart contract understanding, development, testing and deployment.'
+            Description='Chainhook is a reorg-aware indexing engine for the Stacks & Bitcoin blockchains.'
             Manufacturer='Hiro Systems'
             InstallerVersion='450'
             Languages='1033'
@@ -56,11 +56,11 @@
             DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.'/>
 
         <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
-        <Property Id='DiskPrompt' Value='clarinet Installation'/>
+        <Property Id='DiskPrompt' Value='chainhook Installation'/>
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
-                <Directory Id='APPLICATIONFOLDER' Name='clarinet'>
+                <Directory Id='APPLICATIONFOLDER' Name='chainhook'>
                     <!--
                       Disabling the license sidecar file in the installer is a two step process:
 
@@ -90,9 +90,9 @@
                         <Component Id='binary0' Guid='*' Win64='$(var.Win64)'>
                             <File
                                 Id='exe0'
-                                Name='clarinet.exe'
+                                Name='chainhook.exe'
                                 DiskId='1'
-                                Source='target/x86_64-pc-windows-msvc/$(var.Profile)/clarinet.exe'
+                                Source='target/x86_64-pc-windows-msvc/$(var.Profile)/chainhook.exe'
                                 KeyPath='yes'/>
                         </Component>
                     </Directory>
@@ -134,10 +134,10 @@
           Add/Remove Programs control panel requires commenting out or
           removing the following `Icon` and `Property` tags.
         -->
-        <Icon Id='ProductICO' SourceFile='docs/images/clarinet.ico'/>
+        <Icon Id='ProductICO' SourceFile='docs/images/chainhook.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO' />
         
-        <Property Id='ARPHELPLINK' Value='https://github.com/hirosystems/clarinet'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/hirosystems/chainhook'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
@@ -168,7 +168,7 @@
 
           The banner BMP dimensions are 493 x 58 pixels.
         -->
-        <WixVariable Id='WixUIBannerBmp' Value='docs/images/clarinet-banner.bmp'/>
+        <WixVariable Id='WixUIBannerBmp' Value='docs/images/chainhook-banner.bmp'/>
 
         <!--
           Disabling the dialog image in the installer requires commenting out or
@@ -176,7 +176,7 @@
 
           The dialog BMP dimensions are 493 x 312 pixels.
         -->
-        <WixVariable Id='WixUIDialogBmp' Value='docs/images/clarinet-dialog.bmp'/>
+        <WixVariable Id='WixUIDialogBmp' Value='docs/images/chainhook-dialog.bmp'/>
     </Product>
 
 </Wix>
