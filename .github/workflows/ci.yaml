@@ -75,13 +75,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install dependencies
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov,nextest
-
-      - name: Run unit test with coverage
-        run: cargo cov
+      - name: Install and run cargo-tarpaulin
+        run: |
+          cargo install cargo-tarpaulin
+          cargo --version
+          cargo tarpaulin --out lcov --features redis_tests -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
