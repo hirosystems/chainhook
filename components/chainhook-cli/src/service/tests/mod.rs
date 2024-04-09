@@ -997,7 +997,7 @@ async fn it_seeds_block_pool_on_startup() -> Result<(), String> {
     Ok(())
 }
 
-fn cleanup_err(
+pub fn cleanup_err(
     error: String,
     working_dir: &str,
     redis_port: u16,
@@ -1007,8 +1007,8 @@ fn cleanup_err(
     format!("test failed with error: {error}")
 }
 
-fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
-    std::fs::remove_dir_all(&working_dir).unwrap();
+pub fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
+    let _ = std::fs::remove_dir_all(&working_dir);
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }
