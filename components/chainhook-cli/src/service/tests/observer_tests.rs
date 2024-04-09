@@ -46,6 +46,7 @@ async fn ping_endpoint_returns_metrics() -> Result<(), String> {
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
+    sleep(Duration::new(1, 0));
     let metrics = call_ping(stacks_ingestion_port)
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
@@ -82,6 +83,7 @@ async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
+    sleep(Duration::new(1, 0));
     let metrics = call_prometheus(prometheus_port)
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
