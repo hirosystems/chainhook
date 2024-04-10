@@ -853,7 +853,6 @@ pub async fn start_observer_commands_handler(
                     });
                     break;
                 };
-                prometheus_monitoring.btc_metrics_ingest_block(block.block_identifier.index);
 
                 bitcoin_block_store.insert(
                     block.block_identifier.clone(),
@@ -879,12 +878,17 @@ pub async fn start_observer_commands_handler(
                 let mut confirmed_blocks = vec![];
 
                 // Update Chain event before propagation
-                let chain_event = match blockchain_event {
+                let (chain_event, new_tip) = match blockchain_event {
                     BlockchainEvent::BlockchainUpdatedWithHeaders(data) => {
                         let mut blocks_to_mutate = vec![];
                         let mut new_blocks = vec![];
+                        let mut new_tip = 0;
 
                         for header in data.new_headers.iter() {
+                            if header.block_identifier.index > new_tip {
+                                new_tip = header.block_identifier.index;
+                            }
+
                             if store_update_required {
                                 let Some(block) =
                                     bitcoin_block_store.remove(&header.block_identifier)
@@ -931,11 +935,14 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        BitcoinChainEvent::ChainUpdatedWithBlocks(
-                            BitcoinChainUpdatedWithBlocksData {
-                                new_blocks,
-                                confirmed_blocks: confirmed_blocks.clone(),
-                            },
+                        (
+                            BitcoinChainEvent::ChainUpdatedWithBlocks(
+                                BitcoinChainUpdatedWithBlocksData {
+                                    new_blocks,
+                                    confirmed_blocks: confirmed_blocks.clone(),
+                                },
+                            ),
+                            new_tip,
                         )
                     }
                     BlockchainEvent::BlockchainUpdatedWithReorg(data) => {
@@ -943,8 +950,13 @@ pub async fn start_observer_commands_handler(
 
                         let mut blocks_to_mutate = vec![];
                         let mut blocks_to_apply = vec![];
+                        let mut new_tip = 0;
 
                         for header in data.headers_to_apply.iter() {
+                            if header.block_identifier.index > new_tip {
+                                new_tip = header.block_identifier.index;
+                            }
+
                             if store_update_required {
                                 let Some(block) =
                                     bitcoin_block_store.remove(&header.block_identifier)
@@ -1021,24 +1033,23 @@ pub async fn start_observer_commands_handler(
                                     blocks_to_apply.len() as u64,
                                     blocks_to_rollback.len() as u64,
                                 );
-                                prometheus_monitoring.btc_metrics_ingest_block(
-                                    highest_tip_block.block_identifier.index,
-                                );
                             }
                             None => {}
                         }
 
-                        BitcoinChainEvent::ChainUpdatedWithReorg(BitcoinChainUpdatedWithReorgData {
-                            blocks_to_apply,
-                            blocks_to_rollback,
-                            confirmed_blocks: confirmed_blocks.clone(),
-                        })
+                        (
+                            BitcoinChainEvent::ChainUpdatedWithReorg(
+                                BitcoinChainUpdatedWithReorgData {
+                                    blocks_to_apply,
+                                    blocks_to_rollback,
+                                    confirmed_blocks: confirmed_blocks.clone(),
+                                },
+                            ),
+                            new_tip,
+                        )
                     }
                 };
 
-                if let Some(ref sidecar) = observer_sidecar {
-                    sidecar.notify_chain_event(&chain_event, &ctx)
-                }
                 // process hooks
                 let mut hooks_ids_to_deregister = vec![];
                 let mut requests = vec![];
@@ -1190,6 +1201,8 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
+                prometheus_monitoring.btc_metrics_block_evaluated(new_tip);
+
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::BitcoinChainEvent((chain_event, report)));
                 }
@@ -1216,19 +1229,19 @@ pub async fn start_observer_commands_handler(
                         stacks_chainhooks.len()
                     )
                 });
+
                 // track stacks chain metrics
-                match &chain_event {
+                let new_tip = match &chain_event {
                     StacksChainEvent::ChainUpdatedWithBlocks(update) => {
                         match update
                             .new_blocks
                             .iter()
                             .max_by_key(|b| b.block.block_identifier.index)
                         {
-                            Some(highest_tip_update) => prometheus_monitoring
-                                .stx_metrics_ingest_block(
-                                    highest_tip_update.block.block_identifier.index,
-                                ),
-                            None => {}
+                            Some(highest_tip_update) => {
+                                highest_tip_update.block.block_identifier.index
+                            }
+                            None => 0,
                         }
                     }
                     StacksChainEvent::ChainUpdatedWithReorg(update) => {
@@ -1243,15 +1256,13 @@ pub async fn start_observer_commands_handler(
                                     update.blocks_to_apply.len() as u64,
                                     update.blocks_to_rollback.len() as u64,
                                 );
-                                prometheus_monitoring.stx_metrics_ingest_block(
-                                    highest_tip_update.block.block_identifier.index,
-                                )
+                                highest_tip_update.block.block_identifier.index
                             }
-                            None => {}
+                            None => 0,
                         }
                     }
-                    _ => {}
-                }
+                    _ => 0,
+                };
 
                 // process hooks
                 let (predicates_triggered, predicates_evaluated, predicates_expired) =
@@ -1359,6 +1370,8 @@ pub async fn start_observer_commands_handler(
                     });
                     let _ = send_request(request, 3, 1, &ctx).await;
                 }
+
+                prometheus_monitoring.stx_metrics_block_evaluated(new_tip);
 
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));

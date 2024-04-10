@@ -34,6 +34,7 @@ pub async fn handle_new_bitcoin_block(
     bitcoin_config: &State<BitcoinConfig>,
     bitcoin_block: Json<NewBitcoinBlock>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     if bitcoin_config
@@ -74,6 +75,8 @@ pub async fn handle_new_bitcoin_block(
         };
 
     let header = block.get_block_header();
+    let block_height = header.block_identifier.index;
+    prometheus_monitoring.btc_metrics_block_received(block_height);
     match background_job_tx.lock() {
         Ok(tx) => {
             let _ = tx.send(ObserverCommand::ProcessBitcoinBlock(block));
@@ -109,6 +112,8 @@ pub async fn handle_new_bitcoin_block(
             }));
         }
     };
+
+    prometheus_monitoring.btc_metrics_block_appended(block_height);
 
     match chain_update {
         Ok(Some(chain_event)) => {
@@ -150,6 +155,7 @@ pub fn handle_new_stacks_block(
     indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
     marshalled_block: Json<JsonValue>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /new_block"));
@@ -157,12 +163,24 @@ pub fn handle_new_stacks_block(
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
     // TODO(lgalabru): use _pox_config
-    let (_pox_config, chain_event) = match indexer_rw_lock.inner().write() {
+    let (_pox_config, chain_event, new_tip) = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => {
             let pox_config = indexer.get_pox_config();
-            let chain_event =
-                indexer.handle_stacks_marshalled_block(marshalled_block.into_inner(), &ctx);
-            (pox_config, chain_event)
+            let block = match indexer
+                .standardize_stacks_marshalled_block(marshalled_block.into_inner(), ctx)
+            {
+                Ok(block) => block,
+                Err(e) => {
+                    return Json(json!({
+                        "status": 500,
+                        "result": format!("Unable to standardize stacks block {}", e),
+                    }));
+                }
+            };
+            let new_tip = block.block_identifier.index;
+            prometheus_monitoring.stx_metrics_block_received(new_tip);
+            let chain_event = indexer.process_stacks_block(block, &ctx);
+            (pox_config, chain_event, new_tip)
         }
         Err(e) => {
             ctx.try_log(|logger| {
@@ -181,6 +199,7 @@ pub fn handle_new_stacks_block(
 
     match chain_event {
         Ok(Some(chain_event)) => {
+            prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
             let background_job_tx = background_job_tx.inner();
             match background_job_tx.lock() {
                 Ok(tx) => {
