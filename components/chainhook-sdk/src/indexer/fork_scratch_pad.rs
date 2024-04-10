@@ -105,7 +105,7 @@ impl ForkScratchPad {
             }
             None => {
                 ctx.try_log(|logger| {
-                    slog::debug!(
+                    slog::error!(
                         logger,
                         "Unable to process Bitcoin {} - inboxed for later",
                         header.block_identifier
