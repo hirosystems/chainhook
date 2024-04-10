@@ -18,14 +18,23 @@ type UInt64Gauge = GenericGauge<AtomicU64>;
 
 #[derive(Debug, Clone)]
 pub struct PrometheusMonitoring {
-    pub stx_highest_block_ingested: UInt64Gauge,
+    pub stx_highest_block_appended: UInt64Gauge,
+    pub stx_highest_block_received: UInt64Gauge,
+    pub stx_highest_block_evaluated: UInt64Gauge,
+    pub stx_canonical_fork_lag: UInt64Gauge,
+    pub stx_block_evaluation_lag: UInt64Gauge,
     pub stx_last_reorg_timestamp: IntGauge,
     pub stx_last_reorg_applied_blocks: UInt64Gauge,
     pub stx_last_reorg_rolled_back_blocks: UInt64Gauge,
     pub stx_last_block_ingestion_time: UInt64Gauge,
     pub stx_registered_predicates: UInt64Gauge,
     pub stx_deregistered_predicates: UInt64Gauge,
-    pub btc_highest_block_ingested: UInt64Gauge,
+    //
+    pub btc_highest_block_appended: UInt64Gauge,
+    pub btc_highest_block_received: UInt64Gauge,
+    pub btc_highest_block_evaluated: UInt64Gauge,
+    pub btc_canonical_fork_lag: UInt64Gauge,
+    pub btc_block_evaluation_lag: UInt64Gauge,
     pub btc_last_reorg_timestamp: IntGauge,
     pub btc_last_reorg_applied_blocks: UInt64Gauge,
     pub btc_last_reorg_rolled_back_blocks: UInt64Gauge,
@@ -38,10 +47,31 @@ pub struct PrometheusMonitoring {
 impl PrometheusMonitoring {
     pub fn new() -> PrometheusMonitoring {
         let registry = Registry::new();
-        let stx_highest_block_ingested = PrometheusMonitoring::create_and_register_uint64_gauge(
+        // stacks metrics
+        let stx_highest_block_appended = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "chainhook_stx_highest_block_ingested",
-            "The highest Stacks block ingested by the Chainhook node.",
+            "chainhook_stx_highest_block_appended",
+            "The highest Stacks block successfully appended to a Chainhook node fork.",
+        );
+        let stx_highest_block_received = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_stx_highest_block_received",
+            "The highest Stacks block received by the Chainhook node from the Stacks node.",
+        );
+        let stx_highest_block_evaluated = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_stx_highest_block_evaluated",
+            "The highest Stacks block successfully evaluated against predicates.",
+        );
+        let stx_canonical_fork_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_stx_canonical_fork_lag",
+            "The difference between the highest Stacks block received and the highest Stacks block appended.",
+        );
+        let stx_block_evaluation_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_stx_block_evaluation_lag",
+            "The difference between the highest Stacks block appended and the highest Stacks block evaluated.",
         );
         let stx_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
             &registry,
@@ -74,10 +104,32 @@ impl PrometheusMonitoring {
             "chainhook_stx_deregistered_predicates",
             "The number of Stacks predicates that have been deregistered by the Chainhook node.",
         );
-        let btc_highest_block_ingested = PrometheusMonitoring::create_and_register_uint64_gauge(
+
+        // bitcoin metrics
+        let btc_highest_block_appended = PrometheusMonitoring::create_and_register_uint64_gauge(
             &registry,
-            "chainhook_btc_highest_block_ingested",
-            "The highest Bitcoin block ingested by the Chainhook node.",
+            "chainhook_btc_highest_block_appended",
+            "The highest Bitcoin block successfully appended to a Chainhook node fork.",
+        );
+        let btc_highest_block_received = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_btc_highest_block_received",
+            "The highest Bitcoin block received by the Chainhook node from the Bitcoin node.",
+        );
+        let btc_highest_block_evaluated = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_btc_highest_block_evaluated",
+            "The highest Bitcoin block successfully evaluated against predicates.",
+        );
+        let btc_canonical_fork_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_btc_canonical_fork_lag",
+            "The difference between the highest Bitcoin block received and the highest Bitcoin block appended.",
+        );
+        let btc_block_evaluation_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_btc_block_evaluation_lag",
+            "The difference between the highest Bitcoin block appended and the highest Bitcoin block evaluated.",
         );
         let btc_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
             &registry,
@@ -113,14 +165,23 @@ impl PrometheusMonitoring {
         );
 
         PrometheusMonitoring {
-            stx_highest_block_ingested,
+            stx_highest_block_appended,
+            stx_highest_block_received,
+            stx_highest_block_evaluated,
+            stx_canonical_fork_lag,
+            stx_block_evaluation_lag,
             stx_last_reorg_timestamp,
             stx_last_reorg_applied_blocks,
             stx_last_reorg_rolled_back_blocks,
             stx_last_block_ingestion_time,
             stx_registered_predicates,
             stx_deregistered_predicates,
-            btc_highest_block_ingested,
+            //
+            btc_highest_block_appended,
+            btc_highest_block_received,
+            btc_highest_block_evaluated,
+            btc_canonical_fork_lag,
+            btc_block_evaluation_lag,
             btc_last_reorg_timestamp,
             btc_last_reorg_applied_blocks,
             btc_last_reorg_rolled_back_blocks,
@@ -130,7 +191,7 @@ impl PrometheusMonitoring {
             registry,
         }
     }
-
+    // setup helpers
     pub fn create_and_register_uint64_gauge(
         registry: &Registry,
         name: &str,
@@ -147,6 +208,7 @@ impl PrometheusMonitoring {
         g
     }
 
+    // stx helpers
     pub fn stx_metrics_deregister_predicate(&self) {
         self.stx_registered_predicates.dec();
         self.stx_deregistered_predicates.inc();
@@ -171,10 +233,18 @@ impl PrometheusMonitoring {
             .set(rolled_back_blocks);
     }
 
-    pub fn stx_metrics_ingest_block(&self, new_block_height: u64) {
-        let highest_ingested = self.stx_highest_block_ingested.get();
-        if new_block_height > highest_ingested {
-            self.stx_highest_block_ingested.set(new_block_height);
+    pub fn stx_metrics_block_appeneded(&self, new_block_height: u64) {
+        let highest_appended = self.stx_highest_block_appended.get();
+        if new_block_height > highest_appended {
+            self.stx_highest_block_appended.set(new_block_height);
+
+            let highest_received = self.stx_highest_block_received.get();
+            self.stx_canonical_fork_lag
+                .set(highest_received.saturating_sub(new_block_height));
+
+            let highest_evaluated = self.stx_highest_block_evaluated.get();
+            self.stx_block_evaluation_lag
+                .set(new_block_height.saturating_sub(highest_evaluated));
         }
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -183,6 +253,29 @@ impl PrometheusMonitoring {
         self.stx_last_block_ingestion_time.set(time);
     }
 
+    pub fn stx_metrics_block_received(&self, new_block_height: u64) {
+        let highest_received = self.stx_highest_block_received.get();
+        if new_block_height > highest_received {
+            self.stx_highest_block_received.set(new_block_height);
+
+            let highest_appended = self.stx_highest_block_appended.get();
+            self.stx_canonical_fork_lag
+                .set(new_block_height.saturating_sub(highest_appended));
+        }
+    }
+
+    pub fn stx_metrics_block_evaluated(&self, new_block_height: u64) {
+        let highest_evaluated = self.stx_highest_block_evaluated.get();
+        if new_block_height > highest_evaluated {
+            self.stx_highest_block_evaluated.set(new_block_height);
+
+            let highest_appended = self.stx_highest_block_appended.get();
+            self.stx_block_evaluation_lag
+                .set(highest_appended.saturating_sub(new_block_height));
+        }
+    }
+
+    // btc helpers
     pub fn btc_metrics_deregister_predicate(&self) {
         self.btc_registered_predicates.dec();
         self.btc_deregistered_predicates.inc();
@@ -208,10 +301,18 @@ impl PrometheusMonitoring {
             .set(rolled_back_blocks);
     }
 
-    pub fn btc_metrics_ingest_block(&self, new_block_height: u64) {
-        let highest_ingested = self.btc_highest_block_ingested.get();
-        if new_block_height > highest_ingested {
-            self.btc_highest_block_ingested.set(new_block_height);
+    pub fn btc_metrics_block_appended(&self, new_block_height: u64) {
+        let highest_appended = self.btc_highest_block_appended.get();
+        if new_block_height > highest_appended {
+            self.btc_highest_block_appended.set(new_block_height);
+
+            let highest_received = self.btc_highest_block_received.get();
+            self.btc_canonical_fork_lag
+                .set(highest_received.saturating_sub(new_block_height));
+
+            let highest_evaluated = self.btc_highest_block_evaluated.get();
+            self.btc_block_evaluation_lag
+                .set(new_block_height.saturating_sub(highest_evaluated));
         }
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -220,10 +321,33 @@ impl PrometheusMonitoring {
         self.btc_last_block_ingestion_time.set(time);
     }
 
+    pub fn btc_metrics_block_received(&self, new_block_height: u64) {
+        let highest_received = self.btc_highest_block_received.get();
+        if new_block_height > highest_received {
+            self.btc_highest_block_received.set(new_block_height);
+
+            let highest_appended = self.btc_highest_block_appended.get();
+
+            self.btc_canonical_fork_lag
+                .set(new_block_height.saturating_sub(highest_appended));
+        }
+    }
+
+    pub fn btc_metrics_block_evaluated(&self, new_block_height: u64) {
+        let highest_evaluated = self.btc_highest_block_evaluated.get();
+        if new_block_height > highest_evaluated {
+            self.btc_highest_block_evaluated.set(new_block_height);
+
+            let highest_appended = self.btc_highest_block_appended.get();
+            self.btc_block_evaluation_lag
+                .set(highest_appended.saturating_sub(new_block_height));
+        }
+    }
+
     pub fn get_metrics(&self) -> JsonValue {
         json!({
             "bitcoin": {
-                "tip_height": self.btc_highest_block_ingested.get(),
+                "tip_height": self.btc_highest_block_appended.get(),
                 "last_block_ingestion_at": self.btc_last_block_ingestion_time.get(),
                 "last_reorg": {
                     "timestamp": self.btc_last_reorg_timestamp.get(),
@@ -234,7 +358,7 @@ impl PrometheusMonitoring {
                 "deregistered_predicates": self.btc_deregistered_predicates.get(),
             },
             "stacks": {
-                "tip_height": self.stx_highest_block_ingested.get(),
+                "tip_height": self.stx_highest_block_appended.get(),
                 "last_block_ingestion_at": self.stx_last_block_ingestion_time.get(),
                 "last_reorg": {
                     "timestamp": self.stx_last_reorg_timestamp.get(),
@@ -358,17 +482,30 @@ mod test {
     #[test]
     fn it_tracks_stx_block_ingestion() {
         let prometheus = PrometheusMonitoring::new();
-        assert_eq!(prometheus.stx_highest_block_ingested.get(), 0);
+        assert_eq!(prometheus.stx_highest_block_appended.get(), 0);
         assert_eq!(prometheus.stx_last_block_ingestion_time.get(), 0);
-        prometheus.stx_metrics_ingest_block(100);
-        assert_eq!(prometheus.stx_highest_block_ingested.get(), 100);
+        // receive a block
+        prometheus.stx_metrics_block_received(100);
+        // verify our lag in block appendation
+        assert_eq!(prometheus.stx_canonical_fork_lag.get(), 100);
+        // now append the block
+        prometheus.stx_metrics_block_appeneded(100);
+        assert_eq!(prometheus.stx_highest_block_appended.get(), 100);
         let time = prometheus.stx_last_block_ingestion_time.get();
         assert!(time > 0);
+        // verify our lag is resolved after appending
+        assert_eq!(prometheus.stx_canonical_fork_lag.get(), 0);
+        // verify our lag in block evaluation
+        assert_eq!(prometheus.stx_block_evaluation_lag.get(), 100);
+        // now evaluate a block
+        prometheus.stx_metrics_block_evaluated(100);
+        // verify our lag is resolved after evaluating
+        assert_eq!(prometheus.stx_block_evaluation_lag.get(), 0);
         // ingesting a block lower than previous tip will
         // update ingestion time but not highest block ingested
         sleep(Duration::new(1, 0));
-        prometheus.stx_metrics_ingest_block(99);
-        assert_eq!(prometheus.stx_highest_block_ingested.get(), 100);
+        prometheus.stx_metrics_block_appeneded(99);
+        assert_eq!(prometheus.stx_highest_block_appended.get(), 100);
         assert!(prometheus.stx_last_block_ingestion_time.get() > time);
     }
 
@@ -403,17 +540,30 @@ mod test {
     #[test]
     fn it_tracks_btc_block_ingestion() {
         let prometheus = PrometheusMonitoring::new();
-        assert_eq!(prometheus.btc_highest_block_ingested.get(), 0);
+        assert_eq!(prometheus.btc_highest_block_appended.get(), 0);
         assert_eq!(prometheus.btc_last_block_ingestion_time.get(), 0);
-        prometheus.btc_metrics_ingest_block(100);
-        assert_eq!(prometheus.btc_highest_block_ingested.get(), 100);
+        // receive a block
+        prometheus.btc_metrics_block_received(100);
+        // verify our lag in block appendation
+        assert_eq!(prometheus.btc_canonical_fork_lag.get(), 100);
+        // now append the block
+        prometheus.btc_metrics_block_appended(100);
+        assert_eq!(prometheus.btc_highest_block_appended.get(), 100);
         let time = prometheus.btc_last_block_ingestion_time.get();
         assert!(time > 0);
+        // verify our lag is resolved after appending
+        assert_eq!(prometheus.btc_canonical_fork_lag.get(), 0);
+        // verify our lag in block evaluation
+        assert_eq!(prometheus.btc_block_evaluation_lag.get(), 100);
+        // now evaluate a block
+        prometheus.btc_metrics_block_evaluated(100);
+        // verify our lag is resolved after evaluating
+        assert_eq!(prometheus.btc_block_evaluation_lag.get(), 0);
         // ingesting a block lower than previous tip will
         // update ingestion time but not highest block ingested
         sleep(Duration::new(1, 0));
-        prometheus.btc_metrics_ingest_block(99);
-        assert_eq!(prometheus.btc_highest_block_ingested.get(), 100);
+        prometheus.btc_metrics_block_appended(99);
+        assert_eq!(prometheus.btc_highest_block_appended.get(), 100);
         assert!(prometheus.btc_last_block_ingestion_time.get() > time);
     }
 }
