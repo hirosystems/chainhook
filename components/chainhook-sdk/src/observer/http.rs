@@ -113,10 +113,9 @@ pub async fn handle_new_bitcoin_block(
         }
     };
 
-    prometheus_monitoring.btc_metrics_block_appended(block_height);
-
     match chain_update {
         Ok(Some(chain_event)) => {
+            prometheus_monitoring.btc_metrics_block_appended(block_height);
             match background_job_tx.lock() {
                 Ok(tx) => {
                     let _ = tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
