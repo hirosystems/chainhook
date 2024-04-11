@@ -253,6 +253,13 @@ impl ForkScratchPad {
             }
         }
 
+        ctx.try_log(|logger| {
+            slog::debug!(
+                logger,
+                "Removing {} confirmed blocks from block store.",
+                canonical_segment[6..].len()
+            )
+        });
         for confirmed_block in canonical_segment[6..].into_iter() {
             let block = match self.headers_store.remove(confirmed_block) {
                 None => {
@@ -267,6 +274,14 @@ impl ForkScratchPad {
         }
 
         // Prune data
+        ctx.try_log(|logger| {
+            slog::debug!(
+                logger,
+                "Pruning {} blocks and {} forks.",
+                blocks_to_prune.len(),
+                forks_to_prune.len()
+            )
+        });
         for block_to_prune in blocks_to_prune {
             self.headers_store.remove(&block_to_prune);
         }
