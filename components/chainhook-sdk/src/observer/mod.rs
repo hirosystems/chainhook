@@ -1050,6 +1050,9 @@ pub async fn start_observer_commands_handler(
                     }
                 };
 
+                if let Some(ref sidecar) = observer_sidecar {
+                    sidecar.notify_chain_event(&chain_event, &ctx)
+                }
                 // process hooks
                 let mut hooks_ids_to_deregister = vec![];
                 let mut requests = vec![];
