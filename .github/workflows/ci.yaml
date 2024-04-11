@@ -314,6 +314,9 @@ jobs:
           persist-credentials: false
           ref: v${{ needs.get_release_info.outputs.tag }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
       - name: Docker Meta
         id: meta
         uses: docker/metadata-action@v5
