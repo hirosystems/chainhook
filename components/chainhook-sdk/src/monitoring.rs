@@ -347,7 +347,11 @@ impl PrometheusMonitoring {
     pub fn get_metrics(&self) -> JsonValue {
         json!({
             "bitcoin": {
-                "tip_height": self.btc_highest_block_appended.get(),
+                "last_received_block_height": self.btc_highest_block_received.get(),
+                "last_appended_block_height": self.btc_highest_block_appended.get(),
+                "last_evaluated_block_height": self.btc_highest_block_evaluated.get(),
+                "canonical_fork_lag": self.btc_canonical_fork_lag.get(),
+                "block_evaluation_lag": self.btc_block_evaluation_lag.get(),
                 "last_block_ingestion_at": self.btc_last_block_ingestion_time.get(),
                 "last_reorg": {
                     "timestamp": self.btc_last_reorg_timestamp.get(),
@@ -358,7 +362,11 @@ impl PrometheusMonitoring {
                 "deregistered_predicates": self.btc_deregistered_predicates.get(),
             },
             "stacks": {
-                "tip_height": self.stx_highest_block_appended.get(),
+                "last_received_block_height": self.stx_highest_block_received.get(),
+                "last_appended_block_height": self.stx_highest_block_appended.get(),
+                "last_evaluated_block_height": self.stx_highest_block_evaluated.get(),
+                "canonical_fork_lag": self.stx_canonical_fork_lag.get(),
+                "block_evaluation_lag": self.btc_block_evaluation_lag.get(),
                 "last_block_ingestion_at": self.stx_last_block_ingestion_time.get(),
                 "last_reorg": {
                     "timestamp": self.stx_last_reorg_timestamp.get(),
