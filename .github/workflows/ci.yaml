@@ -360,8 +360,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    # Only run on non-PR events or only PRs that aren't from forks
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
     needs:
       - test
       - dist_chainhook
