@@ -357,6 +357,13 @@ impl StacksBlockPool {
         // that must be merged in Block 7.
         let mut blocks_to_confirm = canonical_segment[6..].to_vec();
         blocks_to_confirm.reverse();
+        ctx.try_log(|logger| {
+            slog::debug!(
+                logger,
+                "Removing {} confirmed blocks from block store.",
+                blocks_to_confirm.len()
+            )
+        });
         for confirmed_block in blocks_to_confirm.iter() {
             let block = match self.block_store.remove(confirmed_block) {
                 None => {
@@ -371,6 +378,14 @@ impl StacksBlockPool {
         }
 
         // Prune data
+        ctx.try_log(|logger| {
+            slog::debug!(
+                logger,
+                "Pruning {} blocks and {} forks.",
+                blocks_to_prune.len(),
+                forks_to_prune.len()
+            )
+        });
         for block_to_prune in blocks_to_prune {
             self.block_store.remove(&block_to_prune);
             self.micro_forks.remove(&block_to_prune);
@@ -381,8 +396,6 @@ impl StacksBlockPool {
             self.forks.remove(&fork_id);
         }
         // confirmed_blocks.reverse();
-
-        ctx.try_log(|logger| slog::debug!(logger, "AFTER: {:?}", confirmed_blocks.len()));
     }
 
     pub fn process_microblocks(

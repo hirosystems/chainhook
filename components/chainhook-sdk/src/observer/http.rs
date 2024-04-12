@@ -20,7 +20,7 @@ pub fn handle_ping(
     ctx: &State<Context>,
     prometheus_monitoring: &State<PrometheusMonitoring>,
 ) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "GET /ping"));
+    ctx.try_log(|logger| slog::debug!(logger, "GET /ping"));
 
     Json(json!({
         "status": 200,
@@ -34,6 +34,7 @@ pub async fn handle_new_bitcoin_block(
     bitcoin_config: &State<BitcoinConfig>,
     bitcoin_block: Json<NewBitcoinBlock>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     if bitcoin_config
@@ -74,6 +75,8 @@ pub async fn handle_new_bitcoin_block(
         };
 
     let header = block.get_block_header();
+    let block_height = header.block_identifier.index;
+    prometheus_monitoring.btc_metrics_block_received(block_height);
     match background_job_tx.lock() {
         Ok(tx) => {
             let _ = tx.send(ObserverCommand::ProcessBitcoinBlock(block));
@@ -112,6 +115,7 @@ pub async fn handle_new_bitcoin_block(
 
     match chain_update {
         Ok(Some(chain_event)) => {
+            prometheus_monitoring.btc_metrics_block_appended(block_height);
             match background_job_tx.lock() {
                 Ok(tx) => {
                     let _ = tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
@@ -150,6 +154,7 @@ pub fn handle_new_stacks_block(
     indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
     marshalled_block: Json<JsonValue>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
+    prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "POST /new_block"));
@@ -157,12 +162,24 @@ pub fn handle_new_stacks_block(
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
     // TODO(lgalabru): use _pox_config
-    let (_pox_config, chain_event) = match indexer_rw_lock.inner().write() {
+    let (_pox_config, chain_event, new_tip) = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => {
             let pox_config = indexer.get_pox_config();
-            let chain_event =
-                indexer.handle_stacks_marshalled_block(marshalled_block.into_inner(), &ctx);
-            (pox_config, chain_event)
+            let block = match indexer
+                .standardize_stacks_marshalled_block(marshalled_block.into_inner(), ctx)
+            {
+                Ok(block) => block,
+                Err(e) => {
+                    return Json(json!({
+                        "status": 500,
+                        "result": format!("Unable to standardize stacks block {}", e),
+                    }));
+                }
+            };
+            let new_tip = block.block_identifier.index;
+            prometheus_monitoring.stx_metrics_block_received(new_tip);
+            let chain_event = indexer.process_stacks_block(block, &ctx);
+            (pox_config, chain_event, new_tip)
         }
         Err(e) => {
             ctx.try_log(|logger| {
@@ -181,6 +198,7 @@ pub fn handle_new_stacks_block(
 
     match chain_event {
         Ok(Some(chain_event)) => {
+            prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
             let background_job_tx = background_job_tx.inner();
             match background_job_tx.lock() {
                 Ok(tx) => {
@@ -224,7 +242,7 @@ pub fn handle_new_microblocks(
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /new_microblocks"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /new_microblocks"));
     // Standardize the structure of the microblock, and identify the
     // kind of update that this new microblock would imply
     let chain_event = match indexer_rw_lock.inner().write() {
@@ -292,7 +310,7 @@ pub fn handle_new_mempool_tx(
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /new_mempool_tx"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /new_mempool_tx"));
     let transactions = raw_txs
         .iter()
         .map(|tx_data| {
@@ -323,7 +341,7 @@ pub fn handle_new_mempool_tx(
 
 #[post("/drop_mempool_tx", format = "application/json")]
 pub fn handle_drop_mempool_tx(ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /drop_mempool_tx"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /drop_mempool_tx"));
     // TODO(lgalabru): use propagate mempool events
     Json(json!({
         "status": 200,
@@ -333,7 +351,7 @@ pub fn handle_drop_mempool_tx(ctx: &State<Context>) -> Json<JsonValue> {
 
 #[post("/attachments/new", format = "application/json")]
 pub fn handle_new_attachement(ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /attachments/new"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /attachments/new"));
     Json(json!({
         "status": 200,
         "result": "Ok",
@@ -342,7 +360,7 @@ pub fn handle_new_attachement(ctx: &State<Context>) -> Json<JsonValue> {
 
 #[post("/mined_block", format = "application/json", data = "<payload>")]
 pub fn handle_mined_block(payload: Json<JsonValue>, ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /mined_block {:?}", payload));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /mined_block {:?}", payload));
     Json(json!({
         "status": 200,
         "result": "Ok",
@@ -351,7 +369,7 @@ pub fn handle_mined_block(payload: Json<JsonValue>, ctx: &State<Context>) -> Jso
 
 #[post("/mined_microblock", format = "application/json", data = "<payload>")]
 pub fn handle_mined_microblock(payload: Json<JsonValue>, ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /mined_microblock {:?}", payload));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /mined_microblock {:?}", payload));
     Json(json!({
         "status": 200,
         "result": "Ok",
@@ -364,7 +382,7 @@ pub async fn handle_bitcoin_wallet_rpc_call(
     bitcoin_rpc_call: Json<BitcoinRPCRequest>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /wallet"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /wallet"));
 
     use base64::engine::general_purpose::STANDARD as BASE64;
     use base64::engine::Engine as _;
@@ -402,7 +420,7 @@ pub async fn handle_bitcoin_rpc_call(
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /"));
+    ctx.try_log(|logger| slog::debug!(logger, "POST /"));
 
     use base64::engine::general_purpose::STANDARD as BASE64;
     use base64::engine::Engine as _;
