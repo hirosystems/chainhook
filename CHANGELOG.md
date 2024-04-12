@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/hirosystems/chainhook/compare/v1.5.0...v1.5.1) (2024-04-12)
+
+
+### Bug Fixes
+
+* correctly track bitcoin block append metrics; add additional metrics ([#563](https://github.com/hirosystems/chainhook/issues/563)) ([f85ac9e](https://github.com/hirosystems/chainhook/commit/f85ac9e56718264c48a4af33e7d2514319022a2d)), closes [#562](https://github.com/hirosystems/chainhook/issues/562)
+
 ## [1.5.0](https://github.com/hirosystems/chainhook/compare/v1.4.1...v1.5.0) (2024-04-06)
 
 
