@@ -143,17 +143,24 @@ impl Indexer {
         event
     }
 
-    pub fn handle_stacks_marshalled_block(
+    pub fn standardize_stacks_marshalled_block(
         &mut self,
         marshalled_block: JsonValue,
         ctx: &Context,
-    ) -> Result<Option<StacksChainEvent>, String> {
-        let block = stacks::standardize_stacks_marshalled_block(
+    ) -> Result<StacksBlockData, String> {
+        stacks::standardize_stacks_marshalled_block(
             &self.config,
             marshalled_block,
             &mut self.stacks_context,
             ctx,
-        )?;
+        )
+    }
+
+    pub fn process_stacks_block(
+        &mut self,
+        block: StacksBlockData,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
         self.stacks_blocks_pool.process_block(block, ctx)
     }
 

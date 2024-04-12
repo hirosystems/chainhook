@@ -553,8 +553,6 @@ fn test_stacks_chainhook_register_deregister() {
     // Should propagate block
     assert_stacks_chain_event(&observer_events_rx);
 
-    let thing = &prometheus_monitoring.registry.gather();
-    println!("gathered, {:?}", thing);
     let _ = observer_commands_tx.send(ObserverCommand::Terminate);
     handle.join().expect("unable to terminate thread");
 }
