@@ -1,20 +1,15 @@
 use crate::config::{Config, PredicatesApi};
+use crate::scan::bitcoin_db::BitcoinDbAccess;
 use crate::scan::common::get_block_heights_to_scan;
 use crate::service::{
     open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
     set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
 };
-use chainhook_sdk::bitcoincore_rpc::RpcApi;
-use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
 use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
 use chainhook_sdk::chainhooks::types::BitcoinChainhookSpecification;
-use chainhook_sdk::indexer;
-use chainhook_sdk::indexer::bitcoin::{
-    build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
-};
 use chainhook_sdk::indexer::fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH;
 use chainhook_sdk::observer::{gather_proofs, EventObserverConfig};
 use chainhook_sdk::types::{
@@ -30,27 +25,10 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     ctx: &Context,
 ) -> Result<bool, String> {
     let predicate_uuid = &predicate_spec.uuid;
-    let auth = Auth::UserPass(
-        config.network.bitcoind_rpc_username.clone(),
-        config.network.bitcoind_rpc_password.clone(),
-    );
 
-    let bitcoin_rpc = match Client::new(&config.network.bitcoind_rpc_url, auth) {
-        Ok(con) => con,
-        Err(message) => {
-            return Err(format!("Bitcoin RPC error: {}", message.to_string()));
-        }
-    };
+    let mut bitcoin_db = BitcoinDbAccess::new(config).unwrap();
 
-    let mut chain_tip = match bitcoin_rpc.get_blockchain_info() {
-        Ok(result) => result.blocks,
-        Err(e) => {
-            return Err(format!(
-                "unable to retrieve Bitcoin chain tip ({})",
-                e.to_string()
-            ));
-        }
-    };
+    let mut chain_tip = bitcoin_db.get_chain_tip()?;
 
     let block_heights_to_scan = get_block_heights_to_scan(
         &predicate_spec.blocks,
@@ -82,7 +60,6 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut err_count = 0;
 
     let event_observer_config = config.get_event_observer_config();
-    let bitcoin_config = event_observer_config.get_bitcoin_config();
 
     let (mut number_of_blocks_to_scan, mut number_of_blocks_scanned, mut number_of_times_triggered) = {
         let number_of_blocks_to_scan = block_heights_to_scan.len() as u64;
@@ -96,7 +73,6 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         }
     };
     let mut last_scanned_block_confirmations = 0;
-    let http_client = build_http_client();
 
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -117,15 +93,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             let prev_chain_tip = chain_tip;
             // we've scanned up to the chain tip as of the start of this scan
             // so see if the chain has progressed since then
-            chain_tip = match bitcoin_rpc.get_blockchain_info() {
-                Ok(result) => result.blocks,
-                Err(e) => {
-                    return Err(format!(
-                        "unable to retrieve Bitcoin chain tip ({})",
-                        e.to_string()
-                    ));
-                }
-            };
+            chain_tip = bitcoin_db.get_chain_tip()?;
             // if the chain hasn't progressed, break out so we can enter streaming mode
             // and put back the block we weren't able to scan
             if current_block_height > chain_tip {
@@ -139,31 +107,10 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
         number_of_blocks_scanned += 1;
 
-        let block_hash = retrieve_block_hash_with_retry(
-            &http_client,
-            &current_block_height,
-            &bitcoin_config,
-            ctx,
-        )
-        .await?;
-        let block_breakdown =
-            download_and_parse_block_with_retry(&http_client, &block_hash, &bitcoin_config, ctx)
-                .await?;
-        last_scanned_block_confirmations = block_breakdown.confirmations;
-        let block = match indexer::bitcoin::standardize_bitcoin_block(
-            block_breakdown,
-            &event_observer_config.bitcoin_network,
-            ctx,
-        ) {
-            Ok(data) => data,
-            Err((e, _)) => {
-                warn!(
-                    ctx.expect_logger(),
-                    "Unable to standardize block #{} {}: {}", current_block_height, block_hash, e
-                );
-                continue;
-            }
-        };
+        let (block, confirmations) = bitcoin_db
+            .get_block(&event_observer_config, &current_block_height, ctx)
+            .await?;
+        last_scanned_block_confirmations = confirmations;
         last_block_scanned = block.block_identifier.clone();
 
         let res = match process_block_with_predicates(

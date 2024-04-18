@@ -2,6 +2,7 @@ pub mod file;
 pub mod generator;
 
 pub use chainhook_sdk::indexer::IndexerConfig;
+use chainhook_sdk::indexer::{BitcoinDatabaseConfig, BitcoinHistorySource};
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_sdk::types::{
     BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig,
@@ -216,6 +217,12 @@ impl Config {
                             .unwrap_or(DEFAULT_INGESTION_PORT),
                     )),
                 },
+                bitcoin_history_source: match config_file.storage.bitcoin_db_dir {
+                    Some(db_dir) => BitcoinHistorySource::FS(BitcoinDatabaseConfig {
+                        bitcoin_db_dir: db_dir,
+                    }),
+                    None => BitcoinHistorySource::RPC,
+                },
                 stacks_network,
                 bitcoin_network,
             },
@@ -352,6 +359,7 @@ impl Config {
                 bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(
                     StacksNodeConfig::default_localhost(DEFAULT_INGESTION_PORT),
                 ),
+                bitcoin_history_source: BitcoinHistorySource::RPC,
                 stacks_network: StacksNetwork::Devnet,
                 bitcoin_network: BitcoinNetwork::Regtest,
             },
@@ -386,6 +394,7 @@ impl Config {
                 bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(
                     StacksNodeConfig::default_localhost(DEFAULT_INGESTION_PORT),
                 ),
+                bitcoin_history_source: BitcoinHistorySource::RPC,
                 stacks_network: StacksNetwork::Testnet,
                 bitcoin_network: BitcoinNetwork::Testnet,
             },
@@ -420,6 +429,7 @@ impl Config {
                 bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(
                     StacksNodeConfig::default_localhost(DEFAULT_INGESTION_PORT),
                 ),
+                bitcoin_history_source: BitcoinHistorySource::RPC,
                 stacks_network: StacksNetwork::Mainnet,
                 bitcoin_network: BitcoinNetwork::Mainnet,
             },

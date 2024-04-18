@@ -491,6 +491,36 @@ impl BitcoinPredicateType {
             BitcoinPredicateType::Inputs(InputPredicate::WitnessScript(_)) => {
                 // TODO(lgalabru)
                 unimplemented!()
+                // todo TapScript
+                // BitcoinPredicateType::Inputs(InputPredicate::WitnessScript(
+                //     MatchingRule::EndsWith(sig),
+                // )) => {
+                //     for input in tx.metadata.inputs.iter() {
+                //         if input.script_sig.ends_with(sig) {
+                //             return true;
+                //         }
+                //     }
+                //     false
+                // }
+                // BitcoinPredicateType::Inputs(InputPredicate::WitnessScript(
+                //     MatchingRule::StartsWith(sig),
+                // )) => {
+                //     for input in tx.metadata.inputs.iter() {
+                //         if input.witness.starts_with(sig) {
+                //             return true;
+                //         }
+                //     }
+                //     false
+                // }
+                // BitcoinPredicateType::Inputs(InputPredicate::WitnessScript(MatchingRule::Equals(
+                //     sig,
+                // ))) => {
+                //     for input in tx.metadata.inputs.iter() {
+                //         if input.script_sig.eq(sig) {
+                //             return true;
+                //         }
+                //     }
+                //     false
             }
             BitcoinPredicateType::StacksProtocol(StacksOperations::StackerRewarded) => {
                 for op in tx.metadata.stacks_operations.iter() {

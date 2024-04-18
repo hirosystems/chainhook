@@ -86,6 +86,16 @@ impl BitcoinChainContext {
         BitcoinChainContext {}
     }
 }
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct BitcoinDatabaseConfig {
+    pub bitcoin_db_dir: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub enum BitcoinHistorySource {
+    FS(BitcoinDatabaseConfig),
+    RPC,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndexerConfig {
@@ -95,6 +105,7 @@ pub struct IndexerConfig {
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
+    pub bitcoin_history_source: BitcoinHistorySource,
 }
 
 impl IndexerConfig {

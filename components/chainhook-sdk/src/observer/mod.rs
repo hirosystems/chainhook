@@ -18,7 +18,7 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
     BitcoinBlockFullBreakdown,
 };
-use crate::indexer::{Indexer, IndexerConfig};
+use crate::indexer::{BitcoinHistorySource, Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
 use crate::utils::{send_request, Context};
 
@@ -585,6 +585,7 @@ pub async fn start_stacks_event_observer(
         stacks_network: StacksNetwork::Devnet,
         bitcoin_network: BitcoinNetwork::Regtest,
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
+        bitcoin_history_source: BitcoinHistorySource::RPC, // todo: we don't use fs for observer, but maybe we shouldn't hardcode
     };
 
     let mut indexer = Indexer::new(indexer_config.clone());

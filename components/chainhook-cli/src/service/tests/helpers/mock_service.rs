@@ -7,6 +7,7 @@ use crate::service::{
     http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
     PredicateStatus, Service,
 };
+use chainhook_sdk::indexer::BitcoinHistorySource;
 use chainhook_sdk::{
     chainhooks::types::{
         ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
@@ -323,6 +324,7 @@ pub fn get_chainhook_config(
                 rpc_url: format!("http://localhost:{stacks_rpc_port}"),
                 ingestion_port: stacks_ingestion_port,
             }),
+            bitcoin_history_source: BitcoinHistorySource::RPC,
         },
         monitoring: MonitoringConfig {
             prometheus_monitoring_port: prometheus_port,

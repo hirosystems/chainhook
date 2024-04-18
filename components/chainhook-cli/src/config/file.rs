@@ -13,6 +13,7 @@ pub struct ConfigFile {
 #[derive(Deserialize, Debug, Clone)]
 pub struct StorageConfigFile {
     pub working_dir: Option<String>,
+    pub bitcoin_db_dir: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

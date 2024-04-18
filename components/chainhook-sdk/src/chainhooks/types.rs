@@ -528,7 +528,10 @@ pub enum InputPredicate {
     Txid(TxinPredicate),
     WitnessScript(MatchingRule),
 }
-
+/// create predicate to "detect" a lightning channel open between two public keys:
+/// OP_2 <pubKey1> <pubKey2> OP_2 OP_CHECKMULTISIG
+/// https://bitcoin.stackexchange.com/questions/87587/distinguishing-lightning-channels-on-chain
+/// So a preciate that takes two public keys, assembles the above hex and hashes it, then compares that with an output 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputPredicate {
