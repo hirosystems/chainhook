@@ -365,6 +365,12 @@ pub struct ObserverSidecar {
     pub bitcoin_chain_event_notifier: Option<crossbeam_channel::Sender<HandleBlock>>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct StacksObserverStartupContext {
+    pub block_pool_seed: Vec<StacksBlockData>,
+    pub last_block_height_appended: u64,
+}
+
 impl ObserverSidecar {
     fn perform_bitcoin_sidecar_mutations(
         &self,
@@ -426,7 +432,7 @@ pub fn start_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
-    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
+    stacks_startup_context: Option<StacksObserverStartupContext>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -478,7 +484,7 @@ pub fn start_event_observer(
                         observer_commands_rx,
                         observer_events_tx.clone(),
                         observer_sidecar,
-                        stacks_block_pool_seed,
+                        stacks_startup_context.unwrap_or_default(),
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -536,11 +542,10 @@ pub async fn start_bitcoin_event_observer(
     }
 
     let prometheus_monitoring = PrometheusMonitoring::new();
-    prometheus_monitoring.stx_metrics_set_registered_predicates(
+    prometheus_monitoring.initialize(
         chainhook_store.predicates.stacks_chainhooks.len() as u64,
-    );
-    prometheus_monitoring.btc_metrics_set_registered_predicates(
         chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+        None,
     );
 
     if let Some(port) = config.prometheus_monitoring_port {
@@ -575,7 +580,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
-    stacks_block_pool_seed: Option<Vec<StacksBlockData>>,
+    stacks_startup_context: StacksObserverStartupContext,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -588,9 +593,8 @@ pub async fn start_stacks_event_observer(
     };
 
     let mut indexer = Indexer::new(indexer_config.clone());
-    if let Some(stacks_block_pool_seed) = stacks_block_pool_seed {
-        indexer.seed_stacks_block_pool(stacks_block_pool_seed, &ctx);
-    }
+
+    indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
     let log_level = if config.display_logs {
         if cfg!(feature = "cli") {
@@ -613,11 +617,10 @@ pub async fn start_stacks_event_observer(
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
     let prometheus_monitoring = PrometheusMonitoring::new();
-    prometheus_monitoring.stx_metrics_set_registered_predicates(
+    prometheus_monitoring.initialize(
         chainhook_store.predicates.stacks_chainhooks.len() as u64,
-    );
-    prometheus_monitoring.btc_metrics_set_registered_predicates(
         chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+        Some(stacks_startup_context.last_block_height_appended),
     );
 
     if let Some(port) = config.prometheus_monitoring_port {
