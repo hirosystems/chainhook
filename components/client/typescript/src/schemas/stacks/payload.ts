@@ -7,6 +7,7 @@ import {
 } from '../common';
 import { StacksTransactionEventSchema } from './tx_events';
 import { StacksTransactionKindSchema } from './tx_kind';
+import { StacksIfThisSchema } from './if_this';
 
 export const StacksExecutionCostSchema = Type.Optional(
   Type.Object({
@@ -75,3 +76,14 @@ export const StacksEventSchema = Type.Object({
   metadata: StacksEventMetadataSchema,
 });
 export type StacksEvent = Static<typeof StacksEventSchema>;
+
+export const StacksPayloadSchema = Type.Object({
+  apply: Type.Array(StacksEventSchema),
+  rollback: Type.Array(StacksEventSchema),
+  chainhook: Type.Object({
+    uuid: Type.String(),
+    predicate: StacksIfThisSchema,
+    is_streaming_blocks: Type.Boolean(),
+  }),
+});
+export type StacksPayload = Static<typeof StacksPayloadSchema>;
