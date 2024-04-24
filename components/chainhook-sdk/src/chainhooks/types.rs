@@ -25,17 +25,19 @@ impl ChainhookConfig {
 
     pub fn register_full_specification(
         &mut self,
-        networks: (&BitcoinNetwork, &StacksNetwork),
+        bitcoin_network: &BitcoinNetwork,
+        #[cfg(feature = "stacks")] stacks_network: &StacksNetwork,
         hook: ChainhookFullSpecification,
     ) -> Result<ChainhookSpecification, String> {
         let spec = match hook {
+            #[cfg(feature = "stacks")]
             ChainhookFullSpecification::Stacks(hook) => {
-                let spec = hook.into_selected_network_specification(networks.1)?;
+                let spec = hook.into_selected_network_specification(stacks_network, None)?;
                 self.stacks_chainhooks.push(spec.clone());
                 ChainhookSpecification::Stacks(spec)
             }
             ChainhookFullSpecification::Bitcoin(hook) => {
-                let spec = hook.into_selected_network_specification(networks.0)?;
+                let spec = hook.into_selected_network_specification(bitcoin_network, None)?;
                 self.bitcoin_chainhooks.push(spec.clone());
                 ChainhookSpecification::Bitcoin(spec)
             }
@@ -159,6 +161,7 @@ impl Serialize for ChainhookConfig {
 #[serde(rename_all = "snake_case")]
 pub enum ChainhookSpecification {
     Bitcoin(BitcoinChainhookSpecification),
+    #[cfg(feature = "stacks")]
     Stacks(StacksChainhookSpecification),
 }
 

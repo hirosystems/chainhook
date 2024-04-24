@@ -57,7 +57,7 @@ serial_test = "2.0.0"
 
 
 [features]
-default = ["cli", "debug"]
+default = ["cli", "debug", "chainhook-sdk/stacks"]
 cli = ["clap", "clap_generate", "toml", "ctrlc"]
 debug = ["chainhook-sdk/debug"]
 release = ["chainhook-sdk/release"]

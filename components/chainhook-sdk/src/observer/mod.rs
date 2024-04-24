@@ -68,45 +68,53 @@ pub enum DataHandlerEvent {
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
     pub chainhook_config: Option<ChainhookConfig>,
+    #[cfg(feature = "stacks")]
     pub bitcoin_rpc_proxy_enabled: bool,
-    pub ingestion_port: u16,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoind_rpc_url: String,
+    #[cfg(feature = "stacks")]
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
+    #[cfg(feature = "stacks")]
     pub display_stacks_ingestion_logs: bool,
     pub bitcoin_network: BitcoinNetwork,
+    #[cfg(feature = "stacks")]
     pub stacks_network: StacksNetwork,
     pub prometheus_monitoring_port: Option<u16>,
+    #[cfg(not(feature = "stacks"))]
+    pub zmq_url: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventObserverConfigOverrides {
+    #[cfg(feature = "stacks")]
     pub ingestion_port: Option<u16>,
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
     pub bitcoind_zmq_url: Option<String>,
+    #[cfg(feature = "stacks")]
     pub stacks_node_rpc_url: Option<String>,
+    #[cfg(feature = "stacks")]
     pub display_stacks_ingestion_logs: Option<bool>,
     pub bitcoin_network: Option<String>,
+    #[cfg(feature = "stacks")]
     pub stacks_network: Option<String>,
 }
 
 impl EventObserverConfig {
-    pub fn get_cache_path_buf(&self) -> PathBuf {
-        let mut path_buf = PathBuf::new();
-        path_buf.push(&self.cache_path);
-        path_buf
-    }
-
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
+        #[cfg(feature = "stacks")]
+        let bitcoin_block_signaling = self.bitcoin_block_signaling.clone();
+        #[cfg(not(feature = "stacks"))]
+        let bitcoin_block_signaling = BitcoinBlockSignaling::ZeroMQ(self.zmq_url);
+
         let bitcoin_config = BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
             password: self.bitcoind_rpc_password.clone(),
             rpc_url: self.bitcoind_rpc_url.clone(),
             network: self.bitcoin_network.clone(),
-            bitcoin_block_signaling: self.bitcoin_block_signaling.clone(),
+            bitcoin_block_signaling,
         };
         bitcoin_config
     }
@@ -156,6 +164,7 @@ impl EventObserverConfig {
             };
 
         let config = EventObserverConfig {
+            #[cfg(feature = "stacks")]
             bitcoin_rpc_proxy_enabled: false,
             chainhook_config: None,
             bitcoind_rpc_username: overrides
@@ -167,6 +176,7 @@ impl EventObserverConfig {
             bitcoind_rpc_url: overrides
                 .and_then(|c| c.bitcoind_rpc_url.clone())
                 .unwrap_or("http://localhost:18443".to_string()),
+            #[cfg(feature = "stacks")]
             bitcoin_block_signaling: overrides
                 .and_then(|c| c.bitcoind_zmq_url.as_ref())
                 .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
@@ -177,12 +187,17 @@ impl EventObserverConfig {
                             .unwrap_or(DEFAULT_INGESTION_PORT),
                     ),
                 )),
+            #[cfg(feature = "stacks")]
             display_stacks_ingestion_logs: overrides
                 .and_then(|c| c.display_stacks_ingestion_logs)
                 .unwrap_or(false),
             bitcoin_network,
+            #[cfg(feature = "stacks")]
             stacks_network,
-            data_handler_tx: None,
+            #[cfg(not(feature = "stacks"))]
+            zmq_url: overrides
+                .and_then(|c| c.bitcoind_zmq_url.as_ref())
+                .unwrap_or("tcp://0.0.0.0:18543".to_string()),
             prometheus_monitoring_port: None,
         };
         Ok(config)
@@ -428,87 +443,127 @@ pub fn start_event_observer(
     stacks_startup_context: Option<StacksObserverStartupContext>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
-    match config.bitcoin_block_signaling {
-        BitcoinBlockSignaling::ZeroMQ(ref url) => {
-            ctx.try_log(|logger| {
-                slog::info!(logger, "Observing Bitcoin chain events via ZeroMQ: {}", url)
-            });
-            let context_cloned = ctx.clone();
-            let event_observer_config_moved = config.clone();
-            let observer_commands_tx_moved = observer_commands_tx.clone();
-            let _ = hiro_system_kit::thread_named("Chainhook event observer")
-                .spawn(move || {
-                    let future = start_bitcoin_event_observer(
-                        event_observer_config_moved,
-                        observer_commands_tx_moved,
-                        observer_commands_rx,
-                        observer_events_tx.clone(),
-                        observer_sidecar,
-                        context_cloned.clone(),
-                    );
-                    match hiro_system_kit::nestable_block_on(future) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            if let Some(tx) = observer_events_tx {
-                                context_cloned.try_log(|logger| {
-                                    slog::crit!(
-                                        logger,
-                                        "Chainhook event observer thread failed with error: {e}",
-                                    )
-                                });
-                                let _ = tx.send(ObserverEvent::Terminate);
+    if cfg!(feature = "stacks") {
+        match config.bitcoin_block_signaling {
+            BitcoinBlockSignaling::ZeroMQ(ref url) => {
+                ctx.try_log(|logger| {
+                    slog::info!(logger, "Observing Bitcoin chain events via ZeroMQ: {}", url)
+                });
+                let context_cloned = ctx.clone();
+                let event_observer_config_moved = config.clone();
+                let observer_commands_tx_moved = observer_commands_tx.clone();
+                let _ = hiro_system_kit::thread_named("Chainhook event observer")
+                        .spawn(move || {
+                            let future = start_bitcoin_event_observer(
+                                event_observer_config_moved,
+                                observer_commands_tx_moved,
+                                observer_commands_rx,
+                                observer_events_tx.clone(),
+                                observer_sidecar,
+                                context_cloned.clone(),
+                            );
+                            match hiro_system_kit::nestable_block_on(future) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    if let Some(tx) = observer_events_tx {
+                                        context_cloned.try_log(|logger| {
+                                            slog::crit!(
+                                                logger,
+                                                "Chainhook event observer thread failed with error: {e}",
+                                            )
+                                        });
+                                        let _ = tx.send(ObserverEvent::Terminate);
+                                    }
+                                }
                             }
+                        })
+                        .expect("unable to spawn thread");
+            }
+            BitcoinBlockSignaling::Stacks(ref _url) => {
+                // Start chainhook event observer
+                let context_cloned = ctx.clone();
+                let event_observer_config_moved = config.clone();
+                let observer_commands_tx_moved = observer_commands_tx.clone();
+
+                let _ = hiro_system_kit::thread_named("Chainhook event observer")
+                        .spawn(move || {
+                            let future = start_stacks_event_observer(
+                                event_observer_config_moved,
+                                observer_commands_tx_moved,
+                                observer_commands_rx,
+                                observer_events_tx.clone(),
+                                observer_sidecar,
+                                stacks_startup_context.unwrap_or_default(),
+                                context_cloned.clone(),
+                            );
+                            match hiro_system_kit::nestable_block_on(future) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    if let Some(tx) = observer_events_tx {
+                                        context_cloned.try_log(|logger| {
+                                            slog::crit!(
+                                                logger,
+                                                "Chainhook event observer thread failed with error: {e}",
+                                            )
+                                        });
+                                        let _ = tx.send(ObserverEvent::Terminate);
+                                    }
+                                }
+                            }
+                        })
+                        .expect("unable to spawn thread");
+
+                ctx.try_log(|logger| {
+                    slog::info!(
+                        logger,
+                        "Listening on port {} for Stacks chain events",
+                        config.get_stacks_node_config().ingestion_port
+                    )
+                });
+
+                ctx.try_log(|logger| {
+                    slog::info!(logger, "Observing Bitcoin chain events via Stacks node")
+                });
+            }
+        }
+    } else {
+        #[cfg(not(feature = "stacks"))]
+        ctx.try_log(|logger| {
+            slog::info!(
+                logger,
+                "Observing Bitcoin chain events via ZeroMQ: {}",
+                config.zmq_url
+            )
+        });
+        let context_cloned = ctx.clone();
+        let event_observer_config_moved = config.clone();
+        let observer_commands_tx_moved = observer_commands_tx.clone();
+        let _ = hiro_system_kit::thread_named("Chainhook event observer")
+            .spawn(move || {
+                let future = start_bitcoin_event_observer(
+                    event_observer_config_moved,
+                    observer_commands_tx_moved,
+                    observer_commands_rx,
+                    observer_events_tx.clone(),
+                    observer_sidecar,
+                    context_cloned.clone(),
+                );
+                match hiro_system_kit::nestable_block_on(future) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        if let Some(tx) = observer_events_tx {
+                            context_cloned.try_log(|logger| {
+                                slog::crit!(
+                                    logger,
+                                    "Chainhook event observer thread failed with error: {e}",
+                                )
+                            });
+                            let _ = tx.send(ObserverEvent::Terminate);
                         }
                     }
-                })
-                .expect("unable to spawn thread");
-        }
-        BitcoinBlockSignaling::Stacks(ref _url) => {
-            // Start chainhook event observer
-            let context_cloned = ctx.clone();
-            let event_observer_config_moved = config.clone();
-            let observer_commands_tx_moved = observer_commands_tx.clone();
-
-            let _ = hiro_system_kit::thread_named("Chainhook event observer")
-                .spawn(move || {
-                    let future = start_stacks_event_observer(
-                        event_observer_config_moved,
-                        observer_commands_tx_moved,
-                        observer_commands_rx,
-                        observer_events_tx.clone(),
-                        observer_sidecar,
-                        stacks_startup_context.unwrap_or_default(),
-                        context_cloned.clone(),
-                    );
-                    match hiro_system_kit::nestable_block_on(future) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            if let Some(tx) = observer_events_tx {
-                                context_cloned.try_log(|logger| {
-                                    slog::crit!(
-                                        logger,
-                                        "Chainhook event observer thread failed with error: {e}",
-                                    )
-                                });
-                                let _ = tx.send(ObserverEvent::Terminate);
-                            }
-                        }
-                    }
-                })
-                .expect("unable to spawn thread");
-
-            ctx.try_log(|logger| {
-                slog::info!(
-                    logger,
-                    "Listening on port {} for Stacks chain events",
-                    config.get_stacks_node_config().ingestion_port
-                )
-            });
-
-            ctx.try_log(|logger| {
-                slog::info!(logger, "Observing Bitcoin chain events via Stacks node")
-            });
-        }
+                }
+            })
+            .expect("unable to spawn thread");
     }
     Ok(())
 }
@@ -589,7 +644,7 @@ pub async fn start_stacks_event_observer(
 
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
-    let log_level = if config.display_logs {
+    let log_level = if config.display_stacks_ingestion_logs {
         if cfg!(feature = "cli") {
             LogLevel::Critical
         } else {
@@ -773,7 +828,9 @@ pub async fn start_observer_commands_handler(
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
-    let networks = (&config.bitcoin_network, &config.stacks_network);
+    let bitcoin_network = &config.bitcoin_network;
+    #[cfg(feature = "stacks")]
+    let stacks_network = &config.stacks_network;
     let mut bitcoin_block_store: HashMap<BlockIdentifier, BitcoinBlockDataCached> = HashMap::new();
     let http_client = build_http_client();
     let store_update_required = observer_sidecar
@@ -800,11 +857,7 @@ pub async fn start_observer_commands_handler(
                 let mut attempts = 0;
                 let max_attempts = 10;
                 let block = loop {
-                    match standardize_bitcoin_block(
-                        block_data.clone(),
-                        &config.bitcoin_network,
-                        &ctx,
-                    ) {
+                    match standardize_bitcoin_block(block_data.clone(), bitcoin_network, &ctx) {
                         Ok(block) => break Some(block),
                         Err((e, refetch_block)) => {
                             attempts += 1;
@@ -1395,10 +1448,12 @@ pub async fn start_observer_commands_handler(
             ObserverCommand::RegisterPredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling RegisterPredicate command"));
 
-                let mut spec = match chainhook_store
-                    .predicates
-                    .register_full_specification(networks, spec)
-                {
+                let mut spec = match chainhook_store.predicates.register_full_specification(
+                    bitcoin_network,
+                    #[cfg(feature = "stacks")]
+                    stacks_network,
+                    spec,
+                ) {
                     Ok(spec) => spec,
                     Err(e) => {
                         ctx.try_log(|logger| {

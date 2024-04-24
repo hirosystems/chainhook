@@ -129,10 +129,8 @@ impl Service {
                 };
             }
             match chainhook_config.register_full_specification(
-                (
-                    &self.config.network.bitcoin_network,
-                    &self.config.network.stacks_network,
-                ),
+                &self.config.network.bitcoin_network,
+                &self.config.network.stacks_network,
                 predicate,
             ) {
                 Ok(spec) => {
