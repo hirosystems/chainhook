@@ -33,18 +33,15 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {
         chainhook_config: Some(ChainhookConfig::new()),
         bitcoin_rpc_proxy_enabled: false,
-        ingestion_port: 0,
         bitcoind_rpc_username: "user".into(),
         bitcoind_rpc_password: "user".into(),
         bitcoind_rpc_url: "http://localhost:18443".into(),
-        display_logs: false,
+        display_stacks_ingestion_logs: false,
         bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(
             StacksNodeConfig::default_localhost(DEFAULT_INGESTION_PORT),
         ),
-        cache_path: "cache".into(),
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: StacksNetwork::Devnet,
-        data_handler_tx: None,
         prometheus_monitoring_port: None,
     };
     let predicates = ChainhookConfig::new();
