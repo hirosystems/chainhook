@@ -46,7 +46,8 @@ prometheus = "0.13.3"
 test-case = "3.1.0"
 
 [features]
-default = ["hiro-system-kit/log"]
+default = ["hiro-system-kit/log", "stacks"]
 zeromq = ["zmq"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release_debug", "hiro-system-kit/full_log_level_prefix"]
+stacks = []
