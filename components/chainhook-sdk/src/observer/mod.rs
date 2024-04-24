@@ -145,7 +145,7 @@ impl EventObserverConfig {
 
     /// Helper to allow overriding some default fields in creating a new EventObserverConfig.
     ///
-    /// *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
+    // *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
     pub fn new_using_overrides(
         overrides: Option<&EventObserverConfigOverrides>,
     ) -> Result<EventObserverConfig, String> {
