@@ -20,9 +20,7 @@ use crate::service::tests::{
     setup_bitcoin_chainhook_test, setup_stacks_chainhook_test,
 };
 
-use super::helpers::{
-    build_predicates::get_random_uuid, get_free_port, mock_stacks_node::create_tmp_working_dir,
-};
+use super::helpers::{build_predicates::get_random_uuid, get_free_port};
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
@@ -196,13 +194,9 @@ async fn it_responds_200_for_unimplemented_endpoints(
     body: Option<&Value>,
 ) {
     let ingestion_port = get_free_port().unwrap();
-    let (working_dir, _tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
-        panic!("test failed with error: {e}");
-    });
     let config = EventObserverConfig {
         chainhook_config: None,
         bitcoin_rpc_proxy_enabled: false,
-        ingestion_port: ingestion_port,
         bitcoind_rpc_username: format!(""),
         bitcoind_rpc_password: format!(""),
         bitcoind_rpc_url: format!(""),
@@ -212,11 +206,9 @@ async fn it_responds_200_for_unimplemented_endpoints(
                 ingestion_port: ingestion_port,
             },
         ),
-        display_logs: false,
-        cache_path: working_dir,
+        display_stacks_ingestion_logs: false,
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: chainhook_sdk::types::StacksNetwork::Devnet,
-        data_handler_tx: None,
         prometheus_monitoring_port: None,
     };
     start_and_ping_event_observer(config, ingestion_port).await;
