@@ -39,7 +39,6 @@ use rocket::Shutdown;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
@@ -70,16 +69,13 @@ pub enum DataHandlerEvent {
 pub struct EventObserverConfig {
     pub chainhook_config: Option<ChainhookConfig>,
     pub bitcoin_rpc_proxy_enabled: bool,
-    pub ingestion_port: u16,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoind_rpc_url: String,
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
-    pub display_logs: bool,
-    pub cache_path: String,
+    pub display_stacks_ingestion_logs: bool,
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
-    pub data_handler_tx: Option<crossbeam_channel::Sender<DataHandlerEvent>>,
     pub prometheus_monitoring_port: Option<u16>,
 }
 
@@ -91,19 +87,12 @@ pub struct EventObserverConfigOverrides {
     pub bitcoind_rpc_url: Option<String>,
     pub bitcoind_zmq_url: Option<String>,
     pub stacks_node_rpc_url: Option<String>,
-    pub display_logs: Option<bool>,
-    pub cache_path: Option<String>,
+    pub display_stacks_ingestion_logs: Option<bool>,
     pub bitcoin_network: Option<String>,
     pub stacks_network: Option<String>,
 }
 
 impl EventObserverConfig {
-    pub fn get_cache_path_buf(&self) -> PathBuf {
-        let mut path_buf = PathBuf::new();
-        path_buf.push(&self.cache_path);
-        path_buf
-    }
-
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
         let bitcoin_config = BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
@@ -162,9 +151,6 @@ impl EventObserverConfig {
         let config = EventObserverConfig {
             bitcoin_rpc_proxy_enabled: false,
             chainhook_config: None,
-            ingestion_port: overrides
-                .and_then(|c| c.ingestion_port)
-                .unwrap_or(DEFAULT_INGESTION_PORT),
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
                 .unwrap_or("devnet".to_string()),
@@ -185,13 +171,11 @@ impl EventObserverConfig {
                         .and_then(|c| c.ingestion_port)
                         .unwrap_or(DEFAULT_INGESTION_PORT),
                 ))),
-            display_logs: overrides.and_then(|c| c.display_logs).unwrap_or(false),
-            cache_path: overrides
-                .and_then(|c| c.cache_path.clone())
-                .unwrap_or("cache".to_string()),
+            display_stacks_ingestion_logs: overrides
+                .and_then(|c| c.display_stacks_ingestion_logs)
+                .unwrap_or(false),
             bitcoin_network,
             stacks_network,
-            data_handler_tx: None,
             prometheus_monitoring_port: None,
         };
         Ok(config)
@@ -603,7 +587,7 @@ pub async fn start_stacks_event_observer(
 
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
-    let log_level = if config.display_logs {
+    let log_level = if config.display_stacks_ingestion_logs {
         if cfg!(feature = "cli") {
             LogLevel::Critical
         } else {
