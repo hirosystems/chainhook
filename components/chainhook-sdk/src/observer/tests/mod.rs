@@ -162,10 +162,9 @@ fn generate_and_register_new_stacks_chainhook(
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookFullSpecification::Stacks(chainhook.clone()),
     ));
-    let mut chainhook = chainhook
-        .into_selected_network_specification(&StacksNetwork::Devnet)
+    let chainhook = chainhook
+        .into_selected_network_specification(&StacksNetwork::Devnet, Some(true))
         .unwrap();
-    chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
         ChainhookSpecification::Stacks(chainhook.clone()),
     ));
@@ -206,10 +205,9 @@ fn generate_and_register_new_bitcoin_chainhook(
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookFullSpecification::Bitcoin(chainhook.clone()),
     ));
-    let mut chainhook = chainhook
-        .into_selected_network_specification(&BitcoinNetwork::Regtest)
+    let chainhook = chainhook
+        .into_selected_network_specification(&BitcoinNetwork::Regtest, Some(true))
         .unwrap();
-    chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
         ChainhookSpecification::Bitcoin(chainhook.clone()),
     ));
@@ -325,10 +323,9 @@ fn generate_and_register_new_ordinals_chainhook(
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookFullSpecification::Bitcoin(chainhook.clone()),
     ));
-    let mut chainhook = chainhook
-        .into_selected_network_specification(&BitcoinNetwork::Regtest)
+    let chainhook = chainhook
+        .into_selected_network_specification(&BitcoinNetwork::Regtest, Some(true))
         .unwrap();
-    chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
         ChainhookSpecification::Bitcoin(chainhook.clone()),
     ));
@@ -581,10 +578,9 @@ fn test_stacks_chainhook_auto_deregister() {
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookFullSpecification::Stacks(chainhook.clone()),
     ));
-    let mut chainhook = chainhook
-        .into_selected_network_specification(&StacksNetwork::Devnet)
+    let chainhook = chainhook
+        .into_selected_network_specification(&StacksNetwork::Devnet, Some(true))
         .unwrap();
-    chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
         ChainhookSpecification::Stacks(chainhook.clone()),
     ));

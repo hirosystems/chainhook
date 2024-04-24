@@ -310,6 +310,7 @@ impl BitcoinChainhookFullSpecification {
     pub fn into_selected_network_specification(
         mut self,
         network: &BitcoinNetwork,
+        enabled: Option<bool>,
     ) -> Result<BitcoinChainhookSpecification, String> {
         let spec = self
             .networks
@@ -331,7 +332,7 @@ impl BitcoinChainhookFullSpecification {
             include_inputs: spec.include_inputs.unwrap_or(false),
             include_outputs: spec.include_outputs.unwrap_or(false),
             include_witness: spec.include_witness.unwrap_or(false),
-            enabled: false,
+            enabled: enabled.unwrap_or(false),
             expired_at: None,
         })
     }
@@ -375,6 +376,7 @@ impl StacksChainhookFullSpecification {
     pub fn into_selected_network_specification(
         mut self,
         network: &StacksNetwork,
+        enabled: Option<bool>,
     ) -> Result<StacksChainhookSpecification, String> {
         let spec = self
             .networks
@@ -395,7 +397,7 @@ impl StacksChainhookFullSpecification {
             include_contract_abi: spec.include_contract_abi,
             predicate: spec.predicate,
             action: spec.action,
-            enabled: false,
+            enabled: enabled.unwrap_or(false),
             expired_at: None,
         })
     }

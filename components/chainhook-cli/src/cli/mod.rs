@@ -501,9 +501,10 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let predicate = load_predicate_from_path(&cmd.predicate_path)?;
                 match predicate {
                     ChainhookFullSpecification::Bitcoin(predicate) => {
-                        let predicate_spec = match predicate
-                            .into_selected_network_specification(&config.network.bitcoin_network)
-                        {
+                        let predicate_spec = match predicate.into_selected_network_specification(
+                            &config.network.bitcoin_network,
+                            None,
+                        ) {
                             Ok(predicate) => predicate,
                             Err(e) => {
                                 return Err(format!(
@@ -522,9 +523,10 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         .await?;
                     }
                     ChainhookFullSpecification::Stacks(predicate) => {
-                        let predicate_spec = match predicate
-                            .into_selected_network_specification(&config.network.stacks_network)
-                        {
+                        let predicate_spec = match predicate.into_selected_network_specification(
+                            &config.network.stacks_network,
+                            None,
+                        ) {
                             Ok(predicate) => predicate,
                             Err(e) => {
                                 return Err(format!(
@@ -572,9 +574,10 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 
                 match predicate {
                     ChainhookFullSpecification::Bitcoin(predicate) => {
-                        let _ = match predicate
-                            .into_selected_network_specification(&config.network.bitcoin_network)
-                        {
+                        let _ = match predicate.into_selected_network_specification(
+                            &config.network.bitcoin_network,
+                            None,
+                        ) {
                             Ok(predicate) => predicate,
                             Err(e) => {
                                 return Err(format!(
@@ -585,9 +588,10 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         };
                     }
                     ChainhookFullSpecification::Stacks(predicate) => {
-                        let _ = match predicate
-                            .into_selected_network_specification(&config.network.stacks_network)
-                        {
+                        let _ = match predicate.into_selected_network_specification(
+                            &config.network.stacks_network,
+                            None,
+                        ) {
                             Ok(predicate) => predicate,
                             Err(e) => {
                                 return Err(format!(
