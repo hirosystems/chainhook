@@ -38,7 +38,6 @@ use rocket::Shutdown;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
