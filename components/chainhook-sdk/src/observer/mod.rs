@@ -67,36 +67,36 @@ pub enum DataHandlerEvent {
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
     pub chainhook_config: Option<ChainhookConfig>,
-    #[cfg(feature = "stacks")]
-    pub bitcoin_rpc_proxy_enabled: bool,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoind_rpc_url: String,
+    pub bitcoin_network: BitcoinNetwork,
+    pub prometheus_monitoring_port: Option<u16>,
+    #[cfg(feature = "stacks")]
+    pub bitcoin_rpc_proxy_enabled: bool,
+    #[cfg(feature = "stacks")]
+    pub stacks_network: StacksNetwork,
     #[cfg(feature = "stacks")]
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
     #[cfg(feature = "stacks")]
     pub display_stacks_ingestion_logs: bool,
-    pub bitcoin_network: BitcoinNetwork,
-    #[cfg(feature = "stacks")]
-    pub stacks_network: StacksNetwork,
-    pub prometheus_monitoring_port: Option<u16>,
     #[cfg(not(feature = "stacks"))]
     pub zmq_url: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventObserverConfigOverrides {
-    #[cfg(feature = "stacks")]
-    pub ingestion_port: Option<u16>,
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
     pub bitcoind_zmq_url: Option<String>,
+    pub bitcoin_network: Option<String>,
+    #[cfg(feature = "stacks")]
+    pub ingestion_port: Option<u16>,
     #[cfg(feature = "stacks")]
     pub stacks_node_rpc_url: Option<String>,
     #[cfg(feature = "stacks")]
     pub display_stacks_ingestion_logs: Option<bool>,
-    pub bitcoin_network: Option<String>,
     #[cfg(feature = "stacks")]
     pub stacks_network: Option<String>,
 }
@@ -163,8 +163,6 @@ impl EventObserverConfig {
             };
 
         let config = EventObserverConfig {
-            #[cfg(feature = "stacks")]
-            bitcoin_rpc_proxy_enabled: false,
             chainhook_config: None,
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
@@ -175,6 +173,7 @@ impl EventObserverConfig {
             bitcoind_rpc_url: overrides
                 .and_then(|c| c.bitcoind_rpc_url.clone())
                 .unwrap_or("http://localhost:18443".to_string()),
+            bitcoin_network,
             #[cfg(feature = "stacks")]
             bitcoin_block_signaling: overrides
                 .and_then(|c| c.bitcoind_zmq_url.as_ref())
@@ -187,10 +186,11 @@ impl EventObserverConfig {
                     ),
                 )),
             #[cfg(feature = "stacks")]
+            bitcoin_rpc_proxy_enabled: false,
+            #[cfg(feature = "stacks")]
             display_stacks_ingestion_logs: overrides
                 .and_then(|c| c.display_stacks_ingestion_logs)
                 .unwrap_or(false),
-            bitcoin_network,
             #[cfg(feature = "stacks")]
             stacks_network,
             #[cfg(not(feature = "stacks"))]
