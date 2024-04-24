@@ -203,12 +203,6 @@ impl EventObserverConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct ContractReadonlyCall {
-    pub okay: bool,
-    pub result: String,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ObserverCommand {
     ProcessBitcoinBlock(BitcoinBlockFullBreakdown),
