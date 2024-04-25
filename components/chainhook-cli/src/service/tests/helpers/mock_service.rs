@@ -9,7 +9,8 @@ use crate::service::{
 };
 use chainhook_sdk::{
     chainhooks::types::{
-        ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
+        stacks::StacksChainhookFullSpecification, ChainhookFullSpecification,
+        ChainhookSpecification,
     },
     indexer::IndexerConfig,
     observer::ObserverCommand,

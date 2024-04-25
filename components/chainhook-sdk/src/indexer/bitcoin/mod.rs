@@ -1,10 +1,11 @@
 use std::time::Duration;
 
 use crate::chainhooks::types::{
-    get_canonical_pox_config, get_stacks_canonical_magic_bytes, PoxConfig, StacksOpcodes,
+    bitcoin::{get_stacks_canonical_magic_bytes, StacksOpcodes},
+    get_canonical_pox_config, PoxConfig,
 };
 
-use crate::observer::BitcoinConfig;
+use crate::observer::config::BitcoinConfig;
 use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::{self, Address, Amount, BlockHash};

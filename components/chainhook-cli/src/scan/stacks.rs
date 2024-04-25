@@ -23,7 +23,7 @@ use chainhook_sdk::{
 use chainhook_sdk::{
     chainhooks::{
         stacks::{handle_stacks_hook_action, StacksChainhookOccurrence, StacksTriggerChainhook},
-        types::StacksChainhookSpecification,
+        types::stacks::StacksChainhookSpecification,
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };

@@ -15,8 +15,8 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{
-    start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
-    PredicateEvaluationReport, StacksObserverStartupContext,
+    stacks::StacksObserverStartupContext, start_event_observer, HookExpirationData,
+    ObserverCommand, ObserverEvent, PredicateEvaluationReport,
 };
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;

@@ -1,15 +1,27 @@
-mod http;
+#[cfg(feature = "stacks")]
+pub mod stacks;
+#[cfg(feature = "stacks")]
+use self::stacks::{
+    start_stacks_event_observer, StacksChainMempoolEvent, StacksObserverStartupContext,
+};
+#[cfg(feature = "stacks")]
+use crate::chainhooks::stacks::{
+    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
+    StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
+};
+#[cfg(feature = "stacks")]
+use chainhook_types::{BitcoinBlockSignaling, StacksChainEvent};
+
 #[cfg(feature = "zeromq")]
 mod zmq;
+
+pub mod config;
 
 use crate::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload, BitcoinTriggerChainhook,
 };
-use crate::chainhooks::stacks::{
-    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
-    StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
-};
+
 use crate::chainhooks::types::{
     ChainhookConfig, ChainhookFullSpecification, ChainhookSpecification,
 };
@@ -18,224 +30,52 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
     BitcoinBlockFullBreakdown,
 };
-use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
 use crate::utils::{send_request, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_types::{
-    BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
-    BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
-    StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
+    BitcoinBlockData, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
+    BitcoinChainUpdatedWithReorgData, BlockIdentifier, BlockchainEvent, TransactionIdentifier,
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
-use rocket::config::{self, Config, LogLevel};
-use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
 use rocket::Shutdown;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
-use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock};
 
-pub const DEFAULT_INGESTION_PORT: u16 = 20445;
-
-#[derive(Deserialize)]
-pub struct NewTransaction {
-    pub txid: String,
-    pub status: String,
-    pub raw_result: String,
-    pub raw_tx: String,
-}
-
-#[derive(Clone, Debug)]
-pub enum Event {
-    BitcoinChainEvent(BitcoinChainEvent),
-    StacksChainEvent(StacksChainEvent),
-}
-
-pub enum DataHandlerEvent {
-    Process(BitcoinChainhookOccurrencePayload),
-    Terminate,
-}
-
-#[derive(Debug, Clone)]
-pub struct EventObserverConfig {
-    pub chainhook_config: Option<ChainhookConfig>,
-    pub bitcoind_rpc_username: String,
-    pub bitcoind_rpc_password: String,
-    pub bitcoind_rpc_url: String,
-    pub bitcoin_network: BitcoinNetwork,
-    pub prometheus_monitoring_port: Option<u16>,
-    #[cfg(feature = "stacks")]
-    pub bitcoin_rpc_proxy_enabled: bool,
-    #[cfg(feature = "stacks")]
-    pub stacks_network: StacksNetwork,
-    #[cfg(feature = "stacks")]
-    pub bitcoin_block_signaling: BitcoinBlockSignaling,
-    #[cfg(feature = "stacks")]
-    pub display_stacks_ingestion_logs: bool,
-    #[cfg(not(feature = "stacks"))]
-    pub zmq_url: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct EventObserverConfigOverrides {
-    pub bitcoind_rpc_username: Option<String>,
-    pub bitcoind_rpc_password: Option<String>,
-    pub bitcoind_rpc_url: Option<String>,
-    pub bitcoind_zmq_url: Option<String>,
-    pub bitcoin_network: Option<String>,
-    #[cfg(feature = "stacks")]
-    pub ingestion_port: Option<u16>,
-    #[cfg(feature = "stacks")]
-    pub stacks_node_rpc_url: Option<String>,
-    #[cfg(feature = "stacks")]
-    pub display_stacks_ingestion_logs: Option<bool>,
-    #[cfg(feature = "stacks")]
-    pub stacks_network: Option<String>,
-}
-
-impl EventObserverConfig {
-    pub fn get_bitcoin_config(&self) -> BitcoinConfig {
-        #[cfg(feature = "stacks")]
-        let bitcoin_block_signaling = self.bitcoin_block_signaling.clone();
-        #[cfg(not(feature = "stacks"))]
-        let bitcoin_block_signaling = BitcoinBlockSignaling::ZeroMQ(self.zmq_url);
-
-        let bitcoin_config = BitcoinConfig {
-            username: self.bitcoind_rpc_username.clone(),
-            password: self.bitcoind_rpc_password.clone(),
-            rpc_url: self.bitcoind_rpc_url.clone(),
-            network: self.bitcoin_network.clone(),
-            bitcoin_block_signaling,
-        };
-        bitcoin_config
-    }
-
-    pub fn get_chainhook_store(&self) -> ChainhookStore {
-        let mut chainhook_store = ChainhookStore::new();
-        // If authorization not required, we create a default ChainhookConfig
-        if let Some(ref chainhook_config) = self.chainhook_config {
-            let mut chainhook_config = chainhook_config.clone();
-            chainhook_store
-                .predicates
-                .stacks_chainhooks
-                .append(&mut chainhook_config.stacks_chainhooks);
-            chainhook_store
-                .predicates
-                .bitcoin_chainhooks
-                .append(&mut chainhook_config.bitcoin_chainhooks);
-        }
-        chainhook_store
-    }
-
-    pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
-        match self.bitcoin_block_signaling {
-            BitcoinBlockSignaling::Stacks(ref config) => config,
-            _ => unreachable!(),
-        }
-    }
-
-    /// Helper to allow overriding some default fields in creating a new EventObserverConfig.
-    ///
-    // *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
-    pub fn new_using_overrides(
-        overrides: Option<&EventObserverConfigOverrides>,
-    ) -> Result<EventObserverConfig, String> {
-        let bitcoin_network =
-            if let Some(network) = overrides.and_then(|c| c.bitcoin_network.as_ref()) {
-                BitcoinNetwork::from_str(network)?
-            } else {
-                BitcoinNetwork::Regtest
-            };
-
-        let stacks_network =
-            if let Some(network) = overrides.and_then(|c| c.stacks_network.as_ref()) {
-                StacksNetwork::from_str(network)?
-            } else {
-                StacksNetwork::Devnet
-            };
-
-        let config = EventObserverConfig {
-            chainhook_config: None,
-            bitcoind_rpc_username: overrides
-                .and_then(|c| c.bitcoind_rpc_username.clone())
-                .unwrap_or("devnet".to_string()),
-            bitcoind_rpc_password: overrides
-                .and_then(|c| c.bitcoind_rpc_password.clone())
-                .unwrap_or("devnet".to_string()),
-            bitcoind_rpc_url: overrides
-                .and_then(|c| c.bitcoind_rpc_url.clone())
-                .unwrap_or("http://localhost:18443".to_string()),
-            bitcoin_network,
-            #[cfg(feature = "stacks")]
-            bitcoin_block_signaling: overrides
-                .and_then(|c| c.bitcoind_zmq_url.as_ref())
-                .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
-                .unwrap_or(BitcoinBlockSignaling::Stacks(
-                    StacksNodeConfig::default_localhost(
-                        overrides
-                            .and_then(|c| c.ingestion_port)
-                            .unwrap_or(DEFAULT_INGESTION_PORT),
-                    ),
-                )),
-            #[cfg(feature = "stacks")]
-            bitcoin_rpc_proxy_enabled: false,
-            #[cfg(feature = "stacks")]
-            display_stacks_ingestion_logs: overrides
-                .and_then(|c| c.display_stacks_ingestion_logs)
-                .unwrap_or(false),
-            #[cfg(feature = "stacks")]
-            stacks_network,
-            #[cfg(not(feature = "stacks"))]
-            zmq_url: overrides
-                .and_then(|c| c.bitcoind_zmq_url.as_ref())
-                .unwrap_or("tcp://0.0.0.0:18543".to_string()),
-            prometheus_monitoring_port: None,
-        };
-        Ok(config)
-    }
-}
+use self::config::EventObserverConfig;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ObserverCommand {
     ProcessBitcoinBlock(BitcoinBlockFullBreakdown),
     CacheBitcoinBlock(BitcoinBlockData),
     PropagateBitcoinChainEvent(BlockchainEvent),
-    PropagateStacksChainEvent(StacksChainEvent),
-    PropagateStacksMempoolEvent(StacksChainMempoolEvent),
     RegisterPredicate(ChainhookFullSpecification),
     EnablePredicate(ChainhookSpecification),
     DeregisterBitcoinPredicate(String),
-    DeregisterStacksPredicate(String),
     ExpireBitcoinPredicate(HookExpirationData),
-    ExpireStacksPredicate(HookExpirationData),
     NotifyBitcoinTransactionProxied,
     Terminate,
+    #[cfg(feature = "stacks")]
+    PropagateStacksChainEvent(StacksChainEvent),
+    #[cfg(feature = "stacks")]
+    PropagateStacksMempoolEvent(StacksChainMempoolEvent),
+    #[cfg(feature = "stacks")]
+    DeregisterStacksPredicate(String),
+    #[cfg(feature = "stacks")]
+    ExpireStacksPredicate(HookExpirationData),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HookExpirationData {
     pub hook_uuid: String,
     pub block_height: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum StacksChainMempoolEvent {
-    TransactionsAdmitted(Vec<MempoolAdmissionData>),
-    TransactionDropped(String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MempoolAdmissionData {
-    pub tx_data: String,
-    pub tx_description: String,
 }
 
 #[derive(Clone, Debug)]
@@ -302,15 +142,18 @@ pub enum ObserverEvent {
     Fatal(String),
     Info(String),
     BitcoinChainEvent((BitcoinChainEvent, PredicateEvaluationReport)),
+    #[cfg(feature = "stacks")]
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
     PredicateRegistered(ChainhookSpecification),
     PredicateDeregistered(String),
     PredicateEnabled(ChainhookSpecification),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
+    #[cfg(feature = "stacks")]
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
     PredicatesTriggered(usize),
     Terminate,
+    #[cfg(feature = "stacks")]
     StacksChainMempoolEvent(StacksChainMempoolEvent),
 }
 
@@ -328,15 +171,6 @@ pub struct BitcoinRPCRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct BitcoinConfig {
-    pub username: String,
-    pub password: String,
-    pub rpc_url: String,
-    pub network: BitcoinNetwork,
-    pub bitcoin_block_signaling: BitcoinBlockSignaling,
-}
-
-#[derive(Debug, Clone)]
 pub struct ChainhookStore {
     pub predicates: ChainhookConfig,
 }
@@ -345,6 +179,7 @@ impl ChainhookStore {
     pub fn new() -> Self {
         Self {
             predicates: ChainhookConfig {
+                #[cfg(feature = "stacks")]
                 stacks_chainhooks: vec![],
                 bitcoin_chainhooks: vec![],
             },
@@ -364,12 +199,6 @@ pub struct ObserverSidecar {
         crossbeam_channel::Receiver<Vec<BitcoinBlockDataCached>>,
     )>,
     pub bitcoin_chain_event_notifier: Option<crossbeam_channel::Sender<HandleBlock>>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct StacksObserverStartupContext {
-    pub block_pool_seed: Vec<StacksBlockData>,
-    pub last_block_height_appended: u64,
 }
 
 impl ObserverSidecar {
@@ -433,10 +262,11 @@ pub fn start_event_observer(
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
-    stacks_startup_context: Option<StacksObserverStartupContext>,
+    #[cfg(feature = "stacks")] stacks_startup_context: Option<StacksObserverStartupContext>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     if cfg!(feature = "stacks") {
+        #[cfg(feature = "stacks")]
         match config.bitcoin_block_signaling {
             BitcoinBlockSignaling::ZeroMQ(ref url) => {
                 ctx.try_log(|logger| {
@@ -582,9 +412,14 @@ pub async fn start_bitcoin_event_observer(
         });
     }
 
+    #[cfg(feature = "stacks")]
+    let registered_stacks_chainhooks = chainhook_store.predicates.stacks_chainhooks.len() as u64;
+    #[cfg(not(feature = "stacks"))]
+    let registered_stacks_chainhooks = 0;
+
     let prometheus_monitoring = PrometheusMonitoring::new();
     prometheus_monitoring.initialize(
-        chainhook_store.predicates.stacks_chainhooks.len() as u64,
+        registered_stacks_chainhooks,
         chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
         None,
     );
@@ -608,133 +443,6 @@ pub async fn start_bitcoin_event_observer(
         observer_commands_rx,
         observer_events_tx,
         None,
-        prometheus_monitoring,
-        observer_sidecar,
-        ctx,
-    )
-    .await
-}
-
-pub async fn start_stacks_event_observer(
-    config: EventObserverConfig,
-    observer_commands_tx: Sender<ObserverCommand>,
-    observer_commands_rx: Receiver<ObserverCommand>,
-    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
-    observer_sidecar: Option<ObserverSidecar>,
-    stacks_startup_context: StacksObserverStartupContext,
-    ctx: Context,
-) -> Result<(), Box<dyn Error>> {
-    let indexer_config = IndexerConfig {
-        bitcoind_rpc_url: config.bitcoind_rpc_url.clone(),
-        bitcoind_rpc_username: config.bitcoind_rpc_username.clone(),
-        bitcoind_rpc_password: config.bitcoind_rpc_password.clone(),
-        stacks_network: StacksNetwork::Devnet,
-        bitcoin_network: BitcoinNetwork::Regtest,
-        bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
-    };
-
-    let mut indexer = Indexer::new(indexer_config.clone());
-
-    indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
-
-    let log_level = if config.display_stacks_ingestion_logs {
-        if cfg!(feature = "cli") {
-            LogLevel::Critical
-        } else {
-            LogLevel::Debug
-        }
-    } else {
-        LogLevel::Off
-    };
-
-    let ingestion_port = config.get_stacks_node_config().ingestion_port;
-    let bitcoin_rpc_proxy_enabled = config.bitcoin_rpc_proxy_enabled;
-    let bitcoin_config = config.get_bitcoin_config();
-
-    let chainhook_store = config.get_chainhook_store();
-
-    let indexer_rw_lock = Arc::new(RwLock::new(indexer));
-
-    let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
-
-    let prometheus_monitoring = PrometheusMonitoring::new();
-    prometheus_monitoring.initialize(
-        chainhook_store.predicates.stacks_chainhooks.len() as u64,
-        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
-        Some(stacks_startup_context.last_block_height_appended),
-    );
-
-    if let Some(port) = config.prometheus_monitoring_port {
-        let registry_moved = prometheus_monitoring.registry.clone();
-        let ctx_cloned = ctx.clone();
-        let _ = std::thread::spawn(move || {
-            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
-                port,
-                registry_moved,
-                ctx_cloned,
-            ));
-        });
-    }
-
-    let limits = Limits::default().limit("json", 20.megabytes());
-    let mut shutdown_config = config::Shutdown::default();
-    shutdown_config.ctrlc = false;
-    shutdown_config.grace = 0;
-    shutdown_config.mercy = 0;
-
-    let ingestion_config = Config {
-        port: ingestion_port,
-        workers: 1,
-        address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        keep_alive: 5,
-        temp_dir: std::env::temp_dir().into(),
-        log_level: log_level.clone(),
-        cli_colors: false,
-        limits,
-        shutdown: shutdown_config,
-        ..Config::default()
-    };
-
-    let mut routes = rocket::routes![
-        http::handle_ping,
-        http::handle_new_bitcoin_block,
-        http::handle_new_stacks_block,
-        http::handle_new_microblocks,
-        http::handle_new_mempool_tx,
-        http::handle_drop_mempool_tx,
-        http::handle_new_attachement,
-        http::handle_mined_block,
-        http::handle_mined_microblock,
-    ];
-
-    if bitcoin_rpc_proxy_enabled {
-        routes.append(&mut routes![http::handle_bitcoin_rpc_call]);
-        routes.append(&mut routes![http::handle_bitcoin_wallet_rpc_call]);
-    }
-
-    let ctx_cloned = ctx.clone();
-    let ignite = rocket::custom(ingestion_config)
-        .manage(indexer_rw_lock)
-        .manage(background_job_tx_mutex)
-        .manage(bitcoin_config)
-        .manage(ctx_cloned)
-        .manage(prometheus_monitoring.clone())
-        .mount("/", routes)
-        .ignite()
-        .await?;
-    let ingestion_shutdown = Some(ignite.shutdown());
-
-    let _ = std::thread::spawn(move || {
-        let _ = hiro_system_kit::nestable_block_on(ignite.launch());
-    });
-
-    // This loop is used for handling background jobs, emitted by HTTP calls.
-    start_observer_commands_handler(
-        config,
-        chainhook_store,
-        observer_commands_rx,
-        observer_events_tx,
-        ingestion_shutdown,
         prometheus_monitoring,
         observer_sidecar,
         ctx,
@@ -1252,6 +960,7 @@ pub async fn start_observer_commands_handler(
                     let _ = tx.send(ObserverEvent::BitcoinChainEvent((chain_event, report)));
                 }
             }
+            #[cfg(feature = "stacks")]
             ObserverCommand::PropagateStacksChainEvent(chain_event) => {
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling PropagateStacksChainEvent command")
@@ -1422,6 +1131,7 @@ pub async fn start_observer_commands_handler(
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));
                 }
             }
+            #[cfg(feature = "stacks")]
             ObserverCommand::PropagateStacksMempoolEvent(mempool_event) => {
                 ctx.try_log(|logger| {
                     slog::debug!(logger, "Handling PropagateStacksMempoolEvent command")
@@ -1464,6 +1174,7 @@ pub async fn start_observer_commands_handler(
                     ChainhookSpecification::Bitcoin(_) => {
                         prometheus_monitoring.btc_metrics_register_predicate()
                     }
+                    #[cfg(feature = "stacks")]
                     ChainhookSpecification::Stacks(_) => {
                         prometheus_monitoring.stx_metrics_register_predicate()
                     }
@@ -1488,6 +1199,7 @@ pub async fn start_observer_commands_handler(
                     let _ = tx.send(ObserverEvent::PredicateEnabled(spec));
                 }
             }
+            #[cfg(feature = "stacks")]
             ObserverCommand::DeregisterStacksPredicate(hook_uuid) => {
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
@@ -1524,6 +1236,7 @@ pub async fn start_observer_commands_handler(
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
                 };
             }
+            #[cfg(feature = "stacks")]
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
                 hook_uuid,
                 block_height,

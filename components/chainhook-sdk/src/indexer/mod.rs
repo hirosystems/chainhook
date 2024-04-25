@@ -1,18 +1,20 @@
 pub mod bitcoin;
 pub mod fork_scratch_pad;
+
+#[cfg(feature = "stacks")]
 pub mod stacks;
+#[cfg(feature = "stacks")]
+use self::stacks::{StacksBlockPool, StacksChainContext};
 
 use crate::utils::{AbstractBlock, Context};
 
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinNetwork, BlockHeader, BlockIdentifier, BlockchainEvent,
-    StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig,
+    StacksNetwork,
 };
 use hiro_system_kit::slog;
-use rocket::serde::json::Value as JsonValue;
 
-use stacks::StacksBlockPool;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 use self::fork_scratch_pad::ForkScratchPad;
 
@@ -20,63 +22,6 @@ use self::fork_scratch_pad::ForkScratchPad;
 pub struct AssetClassCache {
     pub symbol: String,
     pub decimals: u8,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct PoxConfig {
-    pub first_burnchain_block_height: u32,
-    pub prepare_phase_block_length: u32,
-    pub reward_phase_block_length: u32,
-}
-
-impl PoxConfig {
-    pub fn mainnet_default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 666050,
-            prepare_phase_block_length: 100,
-            reward_phase_block_length: 2000,
-        }
-    }
-
-    pub fn testnet_default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 2000000,
-            prepare_phase_block_length: 50,
-            reward_phase_block_length: 1000,
-        }
-    }
-
-    pub fn devnet_default() -> PoxConfig {
-        Self::default()
-    }
-}
-
-impl Default for PoxConfig {
-    fn default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 100,
-            prepare_phase_block_length: 4,
-            reward_phase_block_length: 6,
-        }
-    }
-}
-
-pub struct StacksChainContext {
-    asset_class_map: HashMap<String, AssetClassCache>,
-    pox_config: PoxConfig,
-}
-
-impl StacksChainContext {
-    pub fn new(network: &StacksNetwork) -> StacksChainContext {
-        StacksChainContext {
-            asset_class_map: HashMap::new(),
-            pox_config: match network {
-                StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
-                StacksNetwork::Testnet => PoxConfig::testnet_default(),
-                _ => PoxConfig::devnet_default(),
-            },
-        }
-    }
 }
 
 pub struct BitcoinChainContext {}
@@ -97,41 +42,34 @@ pub struct IndexerConfig {
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
 }
 
-impl IndexerConfig {
-    pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
-        match self.bitcoin_block_signaling {
-            BitcoinBlockSignaling::Stacks(ref config) => config,
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub struct Indexer {
     pub config: IndexerConfig,
+    #[cfg(feature = "stacks")]
     stacks_blocks_pool: StacksBlockPool,
     bitcoin_blocks_pool: ForkScratchPad,
+    #[cfg(feature = "stacks")]
     pub stacks_context: StacksChainContext,
     pub bitcoin_context: BitcoinChainContext,
 }
 
 impl Indexer {
     pub fn new(config: IndexerConfig) -> Indexer {
+        #[cfg(feature = "stacks")]
         let stacks_blocks_pool = StacksBlockPool::new();
         let bitcoin_blocks_pool = ForkScratchPad::new();
+        #[cfg(feature = "stacks")]
         let stacks_context = StacksChainContext::new(&config.stacks_network);
         let bitcoin_context = BitcoinChainContext::new();
 
         Indexer {
             config,
+            #[cfg(feature = "stacks")]
             stacks_blocks_pool,
             bitcoin_blocks_pool,
+            #[cfg(feature = "stacks")]
             stacks_context,
             bitcoin_context,
         }
-    }
-
-    pub fn seed_stacks_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
-        self.stacks_blocks_pool.seed_block_pool(blocks, ctx);
     }
 
     pub fn handle_bitcoin_header(
@@ -141,61 +79,6 @@ impl Indexer {
     ) -> Result<Option<BlockchainEvent>, String> {
         let event = self.bitcoin_blocks_pool.process_header(header, ctx);
         event
-    }
-
-    pub fn standardize_stacks_marshalled_block(
-        &mut self,
-        marshalled_block: JsonValue,
-        ctx: &Context,
-    ) -> Result<StacksBlockData, String> {
-        stacks::standardize_stacks_marshalled_block(
-            &self.config,
-            marshalled_block,
-            &mut self.stacks_context,
-            ctx,
-        )
-    }
-
-    pub fn process_stacks_block(
-        &mut self,
-        block: StacksBlockData,
-        ctx: &Context,
-    ) -> Result<Option<StacksChainEvent>, String> {
-        self.stacks_blocks_pool.process_block(block, ctx)
-    }
-
-    pub fn handle_stacks_serialized_microblock_trail(
-        &mut self,
-        serialized_microblock_trail: &str,
-        ctx: &Context,
-    ) -> Result<Option<StacksChainEvent>, String> {
-        let microblocks = stacks::standardize_stacks_serialized_microblock_trail(
-            &self.config,
-            serialized_microblock_trail,
-            &mut self.stacks_context,
-            ctx,
-        )?;
-        self.stacks_blocks_pool
-            .process_microblocks(microblocks, ctx)
-    }
-
-    pub fn handle_stacks_marshalled_microblock_trail(
-        &mut self,
-        marshalled_microblock_trail: JsonValue,
-        ctx: &Context,
-    ) -> Result<Option<StacksChainEvent>, String> {
-        let microblocks = stacks::standardize_stacks_marshalled_microblock_trail(
-            &self.config,
-            marshalled_microblock_trail,
-            &mut self.stacks_context,
-            ctx,
-        )?;
-        self.stacks_blocks_pool
-            .process_microblocks(microblocks, ctx)
-    }
-
-    pub fn get_pox_config(&mut self) -> PoxConfig {
-        self.stacks_context.pox_config.clone()
     }
 }
 

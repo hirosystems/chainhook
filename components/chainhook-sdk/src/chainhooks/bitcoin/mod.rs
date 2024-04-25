@@ -1,8 +1,8 @@
-use super::types::{
-    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
-    HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol,
-    OutputPredicate, StacksOperations,
+use super::types::bitcoin::{
+    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, InputPredicate,
+    OrdinalOperations, OrdinalsMetaProtocol, OutputPredicate, StacksOperations,
 };
+use super::types::{ExactMatchingRule, HookAction, MatchingRule};
 use crate::utils::Context;
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};

@@ -1,7 +1,7 @@
 use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
-    observer::{start_event_observer, EventObserverConfig},
+    observer::{config::EventObserverConfig, start_event_observer},
     types::{BitcoinNetwork, StacksNodeConfig},
     utils::Context,
 };

@@ -16,10 +16,15 @@ use crate::storage::{
 };
 
 use chainhook_sdk::chainhooks::types::{
-    BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification, BitcoinPredicateType,
-    ChainhookFullSpecification, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
-    StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
-    StacksPrintEventBasedPredicate,
+    bitcoin::{
+        BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification,
+        BitcoinPredicateType, InscriptionFeedData, OrdinalOperations,
+    },
+    stacks::{
+        StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
+        StacksPrintEventBasedPredicate,
+    },
+    ChainhookFullSpecification, FileHook, HookAction,
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::{BlockHeights, Context};

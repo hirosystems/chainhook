@@ -5,7 +5,7 @@ use stacks_codec::codec::{StacksTransaction, TransactionAuth, TransactionPayload
 
 use crate::chainhooks::stacks::try_decode_clarity_value;
 use crate::indexer::AssetClassCache;
-use crate::indexer::{IndexerConfig, StacksChainContext};
+use crate::indexer::IndexerConfig;
 use crate::utils::Context;
 use chainhook_types::*;
 use hiro_system_kit::slog;
@@ -17,6 +17,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
 use std::str;
+
+use super::Indexer;
 
 #[derive(Deserialize, Serialize)]
 pub struct NewBlock {
@@ -1289,6 +1291,133 @@ pub fn get_standardized_stacks_receipt(
 fn get_mutated_ids(asset_class_id: &str) -> (String, String) {
     let contract_id = asset_class_id.split("::").collect::<Vec<_>>()[0];
     (asset_class_id.into(), contract_id.into())
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PoxConfig {
+    pub first_burnchain_block_height: u32,
+    pub prepare_phase_block_length: u32,
+    pub reward_phase_block_length: u32,
+}
+
+impl PoxConfig {
+    pub fn mainnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 666050,
+            prepare_phase_block_length: 100,
+            reward_phase_block_length: 2000,
+        }
+    }
+
+    pub fn testnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 2000000,
+            prepare_phase_block_length: 50,
+            reward_phase_block_length: 1000,
+        }
+    }
+
+    pub fn devnet_default() -> PoxConfig {
+        Self::default()
+    }
+}
+
+impl Default for PoxConfig {
+    fn default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 100,
+            prepare_phase_block_length: 4,
+            reward_phase_block_length: 6,
+        }
+    }
+}
+
+pub struct StacksChainContext {
+    asset_class_map: HashMap<String, AssetClassCache>,
+    pox_config: PoxConfig,
+}
+
+impl StacksChainContext {
+    pub fn new(network: &StacksNetwork) -> StacksChainContext {
+        StacksChainContext {
+            asset_class_map: HashMap::new(),
+            pox_config: match network {
+                StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
+                StacksNetwork::Testnet => PoxConfig::testnet_default(),
+                _ => PoxConfig::devnet_default(),
+            },
+        }
+    }
+}
+
+impl IndexerConfig {
+    pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
+        match self.bitcoin_block_signaling {
+            BitcoinBlockSignaling::Stacks(ref config) => config,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Indexer {
+    pub fn seed_stacks_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
+        self.stacks_blocks_pool.seed_block_pool(blocks, ctx);
+    }
+
+    pub fn standardize_stacks_marshalled_block(
+        &mut self,
+        marshalled_block: JsonValue,
+        ctx: &Context,
+    ) -> Result<StacksBlockData, String> {
+        standardize_stacks_marshalled_block(
+            &self.config,
+            marshalled_block,
+            &mut self.stacks_context,
+            ctx,
+        )
+    }
+
+    pub fn process_stacks_block(
+        &mut self,
+        block: StacksBlockData,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
+        self.stacks_blocks_pool.process_block(block, ctx)
+    }
+
+    pub fn handle_stacks_serialized_microblock_trail(
+        &mut self,
+        serialized_microblock_trail: &str,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
+        let microblocks = standardize_stacks_serialized_microblock_trail(
+            &self.config,
+            serialized_microblock_trail,
+            &mut self.stacks_context,
+            ctx,
+        )?;
+        self.stacks_blocks_pool
+            .process_microblocks(microblocks, ctx)
+    }
+
+    pub fn handle_stacks_marshalled_microblock_trail(
+        &mut self,
+        marshalled_microblock_trail: JsonValue,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
+        let microblocks = standardize_stacks_marshalled_microblock_trail(
+            &self.config,
+            marshalled_microblock_trail,
+            &mut self.stacks_context,
+            ctx,
+        )?;
+        self.stacks_blocks_pool
+            .process_microblocks(microblocks, ctx)
+    }
+
+    pub fn get_pox_config(&mut self) -> PoxConfig {
+        self.stacks_context.pox_config.clone()
+    }
 }
 
 #[cfg(test)]

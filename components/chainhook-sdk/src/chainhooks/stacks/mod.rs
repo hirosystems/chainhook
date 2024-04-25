@@ -1,9 +1,10 @@
 use crate::utils::{AbstractStacksBlock, Context};
 
-use super::types::{
-    BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
-    StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
+use super::types::stacks::{
+    StacksChainhookSpecification, StacksContractDeploymentPredicate, StacksPredicate,
+    StacksPrintEventBasedPredicate,
 };
+use super::types::{BlockIdentifierIndexRule, ExactMatchingRule, HookAction};
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
     StacksTransactionEventPayload, StacksTransactionKind, TransactionIdentifier,

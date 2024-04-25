@@ -1,10 +1,15 @@
 use crate::chainhooks::types::{
-    BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification,
-    BitcoinChainhookSpecification, BitcoinPredicateType, ChainhookConfig,
-    ChainhookFullSpecification, ChainhookSpecification, ExactMatchingRule, HookAction,
-    InscriptionFeedData, OrdinalOperations, OutputPredicate, StacksChainhookFullSpecification,
-    StacksChainhookNetworkSpecification, StacksChainhookSpecification,
-    StacksContractCallBasedPredicate, StacksPredicate,
+    bitcoin::{
+        BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification,
+        BitcoinChainhookSpecification, BitcoinPredicateType, InscriptionFeedData,
+        OrdinalOperations, OutputPredicate,
+    },
+    stacks::{
+        StacksChainhookFullSpecification, StacksChainhookNetworkSpecification,
+        StacksChainhookSpecification, StacksContractCallBasedPredicate, StacksPredicate,
+    },
+    ChainhookConfig, ChainhookFullSpecification, ChainhookSpecification, ExactMatchingRule,
+    HookAction,
 };
 use crate::indexer::fork_scratch_pad::ForkScratchPad;
 use crate::indexer::tests::helpers::transactions::generate_test_tx_bitcoin_p2pkh_transfer;
@@ -27,7 +32,7 @@ use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Sender};
 
-use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
+use super::{config::DEFAULT_INGESTION_PORT, ObserverEvent};
 
 fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {

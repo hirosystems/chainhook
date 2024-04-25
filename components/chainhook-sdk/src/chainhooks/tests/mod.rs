@@ -8,18 +8,18 @@ use super::{
         StacksChainhookOccurrence, StacksTriggerChainhook,
     },
     types::{
-        ExactMatchingRule, FileHook, StacksChainhookSpecification,
-        StacksContractCallBasedPredicate, StacksContractDeploymentPredicate,
-        StacksFtEventBasedPredicate, StacksNftEventBasedPredicate, StacksPrintEventBasedPredicate,
-        StacksTrait,
+        stacks::{
+            StacksChainhookSpecification, StacksContractCallBasedPredicate,
+            StacksContractDeploymentPredicate, StacksFtEventBasedPredicate,
+            StacksNftEventBasedPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
+            StacksStxEventBasedPredicate, StacksTrait,
+        },
+        ExactMatchingRule, FileHook, HookAction,
     },
 };
 use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
 use crate::{
-    chainhooks::{
-        tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
-        types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate},
-    },
+    chainhooks::tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
     utils::AbstractStacksBlock,
 };
 use chainhook_types::{

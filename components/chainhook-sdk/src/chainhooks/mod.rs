@@ -1,4 +1,5 @@
 pub mod bitcoin;
+#[cfg(feature = "stacks")]
 pub mod stacks;
 pub mod types;
 

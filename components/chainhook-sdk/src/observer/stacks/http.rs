@@ -3,6 +3,8 @@ use crate::indexer::bitcoin::{
 };
 use crate::indexer::{self, Indexer};
 use crate::monitoring::PrometheusMonitoring;
+use crate::observer::config::BitcoinConfig;
+use crate::observer::BitcoinRPCRequest;
 use crate::utils::Context;
 use hiro_system_kit::slog;
 use rocket::serde::json::{json, Json, Value as JsonValue};
@@ -10,10 +12,7 @@ use rocket::State;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
 
-use super::{
-    BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand,
-    StacksChainMempoolEvent,
-};
+use super::{MempoolAdmissionData, ObserverCommand, StacksChainMempoolEvent};
 
 #[rocket::get("/ping", format = "application/json")]
 pub fn handle_ping(

@@ -1,9 +1,18 @@
-use std::collections::{BTreeMap, HashSet};
+pub mod bitcoin;
+use self::bitcoin::BitcoinChainhookFullSpecification;
+use self::bitcoin::BitcoinChainhookSpecification;
 
-use chainhook_types::{BitcoinNetwork, StacksNetwork};
+#[cfg(feature = "stacks")]
+pub mod stacks;
+#[cfg(feature = "stacks")]
+use self::stacks::{StacksChainhookFullSpecification, StacksChainhookSpecification};
+#[cfg(feature = "stacks")]
+use chainhook_types::StacksNetwork;
+
+use chainhook_types::BitcoinNetwork;
 use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use schemars::JsonSchema;
 
@@ -11,6 +20,7 @@ use crate::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ChainhookConfig {
+    #[cfg(feature = "stacks")]
     pub stacks_chainhooks: Vec<StacksChainhookSpecification>,
     pub bitcoin_chainhooks: Vec<BitcoinChainhookSpecification>,
 }
@@ -18,6 +28,7 @@ pub struct ChainhookConfig {
 impl ChainhookConfig {
     pub fn new() -> ChainhookConfig {
         ChainhookConfig {
+            #[cfg(feature = "stacks")]
             stacks_chainhooks: vec![],
             bitcoin_chainhooks: vec![],
         }
@@ -47,6 +58,7 @@ impl ChainhookConfig {
 
     pub fn enable_specification(&mut self, predicate_spec: &mut ChainhookSpecification) {
         match predicate_spec {
+            #[cfg(feature = "stacks")]
             ChainhookSpecification::Stacks(spec_to_enable) => {
                 for spec in self.stacks_chainhooks.iter_mut() {
                     if spec.uuid.eq(&spec_to_enable.uuid) {
@@ -70,6 +82,7 @@ impl ChainhookConfig {
 
     pub fn register_specification(&mut self, spec: ChainhookSpecification) -> Result<(), String> {
         match spec {
+            #[cfg(feature = "stacks")]
             ChainhookSpecification::Stacks(spec) => {
                 let spec = spec.clone();
                 self.stacks_chainhooks.push(spec);
@@ -82,6 +95,7 @@ impl ChainhookConfig {
         Ok(())
     }
 
+    #[cfg(feature = "stacks")]
     pub fn deregister_stacks_hook(
         &mut self,
         hook_uuid: String,
@@ -114,6 +128,7 @@ impl ChainhookConfig {
         None
     }
 
+    #[cfg(feature = "stacks")]
     pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
         let mut i = 0;
         while i < self.stacks_chainhooks.len() {
@@ -144,12 +159,15 @@ impl Serialize for ChainhookConfig {
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(Some(
-            self.bitcoin_chainhooks.len() + self.stacks_chainhooks.len(),
-        ))?;
+        #[cfg(feature = "stacks")]
+        let length = self.bitcoin_chainhooks.len() + self.stacks_chainhooks.len();
+        #[cfg(not(feature = "stacks"))]
+        let length = self.bitcoin_chainhooks.len();
+        let mut seq = serializer.serialize_seq(Some(length))?;
         for chainhook in self.bitcoin_chainhooks.iter() {
             seq.serialize_element(chainhook)?;
         }
+        #[cfg(feature = "stacks")]
         for chainhook in self.stacks_chainhooks.iter() {
             seq.serialize_element(chainhook)?;
         }
@@ -170,6 +188,7 @@ impl ChainhookSpecification {
         format!("predicate:{}", uuid)
     }
 
+    #[cfg(feature = "stacks")]
     pub fn stacks_key(uuid: &str) -> String {
         format!("predicate:{}", uuid)
     }
@@ -181,6 +200,7 @@ impl ChainhookSpecification {
     pub fn key(&self) -> String {
         match &self {
             Self::Bitcoin(data) => Self::bitcoin_key(&data.uuid),
+            #[cfg(feature = "stacks")]
             Self::Stacks(data) => Self::stacks_key(&data.uuid),
         }
     }
@@ -194,40 +214,9 @@ impl ChainhookSpecification {
     pub fn uuid(&self) -> &str {
         match &self {
             Self::Bitcoin(data) => &data.uuid,
+            #[cfg(feature = "stacks")]
             Self::Stacks(data) => &data.uuid,
         }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct BitcoinChainhookSpecification {
-    pub uuid: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_uuid: Option<String>,
-    pub name: String,
-    pub network: BitcoinNetwork,
-    pub version: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<Vec<u64>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_after_occurrence: Option<u64>,
-    pub predicate: BitcoinPredicateType,
-    pub action: HookAction,
-    pub include_proof: bool,
-    pub include_inputs: bool,
-    pub include_outputs: bool,
-    pub include_witness: bool,
-    pub enabled: bool,
-    pub expired_at: Option<u64>,
-}
-
-impl BitcoinChainhookSpecification {
-    pub fn key(&self) -> String {
-        ChainhookSpecification::bitcoin_key(&self.uuid)
     }
 }
 
@@ -235,6 +224,7 @@ impl BitcoinChainhookSpecification {
 #[serde(rename_all = "snake_case", tag = "chain")]
 pub enum ChainhookFullSpecification {
     Bitcoin(BitcoinChainhookFullSpecification),
+    #[cfg(feature = "stacks")]
     Stacks(StacksChainhookFullSpecification),
 }
 
@@ -258,6 +248,7 @@ impl ChainhookFullSpecification {
                     }
                 }
             }
+            #[cfg(feature = "stacks")]
             Self::Stacks(data) => {
                 for (_, spec) in data.networks.iter() {
                     let _ = spec.action.validate()?;
@@ -282,6 +273,7 @@ impl ChainhookFullSpecification {
     pub fn get_uuid(&self) -> &str {
         match &self {
             Self::Bitcoin(data) => &data.uuid,
+            #[cfg(feature = "stacks")]
             Self::Stacks(data) => &data.uuid,
         }
     }
@@ -294,135 +286,6 @@ impl ChainhookFullSpecification {
             .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct BitcoinChainhookFullSpecification {
-    pub uuid: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_uuid: Option<String>,
-    pub name: String,
-    pub version: u32,
-    pub networks: BTreeMap<BitcoinNetwork, BitcoinChainhookNetworkSpecification>,
-}
-
-impl BitcoinChainhookFullSpecification {
-    pub fn into_selected_network_specification(
-        mut self,
-        network: &BitcoinNetwork,
-        enabled: Option<bool>,
-    ) -> Result<BitcoinChainhookSpecification, String> {
-        let spec = self
-            .networks
-            .remove(network)
-            .ok_or("Network unknown".to_string())?;
-        Ok(BitcoinChainhookSpecification {
-            uuid: self.uuid,
-            owner_uuid: self.owner_uuid,
-            name: self.name,
-            network: network.clone(),
-            version: self.version,
-            start_block: spec.start_block,
-            end_block: spec.end_block,
-            blocks: spec.blocks,
-            expire_after_occurrence: spec.expire_after_occurrence,
-            predicate: spec.predicate,
-            action: spec.action,
-            include_proof: spec.include_proof.unwrap_or(false),
-            include_inputs: spec.include_inputs.unwrap_or(false),
-            include_outputs: spec.include_outputs.unwrap_or(false),
-            include_witness: spec.include_witness.unwrap_or(false),
-            enabled: enabled.unwrap_or(false),
-            expired_at: None,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct BitcoinChainhookNetworkSpecification {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<Vec<u64>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_after_occurrence: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_proof: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_inputs: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_outputs: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_witness: Option<bool>,
-    #[serde(rename = "if_this")]
-    pub predicate: BitcoinPredicateType,
-    #[serde(rename = "then_that")]
-    pub action: HookAction,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct StacksChainhookFullSpecification {
-    pub uuid: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_uuid: Option<String>,
-    pub name: String,
-    pub version: u32,
-    pub networks: BTreeMap<StacksNetwork, StacksChainhookNetworkSpecification>,
-}
-
-impl StacksChainhookFullSpecification {
-    pub fn into_selected_network_specification(
-        mut self,
-        network: &StacksNetwork,
-        enabled: Option<bool>,
-    ) -> Result<StacksChainhookSpecification, String> {
-        let spec = self
-            .networks
-            .remove(network)
-            .ok_or("Network unknown".to_string())?;
-        Ok(StacksChainhookSpecification {
-            uuid: self.uuid,
-            owner_uuid: self.owner_uuid,
-            name: self.name,
-            network: network.clone(),
-            version: self.version,
-            start_block: spec.start_block,
-            end_block: spec.end_block,
-            blocks: spec.blocks,
-            capture_all_events: spec.capture_all_events,
-            decode_clarity_values: spec.decode_clarity_values,
-            expire_after_occurrence: spec.expire_after_occurrence,
-            include_contract_abi: spec.include_contract_abi,
-            predicate: spec.predicate,
-            action: spec.action,
-            enabled: enabled.unwrap_or(false),
-            expired_at: None,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct StacksChainhookNetworkSpecification {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<Vec<u64>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_after_occurrence: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub capture_all_events: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decode_clarity_values: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_contract_abi: Option<bool>,
-    #[serde(rename = "if_this")]
-    pub predicate: StacksPredicate,
-    #[serde(rename = "then_that")]
-    pub action: HookAction,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -458,130 +321,6 @@ pub struct HttpHook {
 #[serde(rename_all = "snake_case")]
 pub struct FileHook {
     pub path: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct ScriptTemplate {
-    pub instructions: Vec<ScriptInstruction>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ScriptInstruction {
-    Opcode(u8),
-    RawBytes(Vec<u8>),
-    Placeholder(String, u8),
-}
-
-impl ScriptTemplate {
-    pub fn parse(template: &str) -> Result<ScriptTemplate, String> {
-        let raw_instructions = template
-            .split_ascii_whitespace()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>();
-        let mut instructions = vec![];
-        for raw_instruction in raw_instructions.into_iter() {
-            if raw_instruction.starts_with("{") {
-                let placeholder = &raw_instruction[1..raw_instruction.len() - 1];
-                let (name, size) = match placeholder.split_once(":") {
-                    Some(res) => res,
-                    None => return Err(format!("malformed placeholder {}: should be {{placeholder-name:number-of-bytes}} (ex: {{id:4}}", raw_instruction))
-                };
-                let size = match size.parse::<u8>() {
-                    Ok(res) => res,
-                    Err(_) => return Err(format!("malformed placeholder {}: should be {{placeholder-name:number-of-bytes}} (ex: {{id:4}}", raw_instruction))
-                };
-                instructions.push(ScriptInstruction::Placeholder(name.to_string(), size));
-            } else if let Some(opcode) = opcode_to_hex(&raw_instruction) {
-                instructions.push(ScriptInstruction::Opcode(opcode));
-            } else if let Ok(bytes) = hex::decode(&raw_instruction) {
-                instructions.push(ScriptInstruction::RawBytes(bytes));
-            } else {
-                return Err(format!("unable to handle instruction {}", raw_instruction));
-            }
-        }
-        Ok(ScriptTemplate { instructions })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct BitcoinTransactionFilterPredicate {
-    pub predicate: BitcoinPredicateType,
-}
-
-impl BitcoinTransactionFilterPredicate {
-    pub fn new(predicate: BitcoinPredicateType) -> BitcoinTransactionFilterPredicate {
-        BitcoinTransactionFilterPredicate { predicate }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "scope")]
-pub enum BitcoinPredicateType {
-    Block,
-    Txid(ExactMatchingRule),
-    Inputs(InputPredicate),
-    Outputs(OutputPredicate),
-    StacksProtocol(StacksOperations),
-    OrdinalsProtocol(OrdinalOperations),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum InputPredicate {
-    Txid(TxinPredicate),
-    WitnessScript(MatchingRule),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OutputPredicate {
-    OpReturn(MatchingRule),
-    P2pkh(ExactMatchingRule),
-    P2sh(ExactMatchingRule),
-    P2wpkh(ExactMatchingRule),
-    P2wsh(ExactMatchingRule),
-    Descriptor(DescriptorMatchingRule),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "operation")]
-pub enum StacksOperations {
-    StackerRewarded,
-    BlockCommitted,
-    LeaderRegistered,
-    StxTransferred,
-    StxLocked,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum OrdinalsMetaProtocol {
-    All,
-    #[serde(rename = "brc-20")]
-    Brc20,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub struct InscriptionFeedData {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta_protocols: Option<HashSet<OrdinalsMetaProtocol>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "operation")]
-pub enum OrdinalOperations {
-    InscriptionFeed(InscriptionFeedData),
-}
-
-pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
-    match network {
-        BitcoinNetwork::Mainnet => *b"X2",
-        BitcoinNetwork::Testnet => *b"T2",
-        BitcoinNetwork::Regtest => *b"id",
-        BitcoinNetwork::Signet => unreachable!(),
-    }
 }
 
 pub struct PoxConfig {
@@ -643,54 +382,6 @@ pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[repr(u8)]
-pub enum StacksOpcodes {
-    BlockCommit = '[' as u8,
-    KeyRegister = '^' as u8,
-    StackStx = 'x' as u8,
-    PreStx = 'p' as u8,
-    TransferStx = '$' as u8,
-}
-
-impl TryFrom<u8> for StacksOpcodes {
-    type Error = ();
-
-    fn try_from(v: u8) -> Result<Self, Self::Error> {
-        match v {
-            x if x == StacksOpcodes::BlockCommit as u8 => Ok(StacksOpcodes::BlockCommit),
-            x if x == StacksOpcodes::KeyRegister as u8 => Ok(StacksOpcodes::KeyRegister),
-            x if x == StacksOpcodes::StackStx as u8 => Ok(StacksOpcodes::StackStx),
-            x if x == StacksOpcodes::PreStx as u8 => Ok(StacksOpcodes::PreStx),
-            x if x == StacksOpcodes::TransferStx as u8 => Ok(StacksOpcodes::TransferStx),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct TxinPredicate {
-    pub txid: String,
-    pub vout: u32,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum BlockIdentifierIndexRule {
-    Equals(u64),
-    HigherThan(u64),
-    LowerThan(u64),
-    Between(u64, u64),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Scope {
-    Inputs,
-    Outputs,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchingRule {
@@ -707,148 +398,18 @@ pub enum ExactMatchingRule {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct DescriptorMatchingRule {
-    // expression defines the bitcoin descriptor.
-    pub expression: String,
-    #[serde(default, deserialize_with = "deserialize_descriptor_range")]
-    pub range: Option<[u32; 2]>,
-}
-
-// deserialize_descriptor_range makes sure that the range value is valid.
-fn deserialize_descriptor_range<'de, D>(deserializer: D) -> Result<Option<[u32; 2]>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let range: [u32; 2] = Deserialize::deserialize(deserializer)?;
-    if !(range[0] < range[1]) {
-        Err(de::Error::custom(
-            "First element of 'range' must be lower than the second element",
-        ))
-    } else {
-        Ok(Some(range))
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum BlockIdentifierHashRule {
     Equals(String),
     BuildsOff(String),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct StacksChainhookSpecification {
-    pub uuid: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_uuid: Option<String>,
-    pub name: String,
-    pub network: StacksNetwork,
-    pub version: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<Vec<u64>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_block: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expire_after_occurrence: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub capture_all_events: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decode_clarity_values: Option<bool>,
-    pub include_contract_abi: Option<bool>,
-    #[serde(rename = "predicate")]
-    pub predicate: StacksPredicate,
-    pub action: HookAction,
-    pub enabled: bool,
-    pub expired_at: Option<u64>,
-}
-
-impl StacksChainhookSpecification {
-    pub fn key(&self) -> String {
-        ChainhookSpecification::stacks_key(&self.uuid)
-    }
-
-    pub fn is_predicate_targeting_block_header(&self) -> bool {
-        match &self.predicate {
-            StacksPredicate::BlockHeight(_)
-            // | &StacksPredicate::BitcoinBlockHeight(_)
-            => true,
-            _ => false,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[serde(tag = "scope")]
-pub enum StacksPredicate {
-    BlockHeight(BlockIdentifierIndexRule),
-    ContractDeployment(StacksContractDeploymentPredicate),
-    ContractCall(StacksContractCallBasedPredicate),
-    PrintEvent(StacksPrintEventBasedPredicate),
-    FtEvent(StacksFtEventBasedPredicate),
-    NftEvent(StacksNftEventBasedPredicate),
-    StxEvent(StacksStxEventBasedPredicate),
-    Txid(ExactMatchingRule),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct StacksContractCallBasedPredicate {
-    pub contract_identifier: String,
-    pub method: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-// #[serde(tag = "type", content = "rule")]
-pub enum StacksContractDeploymentPredicate {
-    Deployer(String),
-    ImplementTrait(StacksTrait),
-}
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum StacksTrait {
-    Sip09,
-    Sip10,
-    #[serde(rename = "*")]
-    Any,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[serde(untagged)]
-pub enum StacksPrintEventBasedPredicate {
-    Contains {
-        contract_identifier: String,
-        contains: String,
-    },
-    MatchesRegex {
-        contract_identifier: String,
-        #[serde(rename = "matches_regex")]
-        regex: String,
-    },
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct StacksFtEventBasedPredicate {
-    pub asset_identifier: String,
-    pub actions: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct StacksNftEventBasedPredicate {
-    pub asset_identifier: String,
-    pub actions: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct StacksStxEventBasedPredicate {
-    pub actions: Vec<String>,
+pub enum BlockIdentifierIndexRule {
+    Equals(u64),
+    HigherThan(u64),
+    LowerThan(u64),
+    Between(u64, u64),
 }
 
 pub fn opcode_to_hex(asm: &str) -> Option<u8> {

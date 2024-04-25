@@ -2,7 +2,7 @@ pub mod file;
 pub mod generator;
 
 pub use chainhook_sdk::indexer::IndexerConfig;
-use chainhook_sdk::observer::EventObserverConfig;
+use chainhook_sdk::observer::config::EventObserverConfig;
 use chainhook_sdk::types::{
     BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig,
 };
