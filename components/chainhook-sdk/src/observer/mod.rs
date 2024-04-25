@@ -522,21 +522,19 @@ pub fn start_event_observer(
 
 pub async fn start_bitcoin_event_observer(
     config: EventObserverConfig,
-    _observer_commands_tx: Sender<ObserverCommand>,
+    observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let chainhook_store = config.get_chainhook_store();
-
     #[cfg(feature = "zeromq")]
     {
         let ctx_moved = ctx.clone();
         let config_moved = config.clone();
         let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
-            let future =
-                zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
+            let future = zmq::start_zeromq_runloop(&config_moved, observer_commands_tx, &ctx_moved);
             let _ = hiro_system_kit::nestable_block_on(future);
         });
     }

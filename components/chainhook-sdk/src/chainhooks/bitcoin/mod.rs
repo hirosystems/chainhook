@@ -35,6 +35,7 @@ pub struct BitcoinTriggerChainhook<'a> {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinTransactionPayload {
+    #[serde(flatten)]
     pub block: BitcoinBlockData,
 }
 
@@ -233,38 +234,60 @@ pub fn serialize_bitcoin_transactions_to_json<'a>(
         .into_iter()
         .map(|transaction| {
             let mut metadata = serde_json::Map::new();
-            if predicate_spec.include_inputs {
-                metadata.insert(
-                    "inputs".into(),
-                    json!(transaction
-                        .metadata
-                        .inputs
-                        .iter()
-                        .map(|input| {
-                            json!({
+
+            metadata.insert("fee".into(), json!(transaction.metadata.fee));
+            metadata.insert("index".into(), json!(transaction.metadata.index));
+
+            let inputs = if predicate_spec.include_inputs {
+                transaction
+                    .metadata
+                    .inputs
+                    .iter()
+                    .map(|input| {
+                        let witness = if predicate_spec.include_witness {
+                            input.witness.clone()
+                        } else {
+                            vec![]
+                        };
+                        json!({
+                            "previous_output": {
                                 "txin": input.previous_output.txid.hash.to_string(),
                                 "vout": input.previous_output.vout,
-                                "sequence": input.sequence,
-                            })
+                                "value": input.previous_output.value,
+                                "block_height": input.previous_output.block_height,
+                            },
+                            "script_sig": input.script_sig,
+                            "sequence": input.sequence,
+                            "witness": witness
                         })
-                        .collect::<Vec<_>>()),
-                );
-            }
-            if predicate_spec.include_outputs {
-                metadata.insert("outputs".into(), json!(transaction.metadata.outputs));
-            }
-            if !transaction.metadata.stacks_operations.is_empty() {
-                metadata.insert(
-                    "stacks_operations".into(),
-                    json!(transaction.metadata.stacks_operations),
-                );
-            }
-            if !transaction.metadata.ordinal_operations.is_empty() {
-                metadata.insert(
-                    "ordinal_operations".into(),
-                    json!(transaction.metadata.ordinal_operations),
-                );
-            }
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                vec![]
+            };
+            metadata.insert("inputs".into(), json!(inputs));
+
+            let outputs = if predicate_spec.include_outputs {
+                transaction.metadata.outputs.clone()
+            } else {
+                vec![]
+            };
+            metadata.insert("outputs".into(), json!(outputs));
+
+            let stacks_ops = if transaction.metadata.stacks_operations.is_empty() {
+                vec![]
+            } else {
+                transaction.metadata.stacks_operations.clone()
+            };
+            metadata.insert("stacks_operations".into(), json!(stacks_ops));
+
+            let ordinals_ops = if transaction.metadata.ordinal_operations.is_empty() {
+                vec![]
+            } else {
+                transaction.metadata.ordinal_operations.clone()
+            };
+            metadata.insert("ordinal_operations".into(), json!(ordinals_ops));
+
             metadata.insert(
                 "proof".into(),
                 json!(proofs.get(&transaction.transaction_identifier)),
