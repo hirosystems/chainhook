@@ -501,15 +501,47 @@ impl BitcoinPredicateType {
                 false
             }
             BitcoinPredicateType::Inputs(InputPredicate::Txid(predicate)) => {
-                // TODO(lgalabru): add support for transaction chainhing, if enabled
                 for input in tx.metadata.inputs.iter() {
-                    if input.previous_output.txid.hash.eq(&predicate.txid)
-                        && input.previous_output.vout.eq(&predicate.vout)
-                    {
-                        return true;
+                    if input.previous_output.txid.hash.eq(&predicate.txid) {
+                        match predicate.vout {
+                            Some(predicate_vout) => {
+                                if input.previous_output.vout.eq(&predicate_vout) {
+                                    match predicate.follow_inputs {
+                                        Some(true) => {
+                                            let new_predicate = BitcoinPredicateType::Inputs(
+                                                InputPredicate::Txid(TxinPredicate {
+                                                    txid: tx.transaction_identifier.hash.clone(),
+                                                    vout: predicate.vout,
+                                                    follow_inputs: predicate.follow_inputs,
+                                                }),
+                                            );
+                                            return (true, Some(new_predicate));
+                                        }
+                                        _ => {
+                                            return (true, None);
+                                        }
+                                    }
+                                }
+                            }
+                            None => match predicate.follow_inputs {
+                                Some(true) => {
+                                    let new_predicate = BitcoinPredicateType::Inputs(
+                                        InputPredicate::Txid(TxinPredicate {
+                                            txid: tx.transaction_identifier.hash.clone(),
+                                            vout: predicate.vout,
+                                            follow_inputs: predicate.follow_inputs,
+                                        }),
+                                    );
+                                    return (true, Some(new_predicate));
+                                }
+                                _ => {
+                                    return (true, None);
+                                }
+                            },
+                        }
                     }
                 }
-                false
+                return (false, None);
             }
             BitcoinPredicateType::Inputs(InputPredicate::WitnessScript(_)) => {
                 // TODO(lgalabru)

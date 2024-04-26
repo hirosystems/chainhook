@@ -667,7 +667,8 @@ impl TryFrom<u8> for StacksOpcodes {
 #[serde(rename_all = "snake_case")]
 pub struct TxinPredicate {
     pub txid: String,
-    pub vout: u32,
+    pub vout: Option<u32>,
+    pub follow_inputs: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
