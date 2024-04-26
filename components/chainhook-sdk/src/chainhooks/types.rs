@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 use chainhook_types::{BitcoinNetwork, StacksNetwork};
 use reqwest::Url;
@@ -12,14 +12,14 @@ use crate::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
 #[derive(Deserialize, Debug, Clone)]
 pub struct ChainhookConfig {
     pub stacks_chainhooks: Vec<StacksChainhookSpecification>,
-    pub bitcoin_chainhooks: Vec<BitcoinChainhookSpecification>,
+    pub bitcoin_chainhooks: VecDeque<BitcoinChainhookSpecification>,
 }
 
 impl ChainhookConfig {
     pub fn new() -> ChainhookConfig {
         ChainhookConfig {
             stacks_chainhooks: vec![],
-            bitcoin_chainhooks: vec![],
+            bitcoin_chainhooks: VecDeque::new(),
         }
     }
 
@@ -36,7 +36,7 @@ impl ChainhookConfig {
             }
             ChainhookFullSpecification::Bitcoin(hook) => {
                 let spec = hook.into_selected_network_specification(networks.0)?;
-                self.bitcoin_chainhooks.push(spec.clone());
+                self.bitcoin_chainhooks.push_back(spec.clone());
                 ChainhookSpecification::Bitcoin(spec)
             }
         };
@@ -74,7 +74,7 @@ impl ChainhookConfig {
             }
             ChainhookSpecification::Bitcoin(spec) => {
                 let spec = spec.clone();
-                self.bitcoin_chainhooks.push(spec);
+                self.bitcoin_chainhooks.push_back(spec);
             }
         };
         Ok(())
@@ -104,7 +104,7 @@ impl ChainhookConfig {
         while i < self.bitcoin_chainhooks.len() {
             if self.bitcoin_chainhooks[i].uuid == hook_uuid {
                 let hook = self.bitcoin_chainhooks.remove(i);
-                return Some(hook);
+                return hook;
             } else {
                 i += 1;
             }

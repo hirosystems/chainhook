@@ -35,7 +35,7 @@ use rocket::config::{self, Config, LogLevel};
 use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
 use rocket::Shutdown;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
@@ -345,7 +345,7 @@ impl ChainhookStore {
         Self {
             predicates: ChainhookConfig {
                 stacks_chainhooks: vec![],
-                bitcoin_chainhooks: vec![],
+                bitcoin_chainhooks: VecDeque::new(),
             },
         }
     }
@@ -720,9 +720,9 @@ pub fn get_bitcoin_proof(
     }
 }
 
-pub fn gather_proofs<'a>(
-    trigger: &BitcoinTriggerChainhook<'a>,
-    proofs: &mut HashMap<&'a TransactionIdentifier, String>,
+pub fn gather_proofs(
+    trigger: &BitcoinTriggerChainhook,
+    proofs: &mut HashMap<TransactionIdentifier, String>,
     config: &EventObserverConfig,
     ctx: &Context,
 ) {
@@ -751,7 +751,7 @@ pub fn gather_proofs<'a>(
                     &block.block_identifier,
                 ) {
                     Ok(proof) => {
-                        proofs.insert(&transaction.transaction_identifier, proof);
+                        proofs.insert(transaction.transaction_identifier.clone(), proof);
                     }
                     Err(e) => {
                         ctx.try_log(|logger| slog::warn!(logger, "{e}"));
@@ -1059,33 +1059,54 @@ pub async fn start_observer_commands_handler(
                 let mut requests = vec![];
                 let mut report = PredicateEvaluationReport::new();
 
-                let bitcoin_chainhooks = chainhook_store
-                    .predicates
-                    .bitcoin_chainhooks
-                    .iter()
-                    .filter(|p| p.enabled)
-                    .filter(|p| p.expired_at.is_none())
-                    .collect::<Vec<_>>();
+                let mut predicates_triggered = vec![];
+                let mut predicates_evaluated = BTreeMap::new();
+                let mut predicates_expired = BTreeMap::new();
+                let mut evaluated_count = 0;
+                let mut bitcoin_chainhooks = chainhook_store.predicates.bitcoin_chainhooks.clone();
+
+                while let Some(chainhook) = bitcoin_chainhooks.pop_front() {
+                    if !chainhook.enabled || chainhook.expired_at.is_some() {
+                        continue;
+                    }
+                    let (
+                        mut predicates_triggered_by_hook,
+                        mut predicates_evaluated_by_hook,
+                        mut predicates_expired_by_hook,
+                        new_chainhooks,
+                    ) = evaluate_bitcoin_chainhooks_on_chain_event(
+                        chain_event.clone(),
+                        chainhook,
+                        &ctx,
+                    );
+                    evaluated_count += 1;
+                    predicates_triggered.append(&mut predicates_triggered_by_hook);
+                    predicates_evaluated.append(&mut predicates_evaluated_by_hook);
+                    predicates_expired.append(&mut predicates_expired_by_hook);
+                    for hook in new_chainhooks.into_iter() {
+                        // add the new chainhook to our store
+                        chainhook_store
+                            .predicates
+                            .register_specification(ChainhookSpecification::Bitcoin(hook.clone()))
+                            .unwrap();
+                        // and add it to the current loop so we check this new predicate against the current chain event
+                        bitcoin_chainhooks.push_back(hook);
+                    }
+                }
+
                 ctx.try_log(|logger| {
                     slog::info!(
                         logger,
-                        "Evaluating {} bitcoin chainhooks registered",
-                        bitcoin_chainhooks.len()
+                        "Evaluated {} bitcoin chainhooks registered",
+                        evaluated_count
                     )
                 });
 
-                let (predicates_triggered, predicates_evaluated, predicates_expired) =
-                    evaluate_bitcoin_chainhooks_on_chain_event(
-                        &chain_event,
-                        &bitcoin_chainhooks,
-                        &ctx,
-                    );
-
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
-                    report.track_evaluation(uuid, block_identifier);
+                    report.track_evaluation(&uuid, &block_identifier);
                 }
                 for (uuid, block_identifier) in predicates_expired.into_iter() {
-                    report.track_expiration(uuid, block_identifier);
+                    report.track_expiration(&uuid, &block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
                     let blocks_ids = entry
@@ -1148,7 +1169,7 @@ pub async fn start_observer_commands_handler(
                     ));
                 }
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
-                    let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
+                    let predicate_uuid = chainhook_to_trigger.chainhook.uuid.clone();
                     match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
                         Err(e) => {
                             ctx.try_log(|logger| {
