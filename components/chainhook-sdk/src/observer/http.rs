@@ -58,7 +58,7 @@ pub async fn handle_new_bitcoin_block(
         match download_and_parse_block_with_retry(&http_client, block_hash, bitcoin_config, ctx)
             .await
         {
-            Ok(block) => block,
+            Ok(block) => Some(block),
             Err(e) => {
                 ctx.try_log(|logger| {
                     slog::warn!(
@@ -67,12 +67,33 @@ pub async fn handle_new_bitcoin_block(
                         e.to_string()
                     )
                 });
-                return Json(json!({
-                    "status": 500,
-                    "result": "unable to retrieve_full_block",
-                }));
+                None
             }
         };
+    let Some(block) = block else {
+        ctx.try_log(|logger| {
+            slog::crit!(
+                logger,
+                "Could not download bitcoin block after receiving new_burn_block. Exiting Chainhook observer."
+            )
+        });
+        match background_job_tx.lock() {
+            Ok(tx) => {
+                let _ = tx.send(ObserverCommand::Terminate);
+            }
+            Err(e) => {
+                ctx.try_log(|logger| {
+                    slog::crit!(logger, "Could not shut down event observer: {e}")
+                });
+                panic!("Could not shut down event observer: {e}")
+            }
+        }
+
+        return Json(json!({
+            "status": 500,
+            "result": "unable to retrieve_full_block",
+        }));
+    };
 
     let header = block.get_block_header();
     let block_height = header.block_identifier.index;
