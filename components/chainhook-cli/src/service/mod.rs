@@ -16,7 +16,7 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{
     start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
-    PredicateEvaluationReport, StacksObserverStartupContext,
+    PredicateEvaluationReport, PredicateInterruptedData, StacksObserverStartupContext,
 };
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
@@ -632,6 +632,24 @@ impl Service {
                         }
                     }
                 }
+                ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                    predicate_key,
+                    error,
+                }) => {
+                    if let PredicatesApi::On(ref config) = self.config.http_api {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
+                            continue;
+                        };
+                        set_predicate_interrupted_status(
+                            error,
+                            &predicate_key,
+                            &mut predicates_db_conn,
+                            &ctx,
+                        );
+                    }
+                }
                 ObserverEvent::Terminate => {
                     info!(
                         self.ctx.expect_logger(),
@@ -755,6 +773,16 @@ fn update_status_from_report(
             );
         }
     }
+}
+
+fn set_predicate_interrupted_status(
+    error: String,
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let status = PredicateStatus::Interrupted(error);
+    update_predicate_status(predicate_key, status, predicates_db_conn, ctx);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
