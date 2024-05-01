@@ -19,6 +19,7 @@ use std::io::Cursor;
 
 use reqwest::RequestBuilder;
 
+#[derive(Clone)]
 pub struct StacksTriggerChainhook<'a> {
     pub chainhook: &'a StacksChainhookSpecification,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
@@ -48,8 +49,48 @@ pub struct StacksChainhookOccurrencePayload {
     pub rollback: Vec<StacksRollbackTransactionPayload>,
     pub chainhook: StacksChainhookPayload,
 }
+
+impl StacksChainhookOccurrencePayload {
+    pub fn from_trigger<'a>(
+        trigger: StacksTriggerChainhook<'a>,
+    ) -> StacksChainhookOccurrencePayload {
+        StacksChainhookOccurrencePayload {
+            apply: trigger
+                .apply
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    StacksApplyTransactionPayload {
+                        block_identifier: block.get_identifier().clone(),
+                        transactions,
+                    }
+                })
+                .collect::<Vec<_>>(),
+            rollback: trigger
+                .rollback
+                .into_iter()
+                .map(|(transactions, block)| {
+                    let transactions = transactions
+                        .into_iter()
+                        .map(|t| t.clone())
+                        .collect::<Vec<_>>();
+                    StacksRollbackTransactionPayload {
+                        block_identifier: block.get_identifier().clone(),
+                        transactions,
+                    }
+                })
+                .collect::<Vec<_>>(),
+            chainhook: StacksChainhookPayload {
+                uuid: trigger.chainhook.uuid.clone(),
+            },
+        }
+    }
+}
 pub enum StacksChainhookOccurrence {
-    Http(RequestBuilder),
+    Http(RequestBuilder, StacksChainhookOccurrencePayload),
     File(String, Vec<u8>),
     Data(StacksChainhookOccurrencePayload),
 }
@@ -869,14 +910,19 @@ pub fn handle_stacks_hook_action<'a>(
                 .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
             let host = format!("{}", http.url);
             let method = Method::POST;
-            let body = serde_json::to_vec(&serialize_stacks_payload_to_json(trigger, proofs, ctx))
-                .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
+            let body = serde_json::to_vec(&serialize_stacks_payload_to_json(
+                trigger.clone(),
+                proofs,
+                ctx,
+            ))
+            .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
             Ok(StacksChainhookOccurrence::Http(
                 client
                     .request(method, &host)
                     .header("Content-Type", "application/json")
                     .header("Authorization", http.authorization_header.clone())
                     .body(body),
+                StacksChainhookOccurrencePayload::from_trigger(trigger),
             ))
         }
         HookAction::FileAppend(disk) => {
@@ -888,39 +934,7 @@ pub fn handle_stacks_hook_action<'a>(
             ))
         }
         HookAction::Noop => Ok(StacksChainhookOccurrence::Data(
-            StacksChainhookOccurrencePayload {
-                apply: trigger
-                    .apply
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        StacksApplyTransactionPayload {
-                            block_identifier: block.get_identifier().clone(),
-                            transactions,
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-                rollback: trigger
-                    .rollback
-                    .into_iter()
-                    .map(|(transactions, block)| {
-                        let transactions = transactions
-                            .into_iter()
-                            .map(|t| t.clone())
-                            .collect::<Vec<_>>();
-                        StacksRollbackTransactionPayload {
-                            block_identifier: block.get_identifier().clone(),
-                            transactions,
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-                chainhook: StacksChainhookPayload {
-                    uuid: trigger.chainhook.uuid.clone(),
-                },
-            },
+            StacksChainhookOccurrencePayload::from_trigger(trigger),
         )),
     }
 }
