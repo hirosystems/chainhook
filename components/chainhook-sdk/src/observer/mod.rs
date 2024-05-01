@@ -1151,8 +1151,10 @@ pub async fn start_observer_commands_handler(
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
                         Err(e) => {
+                            // todo: we may want to set predicates that reach this branch as interrupted,
+                            // but for now we will error to see if this problem occurs.
                             ctx.try_log(|logger| {
-                                slog::warn!(
+                                slog::error!(
                                     logger,
                                     "unable to handle action for predicate {}: {}",
                                     predicate_uuid,
@@ -1326,7 +1328,9 @@ pub async fn start_observer_commands_handler(
                     match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::warn!(
+                                // todo: we may want to set predicates that reach this branch as interrupted,
+                                // but for now we will error to see if this problem occurs.
+                                slog::error!(
                                     logger,
                                     "unable to handle action for predicate {}: {}",
                                     predicate_uuid,
