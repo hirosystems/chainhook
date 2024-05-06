@@ -85,7 +85,7 @@ pub async fn handle_new_bitcoin_block(
                 ctx.try_log(|logger| {
                     slog::crit!(logger, "Could not shut down event observer: {e}")
                 });
-                panic!("Could not shut down event observer: {e}")
+                std::process::exit(1)
             }
         }
 
