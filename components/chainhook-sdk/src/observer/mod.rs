@@ -296,6 +296,12 @@ impl PredicateEvaluationReport {
 }
 
 #[derive(Clone, Debug)]
+pub struct PredicateInterruptedData {
+    pub predicate_key: String,
+    pub error: String,
+}
+
+#[derive(Clone, Debug)]
 pub enum ObserverEvent {
     Error(String),
     Fatal(String),
@@ -309,6 +315,7 @@ pub enum ObserverEvent {
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
     PredicatesTriggered(usize),
+    PredicateInterrupted(PredicateInterruptedData),
     Terminate,
     StacksChainMempoolEvent(StacksChainMempoolEvent),
 }
@@ -1151,8 +1158,10 @@ pub async fn start_observer_commands_handler(
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
                     match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
                         Err(e) => {
+                            // todo: we may want to set predicates that reach this branch as interrupted,
+                            // but for now we will error to see if this problem occurs.
                             ctx.try_log(|logger| {
-                                slog::warn!(
+                                slog::error!(
                                     logger,
                                     "unable to handle action for predicate {}: {}",
                                     predicate_uuid,
@@ -1197,10 +1206,22 @@ pub async fn start_observer_commands_handler(
                 }
 
                 for (request, data) in requests.into_iter() {
-                    // todo: need to handle failure case - we should be setting interrupted status: https://github.com/hirosystems/chainhook/issues/523
-                    if send_request(request, 3, 1, &ctx).await.is_ok() {
-                        if let Some(ref tx) = observer_events_tx {
-                            let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
+                    match send_request(request, 3, 1, &ctx).await {
+                        Ok(_) => {
+                            if let Some(ref tx) = observer_events_tx {
+                                let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
+                            }
+                        }
+                        Err(e) => {
+                            chainhook_store
+                                .predicates
+                                .deregister_bitcoin_hook(data.chainhook.uuid.clone());
+                            if let Some(ref tx) = observer_events_tx {
+                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                                    predicate_key: ChainhookSpecification::bitcoin_key(&data.chainhook.uuid),
+                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
+                                }));
+                            }
                         }
                     }
                 }
@@ -1326,7 +1347,9 @@ pub async fn start_observer_commands_handler(
                     match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
-                                slog::warn!(
+                                // todo: we may want to set predicates that reach this branch as interrupted,
+                                // but for now we will error to see if this problem occurs.
+                                slog::error!(
                                     logger,
                                     "unable to handle action for predicate {}: {}",
                                     predicate_uuid,
@@ -1334,8 +1357,8 @@ pub async fn start_observer_commands_handler(
                                 )
                             });
                         }
-                        Ok(StacksChainhookOccurrence::Http(request)) => {
-                            requests.push(request);
+                        Ok(StacksChainhookOccurrence::Http(request, data)) => {
+                            requests.push((request, data));
                         }
                         Ok(StacksChainhookOccurrence::File(_path, _bytes)) => {
                             ctx.try_log(|logger| {
@@ -1363,7 +1386,7 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for request in requests.into_iter() {
+                for (request, data) in requests.into_iter() {
                     // todo(lgalabru): collect responses for reporting
                     ctx.try_log(|logger| {
                         slog::debug!(
@@ -1372,7 +1395,24 @@ pub async fn start_observer_commands_handler(
                             request
                         )
                     });
-                    let _ = send_request(request, 3, 1, &ctx).await;
+                    match send_request(request, 3, 1, &ctx).await {
+                        Ok(_) => {
+                            if let Some(ref tx) = observer_events_tx {
+                                let _ = tx.send(ObserverEvent::StacksPredicateTriggered(data));
+                            }
+                        }
+                        Err(e) => {
+                            chainhook_store
+                                .predicates
+                                .deregister_stacks_hook(data.chainhook.uuid.clone());
+                            if let Some(ref tx) = observer_events_tx {
+                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                                    predicate_key: ChainhookSpecification::stacks_key(&data.chainhook.uuid),
+                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
+                                }));
+                            }
+                        }
+                    };
                 }
 
                 prometheus_monitoring.stx_metrics_block_evaluated(new_tip);
