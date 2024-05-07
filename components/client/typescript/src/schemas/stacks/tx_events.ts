@@ -1,10 +1,14 @@
 import { Static, Type } from '@sinclair/typebox';
 
+export const StacksTransactionEventPositionSchema = Type.Object({ index: Type.Integer() });
+export type StacksTransactionEventPosition = Static<typeof StacksTransactionEventPositionSchema>;
+
 export const StacksTransactionNftMintEventSchema = Type.Object({
   type: Type.Literal('NFTMintEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
-    asset_class_identifier: Type.String(),
     asset_identifier: Type.String(),
+    raw_value: Type.String(),
     recipient: Type.String(),
   }),
 });
@@ -12,9 +16,10 @@ export type StacksTransactionNftMintEvent = Static<typeof StacksTransactionNftMi
 
 export const StacksTransactionNftTransferEventSchema = Type.Object({
   type: Type.Literal('NFTTransferEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
-    raw_value: Type.String(),
     asset_identifier: Type.String(),
+    raw_value: Type.String(),
     recipient: Type.String(),
     sender: Type.String(),
   }),
@@ -25,9 +30,10 @@ export type StacksTransactionNftTransferEvent = Static<
 
 export const StacksTransactionNftBurnEventSchema = Type.Object({
   type: Type.Literal('NFTBurnEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
-    asset_class_identifier: Type.String(),
     asset_identifier: Type.String(),
+    raw_value: Type.String(),
     sender: Type.String(),
   }),
 });
@@ -35,6 +41,7 @@ export type StacksTransactionNftBurnEvent = Static<typeof StacksTransactionNftBu
 
 export const StacksTransactionFtTransferEventSchema = Type.Object({
   type: Type.Literal('FTTransferEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
@@ -48,6 +55,7 @@ export type StacksTransactionFtTransferEvent = Static<
 
 export const StacksTransactionFtMintEventSchema = Type.Object({
   type: Type.Literal('FTMintEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
@@ -58,6 +66,7 @@ export type StacksTransactionFtMintEvent = Static<typeof StacksTransactionFtMint
 
 export const StacksTransactionFtBurnEventSchema = Type.Object({
   type: Type.Literal('FTBurnEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     asset_identifier: Type.String(),
@@ -68,6 +77,7 @@ export type StacksTransactionFtBurnEvent = Static<typeof StacksTransactionFtBurn
 
 export const StacksTransactionSmartContractEventSchema = Type.Object({
   type: Type.Literal('SmartContractEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     contract_identifier: Type.String(),
     raw_value: Type.String(),
@@ -80,6 +90,7 @@ export type StacksTransactionSmartContractEvent = Static<
 
 export const StacksTransactionStxTransferEventSchema = Type.Object({
   type: Type.Literal('STXTransferEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     sender: Type.String(),
@@ -92,6 +103,7 @@ export type StacksTransactionStxTransferEvent = Static<
 
 export const StacksTransactionStxMintEventSchema = Type.Object({
   type: Type.Literal('STXMintEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     recipient: Type.String(),
@@ -101,6 +113,7 @@ export type StacksTransactionStxMintEvent = Static<typeof StacksTransactionStxMi
 
 export const StacksTransactionStxLockEventSchema = Type.Object({
   type: Type.Literal('STXLockEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     locked_amount: Type.String(),
     unlock_height: Type.String(),
@@ -111,6 +124,7 @@ export type StacksTransactionStxLockEvent = Static<typeof StacksTransactionStxLo
 
 export const StacksTransactionStxBurnEventSchema = Type.Object({
   type: Type.Literal('STXBurnEvent'),
+  position: StacksTransactionEventPositionSchema,
   data: Type.Object({
     amount: Type.String(),
     sender: Type.String(),
