@@ -1213,6 +1213,9 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
+                            chainhook_store
+                                .predicates
+                                .deregister_bitcoin_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                                     predicate_key: ChainhookSpecification::bitcoin_key(&data.chainhook.uuid),
@@ -1399,6 +1402,9 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
+                            chainhook_store
+                                .predicates
+                                .deregister_stacks_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                                     predicate_key: ChainhookSpecification::stacks_key(&data.chainhook.uuid),
