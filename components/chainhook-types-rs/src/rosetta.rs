@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
+pub const DEFAULT_STACKS_NODE_RPC: &str = "http://localhost:20443";
 /// BlockIdentifier uniquely identifies a block in a particular network.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct BlockIdentifier {
@@ -870,9 +871,16 @@ pub struct StacksNodeConfig {
 }
 
 impl StacksNodeConfig {
+    pub fn new(rpc_url: String, ingestion_port: u16) -> StacksNodeConfig {
+        StacksNodeConfig {
+            rpc_url,
+            ingestion_port,
+        }
+    }
+
     pub fn default_localhost(ingestion_port: u16) -> StacksNodeConfig {
         StacksNodeConfig {
-            rpc_url: "http://localhost:20443".to_string(),
+            rpc_url: DEFAULT_STACKS_NODE_RPC.to_string(),
             ingestion_port,
         }
     }

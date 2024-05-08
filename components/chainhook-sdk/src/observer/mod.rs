@@ -28,6 +28,7 @@ use chainhook_types::{
     BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
     BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
     StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
+    DEFAULT_STACKS_NODE_RPC,
 };
 use hiro_system_kit;
 use hiro_system_kit::slog;
@@ -176,13 +177,14 @@ impl EventObserverConfig {
             bitcoin_block_signaling: overrides
                 .and_then(|c| c.bitcoind_zmq_url.as_ref())
                 .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
-                .unwrap_or(BitcoinBlockSignaling::Stacks(
-                    StacksNodeConfig::default_localhost(
-                        overrides
-                            .and_then(|c| c.ingestion_port)
-                            .unwrap_or(DEFAULT_INGESTION_PORT),
-                    ),
-                )),
+                .unwrap_or(BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
+                    overrides
+                        .and_then(|c| c.stacks_node_rpc_url.clone())
+                        .unwrap_or(DEFAULT_STACKS_NODE_RPC.to_string()),
+                    overrides
+                        .and_then(|c| c.ingestion_port)
+                        .unwrap_or(DEFAULT_INGESTION_PORT),
+                ))),
             display_logs: overrides.and_then(|c| c.display_logs).unwrap_or(false),
             cache_path: overrides
                 .and_then(|c| c.cache_path.clone())
