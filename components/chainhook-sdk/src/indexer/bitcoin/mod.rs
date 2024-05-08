@@ -513,7 +513,7 @@ fn try_parse_stacks_operation(
             ctx.try_log(|logger| {
                 slog::debug!(
                     logger,
-                    "Stacks operation parsing - opcode unknown {}",
+                    "Stacks operation parsing - opcode {} is not a stacks operation; skipping transaction",
                     op_return_output[5]
                 )
             });
