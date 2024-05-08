@@ -168,17 +168,20 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
         let res = match process_block_with_predicates(
             block,
-            &vec![&predicate_spec],
+            predicate_spec.clone(),
             &event_observer_config,
             ctx,
         )
         .await
         {
-            Ok(actions) => {
+            Ok((actions, new_chainhooks)) => {
                 if actions > 0 {
                     number_of_times_triggered += 1;
                 }
                 actions_triggered += actions;
+                for _new_chainhook in new_chainhooks {
+                    todo!()
+                }
                 Ok(())
             }
             Err(e) => {
@@ -243,24 +246,27 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
 pub async fn process_block_with_predicates(
     block: BitcoinBlockData,
-    predicates: &Vec<&BitcoinChainhookSpecification>,
+    predicates: BitcoinChainhookSpecification,
     event_observer_config: &EventObserverConfig,
     ctx: &Context,
-) -> Result<u32, String> {
+) -> Result<(u32, Vec<BitcoinChainhookSpecification>), String> {
     let chain_event =
         BitcoinChainEvent::ChainUpdatedWithBlocks(BitcoinChainUpdatedWithBlocksData {
             new_blocks: vec![block],
             confirmed_blocks: vec![],
         });
+    // todo: use new hooks
+    let (predicates_triggered, _predicates_evaluated, _predicates_expired, new_chainhooks) =
+        evaluate_bitcoin_chainhooks_on_chain_event(chain_event, predicates, ctx);
 
-    let (predicates_triggered, _predicates_evaluated, _predicates_expired) =
-        evaluate_bitcoin_chainhooks_on_chain_event(&chain_event, predicates, ctx);
-
-    execute_predicates_action(predicates_triggered, &event_observer_config, &ctx).await
+    match execute_predicates_action(predicates_triggered, &event_observer_config, &ctx).await {
+        Ok(actions) => Ok((actions, new_chainhooks)),
+        Err(e) => Err(e),
+    }
 }
 
-pub async fn execute_predicates_action<'a>(
-    hits: Vec<BitcoinTriggerChainhook<'a>>,
+pub async fn execute_predicates_action(
+    hits: Vec<BitcoinTriggerChainhook>,
     config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<u32, String> {
@@ -270,7 +276,7 @@ pub async fn execute_predicates_action<'a>(
         if trigger.chainhook.include_proof {
             gather_proofs(&trigger, &mut proofs, &config, &ctx);
         }
-        let predicate_uuid = &trigger.chainhook.uuid;
+        let predicate_uuid = &trigger.chainhook.uuid.clone();
         match handle_bitcoin_hook_action(trigger, &proofs) {
             Err(e) => {
                 warn!(

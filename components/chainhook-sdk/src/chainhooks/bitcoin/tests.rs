@@ -135,8 +135,8 @@ fn script_pubkey_evaluation(output: OutputPredicate, script_pubkey: &str, matche
         logger: None,
         tracer: false,
     };
-
-    assert_eq!(matches, predicate.evaluate_transaction_predicate(&tx, &ctx));
+    let (actual_matches, _) = predicate.evaluate_transaction_predicate(&tx, &ctx);
+    assert_eq!(matches, actual_matches);
 }
 
 #[test_case(
@@ -161,7 +161,7 @@ fn it_serdes_occurrence_payload(
         3,
     );
     let block = generate_test_bitcoin_block(0, 0, vec![transaction.clone()], None);
-    let chainhook = &BitcoinChainhookSpecification {
+    let chainhook = BitcoinChainhookSpecification {
         uuid: "uuid".into(),
         owner_uuid: None,
         name: "name".into(),
@@ -182,14 +182,11 @@ fn it_serdes_occurrence_payload(
     };
     let trigger = BitcoinTriggerChainhook {
         chainhook,
-        apply: vec![(vec![&transaction], &block)],
+        apply: vec![(vec![transaction], block)],
         rollback: vec![],
     };
-    let payload = serde_json::to_vec(&serialize_bitcoin_payload_to_json(
-        &trigger,
-        &HashMap::new(),
-    ))
-    .unwrap();
+    let payload =
+        serde_json::to_vec(&serialize_bitcoin_payload_to_json(trigger, &HashMap::new())).unwrap();
 
     let _: BitcoinChainhookOccurrencePayload = serde_json::from_slice(&payload[..]).unwrap();
 }
