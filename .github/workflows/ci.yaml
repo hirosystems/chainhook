@@ -102,10 +102,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             architecture: x64
             libc: glibc
-          - os: windows-latest
-            platform: windows
-            target: x86_64-pc-windows-msvc
-            architecture: x64
+          # - os: windows-latest
+          #   platform: windows
+          #   target: x86_64-pc-windows-msvc
+          #   architecture: x64
           - os: macos-latest
             platform: darwin
             target: x86_64-apple-darwin
@@ -182,7 +182,7 @@ jobs:
         
       # Steps for Windows Code Signing with DigiCert
       - name: Windows - Setup Certificate
-        if: startsWith(github.ref, 'refs/heads/main') && matrix.os == 'windows-latest'
+        if: startsWith(github.ref, 'refs/heads/main') && matrix.os == 'windows-latest' && false # 
         run: |
           echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
           cat  /d/Certificate_pkcs12.p12
