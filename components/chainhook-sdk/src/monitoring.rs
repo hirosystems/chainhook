@@ -208,6 +208,21 @@ impl PrometheusMonitoring {
         g
     }
 
+    pub fn initialize(
+        &self,
+        stx_predicates: u64,
+        btc_predicates: u64,
+        initial_stx_block: Option<u64>,
+    ) {
+        self.stx_metrics_set_registered_predicates(stx_predicates);
+        self.btc_metrics_set_registered_predicates(btc_predicates);
+        if let Some(initial_stx_block) = initial_stx_block {
+            self.stx_metrics_block_received(initial_stx_block);
+            self.stx_metrics_block_appeneded(initial_stx_block);
+            self.stx_metrics_block_evaluated(initial_stx_block);
+        }
+    }
+
     // stx helpers
     pub fn stx_metrics_deregister_predicate(&self) {
         self.stx_registered_predicates.dec();

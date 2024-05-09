@@ -7,6 +7,7 @@ import {
 } from '../common';
 import { StacksTransactionEventSchema } from './tx_events';
 import { StacksTransactionKindSchema } from './tx_kind';
+import { StacksIfThisSchema } from './if_this';
 
 export const StacksExecutionCostSchema = Type.Optional(
   Type.Object({
@@ -47,6 +48,7 @@ export const StacksTransactionMetadataSchema = Type.Object({
   sender: Type.String(),
   sponsor: Type.Optional(Type.String()),
   success: Type.Boolean(),
+  contract_abi: Type.Optional(Type.Any()),
 });
 export type StacksTransactionMetadata = Static<typeof StacksTransactionMetadataSchema>;
 
@@ -59,7 +61,7 @@ export type StacksTransaction = Static<typeof StacksTransactionSchema>;
 
 export const StacksEventMetadataSchema = Type.Object({
   bitcoin_anchor_block_identifier: BlockIdentifierSchema,
-  confirm_microblock_identifier: BlockIdentifierSchema,
+  confirm_microblock_identifier: Nullable(BlockIdentifierSchema),
   pox_cycle_index: Type.Integer(),
   pox_cycle_length: Type.Integer(),
   pox_cycle_position: Type.Integer(),
@@ -75,3 +77,14 @@ export const StacksEventSchema = Type.Object({
   metadata: StacksEventMetadataSchema,
 });
 export type StacksEvent = Static<typeof StacksEventSchema>;
+
+export const StacksPayloadSchema = Type.Object({
+  apply: Type.Array(StacksEventSchema),
+  rollback: Type.Array(StacksEventSchema),
+  chainhook: Type.Object({
+    uuid: Type.String(),
+    predicate: StacksIfThisSchema,
+    is_streaming_blocks: Type.Boolean(),
+  }),
+});
+export type StacksPayload = Static<typeof StacksPayloadSchema>;

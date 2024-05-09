@@ -153,7 +153,7 @@ pub async fn download_and_parse_block_with_retry(
     ctx: &Context,
 ) -> Result<BitcoinBlockFullBreakdown, String> {
     let mut errors_count = 0;
-    let max_retries = 10;
+    let max_retries = 20;
     let block = loop {
         match download_and_parse_block(http_client, block_hash, bitcoin_config, ctx).await {
             Ok(result) => break result,
@@ -513,7 +513,7 @@ fn try_parse_stacks_operation(
             ctx.try_log(|logger| {
                 slog::debug!(
                     logger,
-                    "Stacks operation parsing - opcode unknown {}",
+                    "Stacks operation parsing - opcode {} is not a stacks operation; skipping transaction",
                     op_return_output[5]
                 )
             });

@@ -5,6 +5,7 @@ import {
   TransactionIdentifierSchema,
   RosettaOperationSchema,
 } from '../common';
+import { BitcoinIfThisSchema } from './if_this';
 
 export const BitcoinInscriptionRevealedSchema = Type.Object({
   content_bytes: Type.String(),
@@ -115,12 +116,14 @@ export const BitcoinBrc20OperationSchema = Type.Union([
   BitcoinBrc20TransferOperationSchema,
   BitcoinBrc20TransferSendOperationSchema,
 ]);
+export type BitcoinBrc20Operation = Static<typeof BitcoinBrc20OperationSchema>;
 
 export const BitcoinTransactionMetadataSchema = Type.Object({
   ordinal_operations: Type.Array(BitcoinOrdinalOperationSchema),
   brc20_operation: Type.Optional(BitcoinBrc20OperationSchema),
   outputs: Type.Optional(Type.Array(BitcoinOutputSchema)),
   proof: Nullable(Type.String()),
+  index: Type.Integer(),
 });
 export type BitcoinTransactionMetadata = Static<typeof BitcoinTransactionMetadataSchema>;
 
@@ -139,3 +142,14 @@ export const BitcoinEventSchema = Type.Object({
   metadata: Type.Any(),
 });
 export type BitcoinEvent = Static<typeof BitcoinEventSchema>;
+
+export const BitcoinPayloadSchema = Type.Object({
+  apply: Type.Array(BitcoinEventSchema),
+  rollback: Type.Array(BitcoinEventSchema),
+  chainhook: Type.Object({
+    uuid: Type.String(),
+    predicate: BitcoinIfThisSchema,
+    is_streaming_blocks: Type.Boolean(),
+  }),
+});
+export type BitcoinPayload = Static<typeof BitcoinPayloadSchema>;

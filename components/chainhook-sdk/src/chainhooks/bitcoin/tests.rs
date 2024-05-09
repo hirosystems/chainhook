@@ -1,8 +1,12 @@
 use super::super::types::MatchingRule;
 use super::*;
+use crate::indexer::tests::helpers::accounts;
+use crate::indexer::tests::helpers::bitcoin_blocks::generate_test_bitcoin_block;
+use crate::indexer::tests::helpers::transactions::generate_test_tx_bitcoin_p2pkh_transfer;
 use crate::types::BitcoinTransactionMetadata;
 use chainhook_types::bitcoin::TxOut;
 
+use chainhook_types::BitcoinNetwork;
 use test_case::test_case;
 
 #[test_case(
@@ -133,4 +137,59 @@ fn script_pubkey_evaluation(output: OutputPredicate, script_pubkey: &str, matche
     };
 
     assert_eq!(matches, predicate.evaluate_transaction_predicate(&tx, &ctx));
+}
+
+#[test_case(
+    true, true, true, true;
+    "including all optional fields"
+)]
+#[test_case(
+    false, false, false, false;
+    "omitting all optional fields"
+)]
+
+fn it_serdes_occurrence_payload(
+    include_proof: bool,
+    include_inputs: bool,
+    include_outputs: bool,
+    include_witness: bool,
+) {
+    let transaction = generate_test_tx_bitcoin_p2pkh_transfer(
+        0,
+        &accounts::wallet_1_btc_address(),
+        &accounts::wallet_3_btc_address(),
+        3,
+    );
+    let block = generate_test_bitcoin_block(0, 0, vec![transaction.clone()], None);
+    let chainhook = &BitcoinChainhookSpecification {
+        uuid: "uuid".into(),
+        owner_uuid: None,
+        name: "name".into(),
+        network: BitcoinNetwork::Mainnet,
+        version: 0,
+        blocks: None,
+        start_block: None,
+        end_block: None,
+        expire_after_occurrence: None,
+        predicate: BitcoinPredicateType::Block,
+        action: HookAction::Noop,
+        include_proof,
+        include_inputs,
+        include_outputs,
+        include_witness,
+        enabled: true,
+        expired_at: None,
+    };
+    let trigger = BitcoinTriggerChainhook {
+        chainhook,
+        apply: vec![(vec![&transaction], &block)],
+        rollback: vec![],
+    };
+    let payload = serde_json::to_vec(&serialize_bitcoin_payload_to_json(
+        &trigger,
+        &HashMap::new(),
+    ))
+    .unwrap();
+
+    let _: BitcoinChainhookOccurrencePayload = serde_json::from_slice(&payload[..]).unwrap();
 }

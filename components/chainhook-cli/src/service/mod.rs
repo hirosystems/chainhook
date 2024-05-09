@@ -16,9 +16,9 @@ use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookFullSpecificati
 use chainhook_sdk::chainhooks::types::ChainhookSpecification;
 use chainhook_sdk::observer::{
     start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
-    PredicateEvaluationReport,
+    PredicateEvaluationReport, PredicateInterruptedData, StacksObserverStartupContext,
 };
-use chainhook_sdk::types::{Chain, StacksChainEvent};
+use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
@@ -243,24 +243,38 @@ impl Service {
         let ctx = self.ctx.clone();
         let stacks_db =
             open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, &ctx)?;
-        let unconfirmed_blocks = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
+        let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx).unwrap_or(0);
+        let stacks_startup_context = match get_all_unconfirmed_blocks(&stacks_db, &ctx) {
             Ok(blocks) => {
-                let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx).unwrap_or(0);
                 // any unconfirmed blocks that are earlier than confirmed blocks are invalid
-                Some(
-                    blocks
-                        .iter()
-                        .filter(|&b| b.block_identifier.index > confirmed_tip)
-                        .cloned()
-                        .collect(),
-                )
+
+                let unconfirmed_blocks = blocks
+                    .iter()
+                    .filter(|&b| b.block_identifier.index > confirmed_tip)
+                    .cloned()
+                    .collect::<Vec<StacksBlockData>>();
+
+                let highest_appended = match unconfirmed_blocks
+                    .iter()
+                    .max_by_key(|b| b.block_identifier.index)
+                {
+                    Some(highest_block) => highest_block.block_identifier.index,
+                    None => confirmed_tip,
+                };
+                StacksObserverStartupContext {
+                    block_pool_seed: unconfirmed_blocks,
+                    last_block_height_appended: highest_appended,
+                }
             }
             Err(e) => {
                 info!(
                     self.ctx.expect_logger(),
                     "Failed to get stacks blocks from db to seed block pool: {}", e
                 );
-                None
+                StacksObserverStartupContext {
+                    block_pool_seed: vec![],
+                    last_block_height_appended: confirmed_tip,
+                }
             }
         };
 
@@ -272,7 +286,7 @@ impl Service {
             observer_command_rx,
             Some(observer_event_tx_moved),
             None,
-            unconfirmed_blocks,
+            Some(stacks_startup_context),
             self.ctx.clone(),
         );
 
@@ -618,6 +632,24 @@ impl Service {
                         }
                     }
                 }
+                ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                    predicate_key,
+                    error,
+                }) => {
+                    if let PredicatesApi::On(ref config) = self.config.http_api {
+                        let Ok(mut predicates_db_conn) =
+                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                        else {
+                            continue;
+                        };
+                        set_predicate_interrupted_status(
+                            error,
+                            &predicate_key,
+                            &mut predicates_db_conn,
+                            &ctx,
+                        );
+                    }
+                }
                 ObserverEvent::Terminate => {
                     info!(
                         self.ctx.expect_logger(),
@@ -741,6 +773,16 @@ fn update_status_from_report(
             );
         }
     }
+}
+
+fn set_predicate_interrupted_status(
+    error: String,
+    predicate_key: &str,
+    predicates_db_conn: &mut Connection,
+    ctx: &Context,
+) {
+    let status = PredicateStatus::Interrupted(error);
+    update_predicate_status(predicate_key, status, predicates_db_conn, ctx);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
