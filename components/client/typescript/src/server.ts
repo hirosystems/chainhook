@@ -28,6 +28,8 @@ const ServerOptionsSchema = Type.Object({
   wait_for_chainhook_node: Type.Optional(Type.Boolean({ default: true })),
   /** Validate the JSON schema of received chainhook payloads and report errors when invalid */
   validate_chainhook_payloads: Type.Optional(Type.Boolean({ default: false })),
+  /** Validate the authorization token sent by the server is correct. */
+  validate_token_authorization: Type.Optional(Type.Boolean({ default: true })),
   /** Size limit for received chainhook payloads (default 40MB) */
   body_limit: Type.Optional(Type.Number({ default: 41943040 })),
   /** Node type: `chainhook` or `ordhook` */
@@ -186,6 +188,7 @@ export async function buildServer(
   }
 
   async function isEventAuthorized(request: FastifyRequest, reply: FastifyReply) {
+    if (!(serverOpts.validate_token_authorization ?? true)) return;
     const authHeader = request.headers.authorization;
     if (authHeader && authHeader === `Bearer ${serverOpts.auth_token}`) {
       return;
@@ -200,39 +203,32 @@ export async function buildServer(
   > = (fastify, options, done) => {
     const compiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
     fastify.addHook('preHandler', isEventAuthorized);
-    fastify.post(
-      '/payload',
-      {
-        schema: {
-          body: PayloadSchema,
-        },
-      },
-      async (request, reply) => {
-        if (
-          (serverOpts.validate_chainhook_payloads ?? false) &&
-          !compiledPayloadSchema.Check(request.body)
-        ) {
-          logger.error(
-            [...compiledPayloadSchema.Errors(request.body)],
-            `ChainhookEventObserver received an invalid payload`
-          );
-          await reply.code(422).send();
-          return;
-        }
-        try {
-          await callback(request.body.chainhook.uuid, request.body);
-          await reply.code(200).send();
-        } catch (error) {
-          if (error instanceof BadPayloadRequestError) {
-            logger.error(error, `ChainhookEventObserver bad payload`);
-            await reply.code(400).send();
-          } else {
-            logger.error(error, `ChainhookEventObserver error processing payload`);
-            await reply.code(500).send();
-          }
+    fastify.post('/payload', async (request, reply) => {
+      if (
+        (serverOpts.validate_chainhook_payloads ?? false) &&
+        !compiledPayloadSchema.Check(request.body)
+      ) {
+        logger.error(
+          [...compiledPayloadSchema.Errors(request.body)],
+          `ChainhookEventObserver received an invalid payload`
+        );
+        await reply.code(422).send();
+        return;
+      }
+      const body = request.body as Payload;
+      try {
+        await callback(body.chainhook.uuid, body);
+        await reply.code(200).send();
+      } catch (error) {
+        if (error instanceof BadPayloadRequestError) {
+          logger.error(error, `ChainhookEventObserver bad payload`);
+          await reply.code(400).send();
+        } else {
+          logger.error(error, `ChainhookEventObserver error processing payload`);
+          await reply.code(500).send();
         }
       }
-    );
+    });
     done();
   };
 
