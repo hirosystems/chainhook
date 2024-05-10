@@ -288,6 +288,10 @@ pub fn serialize_bitcoin_transactions_to_json<'a>(
             };
             metadata.insert("ordinal_operations".into(), json!(ordinals_ops));
 
+            if let Some(ref brc20) = transaction.metadata.brc20_operation {
+                metadata.insert("brc20_operation".into(), json!(brc20));
+            }
+
             metadata.insert(
                 "proof".into(),
                 json!(proofs.get(&transaction.transaction_identifier)),
