@@ -284,6 +284,38 @@ jobs:
           name: chainhook-${{ env.SHORT_TARGET_NAME }}
           path: chainhook-${{ env.SHORT_TARGET_NAME }}.msi
 
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
+    needs:
+      - test
+      - dist_chainhook
+      - build-publish
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download pre-built dists
+        uses: actions/download-artifact@v3
+
+      - name: Tag and Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "**/*.tar.gz,**/*.msi"
+          tag: ${{ needs.get_release_info.outputs.tag }}
+          commit: ${{ env.GITHUB_SHA }}
+
+      - name: Trigger pkg-version-bump workflow
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: released
+          client-payload: '{"tag": "${{ needs.get_release_info.outputs.tag }}"}'
+
 
   build-publish:
     runs-on: ubuntu-latest
@@ -356,38 +388,6 @@ jobs:
           cache-to: type=gha,mode=max
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
           push: ${{ (github.ref != 'refs/heads/main' || needs.get_release_info.outputs.tag != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
-    needs:
-      - test
-      - dist_chainhook
-      - build-publish
-    permissions:
-      actions: write
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download pre-built dists
-        uses: actions/download-artifact@v3
-
-      - name: Tag and Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "**/*.tar.gz,**/*.msi"
-          tag: ${{ needs.get_release_info.outputs.tag }}
-          commit: ${{ env.GITHUB_SHA }}
-
-      - name: Trigger pkg-version-bump workflow
-        uses: peter-evans/repository-dispatch@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: released
-          client-payload: '{"tag": "${{ needs.get_release_info.outputs.tag }}"}'
 
   deploy-dev:
     runs-on: ubuntu-latest
