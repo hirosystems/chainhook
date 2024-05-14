@@ -264,5 +264,10 @@ fn it_serdes_brc20_payload(tick: String) {
     ))
     .unwrap();
 
-    let _: BitcoinChainhookOccurrencePayload = serde_json::from_slice(&payload[..]).unwrap();
+    let deserialized: BitcoinChainhookOccurrencePayload =
+        serde_json::from_slice(&payload[..]).unwrap();
+    assert!(deserialized.apply[0].block.transactions[0]
+        .metadata
+        .brc20_operation
+        .is_some());
 }
