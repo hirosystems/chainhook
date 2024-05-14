@@ -291,7 +291,6 @@ jobs:
     needs:
       - test
       - dist_chainhook
-      - build-publish
     permissions:
       actions: write
       contents: write
