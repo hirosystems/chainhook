@@ -23,7 +23,7 @@ use chainhook_sdk::chainhooks::types::{
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::{BlockHeights, Context};
-use clap::{Parser, Subcommand};
+use clap::{ErrorKind, Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::io::{BufReader, Read};
@@ -322,7 +322,7 @@ pub fn main() {
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
-            crit!(ctx.expect_logger(), "{e}");
+            println!("{}", e);
             process::exit(1);
         }
     };
