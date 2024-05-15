@@ -10,6 +10,7 @@ use serde_json::Value;
 use test_case::test_case;
 
 use crate::service::tests::{
+    cleanup, cleanup_err,
     helpers::{
         build_predicates::build_stacks_payload,
         mock_service::{
@@ -26,7 +27,7 @@ use super::helpers::{
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn ping_endpoint_returns_metrics() {
+async fn ping_endpoint_returns_metrics() -> Result<(), String> {
     let TestSetupResult {
         mut redis_process,
         working_dir,
@@ -43,19 +44,12 @@ async fn ping_endpoint_returns_metrics() {
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
-    let metrics = call_ping(stacks_ingestion_port).await.unwrap_or_else(|e| {
-        std::fs::remove_dir_all(&working_dir).unwrap();
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
+    sleep(Duration::new(1, 0));
+    let metrics = call_ping(stacks_ingestion_port)
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
     let result = metrics
         .get("stacks")
         .unwrap()
@@ -63,14 +57,14 @@ async fn ping_endpoint_returns_metrics() {
         .unwrap();
     assert_eq!(result, 1);
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    sleep(Duration::new(1, 0));
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    Ok(())
 }
 
 #[tokio::test]
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
-async fn prometheus_endpoint_returns_encoded_metrics() {
+async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
     let TestSetupResult {
         mut redis_process,
         working_dir,
@@ -85,27 +79,21 @@ async fn prometheus_endpoint_returns_encoded_metrics() {
 
     let uuid = &get_random_uuid();
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
-    let _ = call_register_predicate(&predicate, chainhook_service_port)
+    call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .unwrap_or_else(|e| {
-            std::fs::remove_dir_all(&working_dir).unwrap();
-            flush_redis(redis_port);
-            redis_process.kill().unwrap();
-            panic!("test failed with error: {e}");
-        });
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
-    let metrics = call_prometheus(prometheus_port).await.unwrap_or_else(|e| {
-        std::fs::remove_dir_all(&working_dir).unwrap();
-        flush_redis(redis_port);
-        redis_process.kill().unwrap();
-        panic!("test failed with error: {e}");
-    });
+    sleep(Duration::new(1, 0));
+    let metrics = call_prometheus(prometheus_port)
+        .await
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+
     const EXPECTED: &'static str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
     assert!(metrics.contains(EXPECTED));
 
-    std::fs::remove_dir_all(&working_dir).unwrap();
-    flush_redis(redis_port);
-    redis_process.kill().unwrap();
+    sleep(Duration::new(1, 0));
+    cleanup(&working_dir, redis_port, &mut redis_process);
+    Ok(())
 }
 
 async fn await_observer_started(port: u16) {

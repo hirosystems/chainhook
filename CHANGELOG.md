@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/hirosystems/chainhook/compare/v1.6.0...v1.6.1) (2024-05-15)
+
+### Bug Fixes
+
+* serialize brc-20 data ([#585](https://github.com/hirosystems/chainhook/issues/585)) ([9011a0c](https://github.com/hirosystems/chainhook/commit/9011a0ce49d9d38a6d7a6776d7f37b709a355386))
+
+
 ## [1.6.0](https://github.com/hirosystems/chainhook/compare/v1.5.1...v1.6.0) (2024-05-09)
 
 
