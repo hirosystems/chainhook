@@ -23,7 +23,7 @@ use chainhook_sdk::chainhooks::types::{
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::{BlockHeights, Context};
-use clap::{ErrorKind, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::io::{BufReader, Read};
