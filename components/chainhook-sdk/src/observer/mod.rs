@@ -1518,7 +1518,7 @@ pub async fn start_observer_commands_handler(
                     // so only those that we find in the store should be removed
                     prometheus_monitoring.btc_metrics_deregister_predicate();
                 };
-                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                // even if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
                 if let Some(tx) = &observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
                 };
