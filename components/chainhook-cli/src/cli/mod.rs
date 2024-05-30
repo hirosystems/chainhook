@@ -322,7 +322,7 @@ pub fn main() {
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
-            crit!(ctx.expect_logger(), "{e}");
+            println!("{}", e);
             process::exit(1);
         }
     };
