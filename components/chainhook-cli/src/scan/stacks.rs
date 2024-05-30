@@ -178,7 +178,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         None => match get_last_block_height_inserted(stacks_db_conn, ctx) {
             Some(chain_tip) => chain_tip,
             None => {
-                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determing Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
+                info!(ctx.expect_logger(), "No blocks inserted in db; cannot determine Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
                 return Ok((None, false));
             }
         },
