@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation};
+use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -870,9 +870,16 @@ pub struct StacksNodeConfig {
 }
 
 impl StacksNodeConfig {
+    pub fn new(rpc_url: String, ingestion_port: u16) -> StacksNodeConfig {
+        StacksNodeConfig {
+            rpc_url,
+            ingestion_port,
+        }
+    }
+
     pub fn default_localhost(ingestion_port: u16) -> StacksNodeConfig {
         StacksNodeConfig {
-            rpc_url: "http://localhost:20443".to_string(),
+            rpc_url: DEFAULT_STACKS_NODE_RPC.to_string(),
             ingestion_port,
         }
     }

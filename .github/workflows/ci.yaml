@@ -317,7 +317,6 @@ jobs:
           event-type: released
           client-payload: '{"tag": "${{ needs.get_release_info.outputs.tag }}"}'
 
-
   build-publish:
     runs-on: ubuntu-latest
     needs:
