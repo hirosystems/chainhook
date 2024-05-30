@@ -1,14 +1,13 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation};
+use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-pub const DEFAULT_STACKS_NODE_RPC: &str = "http://localhost:20443";
 /// BlockIdentifier uniquely identifies a block in a particular network.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct BlockIdentifier {
