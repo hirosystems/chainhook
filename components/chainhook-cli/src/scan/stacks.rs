@@ -1,4 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     archive::download_stacks_dataset_if_required,
@@ -28,6 +31,8 @@ use chainhook_sdk::{
     utils::{file_append, send_request, AbstractStacksBlock},
 };
 use rocksdb::DB;
+
+use super::common::PredicateScanResult;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DigestingCommand {
@@ -170,8 +175,9 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     unfinished_scan_data: Option<ScanningData>,
     stacks_db_conn: &DB,
     config: &Config,
+    kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
-) -> Result<(Option<BlockIdentifier>, bool), String> {
+) -> Result<PredicateScanResult, String> {
     let predicate_uuid = &predicate_spec.uuid;
     let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
         Some(chain_tip) => chain_tip,
@@ -179,7 +185,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             Some(chain_tip) => chain_tip,
             None => {
                 info!(ctx.expect_logger(), "No blocks inserted in db; cannot determine Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
-                return Ok((None, false));
+                return Ok(PredicateScanResult::ChainTipReached);
             }
         },
     };
@@ -194,7 +200,13 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut block_heights_to_scan = match block_heights_to_scan {
         Some(h) => h,
         // no blocks to scan, go straight to streaming
-        None => return Ok((None, false)),
+        None => {
+            debug!(
+                ctx.expect_logger(),
+                "Stacks chainstate scan completed. 0 blocks scanned."
+            );
+            return Ok(PredicateScanResult::ChainTipReached);
+        }
     };
 
     let mut predicates_db_conn = match config.http_api {
@@ -226,6 +238,17 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
 
     let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if let Some(kill_signal) = kill_signal.clone() {
+            match kill_signal.read() {
+                Ok(kill_signal) => {
+                    // if true, we're received the kill signal, so break out of the loop
+                    if *kill_signal {
+                        return Ok(PredicateScanResult::Derigistered);
+                    }
+                }
+                Err(_) => {}
+            }
+        }
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
             if number_of_blocks_scanned % 1000 == 0
                 || number_of_blocks_scanned == 0
@@ -255,7 +278,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     Some(chain_tip) => chain_tip,
                     None => {
                         warn!(ctx.expect_logger(), "No blocks inserted in db; cannot determine Stacks chain tip. Skipping scan of predicate {}", predicate_uuid);
-                        return Ok((None, false));
+                        return Ok(PredicateScanResult::ChainTipReached);
                     }
                 },
             };
@@ -411,10 +434,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
-        return Ok((Some(last_block_scanned), true));
+        return Ok(PredicateScanResult::Expired);
     }
 
-    Ok((Some(last_block_scanned), false))
+    Ok(PredicateScanResult::ChainTipReached)
 }
 
 pub async fn scan_stacks_chainstate_via_csv_using_predicate(
