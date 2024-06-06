@@ -98,9 +98,14 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut last_scanned_block_confirmations = 0;
     let http_client = build_http_client();
 
+    let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if number_of_blocks_scanned % 10 == 0 || number_of_blocks_scanned == 0 {
+            if number_of_blocks_scanned % 10 == 0 
+                || number_of_blocks_scanned == 0
+                // if the last loop did trigger a predicate, update the status
+                || loop_did_trigger
+            {
                 set_predicate_scanning_status(
                     &predicate_spec.key(),
                     number_of_blocks_to_scan,
@@ -112,6 +117,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 );
             }
         }
+        loop_did_trigger = false;
 
         if current_block_height > chain_tip {
             let prev_chain_tip = chain_tip;
@@ -177,6 +183,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             Ok(actions) => {
                 if actions > 0 {
                     number_of_times_triggered += 1;
+                    loop_did_trigger = true
                 }
                 actions_triggered += actions;
                 Ok(())
