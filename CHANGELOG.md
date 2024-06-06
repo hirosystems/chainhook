@@ -1,3 +1,14 @@
+## [1.6.2](https://github.com/hirosystems/chainhook/compare/v1.6.1...v1.6.2) (2024-06-06)
+
+### Bug Fixes
+
+* use `stacks_node_rpc_url` from config (#579)
+* print to console for unknown cli commands (#595)
+
+### CI
+* revamp ci (#594) - This PR adds builds to our [Releases](https://github.com/hirosystems/chainhook/releases) page for Windows, Linux, and MacOS!
+
+  
 ## [1.6.1](https://github.com/hirosystems/chainhook/compare/v1.6.0...v1.6.1) (2024-05-15)
 
 ### Bug Fixes
