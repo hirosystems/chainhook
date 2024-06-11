@@ -1,0 +1,24 @@
+name: chainhook
+version: git
+summary: A reorg-aware indexing engine for the Stacks and Bitcoin blockchains.
+description: Chainhook is a reorg-aware indexing engine for the Stacks and Bitcoin blockchains.
+
+base: core22
+architectures:
+  - build-on: [amd64]
+    build-for: [amd64]
+confinement: devmode
+
+
+parts:
+  chainhook:
+    plugin: rust
+    source: ./
+    build-packages:
+    - libssl-dev
+    - pkg-config
+    - libclang-11-dev
+
+apps:
+  chainhook:
+    command: chainhook
