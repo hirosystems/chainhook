@@ -520,6 +520,7 @@ pub enum BitcoinPredicateType {
     Outputs(OutputPredicate),
     StacksProtocol(StacksOperations),
     OrdinalsProtocol(OrdinalOperations),
+    RunesProtocol(RunesOperations),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -568,6 +569,12 @@ pub struct InscriptionFeedData {
 #[serde(rename_all = "snake_case", tag = "operation")]
 pub enum OrdinalOperations {
     InscriptionFeed(InscriptionFeedData),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "operation")]
+pub enum RunesOperations {
+    Feed,
 }
 
 pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
