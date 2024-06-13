@@ -1,7 +1,7 @@
 use super::types::{
     BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
     HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol,
-    OutputPredicate, StacksOperations,
+    OutputPredicate, RunesOperations, StacksOperations,
 };
 use crate::utils::Context;
 
@@ -577,6 +577,9 @@ impl BitcoinPredicateType {
                 }
                 None => !tx.metadata.ordinal_operations.is_empty(),
             },
+            BitcoinPredicateType::RunesProtocol(RunesOperations::Feed) => {
+                return !tx.metadata.runes_operations.is_empty()
+            }
         }
     }
 }

@@ -128,6 +128,7 @@ pub fn generate_test_tx_bitcoin_p2pkh_transfer(
             outputs,
             ordinal_operations: vec![],
             stacks_operations: vec![],
+            runes_operations: vec![],
             brc20_operation: None,
             proof: None,
             fee: 0,

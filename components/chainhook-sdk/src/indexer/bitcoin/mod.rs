@@ -451,6 +451,7 @@ pub fn standardize_bitcoin_block(
                 stacks_operations,
                 ordinal_operations: vec![],
                 brc20_operation: None,
+                runes_operations: vec![],
                 proof: None,
                 fee: sats_in.saturating_sub(sats_out),
                 index: tx_index as u32,

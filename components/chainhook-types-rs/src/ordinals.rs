@@ -121,3 +121,9 @@ pub enum Brc20Operation {
     Transfer(Brc20BalanceData),
     TransferSend(Brc20TransferData),
 }
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunesOperation {
+    Etching,
+}

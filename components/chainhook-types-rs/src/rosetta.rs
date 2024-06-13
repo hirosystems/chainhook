@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
+use crate::{events::*, Brc20Operation, RunesOperation, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -313,6 +313,7 @@ pub struct BitcoinTransactionMetadata {
     pub stacks_operations: Vec<StacksBaseChainOperation>,
     pub ordinal_operations: Vec<OrdinalOperation>,
     pub brc20_operation: Option<Brc20Operation>,
+    pub runes_operations: Vec<RunesOperation>,
     pub proof: Option<String>,
     pub fee: u64,
     pub index: u32,
