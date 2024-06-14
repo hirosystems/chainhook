@@ -18,15 +18,15 @@ jobs:
     name: Publish to Winget via Komac
     runs-on: windows-latest
     steps:
-      - name: Get Version
+      - name: Set VERSION variable
         env:
           TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
         id: get-version
         run: |
-          # Get version info
-          VERSION=$(echo "${TAG#v}")
-          # Pipe to step output
-          "version=VERSION" >> $env:GITHUB_OUTPUT
+          $TAG = "${{ env.TAG }}"
+          $VERSION = $TAG -replace '^v', ''
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+        shell: pwsh
       - name: Winget version bump        
         uses: vedantmgoyal2009/winget-releaser@v2
         with:
