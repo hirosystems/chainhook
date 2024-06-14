@@ -35,4 +35,4 @@ jobs:
           version: ${{ steps.get-version.outputs.version }} # use version from previous step output
           release-tag: v${{ steps.get-version.outputs.version }}
           max-versions-to-keep: 5 # keep only latest 5 versions
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.KOMAC_GH_PAT }}
