@@ -19,7 +19,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Winget version bump
-      - uses: vedantmgoyal2009/winget-releaser@v2
+        uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: HiroSystems.Chainhook
           max-versions-to-keep: 5 # keep only latest 5 versions
