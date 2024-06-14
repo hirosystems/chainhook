@@ -23,6 +23,7 @@ jobs:
           TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
         id: get-version
         run: |
+          # format release tag set in the workflow dispatch
           $TAG = "${{ env.TAG }}"
           $VERSION = $TAG -replace '^v', ''
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
@@ -32,5 +33,6 @@ jobs:
         with:
           identifier: HiroSystems.Chainhook
           version: ${{ steps.get-version.outputs.version }} # use version from previous step output
+          release-tag: v${{ steps.get-version.outputs.version }}
           max-versions-to-keep: 5 # keep only latest 5 versions
           token: ${{ secrets.GH_TOKEN }}
