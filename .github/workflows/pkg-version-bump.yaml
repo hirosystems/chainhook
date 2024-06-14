@@ -13,27 +13,35 @@ on:
     types:
       - released
 
+env:
+  GIT_USER_NAME: Hiro DevOps
+  GIT_USER_EMAIL: 45208873+blockstack-devops@users.noreply.github.com
+
 jobs:
-  winget_komac:
-    name: Publish to Winget via Komac
+
+  winget:
+    name: Winget
     runs-on: windows-latest
     steps:
-      - name: Set VERSION variable
+      - name: Winget version bump
         env:
           TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
-        id: get-version
         run: |
-          # format release tag set in the workflow dispatch
-          $TAG = "${{ env.TAG }}"
-          $VERSION = $TAG -replace '^v', ''
-          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
-        shell: pwsh
-      - name: Winget version bump        
-        uses: vedantmgoyal2009/winget-releaser@v2
-        with:
-          identifier: HiroSystems.Chainhook
-          version: ${{ steps.get-version.outputs.version }} # use version from previous step output
-          release-tag: v${{ steps.get-version.outputs.version }}
-          max-versions-to-keep: 5 # keep only latest 5 versions
-          fork-user: blockstack-devops
-          token: ${{ secrets.KOMAC_GH_PAT }}
+          # Get version info
+          $VERSION=${env:TAG}.substring(1)
+
+          # Configure git configs
+          git config --global user.name "${env:GIT_USER_NAME}"
+          git config --global user.email "${env:GIT_USER_EMAIL}"
+
+          # Get wingetcreate
+          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+  
+          # Update manifest and submit PR
+          ./wingetcreate.exe update `
+            --urls https://github.com/${{ github.repository }}/releases/download/${env:TAG}/chainhook-windows-x64.msi `
+            --version ${VERSION} `
+            --token ${{ secrets.GH_TOKEN }} `
+            --submit `
+            HiroSystems.Chainhook
+
