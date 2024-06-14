@@ -13,34 +13,14 @@ on:
     types:
       - released
 
-env:
-  GIT_USER_NAME: Hiro DevOps
-  GIT_USER_EMAIL: 45208873+blockstack-devops@users.noreply.github.com
-
 jobs:
-
-  winget:
-    name: Winget
+  winget_komac:
+    name: Publish to Winget via Komac
     runs-on: windows-latest
     steps:
       - name: Winget version bump
-        env:
-          TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
-        run: |
-          # Get version info
-          VERSION=$(echo "${TAG#v}")
-
-          # Configure git configs
-          git config --global user.name "${env:GIT_USER_NAME}"
-          git config --global user.email "${env:GIT_USER_EMAIL}"
-
-          # Get wingetcreate
-          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
-  
-          # Update manifest and submit PR
-          ./wingetcreate.exe update `
-            --urls https://github.com/${{ github.repository }}/releases/download/${env:TAG}/chainhook-windows-x64.msi `
-            --version ${VERSION} `
-            --token ${{ secrets.GH_TOKEN }} `
-            --submit `
-            HiroSystems.Chainhook
+      - uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: HiroSystems.Chainhook
+          max-versions-to-keep: 5 # keep only latest 5 versions
+          token: ${{ secrets.GH_TOKEN }}
