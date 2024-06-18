@@ -227,7 +227,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
-            if number_of_blocks_scanned % 10 == 0
+            if number_of_blocks_scanned % 1000 == 0
                 || number_of_blocks_scanned == 0
                 // if the last loop did trigger a predicate, update the status
                 || loop_did_trigger
