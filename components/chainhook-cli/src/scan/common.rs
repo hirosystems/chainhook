@@ -69,5 +69,5 @@ pub fn get_block_heights_to_scan(
 pub enum PredicateScanResult {
     ChainTipReached,
     Expired,
-    Derigistered,
+    Deregistered,
 }

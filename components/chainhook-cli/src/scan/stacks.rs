@@ -243,7 +243,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 Ok(kill_signal) => {
                     // if true, we're received the kill signal, so break out of the loop
                     if *kill_signal {
-                        return Ok(PredicateScanResult::Derigistered);
+                        return Ok(PredicateScanResult::Deregistered);
                     }
                 }
                 Err(_) => {}

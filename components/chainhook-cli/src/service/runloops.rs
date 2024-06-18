@@ -82,7 +82,7 @@ pub fn start_stacks_scan_runloop(
                     let res = hiro_system_kit::nestable_block_on(op);
                     match res {
                         Ok(PredicateScanResult::Expired)
-                        | Ok(PredicateScanResult::Derigistered) => {}
+                        | Ok(PredicateScanResult::Deregistered) => {}
                         Ok(PredicateScanResult::ChainTipReached) => {
                             let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
                                 ChainhookSpecification::Stacks(predicate_spec),
@@ -168,7 +168,7 @@ pub fn start_bitcoin_scan_runloop(
 
                     match hiro_system_kit::nestable_block_on(op) {
                         Ok(PredicateScanResult::Expired)
-                        | Ok(PredicateScanResult::Derigistered) => {}
+                        | Ok(PredicateScanResult::Deregistered) => {}
                         Ok(PredicateScanResult::ChainTipReached) => {
                             let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
                                 ChainhookSpecification::Bitcoin(predicate_spec),
