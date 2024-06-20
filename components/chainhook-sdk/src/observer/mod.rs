@@ -36,6 +36,7 @@ use rocket::config::{self, Config, LogLevel};
 use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
 use rocket::Shutdown;
+use std::borrow::BorrowMut;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
@@ -111,6 +112,18 @@ impl EventObserverConfig {
             prometheus_monitoring_port: None,
         }
     }
+
+    pub fn register_predicate(&mut self, spec: ChainhookSpecification) -> Result<(), String> {
+        if let Some(ref mut chainhook_config) = self.chainhook_config.borrow_mut() {
+            chainhook_config.register_specification(spec)?;
+        } else {
+            let mut chainhook_config = ChainhookConfig::new();
+            chainhook_config.register_specification(spec)?;
+            self.chainhook_config = Some(chainhook_config);
+        }
+        Ok(())
+    }
+
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
         let bitcoin_config = BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
