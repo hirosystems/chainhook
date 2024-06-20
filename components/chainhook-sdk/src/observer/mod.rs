@@ -94,6 +94,23 @@ pub struct EventObserverConfigOverrides {
 }
 
 impl EventObserverConfig {
+    pub fn default() -> Self {
+        EventObserverConfig {
+            chainhook_config: None,
+            bitcoin_rpc_proxy_enabled: false,
+            bitcoind_rpc_username: "devnet".into(),
+            bitcoind_rpc_password: "devnet".into(),
+            bitcoind_rpc_url: "http://localhost:18443".into(),
+            bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
+                DEFAULT_STACKS_NODE_RPC.to_string(),
+                DEFAULT_INGESTION_PORT,
+            )),
+            display_stacks_ingestion_logs: false,
+            bitcoin_network: BitcoinNetwork::Regtest,
+            stacks_network: StacksNetwork::Devnet,
+            prometheus_monitoring_port: None,
+        }
+    }
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
         let bitcoin_config = BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
