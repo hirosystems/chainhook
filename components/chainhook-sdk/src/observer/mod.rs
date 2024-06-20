@@ -80,6 +80,17 @@ pub struct EventObserverConfig {
     pub prometheus_monitoring_port: Option<u16>,
 }
 
+/// A builder that is used to create a general purpose [EventObserverConfig].
+///
+/// ## Examples
+/// ```
+/// let config: EventObserverConfig =
+///     EventObserverConfigBuilder::new()
+///         .bitcoind_rpc_password("my_password")
+///         .bitcoin_network("mainnet")
+///         .stacks_network("mainnet")
+///         .finish()?;
+/// ```
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventObserverConfigBuilder {
     pub bitcoind_rpc_username: Option<String>,
@@ -182,7 +193,8 @@ impl EventObserverConfigBuilder {
 }
 
 /// A builder that is used to create an [EventObserverConfig] that is tailored for use with a bitcoind node emitting events via the ZMQ interface.
-/// Example usage:
+///
+/// ## Examples
 /// ```
 /// let config: EventObserverConfig =
 ///     BitcoinEventObserverBuilder::new()
