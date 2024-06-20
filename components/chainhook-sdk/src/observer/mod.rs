@@ -81,7 +81,7 @@ pub struct EventObserverConfig {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct EventObserverConfigOverrides {
+pub struct EventObserverConfigBuilder {
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
@@ -94,9 +94,9 @@ pub struct EventObserverConfigOverrides {
     pub prometheus_monitoring_port: Option<u16>,
 }
 
-impl EventObserverConfigOverrides {
+impl EventObserverConfigBuilder {
     pub fn new() -> Self {
-        EventObserverConfigOverrides {
+        EventObserverConfigBuilder {
             bitcoind_rpc_username: None,
             bitcoind_rpc_password: None,
             bitcoind_rpc_url: None,
@@ -353,7 +353,7 @@ impl EventObserverConfig {
     ///
     /// *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
     pub fn new_using_overrides(
-        overrides: Option<&EventObserverConfigOverrides>,
+        overrides: Option<&EventObserverConfigBuilder>,
     ) -> Result<EventObserverConfig, String> {
         let bitcoin_network =
             if let Some(network) = overrides.and_then(|c| c.bitcoin_network.as_ref()) {
