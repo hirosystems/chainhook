@@ -81,11 +81,11 @@ pub struct EventObserverConfig {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventObserverConfigOverrides {
-    pub ingestion_port: Option<u16>,
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
     pub bitcoind_zmq_url: Option<String>,
+    pub chainhook_stacks_block_ingestion_port: Option<u16>,
     pub stacks_node_rpc_url: Option<String>,
     pub display_stacks_ingestion_logs: Option<bool>,
     pub bitcoin_network: Option<String>,
@@ -169,7 +169,7 @@ impl EventObserverConfig {
                         .and_then(|c| c.stacks_node_rpc_url.clone())
                         .unwrap_or(DEFAULT_STACKS_NODE_RPC.to_string()),
                     overrides
-                        .and_then(|c| c.ingestion_port)
+                        .and_then(|c| c.chainhook_stacks_block_ingestion_port)
                         .unwrap_or(DEFAULT_INGESTION_PORT),
                 ))),
             display_stacks_ingestion_logs: overrides
