@@ -90,6 +90,7 @@ pub struct EventObserverConfigOverrides {
     pub display_stacks_ingestion_logs: Option<bool>,
     pub bitcoin_network: Option<String>,
     pub stacks_network: Option<String>,
+    pub prometheus_monitoring_port: Option<u16>,
 }
 
 impl EventObserverConfig {
@@ -176,7 +177,7 @@ impl EventObserverConfig {
                 .unwrap_or(false),
             bitcoin_network,
             stacks_network,
-            prometheus_monitoring_port: None,
+            prometheus_monitoring_port: overrides.and_then(|c| c.prometheus_monitoring_port),
         };
         Ok(config)
     }
