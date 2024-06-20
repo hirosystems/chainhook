@@ -95,23 +95,6 @@ impl ChainhookConfig {
         Ok(())
     }
 
-    #[cfg(feature = "stacks")]
-    pub fn deregister_stacks_hook(
-        &mut self,
-        hook_uuid: String,
-    ) -> Option<StacksChainhookSpecification> {
-        let mut i = 0;
-        while i < self.stacks_chainhooks.len() {
-            if self.stacks_chainhooks[i].uuid == hook_uuid {
-                let hook = self.stacks_chainhooks.remove(i);
-                return Some(hook);
-            } else {
-                i += 1;
-            }
-        }
-        None
-    }
-
     pub fn deregister_bitcoin_hook(
         &mut self,
         hook_uuid: String,
@@ -126,19 +109,6 @@ impl ChainhookConfig {
             }
         }
         None
-    }
-
-    #[cfg(feature = "stacks")]
-    pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
-        let mut i = 0;
-        while i < self.stacks_chainhooks.len() {
-            if ChainhookSpecification::stacks_key(&self.stacks_chainhooks[i].uuid) == hook_uuid {
-                self.stacks_chainhooks[i].expired_at = Some(block_height);
-                break;
-            } else {
-                i += 1;
-            }
-        }
     }
 
     pub fn expire_bitcoin_hook(&mut self, hook_uuid: String, block_height: u64) {

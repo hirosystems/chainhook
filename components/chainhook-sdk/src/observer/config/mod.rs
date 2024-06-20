@@ -1,4 +1,4 @@
-use chainhook_types::{BitcoinBlockSignaling, BitcoinNetwork};
+use chainhook_types::BitcoinNetwork;
 
 use crate::chainhooks::types::ChainhookConfig;
 

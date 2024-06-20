@@ -44,31 +44,34 @@ pub struct IndexerConfig {
 
 pub struct Indexer {
     pub config: IndexerConfig,
-    #[cfg(feature = "stacks")]
-    stacks_blocks_pool: StacksBlockPool,
     bitcoin_blocks_pool: ForkScratchPad,
+    pub bitcoin_context: BitcoinChainContext,
     #[cfg(feature = "stacks")]
     pub stacks_context: StacksChainContext,
-    pub bitcoin_context: BitcoinChainContext,
+    #[cfg(feature = "stacks")]
+    stacks_blocks_pool: StacksBlockPool,
 }
 
 impl Indexer {
     pub fn new(config: IndexerConfig) -> Indexer {
         #[cfg(feature = "stacks")]
-        let stacks_blocks_pool = StacksBlockPool::new();
+        let (stacks_blocks_pool, stacks_context) = {
+            (
+                StacksBlockPool::new(),
+                StacksChainContext::new(&config.stacks_network),
+            )
+        };
         let bitcoin_blocks_pool = ForkScratchPad::new();
-        #[cfg(feature = "stacks")]
-        let stacks_context = StacksChainContext::new(&config.stacks_network);
         let bitcoin_context = BitcoinChainContext::new();
 
         Indexer {
             config,
+            bitcoin_blocks_pool,
+            bitcoin_context,
             #[cfg(feature = "stacks")]
             stacks_blocks_pool,
-            bitcoin_blocks_pool,
             #[cfg(feature = "stacks")]
             stacks_context,
-            bitcoin_context,
         }
     }
 
