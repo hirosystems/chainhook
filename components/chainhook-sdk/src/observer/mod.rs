@@ -94,6 +94,93 @@ pub struct EventObserverConfigOverrides {
     pub prometheus_monitoring_port: Option<u16>,
 }
 
+impl EventObserverConfigOverrides {
+    pub fn new() -> Self {
+        EventObserverConfigOverrides {
+            bitcoind_rpc_username: None,
+            bitcoind_rpc_password: None,
+            bitcoind_rpc_url: None,
+            bitcoind_zmq_url: None,
+            chainhook_stacks_block_ingestion_port: None,
+            stacks_node_rpc_url: None,
+            display_stacks_ingestion_logs: None,
+            bitcoin_network: None,
+            stacks_network: None,
+            prometheus_monitoring_port: None,
+        }
+    }
+
+    /// Sets the bitcoind node's RPC username.
+    pub fn bitcoind_rpc_username(&mut self, username: &str) -> &mut Self {
+        self.bitcoind_rpc_username = Some(username.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC password.
+    pub fn bitcoind_rpc_password(&mut self, password: &str) -> &mut Self {
+        self.bitcoind_rpc_password = Some(password.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC url.
+    pub fn bitcoind_rpc_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's ZMQ url, used by the observer to receive new block events from bitcoind.
+    pub fn bitcoind_zmq_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_zmq_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the Bitcoin network. Must be a valid bitcoin network string according to [BitcoinNetwork::from_str].
+    pub fn bitcoin_network(&mut self, network: &str) -> &mut Self {
+        self.bitcoin_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Stacks network. Must be a valid bitcoin network string according to [StacksNetwork::from_str].
+    pub fn stacks_network(&mut self, network: &str) -> &mut Self {
+        self.stacks_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Stacks node's RPC url.
+    pub fn stacks_node_rpc_url(&mut self, url: &str) -> &mut Self {
+        self.stacks_node_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the port at which Chainhook will observer Stacks blockchain events. The Stacks node's config should have an events_observer
+    /// entry matching this port in order to send block events the Chainhook.
+    pub fn chainhook_stacks_block_ingestion_port(&mut self, port: u16) -> &mut Self {
+        self.chainhook_stacks_block_ingestion_port = Some(port);
+        self
+    }
+
+    /// Sets whether Chainhook should display Stacks ingestion logs.
+    pub fn display_stacks_ingestion_logs(&mut self, display_logs: bool) -> &mut Self {
+        self.display_stacks_ingestion_logs = Some(display_logs);
+        self
+    }
+
+    /// Sets the Prometheus monitoring port.
+    pub fn prometheus_monitoring_port(&mut self, port: u16) -> &mut Self {
+        self.prometheus_monitoring_port = Some(port);
+        self
+    }
+
+    /// Attempts to convert a [EventObserverConfigOverrides] instance into an [EventObserverConfig], filling in
+    /// defaults as necessary according to [EventObserverConfig::default].
+    ///
+    /// This function will return an error if the `bitcoin_network` or `stacks_network` strings are set and are not a valid [BitcoinNetwork] or [StacksNetwork].
+    ///
+    pub fn finish(&self) -> Result<EventObserverConfig, String> {
+        EventObserverConfig::new_using_overrides(Some(self))
+    }
+}
+
 /// A builder that is used to create an [EventObserverConfig] that is tailored for use with a bitcoind node emitting events via the ZMQ interface.
 /// Example usage:
 /// ```
