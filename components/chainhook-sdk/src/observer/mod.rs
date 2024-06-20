@@ -94,6 +94,109 @@ pub struct EventObserverConfigOverrides {
     pub prometheus_monitoring_port: Option<u16>,
 }
 
+/// A builder that is used to create an [EventObserverConfig] that is tailored for use with a bitcoind node emitting events via the ZMQ interface.
+/// Example usage:
+/// ```
+/// let config: EventObserverConfig =
+///     BitcoinEventObserverBuilder::new()
+///         .rpc_password("my_password")
+///         .network("mainnet")
+///         .finish()?;
+/// ```
+pub struct BitcoinEventObserverBuilder {
+    pub bitcoind_rpc_username: Option<String>,
+    pub bitcoind_rpc_password: Option<String>,
+    pub bitcoind_rpc_url: Option<String>,
+    pub bitcoin_network: Option<String>,
+    pub bitcoind_zmq_url: Option<String>,
+    pub prometheus_monitoring_port: Option<u16>,
+}
+impl BitcoinEventObserverBuilder {
+    pub fn new() -> Self {
+        BitcoinEventObserverBuilder {
+            bitcoind_rpc_username: None,
+            bitcoind_rpc_password: None,
+            bitcoind_rpc_url: None,
+            bitcoin_network: None,
+            bitcoind_zmq_url: None,
+            prometheus_monitoring_port: None,
+        }
+    }
+
+    /// Sets the bitcoind node's RPC username.
+    pub fn rpc_username(&mut self, username: &str) -> &mut Self {
+        self.bitcoind_rpc_username = Some(username.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC password.
+    pub fn rpc_password(&mut self, password: &str) -> &mut Self {
+        self.bitcoind_rpc_password = Some(password.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC url.
+    pub fn rpc_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's ZMQ url, used by the observer to receive new block events from bitcoind.
+    pub fn zmq_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_zmq_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the Bitcoin network. Must be a valid bitcoin network string according to [BitcoinNetwork::from_str].
+    pub fn network(&mut self, network: &str) -> &mut Self {
+        self.bitcoin_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Prometheus monitoring port.
+    pub fn prometheus_monitoring_port(&mut self, port: u16) -> &mut Self {
+        self.prometheus_monitoring_port = Some(port);
+        self
+    }
+
+    /// Attempts to convert a [BitcoinEventObserverBuilder] instance into an [EventObserverConfig], filling in
+    /// defaults as necessary according to [EventObserverConfig::default].
+    ///
+    /// This function will return an error if the `bitcoin_network` string is set and is not a valid [BitcoinNetwork].
+    pub fn finish(&self) -> Result<EventObserverConfig, String> {
+        let bitcoin_network = if let Some(network) = self.bitcoin_network.as_ref() {
+            BitcoinNetwork::from_str(&network)?
+        } else {
+            BitcoinNetwork::Regtest
+        };
+        Ok(EventObserverConfig {
+            chainhook_config: None,
+            bitcoin_rpc_proxy_enabled: false,
+            bitcoind_rpc_username: self
+                .bitcoind_rpc_username
+                .clone()
+                .unwrap_or("devnet".into()),
+            bitcoind_rpc_password: self
+                .bitcoind_rpc_password
+                .clone()
+                .unwrap_or("devnet".into()),
+            bitcoind_rpc_url: self
+                .bitcoind_rpc_url
+                .clone()
+                .unwrap_or("http://localhost:18443".into()),
+            bitcoin_block_signaling: BitcoinBlockSignaling::ZeroMQ(
+                self.bitcoind_zmq_url
+                    .clone()
+                    .unwrap_or("tcp://0.0.0.0:18543".into()),
+            ),
+            display_stacks_ingestion_logs: false,
+            bitcoin_network: bitcoin_network,
+            stacks_network: StacksNetwork::Devnet,
+            prometheus_monitoring_port: self.prometheus_monitoring_port,
+        })
+    }
+}
+
 impl EventObserverConfig {
     pub fn default() -> Self {
         EventObserverConfig {
