@@ -11,7 +11,7 @@ use crate::chainhooks::stacks::{
     StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
 };
 use crate::chainhooks::types::{
-    ChainhookConfig, ChainhookFullSpecification, ChainhookSpecification,
+    ChainhookConfig, ChainhookInstance, ChainhookSpecificationNetworkMap,
 };
 
 use crate::indexer::bitcoin::{
@@ -315,12 +315,12 @@ impl EventObserverConfig {
         }
     }
 
-    pub fn register_predicate(&mut self, spec: ChainhookSpecification) -> Result<(), String> {
+    pub fn register_chainhook_instance(&mut self, spec: ChainhookInstance) -> Result<(), String> {
         if let Some(ref mut chainhook_config) = self.chainhook_config.borrow_mut() {
-            chainhook_config.register_specification(spec)?;
+            chainhook_config.register_instance(spec)?;
         } else {
             let mut chainhook_config = ChainhookConfig::new();
-            chainhook_config.register_specification(spec)?;
+            chainhook_config.register_instance(spec)?;
             self.chainhook_config = Some(chainhook_config);
         }
         Ok(())
@@ -428,8 +428,8 @@ pub enum ObserverCommand {
     PropagateBitcoinChainEvent(BlockchainEvent),
     PropagateStacksChainEvent(StacksChainEvent),
     PropagateStacksMempoolEvent(StacksChainMempoolEvent),
-    RegisterPredicate(ChainhookFullSpecification),
-    EnablePredicate(ChainhookSpecification),
+    RegisterPredicate(ChainhookSpecificationNetworkMap),
+    EnablePredicate(ChainhookInstance),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
     ExpireBitcoinPredicate(HookExpirationData),
@@ -528,9 +528,9 @@ pub enum ObserverEvent {
     BitcoinChainEvent((BitcoinChainEvent, PredicateEvaluationReport)),
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
-    PredicateRegistered(ChainhookSpecification),
+    PredicateRegistered(ChainhookInstance),
     PredicateDeregistered(String),
-    PredicateEnabled(ChainhookSpecification),
+    PredicateEnabled(ChainhookInstance),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
     PredicatesTriggered(usize),
@@ -1437,7 +1437,7 @@ pub async fn start_observer_commands_handler(
                                 .deregister_bitcoin_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookSpecification::bitcoin_key(&data.chainhook.uuid),
+                                    predicate_key: ChainhookInstance::bitcoin_key(&data.chainhook.uuid),
                                     error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
                                 }));
                             }
@@ -1626,7 +1626,7 @@ pub async fn start_observer_commands_handler(
                                 .deregister_stacks_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookSpecification::stacks_key(&data.chainhook.uuid),
+                                    predicate_key: ChainhookInstance::stacks_key(&data.chainhook.uuid),
                                     error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
                                 }));
                             }
@@ -1661,7 +1661,7 @@ pub async fn start_observer_commands_handler(
 
                 let mut spec = match chainhook_store
                     .predicates
-                    .register_full_specification(networks, spec)
+                    .register_instance_from_network_map(networks, spec)
                 {
                     Ok(spec) => spec,
                     Err(e) => {
@@ -1677,10 +1677,10 @@ pub async fn start_observer_commands_handler(
                 };
 
                 match spec {
-                    ChainhookSpecification::Bitcoin(_) => {
+                    ChainhookInstance::Bitcoin(_) => {
                         prometheus_monitoring.btc_metrics_register_predicate()
                     }
-                    ChainhookSpecification::Stacks(_) => {
+                    ChainhookInstance::Stacks(_) => {
                         prometheus_monitoring.stx_metrics_register_predicate()
                     }
                 };
@@ -1694,12 +1694,12 @@ pub async fn start_observer_commands_handler(
                     ctx.try_log(|logger| {
                         slog::debug!(logger, "Enabling Predicate {}", spec.uuid())
                     });
-                    chainhook_store.predicates.enable_specification(&mut spec);
+                    chainhook_store.predicates.enable_instance(&mut spec);
                 }
             }
             ObserverCommand::EnablePredicate(mut spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
-                chainhook_store.predicates.enable_specification(&mut spec);
+                chainhook_store.predicates.enable_instance(&mut spec);
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateEnabled(spec));
                 }

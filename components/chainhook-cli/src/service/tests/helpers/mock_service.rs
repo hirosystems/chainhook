@@ -9,7 +9,7 @@ use crate::service::{
 };
 use chainhook_sdk::{
     chainhooks::types::{
-        ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
+        ChainhookInstance, ChainhookSpecificationNetworkMap, StacksChainhookSpecificationNetworkMap,
     },
     indexer::IndexerConfig,
     observer::ObserverCommand,
@@ -333,7 +333,7 @@ pub fn get_chainhook_config(
 pub async fn start_chainhook_service(
     config: Config,
     ping_startup_port: u16,
-    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
+    startup_predicates: Option<Vec<ChainhookSpecificationNetworkMap>>,
     ctx: &Context,
 ) -> Result<Sender<ObserverCommand>, String> {
     let mut service = Service::new(config, ctx.clone());
@@ -389,8 +389,8 @@ pub struct TestSetupResult {
 
 pub async fn setup_stacks_chainhook_test(
     starting_chain_tip: u64,
-    redis_seed: Option<(StacksChainhookFullSpecification, PredicateStatus)>,
-    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
+    redis_seed: Option<(StacksChainhookSpecificationNetworkMap, PredicateStatus)>,
+    startup_predicates: Option<Vec<ChainhookSpecificationNetworkMap>>,
 ) -> TestSetupResult {
     let (
         redis_port,
@@ -433,7 +433,7 @@ pub async fn setup_stacks_chainhook_test(
                 panic!("test failed with error: {e}");
             });
 
-        let spec = ChainhookSpecification::Stacks(stacks_spec);
+        let spec = ChainhookInstance::Stacks(stacks_spec);
         update_predicate_spec(&spec.key(), &spec, &mut connection, &ctx);
         update_predicate_status(&spec.key(), status, &mut connection, &ctx);
     }

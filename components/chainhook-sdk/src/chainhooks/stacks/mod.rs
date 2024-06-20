@@ -1,7 +1,7 @@
 use crate::utils::{AbstractStacksBlock, Context};
 
 use super::types::{
-    BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
+    BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookInstance,
     StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
 };
 use chainhook_types::{
@@ -21,7 +21,7 @@ use reqwest::RequestBuilder;
 
 #[derive(Clone)]
 pub struct StacksTriggerChainhook<'a> {
-    pub chainhook: &'a StacksChainhookSpecification,
+    pub chainhook: &'a StacksChainhookInstance,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
     pub rollback: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
 }
@@ -103,7 +103,7 @@ impl<'a> StacksTriggerChainhook<'a> {
 
 pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
     chain_event: &'a StacksChainEvent,
-    active_chainhooks: Vec<&'a StacksChainhookSpecification>,
+    active_chainhooks: Vec<&'a StacksChainhookInstance>,
     ctx: &Context,
 ) -> (
     Vec<StacksTriggerChainhook<'a>>,
@@ -301,7 +301,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
 
 pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     blocks: Vec<&'a dyn AbstractStacksBlock>,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     ctx: &Context,
 ) -> (
     Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
@@ -338,7 +338,7 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
 
 pub fn evaluate_stacks_predicate_on_block<'a>(
     block: &'a dyn AbstractStacksBlock,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     _ctx: &Context,
 ) -> bool {
     match &chainhook.predicate {
@@ -366,7 +366,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 
 pub fn evaluate_stacks_predicate_on_transaction<'a>(
     transaction: &'a StacksTransactionData,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     ctx: &Context,
 ) -> bool {
     match &chainhook.predicate {

@@ -11,8 +11,8 @@ use crate::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ChainhookConfig {
-    pub stacks_chainhooks: Vec<StacksChainhookSpecification>,
-    pub bitcoin_chainhooks: Vec<BitcoinChainhookSpecification>,
+    pub stacks_chainhooks: Vec<StacksChainhookInstance>,
+    pub bitcoin_chainhooks: Vec<BitcoinChainhookInstance>,
 }
 
 impl ChainhookConfig {
@@ -23,29 +23,29 @@ impl ChainhookConfig {
         }
     }
 
-    pub fn register_full_specification(
+    pub fn register_instance_from_network_map(
         &mut self,
         networks: (&BitcoinNetwork, &StacksNetwork),
-        hook: ChainhookFullSpecification,
-    ) -> Result<ChainhookSpecification, String> {
+        hook: ChainhookSpecificationNetworkMap,
+    ) -> Result<ChainhookInstance, String> {
         let spec = match hook {
-            ChainhookFullSpecification::Stacks(hook) => {
+            ChainhookSpecificationNetworkMap::Stacks(hook) => {
                 let spec = hook.into_selected_network_specification(networks.1)?;
                 self.stacks_chainhooks.push(spec.clone());
-                ChainhookSpecification::Stacks(spec)
+                ChainhookInstance::Stacks(spec)
             }
-            ChainhookFullSpecification::Bitcoin(hook) => {
+            ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
                 let spec = hook.into_selected_network_specification(networks.0)?;
                 self.bitcoin_chainhooks.push(spec.clone());
-                ChainhookSpecification::Bitcoin(spec)
+                ChainhookInstance::Bitcoin(spec)
             }
         };
         Ok(spec)
     }
 
-    pub fn enable_specification(&mut self, predicate_spec: &mut ChainhookSpecification) {
+    pub fn enable_instance(&mut self, predicate_spec: &mut ChainhookInstance) {
         match predicate_spec {
-            ChainhookSpecification::Stacks(spec_to_enable) => {
+            ChainhookInstance::Stacks(spec_to_enable) => {
                 for spec in self.stacks_chainhooks.iter_mut() {
                     if spec.uuid.eq(&spec_to_enable.uuid) {
                         spec.enabled = true;
@@ -54,7 +54,7 @@ impl ChainhookConfig {
                     }
                 }
             }
-            ChainhookSpecification::Bitcoin(spec_to_enable) => {
+            ChainhookInstance::Bitcoin(spec_to_enable) => {
                 for spec in self.bitcoin_chainhooks.iter_mut() {
                     if spec.uuid.eq(&spec_to_enable.uuid) {
                         spec.enabled = true;
@@ -66,13 +66,13 @@ impl ChainhookConfig {
         };
     }
 
-    pub fn register_specification(&mut self, spec: ChainhookSpecification) -> Result<(), String> {
+    pub fn register_instance(&mut self, spec: ChainhookInstance) -> Result<(), String> {
         match spec {
-            ChainhookSpecification::Stacks(spec) => {
+            ChainhookInstance::Stacks(spec) => {
                 let spec = spec.clone();
                 self.stacks_chainhooks.push(spec);
             }
-            ChainhookSpecification::Bitcoin(spec) => {
+            ChainhookInstance::Bitcoin(spec) => {
                 let spec = spec.clone();
                 self.bitcoin_chainhooks.push(spec);
             }
@@ -80,10 +80,7 @@ impl ChainhookConfig {
         Ok(())
     }
 
-    pub fn deregister_stacks_hook(
-        &mut self,
-        hook_uuid: String,
-    ) -> Option<StacksChainhookSpecification> {
+    pub fn deregister_stacks_hook(&mut self, hook_uuid: String) -> Option<StacksChainhookInstance> {
         let mut i = 0;
         while i < self.stacks_chainhooks.len() {
             if self.stacks_chainhooks[i].uuid == hook_uuid {
@@ -99,7 +96,7 @@ impl ChainhookConfig {
     pub fn deregister_bitcoin_hook(
         &mut self,
         hook_uuid: String,
-    ) -> Option<BitcoinChainhookSpecification> {
+    ) -> Option<BitcoinChainhookInstance> {
         let mut i = 0;
         while i < self.bitcoin_chainhooks.len() {
             if self.bitcoin_chainhooks[i].uuid == hook_uuid {
@@ -115,7 +112,7 @@ impl ChainhookConfig {
     pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
         let mut i = 0;
         while i < self.stacks_chainhooks.len() {
-            if ChainhookSpecification::stacks_key(&self.stacks_chainhooks[i].uuid) == hook_uuid {
+            if ChainhookInstance::stacks_key(&self.stacks_chainhooks[i].uuid) == hook_uuid {
                 self.stacks_chainhooks[i].expired_at = Some(block_height);
                 break;
             } else {
@@ -127,7 +124,7 @@ impl ChainhookConfig {
     pub fn expire_bitcoin_hook(&mut self, hook_uuid: String, block_height: u64) {
         let mut i = 0;
         while i < self.bitcoin_chainhooks.len() {
-            if ChainhookSpecification::bitcoin_key(&self.bitcoin_chainhooks[i].uuid) == hook_uuid {
+            if ChainhookInstance::bitcoin_key(&self.bitcoin_chainhooks[i].uuid) == hook_uuid {
                 self.bitcoin_chainhooks[i].expired_at = Some(block_height);
                 break;
             } else {
@@ -157,12 +154,12 @@ impl Serialize for ChainhookConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum ChainhookSpecification {
-    Bitcoin(BitcoinChainhookSpecification),
-    Stacks(StacksChainhookSpecification),
+pub enum ChainhookInstance {
+    Bitcoin(BitcoinChainhookInstance),
+    Stacks(StacksChainhookInstance),
 }
 
-impl ChainhookSpecification {
+impl ChainhookInstance {
     pub fn either_stx_or_btc_key(uuid: &str) -> String {
         format!("predicate:{}", uuid)
     }
@@ -182,8 +179,8 @@ impl ChainhookSpecification {
         }
     }
 
-    pub fn deserialize_specification(spec: &str) -> Result<ChainhookSpecification, String> {
-        let spec: ChainhookSpecification = serde_json::from_str(spec)
+    pub fn deserialize_specification(spec: &str) -> Result<ChainhookInstance, String> {
+        let spec: ChainhookInstance = serde_json::from_str(spec)
             .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
@@ -197,7 +194,7 @@ impl ChainhookSpecification {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct BitcoinChainhookSpecification {
+pub struct BitcoinChainhookInstance {
     pub uuid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_uuid: Option<String>,
@@ -222,20 +219,20 @@ pub struct BitcoinChainhookSpecification {
     pub expired_at: Option<u64>,
 }
 
-impl BitcoinChainhookSpecification {
+impl BitcoinChainhookInstance {
     pub fn key(&self) -> String {
-        ChainhookSpecification::bitcoin_key(&self.uuid)
+        ChainhookInstance::bitcoin_key(&self.uuid)
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "chain")]
-pub enum ChainhookFullSpecification {
-    Bitcoin(BitcoinChainhookFullSpecification),
-    Stacks(StacksChainhookFullSpecification),
+pub enum ChainhookSpecificationNetworkMap {
+    Bitcoin(BitcoinChainhookSpecificationNetworkMap),
+    Stacks(StacksChainhookSpecificationNetworkMap),
 }
 
-impl ChainhookFullSpecification {
+impl ChainhookSpecificationNetworkMap {
     pub fn validate(&self) -> Result<(), String> {
         match &self {
             Self::Bitcoin(data) => {
@@ -286,33 +283,33 @@ impl ChainhookFullSpecification {
     pub fn deserialize_specification(
         spec: &str,
         _key: &str,
-    ) -> Result<ChainhookFullSpecification, String> {
-        let spec: ChainhookFullSpecification = serde_json::from_str(spec)
+    ) -> Result<ChainhookSpecificationNetworkMap, String> {
+        let spec: ChainhookSpecificationNetworkMap = serde_json::from_str(spec)
             .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
         Ok(spec)
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct BitcoinChainhookFullSpecification {
+pub struct BitcoinChainhookSpecificationNetworkMap {
     pub uuid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_uuid: Option<String>,
     pub name: String,
     pub version: u32,
-    pub networks: BTreeMap<BitcoinNetwork, BitcoinChainhookNetworkSpecification>,
+    pub networks: BTreeMap<BitcoinNetwork, BitcoinChainhookSpecification>,
 }
 
-impl BitcoinChainhookFullSpecification {
+impl BitcoinChainhookSpecificationNetworkMap {
     pub fn into_selected_network_specification(
         mut self,
         network: &BitcoinNetwork,
-    ) -> Result<BitcoinChainhookSpecification, String> {
+    ) -> Result<BitcoinChainhookInstance, String> {
         let spec = self
             .networks
             .remove(network)
             .ok_or("Network unknown".to_string())?;
-        Ok(BitcoinChainhookSpecification {
+        Ok(BitcoinChainhookInstance {
             uuid: self.uuid,
             owner_uuid: self.owner_uuid,
             name: self.name,
@@ -335,7 +332,7 @@ impl BitcoinChainhookFullSpecification {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct BitcoinChainhookNetworkSpecification {
+pub struct BitcoinChainhookSpecification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -359,25 +356,25 @@ pub struct BitcoinChainhookNetworkSpecification {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct StacksChainhookFullSpecification {
+pub struct StacksChainhookSpecificationNetworkMap {
     pub uuid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_uuid: Option<String>,
     pub name: String,
     pub version: u32,
-    pub networks: BTreeMap<StacksNetwork, StacksChainhookNetworkSpecification>,
+    pub networks: BTreeMap<StacksNetwork, StacksChainhookSpecification>,
 }
 
-impl StacksChainhookFullSpecification {
+impl StacksChainhookSpecificationNetworkMap {
     pub fn into_selected_network_specification(
         mut self,
         network: &StacksNetwork,
-    ) -> Result<StacksChainhookSpecification, String> {
+    ) -> Result<StacksChainhookInstance, String> {
         let spec = self
             .networks
             .remove(network)
             .ok_or("Network unknown".to_string())?;
-        Ok(StacksChainhookSpecification {
+        Ok(StacksChainhookInstance {
             uuid: self.uuid,
             owner_uuid: self.owner_uuid,
             name: self.name,
@@ -399,7 +396,7 @@ impl StacksChainhookFullSpecification {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-pub struct StacksChainhookNetworkSpecification {
+pub struct StacksChainhookSpecification {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -732,7 +729,7 @@ pub enum BlockIdentifierHashRule {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct StacksChainhookSpecification {
+pub struct StacksChainhookInstance {
     pub uuid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_uuid: Option<String>,
@@ -759,9 +756,9 @@ pub struct StacksChainhookSpecification {
     pub expired_at: Option<u64>,
 }
 
-impl StacksChainhookSpecification {
+impl StacksChainhookInstance {
     pub fn key(&self) -> String {
-        ChainhookSpecification::stacks_key(&self.uuid)
+        ChainhookInstance::stacks_key(&self.uuid)
     }
 
     pub fn is_predicate_targeting_block_header(&self) -> bool {

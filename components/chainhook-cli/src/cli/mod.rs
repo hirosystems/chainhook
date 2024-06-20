@@ -16,9 +16,9 @@ use crate::storage::{
 };
 
 use chainhook_sdk::chainhooks::types::{
-    BitcoinChainhookFullSpecification, BitcoinChainhookNetworkSpecification, BitcoinPredicateType,
-    ChainhookFullSpecification, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
-    StacksChainhookFullSpecification, StacksChainhookNetworkSpecification, StacksPredicate,
+    BitcoinChainhookSpecification, BitcoinChainhookSpecificationNetworkMap, BitcoinPredicateType,
+    ChainhookSpecificationNetworkMap, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
+    StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap, StacksPredicate,
     StacksPrintEventBasedPredicate,
 };
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
@@ -351,7 +351,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     .predicates_paths
                     .iter()
                     .map(|p| load_predicate_from_path(p))
-                    .collect::<Result<Vec<ChainhookFullSpecification>, _>>()?;
+                    .collect::<Result<Vec<ChainhookSpecificationNetworkMap>, _>>()?;
 
                 info!(ctx.expect_logger(), "Starting service...",);
 
@@ -384,7 +384,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     (true, false) => {
                         let mut networks = BTreeMap::new();
 
-                        networks.insert(StacksNetwork::Testnet, StacksChainhookNetworkSpecification {
+                        networks.insert(StacksNetwork::Testnet, StacksChainhookSpecification {
                             start_block: Some(34239),
                             end_block: Some(50000),
                             blocks: None,
@@ -401,7 +401,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             })
                         });
 
-                        networks.insert(StacksNetwork::Mainnet, StacksChainhookNetworkSpecification {
+                        networks.insert(StacksNetwork::Mainnet, StacksChainhookSpecification {
                             start_block: Some(34239),
                             end_block: Some(50000),
                             blocks: None,
@@ -418,20 +418,22 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             })
                         });
 
-                        ChainhookFullSpecification::Stacks(StacksChainhookFullSpecification {
-                            uuid: id.to_string(),
-                            owner_uuid: None,
-                            name: "Hello world".into(),
-                            version: 1,
-                            networks,
-                        })
+                        ChainhookSpecificationNetworkMap::Stacks(
+                            StacksChainhookSpecificationNetworkMap {
+                                uuid: id.to_string(),
+                                owner_uuid: None,
+                                name: "Hello world".into(),
+                                version: 1,
+                                networks,
+                            },
+                        )
                     }
                     (false, true) => {
                         let mut networks = BTreeMap::new();
 
                         networks.insert(
                             BitcoinNetwork::Mainnet,
-                            BitcoinChainhookNetworkSpecification {
+                            BitcoinChainhookSpecification {
                                 start_block: Some(767430),
                                 end_block: Some(767430),
                                 blocks: None,
@@ -451,13 +453,15 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             },
                         );
 
-                        ChainhookFullSpecification::Bitcoin(BitcoinChainhookFullSpecification {
-                            uuid: id.to_string(),
-                            owner_uuid: None,
-                            name: "Hello world".into(),
-                            version: 1,
-                            networks,
-                        })
+                        ChainhookSpecificationNetworkMap::Bitcoin(
+                            BitcoinChainhookSpecificationNetworkMap {
+                                uuid: id.to_string(),
+                                owner_uuid: None,
+                                name: "Hello world".into(),
+                                version: 1,
+                                networks,
+                            },
+                        )
                     }
                     _ => {
                         return Err("command `predicates new` should either provide the flag --stacks or --bitcoin".into());
@@ -500,7 +504,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     Config::default(false, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
                 let predicate = load_predicate_from_path(&cmd.predicate_path)?;
                 match predicate {
-                    ChainhookFullSpecification::Bitcoin(predicate) => {
+                    ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {
                         let predicate_spec = match predicate
                             .into_selected_network_specification(&config.network.bitcoin_network)
                         {
@@ -521,7 +525,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         )
                         .await?;
                     }
-                    ChainhookFullSpecification::Stacks(predicate) => {
+                    ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let predicate_spec = match predicate
                             .into_selected_network_specification(&config.network.stacks_network)
                         {
@@ -567,11 +571,11 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             }
             PredicatesCommand::Check(cmd) => {
                 let config = Config::default(false, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
-                let predicate: ChainhookFullSpecification =
+                let predicate: ChainhookSpecificationNetworkMap =
                     load_predicate_from_path(&cmd.predicate_path)?;
 
                 match predicate {
-                    ChainhookFullSpecification::Bitcoin(predicate) => {
+                    ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {
                         let _ = match predicate
                             .into_selected_network_specification(&config.network.bitcoin_network)
                         {
@@ -584,7 +588,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             }
                         };
                     }
-                    ChainhookFullSpecification::Stacks(predicate) => {
+                    ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let _ = match predicate
                             .into_selected_network_specification(&config.network.stacks_network)
                         {
@@ -864,7 +868,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 
 pub fn load_predicate_from_path(
     predicate_path: &str,
-) -> Result<ChainhookFullSpecification, String> {
+) -> Result<ChainhookSpecificationNetworkMap, String> {
     let file = std::fs::File::open(&predicate_path)
         .map_err(|e| format!("unable to read file {}\n{:?}", predicate_path, e))?;
     let mut file_reader = BufReader::new(file);
@@ -872,7 +876,7 @@ pub fn load_predicate_from_path(
     file_reader
         .read_to_end(&mut file_buffer)
         .map_err(|e| format!("unable to read file {}\n{:?}", predicate_path, e))?;
-    let predicate: ChainhookFullSpecification = serde_json::from_slice(&file_buffer)
+    let predicate: ChainhookSpecificationNetworkMap = serde_json::from_slice(&file_buffer)
         .map_err(|e| format!("unable to parse json file {}\n{:?}", predicate_path, e))?;
     Ok(predicate)
 }

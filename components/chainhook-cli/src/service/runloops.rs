@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 
 use chainhook_sdk::{
     chainhooks::types::{
-        BitcoinChainhookSpecification, ChainhookSpecification, StacksChainhookSpecification,
+        BitcoinChainhookInstance, ChainhookInstance, StacksChainhookInstance,
     },
     observer::ObserverCommand,
     utils::Context,
@@ -24,7 +24,7 @@ use super::ScanningData;
 pub fn start_stacks_scan_runloop(
     config: &Config,
     stacks_scan_op_rx: crossbeam_channel::Receiver<(
-        StacksChainhookSpecification,
+        StacksChainhookInstance,
         Option<ScanningData>,
     )>,
     observer_command_tx: Sender<ObserverCommand>,
@@ -103,7 +103,7 @@ pub fn start_stacks_scan_runloop(
             }
             if !predicate_is_expired {
                 let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                    ChainhookSpecification::Stacks(predicate_spec),
+                    ChainhookInstance::Stacks(predicate_spec),
                 ));
             }
         });
@@ -114,7 +114,7 @@ pub fn start_stacks_scan_runloop(
 pub fn start_bitcoin_scan_runloop(
     config: &Config,
     bitcoin_scan_op_rx: crossbeam_channel::Receiver<(
-        BitcoinChainhookSpecification,
+        BitcoinChainhookInstance,
         Option<ScanningData>,
     )>,
     observer_command_tx: Sender<ObserverCommand>,
@@ -160,7 +160,7 @@ pub fn start_bitcoin_scan_runloop(
             };
             if !predicate_is_expired {
                 let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                    ChainhookSpecification::Bitcoin(predicate_spec),
+                    ChainhookInstance::Bitcoin(predicate_spec),
                 ));
             }
         });

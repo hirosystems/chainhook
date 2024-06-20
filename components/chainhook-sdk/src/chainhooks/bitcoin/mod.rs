@@ -1,5 +1,5 @@
 use super::types::{
-    BitcoinChainhookSpecification, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
+    BitcoinChainhookInstance, BitcoinPredicateType, DescriptorMatchingRule, ExactMatchingRule,
     HookAction, InputPredicate, MatchingRule, OrdinalOperations, OrdinalsMetaProtocol,
     OutputPredicate, StacksOperations,
 };
@@ -28,7 +28,7 @@ use reqwest::RequestBuilder;
 use hex::FromHex;
 
 pub struct BitcoinTriggerChainhook<'a> {
-    pub chainhook: &'a BitcoinChainhookSpecification,
+    pub chainhook: &'a BitcoinChainhookInstance,
     pub apply: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
     pub rollback: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
 }
@@ -95,7 +95,7 @@ pub enum BitcoinChainhookOccurrence {
 
 pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
     chain_event: &'a BitcoinChainEvent,
-    active_chainhooks: &Vec<&'a BitcoinChainhookSpecification>,
+    active_chainhooks: &Vec<&'a BitcoinChainhookInstance>,
     ctx: &Context,
 ) -> (
     Vec<BitcoinTriggerChainhook<'a>>,
@@ -226,7 +226,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
 }
 
 pub fn serialize_bitcoin_transactions_to_json<'a>(
-    predicate_spec: &BitcoinChainhookSpecification,
+    predicate_spec: &BitcoinChainhookInstance,
     transactions: &Vec<&BitcoinTransactionData>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
 ) -> Vec<JsonValue> {

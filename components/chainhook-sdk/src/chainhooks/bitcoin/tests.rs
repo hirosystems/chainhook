@@ -164,7 +164,7 @@ fn it_serdes_occurrence_payload(
         3,
     );
     let block = generate_test_bitcoin_block(0, 0, vec![transaction.clone()], None);
-    let chainhook = &BitcoinChainhookSpecification {
+    let chainhook = &BitcoinChainhookInstance {
         uuid: "uuid".into(),
         owner_uuid: None,
         name: "name".into(),
@@ -230,7 +230,7 @@ fn it_serdes_brc20_payload(tick: String) {
     let block = generate_test_bitcoin_block(0, 0, vec![transaction.clone()], None);
     let mut meta_protocols = HashSet::<OrdinalsMetaProtocol>::new();
     meta_protocols.insert(OrdinalsMetaProtocol::Brc20);
-    let chainhook = &BitcoinChainhookSpecification {
+    let chainhook = &BitcoinChainhookInstance {
         uuid: "uuid".into(),
         owner_uuid: None,
         name: "name".into(),
