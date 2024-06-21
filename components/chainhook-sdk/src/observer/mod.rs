@@ -84,12 +84,16 @@ pub struct EventObserverConfig {
 ///
 /// ## Examples
 /// ```
-/// let config: EventObserverConfig =
+/// use chainhook_sdk::observer::EventObserverConfig;
+/// use chainhook_sdk::observer::EventObserverConfigBuilder;
+///
+/// fn get_config() -> Result<EventObserverConfig, String> {
 ///     EventObserverConfigBuilder::new()
 ///         .bitcoind_rpc_password("my_password")
 ///         .bitcoin_network("mainnet")
 ///         .stacks_network("mainnet")
-///         .finish()?;
+///         .finish()
+/// }
 /// ```
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventObserverConfigBuilder {
@@ -196,11 +200,15 @@ impl EventObserverConfigBuilder {
 ///
 /// ## Examples
 /// ```
-/// let config: EventObserverConfig =
+/// use chainhook_sdk::observer::EventObserverConfig;
+/// use chainhook_sdk::observer::BitcoinEventObserverBuilder;
+///
+/// fn get_config() -> Result<EventObserverConfig, String> {
 ///     BitcoinEventObserverBuilder::new()
 ///         .rpc_password("my_password")
 ///         .network("mainnet")
-///         .finish()?;
+///         .finish()
+/// }
 /// ```
 pub struct BitcoinEventObserverBuilder {
     pub bitcoind_rpc_username: Option<String>,
