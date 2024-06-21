@@ -49,7 +49,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChainhookFullSpecification"
+                "$ref": "#/components/schemas/ChainhookSpecificationNetworkMap"
               }
             }
           },
@@ -154,7 +154,7 @@
   },
   "components": {
     "schemas": {
-      "ChainhookFullSpecification": {
+      "ChainhookSpecificationNetworkMap": {
         "oneOf": [
           {
             "type": "object",
@@ -196,7 +196,7 @@
                     ],
                     "properties": {
                       "regtest": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -207,7 +207,7 @@
                     ],
                     "properties": {
                       "testnet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -218,7 +218,7 @@
                     ],
                     "properties": {
                       "signet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -229,7 +229,7 @@
                     ],
                     "properties": {
                       "mainnet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   }
@@ -277,7 +277,7 @@
                     ],
                     "properties": {
                       "simnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -288,7 +288,7 @@
                     ],
                     "properties": {
                       "devnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -299,7 +299,7 @@
                     ],
                     "properties": {
                       "testnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -310,7 +310,7 @@
                     ],
                     "properties": {
                       "mainnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   }
@@ -329,7 +329,7 @@
           "mainnet"
         ]
       },
-      "BitcoinChainhookNetworkSpecification": {
+      "BitcoinChainhookSpecification": {
         "type": "object",
         "required": [
           "if_this",
@@ -857,7 +857,7 @@
           "mainnet"
         ]
       },
-      "StacksChainhookNetworkSpecification": {
+      "StacksChainhookSpecification": {
         "type": "object",
         "required": [
           "if_this",
