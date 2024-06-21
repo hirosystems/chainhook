@@ -21,9 +21,9 @@ use chainhook_sdk::{
     utils::Context,
 };
 use chainhook_sdk::{
-    chainhooks::{
-        stacks::{handle_stacks_hook_action, StacksChainhookOccurrence, StacksTriggerChainhook},
-        types::StacksChainhookInstance,
+    chainhooks::stacks::{
+        handle_stacks_hook_action, StacksChainhookInstance, StacksChainhookOccurrence,
+        StacksTriggerChainhook,
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };

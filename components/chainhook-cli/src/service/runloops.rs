@@ -1,8 +1,9 @@
 use std::sync::mpsc::Sender;
 
 use chainhook_sdk::{
-    chainhooks::types::{
-        BitcoinChainhookInstance, ChainhookInstance, StacksChainhookInstance,
+    chainhooks::{
+        bitcoin::BitcoinChainhookInstance, stacks::StacksChainhookInstance,
+        types::ChainhookInstance,
     },
     observer::ObserverCommand,
     utils::Context,
@@ -23,10 +24,7 @@ use super::ScanningData;
 
 pub fn start_stacks_scan_runloop(
     config: &Config,
-    stacks_scan_op_rx: crossbeam_channel::Receiver<(
-        StacksChainhookInstance,
-        Option<ScanningData>,
-    )>,
+    stacks_scan_op_rx: crossbeam_channel::Receiver<(StacksChainhookInstance, Option<ScanningData>)>,
     observer_command_tx: Sender<ObserverCommand>,
     ctx: &Context,
 ) {

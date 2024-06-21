@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::super::types::MatchingRule;
 use super::*;
-use crate::chainhooks::types::InscriptionFeedData;
+use crate::chainhooks::bitcoin::InscriptionFeedData;
 use crate::indexer::tests::helpers::accounts;
 use crate::indexer::tests::helpers::bitcoin_blocks::generate_test_bitcoin_block;
 use crate::indexer::tests::helpers::transactions::generate_test_tx_bitcoin_p2pkh_transfer;

@@ -14,13 +14,16 @@ use crate::storage::{
     is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
     set_last_confirmed_insert_key,
 };
-
-use chainhook_sdk::chainhooks::types::{
-    BitcoinChainhookSpecification, BitcoinChainhookSpecificationNetworkMap, BitcoinPredicateType,
-    ChainhookSpecificationNetworkMap, FileHook, HookAction, InscriptionFeedData, OrdinalOperations,
-    StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap, StacksPredicate,
-    StacksPrintEventBasedPredicate,
-};
+use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecification;
+use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
+use chainhook_sdk::chainhooks::bitcoin::BitcoinPredicateType;
+use chainhook_sdk::chainhooks::bitcoin::InscriptionFeedData;
+use chainhook_sdk::chainhooks::bitcoin::OrdinalOperations;
+use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecification;
+use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
+use chainhook_sdk::chainhooks::stacks::StacksPredicate;
+use chainhook_sdk::chainhooks::stacks::StacksPrintEventBasedPredicate;
+use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, FileHook, HookAction};
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::{BlockHeights, Context};
 use clap::{Parser, Subcommand};
@@ -506,7 +509,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 match predicate {
                     ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {
                         let predicate_spec = match predicate
-                            .into_selected_network_specification(&config.network.bitcoin_network)
+                            .into_specification_for_network(&config.network.bitcoin_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {
@@ -527,7 +530,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                     ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let predicate_spec = match predicate
-                            .into_selected_network_specification(&config.network.stacks_network)
+                            .into_specification_from_network(&config.network.stacks_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {
@@ -577,7 +580,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 match predicate {
                     ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {
                         let _ = match predicate
-                            .into_selected_network_specification(&config.network.bitcoin_network)
+                            .into_specification_for_network(&config.network.bitcoin_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {
@@ -590,7 +593,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                     ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let _ = match predicate
-                            .into_selected_network_specification(&config.network.stacks_network)
+                            .into_specification_from_network(&config.network.stacks_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {

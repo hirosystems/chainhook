@@ -1,10 +1,18 @@
+use crate::chainhooks::bitcoin::BitcoinChainhookInstance;
+use crate::chainhooks::bitcoin::BitcoinChainhookSpecification;
+use crate::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
+use crate::chainhooks::bitcoin::BitcoinPredicateType;
+use crate::chainhooks::bitcoin::InscriptionFeedData;
+use crate::chainhooks::bitcoin::OrdinalOperations;
+use crate::chainhooks::bitcoin::OutputPredicate;
+use crate::chainhooks::stacks::StacksChainhookInstance;
+use crate::chainhooks::stacks::StacksChainhookSpecification;
+use crate::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
+use crate::chainhooks::stacks::StacksContractCallBasedPredicate;
+use crate::chainhooks::stacks::StacksPredicate;
 use crate::chainhooks::types::{
-    BitcoinChainhookInstance, BitcoinChainhookSpecification,
-    BitcoinChainhookSpecificationNetworkMap, BitcoinPredicateType, ChainhookConfig,
-    ChainhookInstance, ChainhookSpecificationNetworkMap, ExactMatchingRule, HookAction,
-    InscriptionFeedData, OrdinalOperations, OutputPredicate, StacksChainhookInstance,
-    StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap,
-    StacksContractCallBasedPredicate, StacksPredicate,
+    ChainhookConfig, ChainhookInstance, ChainhookSpecificationNetworkMap, ExactMatchingRule,
+    HookAction,
 };
 use crate::indexer::fork_scratch_pad::ForkScratchPad;
 use crate::indexer::tests::helpers::transactions::generate_test_tx_bitcoin_p2pkh_transfer;
@@ -163,7 +171,7 @@ fn generate_and_register_new_stacks_chainhook(
         ChainhookSpecificationNetworkMap::Stacks(chainhook.clone()),
     ));
     let mut chainhook = chainhook
-        .into_selected_network_specification(&StacksNetwork::Devnet)
+        .into_specification_from_network(&StacksNetwork::Devnet)
         .unwrap();
     chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(ChainhookInstance::Stacks(
@@ -207,7 +215,7 @@ fn generate_and_register_new_bitcoin_chainhook(
         ChainhookSpecificationNetworkMap::Bitcoin(chainhook.clone()),
     ));
     let mut chainhook = chainhook
-        .into_selected_network_specification(&BitcoinNetwork::Regtest)
+        .into_specification_for_network(&BitcoinNetwork::Regtest)
         .unwrap();
     chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
@@ -326,7 +334,7 @@ fn generate_and_register_new_ordinals_chainhook(
         ChainhookSpecificationNetworkMap::Bitcoin(chainhook.clone()),
     ));
     let mut chainhook = chainhook
-        .into_selected_network_specification(&BitcoinNetwork::Regtest)
+        .into_specification_for_network(&BitcoinNetwork::Regtest)
         .unwrap();
     chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(
@@ -582,7 +590,7 @@ fn test_stacks_chainhook_auto_deregister() {
         ChainhookSpecificationNetworkMap::Stacks(chainhook.clone()),
     ));
     let mut chainhook = chainhook
-        .into_selected_network_specification(&StacksNetwork::Devnet)
+        .into_specification_from_network(&StacksNetwork::Devnet)
         .unwrap();
     chainhook.enabled = true;
     let _ = observer_commands_tx.send(ObserverCommand::EnablePredicate(ChainhookInstance::Stacks(

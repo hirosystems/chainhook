@@ -8,9 +8,8 @@ use crate::service::{
     PredicateStatus, Service,
 };
 use chainhook_sdk::{
-    chainhooks::types::{
-        ChainhookInstance, ChainhookSpecificationNetworkMap, StacksChainhookSpecificationNetworkMap,
-    },
+    chainhooks::stacks::StacksChainhookSpecificationNetworkMap,
+    chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap},
     indexer::IndexerConfig,
     observer::ObserverCommand,
     types::{BitcoinBlockSignaling, BitcoinNetwork, Chain, StacksNetwork, StacksNodeConfig},
@@ -426,7 +425,7 @@ pub async fn setup_stacks_chainhook_test(
             panic!("test failed with error: {e}");
         });
         let stacks_spec = predicate
-            .into_selected_network_specification(&StacksNetwork::Devnet)
+            .into_specification_from_network(&StacksNetwork::Devnet)
             .unwrap_or_else(|e| {
                 flush_redis(redis_port);
                 redis_process.kill().unwrap();

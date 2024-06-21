@@ -5,20 +5,18 @@ use self::fixtures::get_all_event_payload_types;
 use super::{
     stacks::{
         evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
-        StacksChainhookOccurrence, StacksTriggerChainhook,
+        StacksChainhookInstance, StacksChainhookOccurrence, StacksContractCallBasedPredicate,
+        StacksContractDeploymentPredicate, StacksFtEventBasedPredicate,
+        StacksNftEventBasedPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
+        StacksStxEventBasedPredicate, StacksTrait, StacksTriggerChainhook,
     },
-    types::{
-        ExactMatchingRule, FileHook, StacksChainhookInstance,
-        StacksContractCallBasedPredicate, StacksContractDeploymentPredicate,
-        StacksFtEventBasedPredicate, StacksNftEventBasedPredicate, StacksPrintEventBasedPredicate,
-        StacksTrait,
-    },
+    types::{ExactMatchingRule, FileHook},
 };
 use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
-        types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate},
+        types::HookAction,
     },
     utils::AbstractStacksBlock,
 };
