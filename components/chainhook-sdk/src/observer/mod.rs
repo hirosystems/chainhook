@@ -37,7 +37,6 @@ use rocket::config::{self, Config, LogLevel};
 use rocket::data::{Limits, ToByteUnit};
 use rocket::serde::Deserialize;
 use rocket::Shutdown;
-use std::borrow::BorrowMut;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
@@ -187,7 +186,7 @@ impl EventObserverConfigBuilder {
         self
     }
 
-    /// Attempts to convert a [EventObserverConfigOverrides] instance into an [EventObserverConfig], filling in
+    /// Attempts to convert a [EventObserverConfigBuilder] instance into an [EventObserverConfig], filling in
     /// defaults as necessary according to [EventObserverConfig::default].
     ///
     /// This function will return an error if the `bitcoin_network` or `stacks_network` strings are set and are not a valid [BitcoinNetwork] or [StacksNetwork].
