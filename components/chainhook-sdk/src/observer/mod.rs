@@ -644,6 +644,89 @@ impl ObserverSidecar {
     }
 }
 
+/// A helper struct used to configure and call [start_event_observer], which spawns a thread to observer chain events.
+///
+/// ### Examples
+/// ```
+/// use chainhook_sdk::observer::EventObserver;
+///
+/// fn start_event_observer() -> Result<(), Box<dyn Error>> {
+///     EventObserver::new(
+///         config,
+///         &observer_commands_tx,
+///         observer_commands_rx,
+///         &ctx
+///     )
+///     .stacks_startup_context(context)
+///     .start()
+/// }
+/// ```
+pub struct EventObserverBuilder {
+    config: EventObserverConfig,
+    observer_commands_tx: Sender<ObserverCommand>,
+    observer_commands_rx: Receiver<ObserverCommand>,
+    ctx: Context,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    observer_sidecar: Option<ObserverSidecar>,
+    stacks_startup_context: Option<StacksObserverStartupContext>,
+}
+
+impl EventObserverBuilder {
+    pub fn new(
+        config: EventObserverConfig,
+        observer_commands_tx: &Sender<ObserverCommand>,
+        observer_commands_rx: Receiver<ObserverCommand>,
+        ctx: &Context,
+    ) -> Self {
+        EventObserverBuilder {
+            config: config,
+            observer_commands_tx: observer_commands_tx.clone(),
+            observer_commands_rx: observer_commands_rx,
+            ctx: ctx.clone(),
+            observer_events_tx: None,
+            observer_sidecar: None,
+            stacks_startup_context: None,
+        }
+    }
+
+    /// Sets the `observer_events_tx` Sender. Set this and listen on the corresponding
+    /// Receiver to be notified of every [ObserverEvent].
+    pub fn events_tx(
+        &mut self,
+        observer_events_tx: crossbeam_channel::Sender<ObserverEvent>,
+    ) -> &mut Self {
+        self.observer_events_tx = Some(observer_events_tx);
+        self
+    }
+
+    /// Sets a sidecar for the observer. See [ObserverSidecar].
+    pub fn sidecar(&mut self, sidecar: ObserverSidecar) -> &mut Self {
+        self.observer_sidecar = Some(sidecar);
+        self
+    }
+
+    /// Sets the Stacks startup context. See [StacksObserverStartupContext].
+    pub fn stacks_startup_context(&mut self, context: StacksObserverStartupContext) -> &mut Self {
+        self.stacks_startup_context = Some(context);
+        self
+    }
+
+    /// Starts the event observer, calling [start_event_observer]. This function consumes the
+    /// [EventObserverBuilder] and spawns a new thread to run the observer.
+    pub fn start(self) -> Result<(), Box<dyn Error>> {
+        start_event_observer(
+            self.config,
+            self.observer_commands_tx,
+            self.observer_commands_rx,
+            self.observer_events_tx,
+            self.observer_sidecar,
+            self.stacks_startup_context,
+            self.ctx,
+        )
+    }
+}
+
+/// Spawns a thread to observe blockchain events. Use [EventObserverBuilder] to configure easily.
 pub fn start_event_observer(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
