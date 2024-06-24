@@ -28,7 +28,7 @@ jobs:
           TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
         run: |
           # Get version info
-          VERSION=$(echo "${TAG#v}")
+          $VERSION=${env:TAG}.substring(1)
 
           # Configure git configs
           git config --global user.name "${env:GIT_USER_NAME}"
@@ -44,3 +44,4 @@ jobs:
             --token ${{ secrets.GH_TOKEN }} `
             --submit `
             HiroSystems.Chainhook
+
