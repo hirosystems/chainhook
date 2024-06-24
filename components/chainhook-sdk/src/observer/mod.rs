@@ -324,27 +324,30 @@ impl EventObserverConfig {
         }
     }
 
-    /// Adds a [ChainhookInstance] to config's the registered chainhook store.
-    pub fn register_chainhook_instance(&mut self, spec: ChainhookInstance) -> Result<(), String> {
+    /// Adds a [ChainhookInstance] to config's the registered chainhook store, returning the updated config.
+    pub fn register_chainhook_instance(
+        &mut self,
+        spec: ChainhookInstance,
+    ) -> Result<&mut Self, String> {
         let mut chainhook_config = ChainhookStore::new();
         chainhook_config.register_instance(spec)?;
         self.registered_chainhooks = chainhook_config;
 
-        Ok(())
+        Ok(self)
     }
 
-    /// Adds a [BitcoinChainhookInstance] to the config's registered chainhook store.
+    /// Adds a [BitcoinChainhookInstance] to the config's registered chainhook store, returning the updated config.
     pub fn register_bitcoin_chainhook_instance(
         &mut self,
         spec: BitcoinChainhookInstance,
-    ) -> Result<(), String> {
+    ) -> Result<&mut Self, String> {
         self.register_chainhook_instance(ChainhookInstance::Bitcoin(spec))
     }
-    /// Adds a [StacksChainhookInstance] to the config's registered chainhook store.
+    /// Adds a [StacksChainhookInstance] to the config's registered chainhook store, returning the updated config.
     pub fn register_stacks_chainhook_instance(
         &mut self,
         spec: StacksChainhookInstance,
-    ) -> Result<(), String> {
+    ) -> Result<&mut Self, String> {
         self.register_chainhook_instance(ChainhookInstance::Stacks(spec))
     }
 
