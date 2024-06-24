@@ -282,19 +282,19 @@ impl BitcoinEventObserverConfigBuilder {
             bitcoind_rpc_username: self
                 .bitcoind_rpc_username
                 .clone()
-                .unwrap_or("devnet".into()),
+                .unwrap_or_else(|| "devnet".into()),
             bitcoind_rpc_password: self
                 .bitcoind_rpc_password
                 .clone()
-                .unwrap_or("devnet".into()),
+                .unwrap_or_else(|| "devnet".into()),
             bitcoind_rpc_url: self
                 .bitcoind_rpc_url
                 .clone()
-                .unwrap_or("http://localhost:18443".into()),
+                .unwrap_or_else(|| "http://localhost:18443".into()),
             bitcoin_block_signaling: BitcoinBlockSignaling::ZeroMQ(
                 self.bitcoind_zmq_url
                     .clone()
-                    .unwrap_or("tcp://0.0.0.0:18543".into()),
+                    .unwrap_or_else(|| "tcp://0.0.0.0:18543".into()),
             ),
             display_stacks_ingestion_logs: false,
             bitcoin_network: bitcoin_network,
@@ -393,27 +393,29 @@ impl EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
-                .unwrap_or("devnet".to_string()),
+                .unwrap_or_else(|| "devnet".to_string()),
             bitcoind_rpc_password: overrides
                 .and_then(|c| c.bitcoind_rpc_password.clone())
-                .unwrap_or("devnet".to_string()),
+                .unwrap_or_else(|| "devnet".to_string()),
             bitcoind_rpc_url: overrides
                 .and_then(|c| c.bitcoind_rpc_url.clone())
-                .unwrap_or("http://localhost:18443".to_string()),
+                .unwrap_or_else(|| "http://localhost:18443".to_string()),
             bitcoin_block_signaling: overrides
                 .and_then(|c| c.bitcoind_zmq_url.as_ref())
                 .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
-                .unwrap_or(BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
-                    overrides
-                        .and_then(|c| c.stacks_node_rpc_url.clone())
-                        .unwrap_or(DEFAULT_STACKS_NODE_RPC.to_string()),
-                    overrides
-                        .and_then(|c| c.chainhook_stacks_block_ingestion_port)
-                        .unwrap_or(DEFAULT_INGESTION_PORT),
-                ))),
+                .unwrap_or_else(|| {
+                    BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
+                        overrides
+                            .and_then(|c| c.stacks_node_rpc_url.clone())
+                            .unwrap_or_else(|| DEFAULT_STACKS_NODE_RPC.to_string()),
+                        overrides
+                            .and_then(|c| c.chainhook_stacks_block_ingestion_port)
+                            .unwrap_or_else(|| DEFAULT_INGESTION_PORT),
+                    ))
+                }),
             display_stacks_ingestion_logs: overrides
                 .and_then(|c| c.display_stacks_ingestion_logs)
-                .unwrap_or(false),
+                .unwrap_or_else(|| false),
             bitcoin_network,
             stacks_network,
             prometheus_monitoring_port: overrides.and_then(|c| c.prometheus_monitoring_port),
