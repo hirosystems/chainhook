@@ -202,16 +202,16 @@ impl EventObserverConfigBuilder {
 /// ## Examples
 /// ```
 /// use chainhook_sdk::observer::EventObserverConfig;
-/// use chainhook_sdk::observer::BitcoinEventObserverBuilder;
+/// use chainhook_sdk::observer::BitcoinEventObserverConfigBuilder;
 ///
 /// fn get_config() -> Result<EventObserverConfig, String> {
-///     BitcoinEventObserverBuilder::new()
+///     BitcoinEventObserverConfigBuilder::new()
 ///         .rpc_password("my_password")
 ///         .network("mainnet")
 ///         .finish()
 /// }
 /// ```
-pub struct BitcoinEventObserverBuilder {
+pub struct BitcoinEventObserverConfigBuilder {
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
@@ -219,9 +219,9 @@ pub struct BitcoinEventObserverBuilder {
     pub bitcoind_zmq_url: Option<String>,
     pub prometheus_monitoring_port: Option<u16>,
 }
-impl BitcoinEventObserverBuilder {
+impl BitcoinEventObserverConfigBuilder {
     pub fn new() -> Self {
-        BitcoinEventObserverBuilder {
+        BitcoinEventObserverConfigBuilder {
             bitcoind_rpc_username: None,
             bitcoind_rpc_password: None,
             bitcoind_rpc_url: None,
@@ -267,7 +267,7 @@ impl BitcoinEventObserverBuilder {
         self
     }
 
-    /// Attempts to convert a [BitcoinEventObserverBuilder] instance into an [EventObserverConfig], filling in
+    /// Attempts to convert a [BitcoinEventObserverConfigBuilder] instance into an [EventObserverConfig], filling in
     /// defaults as necessary according to [EventObserverConfig::default].
     ///
     /// This function will return an error if the `bitcoin_network` string is set and is not a valid [BitcoinNetwork].
