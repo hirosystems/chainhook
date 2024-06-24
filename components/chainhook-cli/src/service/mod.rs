@@ -11,7 +11,7 @@ use crate::storage::{
     open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::chainhooks::types::{ChainhookConfig, ChainhookSpecificationNetworkMap};
+use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, ChainhookStore};
 
 use chainhook_sdk::chainhooks::types::ChainhookInstance;
 use chainhook_sdk::observer::{
@@ -42,7 +42,7 @@ impl Service {
         predicates_from_startup: Vec<ChainhookSpecificationNetworkMap>,
         observer_commands_tx_rx: Option<(Sender<ObserverCommand>, Receiver<ObserverCommand>)>,
     ) -> Result<(), String> {
-        let mut chainhook_config = ChainhookConfig::new();
+        let mut chainhook_store = ChainhookStore::new();
 
         // store all predicates from Redis that were in the process of scanning when
         // chainhook was shutdown - we need to resume where we left off
@@ -87,7 +87,7 @@ impl Service {
                         continue;
                     }
                 }
-                match chainhook_config.register_instance(predicate) {
+                match chainhook_store.register_instance(predicate) {
                     Ok(_) => {
                         debug!(
                             self.ctx.expect_logger(),
@@ -128,7 +128,7 @@ impl Service {
                     }
                 };
             }
-            match chainhook_config.register_instance_from_network_map(
+            match chainhook_store.register_instance_from_network_map(
                 (
                     &self.config.network.bitcoin_network,
                     &self.config.network.stacks_network,
@@ -159,7 +159,7 @@ impl Service {
         // let (ordinal_indexer_command_tx, ordinal_indexer_command_rx) = channel();
 
         let mut event_observer_config = self.config.get_event_observer_config();
-        event_observer_config.chainhook_config = Some(chainhook_config);
+        event_observer_config.registered_chainhooks = chainhook_store;
 
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {

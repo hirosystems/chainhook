@@ -13,14 +13,14 @@ use crate::chainhooks::stacks::StacksChainhookInstance;
 use crate::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct ChainhookConfig {
+pub struct ChainhookStore {
     pub stacks_chainhooks: Vec<StacksChainhookInstance>,
     pub bitcoin_chainhooks: Vec<BitcoinChainhookInstance>,
 }
 
-impl ChainhookConfig {
-    pub fn new() -> ChainhookConfig {
-        ChainhookConfig {
+impl ChainhookStore {
+    pub fn new() -> ChainhookStore {
+        ChainhookStore {
             stacks_chainhooks: vec![],
             bitcoin_chainhooks: vec![],
         }
@@ -137,7 +137,7 @@ impl ChainhookConfig {
     }
 }
 
-impl Serialize for ChainhookConfig {
+impl Serialize for ChainhookStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

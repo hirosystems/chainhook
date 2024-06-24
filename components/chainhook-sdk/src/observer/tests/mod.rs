@@ -11,7 +11,7 @@ use crate::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
 use crate::chainhooks::stacks::StacksContractCallBasedPredicate;
 use crate::chainhooks::stacks::StacksPredicate;
 use crate::chainhooks::types::{
-    ChainhookConfig, ChainhookInstance, ChainhookSpecificationNetworkMap, ExactMatchingRule,
+    ChainhookInstance, ChainhookSpecificationNetworkMap, ChainhookStore, ExactMatchingRule,
     HookAction,
 };
 use crate::indexer::fork_scratch_pad::ForkScratchPad;
@@ -21,8 +21,7 @@ use crate::indexer::tests::helpers::{
 };
 use crate::monitoring::PrometheusMonitoring;
 use crate::observer::{
-    start_observer_commands_handler, ChainhookStore, EventObserverConfig, ObserverCommand,
-    ObserverSidecar,
+    start_observer_commands_handler, EventObserverConfig, ObserverCommand, ObserverSidecar,
 };
 use crate::utils::{AbstractBlock, Context};
 use chainhook_types::{
@@ -39,7 +38,7 @@ use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
 
 fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {
-        chainhook_config: Some(ChainhookConfig::new()),
+        registered_chainhooks: ChainhookStore::new(),
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: "user".into(),
         bitcoind_rpc_password: "user".into(),
@@ -52,9 +51,7 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
         stacks_network: StacksNetwork::Devnet,
         prometheus_monitoring_port: None,
     };
-    let predicates = ChainhookConfig::new();
-    let chainhook_store = ChainhookStore { predicates };
-    (config, chainhook_store)
+    (config, ChainhookStore::new())
 }
 
 fn stacks_chainhook_contract_call(
