@@ -49,6 +49,45 @@ pub struct BitcoinChainhookSpecification {
     pub action: HookAction,
 }
 
+/// Maps some [BitcoinChainhookSpecification] to a corresponding [BitcoinNetwork]. This allows maintaining one
+/// serialized predicate file for a given predicate on each network.
+///
+/// ### Examples
+/// Given some file `predicate.json`:
+/// ```json
+/// {
+///   "uuid": "my-id",
+///   "name": "My Predicate",
+///   "chain": "bitcoin",
+///   "version": 1,
+///   "networks": {
+///     "regtest": {
+///       // ...
+///     },
+///     "testnet": {
+///       // ...
+///     },
+///     "mainnet": {
+///       // ...
+///     }
+///   }
+/// }
+/// ```
+/// You can deserialize the file to this type and create a [BitcoinChainhookInstance] for the desired network:
+/// ```
+/// use chainhook_sdk::chainhook::bitcoin::BitcoinChainhookSpecificationNetworkMap;
+/// use chainhook_sdk::chainhook::bitcoin::BitcoinChainhookInstance;
+/// use chainhook_types::BitcoinNetwork;
+///
+/// fn get_predicate(network: &BitcoinNetwork) -> Result<BitcoinChainhookInstance, String> {
+///     let json_predicate =
+///         std::fs::read_to_string("./predicate.json").expect("Unable to read file");
+///     let hook_map: BitcoinChainhookSpecificationNetworkMap =
+///         serde_json::from_str(&json_predicate).expect("Unable to parse Chainhook map");
+///     hook_map.into_specification_for_network(network)
+/// }
+///
+/// ```
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct BitcoinChainhookSpecificationNetworkMap {
     pub uuid: String,

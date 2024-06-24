@@ -40,6 +40,45 @@ pub struct StacksChainhookSpecification {
     pub action: HookAction,
 }
 
+/// Maps some [StacksChainhookSpecification] to a corresponding [StacksNetwork]. This allows maintaining one
+/// serialized predicate file for a given predicate on each network.
+///
+/// ### Examples
+/// Given some file `predicate.json`:
+/// ```json
+/// {
+///   "uuid": "my-id",
+///   "name": "My Predicate",
+///   "chain": "stacks",
+///   "version": 1,
+///   "networks": {
+///     "devnet": {
+///       // ...
+///     },
+///     "testnet": {
+///       // ...
+///     },
+///     "mainnet": {
+///       // ...
+///     }
+///   }
+/// }
+/// ```
+/// You can deserialize the file to this type and create a [StacksChainhookInstance] for the desired network:
+/// ```
+/// use chainhook_sdk::chainhook::stacks::StacksChainhookSpecificationNetworkMap;
+/// use chainhook_sdk::chainhook::stacks::StacksChainhookInstance;
+/// use chainhook_types::StacksNetwork;
+///
+/// fn get_predicate(network: &StacksNetwork) -> Result<StacksChainhookInstance, String> {
+///     let json_predicate =
+///         std::fs::read_to_string("./predicate.json").expect("Unable to read file");
+///     let hook_map: StacksChainhookSpecificationNetworkMap =
+///         serde_json::from_str(&json_predicate).expect("Unable to parse Chainhook map");
+///     hook_map.into_specification_for_network(network)
+/// }
+///
+/// ```
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct StacksChainhookSpecificationNetworkMap {
     pub uuid: String,
