@@ -4,10 +4,11 @@ mod zmq;
 
 use crate::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
-    BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload, BitcoinTriggerChainhook,
+    BitcoinChainhookInstance, BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload,
+    BitcoinTriggerChainhook,
 };
 use crate::chainhooks::stacks::{
-    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
+    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action, StacksChainhookInstance,
     StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
 };
 use crate::chainhooks::types::{
@@ -332,6 +333,20 @@ impl EventObserverConfig {
             self.chainhook_config = Some(chainhook_config);
         }
         Ok(())
+    }
+
+    pub fn register_bitcoin_chainhook_instance(
+        &mut self,
+        spec: BitcoinChainhookInstance,
+    ) -> Result<(), String> {
+        self.register_chainhook_instance(ChainhookInstance::Bitcoin(spec))
+    }
+
+    pub fn register_stacks_chainhook_instance(
+        &mut self,
+        spec: StacksChainhookInstance,
+    ) -> Result<(), String> {
+        self.register_chainhook_instance(ChainhookInstance::Stacks(spec))
     }
 
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
