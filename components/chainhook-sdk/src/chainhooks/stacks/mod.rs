@@ -154,9 +154,7 @@ impl StacksChainhookInstance {
 
     pub fn is_predicate_targeting_block_header(&self) -> bool {
         match &self.predicate {
-            StacksPredicate::BlockHeight(_)
-            // | &StacksPredicate::BitcoinBlockHeight(_)
-            => true,
+            StacksPredicate::BlockHeight(_) => true,
             _ => false,
         }
     }
@@ -185,7 +183,6 @@ pub struct StacksContractCallBasedPredicate {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-// #[serde(tag = "type", content = "rule")]
 pub enum StacksContractDeploymentPredicate {
     Deployer(String),
     ImplementTrait(StacksTrait),
