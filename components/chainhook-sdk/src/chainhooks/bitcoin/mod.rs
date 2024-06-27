@@ -319,11 +319,11 @@ pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum StacksOpcodes {
-    BlockCommit = '[' as u8,
-    KeyRegister = '^' as u8,
-    StackStx = 'x' as u8,
-    PreStx = 'p' as u8,
-    TransferStx = '$' as u8,
+    BlockCommit = b'[',
+    KeyRegister = b'^',
+    StackStx = b'x',
+    PreStx = b'p',
+    TransferStx = b'$',
 }
 
 impl TryFrom<u8> for StacksOpcodes {
