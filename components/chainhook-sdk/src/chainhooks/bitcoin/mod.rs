@@ -413,6 +413,38 @@ pub struct DescriptorMatchingRule {
     pub range: Option<[u32; 2]>,
 }
 
+impl DescriptorMatchingRule {
+    pub fn derive_script_pubkeys(&self) -> Result<Vec<String>, String> {
+        let DescriptorMatchingRule { expression, range } = self;
+        // To derive from descriptors, we need to provide a secp context.
+        let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
+        let (desc, _) = Descriptor::parse_descriptor(&sig, expression)
+            .map_err(|e| format!("invalid descriptor: {}", e.to_string()))?;
+
+        // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
+        // defined by the predicate OR fallback to a default range of [0,5] when not set.
+        // When the descriptor is not derivable we force to create a unique iteration by
+        // ranging over [0,1].
+        let range = if desc.has_wildcard() {
+            range.unwrap_or([0, 5])
+        } else {
+            [0, 1]
+        };
+
+        let mut script_pubkeys = vec![];
+        // Derive the addresses and try to match them against the outputs.
+        for i in range[0]..range[1] {
+            let derived = desc
+                .derived_descriptor(&ver, i)
+                .map_err(|e| format!("error deriving descriptor: {}", e))?;
+
+            // Extract and encode the derived pubkey.
+            script_pubkeys.push(hex::encode(derived.script_pubkey().as_bytes()));
+        }
+        Ok(script_pubkeys)
+    }
+}
+
 // deserialize_descriptor_range makes sure that the range value is valid.
 fn deserialize_descriptor_range<'de, D>(deserializer: D) -> Result<Option<[u32; 2]>, D::Error>
 where
@@ -844,31 +876,11 @@ impl BitcoinPredicateType {
                 }
                 false
             }
-            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(
-                DescriptorMatchingRule { expression, range },
-            )) => {
-                // To derive from descriptors, we need to provide a secp context.
-                let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
-                let (desc, _) = Descriptor::parse_descriptor(&sig, expression).unwrap();
+            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(descriptor)) => {
+                let script_pubkeys = descriptor.derive_script_pubkeys().unwrap();
 
-                // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
-                // defined by the predicate OR fallback to a default range of [0,5] when not set.
-                // When the descriptor is not derivable we force to create a unique iteration by
-                // ranging over [0,1].
-                let range = if desc.has_wildcard() {
-                    range.unwrap_or([0, 5])
-                } else {
-                    [0, 1]
-                };
-
-                // Derive the addresses and try to match them against the outputs.
-                for i in range[0]..range[1] {
-                    let derived = desc.derived_descriptor(&ver, i).unwrap();
-
-                    // Extract and encode the derived pubkey.
-                    let script_pubkey = hex::encode(derived.script_pubkey().as_bytes());
-
-                    // Match that script against the tx outputs.
+                for script_pubkey in script_pubkeys {
+                    // Match the script against the tx outputs.
                     for (index, output) in tx.metadata.outputs.iter().enumerate() {
                         if output.script_pubkey[2..] == script_pubkey {
                             ctx.try_log(|logger| {
