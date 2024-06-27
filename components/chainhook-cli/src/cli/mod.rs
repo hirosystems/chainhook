@@ -517,6 +517,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             &predicate_spec,
                             None,
                             &config,
+                            None,
                             &ctx,
                         )
                         .await?;
@@ -545,6 +546,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                     None,
                                     &db_conn,
                                     &config,
+                                    None,
                                     &ctx,
                                 )
                                 .await?;

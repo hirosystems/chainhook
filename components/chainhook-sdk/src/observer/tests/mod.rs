@@ -14,7 +14,7 @@ use crate::indexer::tests::helpers::{
 use crate::monitoring::PrometheusMonitoring;
 use crate::observer::{
     start_observer_commands_handler, ChainhookStore, EventObserverConfig, ObserverCommand,
-    ObserverSidecar,
+    ObserverSidecar, PredicateDeregisteredEvent,
 };
 use crate::utils::{AbstractBlock, Context};
 use chainhook_types::{
@@ -501,7 +501,10 @@ fn test_stacks_chainhook_register_deregister() {
         chainhook.uuid.clone(),
     ));
     assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicateDeregistered(deregistered_chainhook)) => {
+        Ok(ObserverEvent::PredicateDeregistered(PredicateDeregisteredEvent {
+            predicate_uuid: deregistered_chainhook,
+            ..
+        })) => {
             assert_eq!(chainhook.uuid, deregistered_chainhook);
             true
         }
@@ -690,7 +693,10 @@ fn test_stacks_chainhook_auto_deregister() {
 
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
+        Ok(ObserverEvent::PredicateDeregistered(PredicateDeregisteredEvent {
+            predicate_uuid: deregistered_hook,
+            ..
+        })) => {
             assert_eq!(deregistered_hook, chainhook.uuid);
             true
         }
@@ -856,7 +862,10 @@ fn test_bitcoin_chainhook_register_deregister() {
         chainhook.uuid.clone(),
     ));
     assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicateDeregistered(deregistered_chainhook)) => {
+        Ok(ObserverEvent::PredicateDeregistered(PredicateDeregisteredEvent {
+            predicate_uuid: deregistered_chainhook,
+            ..
+        })) => {
             assert_eq!(chainhook.uuid, deregistered_chainhook);
             true
         }
@@ -1064,7 +1073,10 @@ fn test_bitcoin_chainhook_auto_deregister() {
 
     // Should signal that a hook was deregistered
     assert!(match observer_events_rx.recv() {
-        Ok(ObserverEvent::PredicateDeregistered(deregistered_hook)) => {
+        Ok(ObserverEvent::PredicateDeregistered(PredicateDeregisteredEvent {
+            predicate_uuid: deregistered_hook,
+            ..
+        })) => {
             assert_eq!(deregistered_hook, chainhook.uuid);
             true
         }

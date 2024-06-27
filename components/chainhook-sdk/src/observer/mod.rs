@@ -26,7 +26,7 @@ use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use chainhook_types::{
     BitcoinBlockData, BitcoinBlockSignaling, BitcoinChainEvent, BitcoinChainUpdatedWithBlocksData,
-    BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent,
+    BitcoinChainUpdatedWithReorgData, BitcoinNetwork, BlockIdentifier, BlockchainEvent, Chain,
     StacksBlockData, StacksChainEvent, StacksNetwork, StacksNodeConfig, TransactionIdentifier,
     DEFAULT_STACKS_NODE_RPC,
 };
@@ -312,7 +312,7 @@ pub enum ObserverEvent {
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
     PredicateRegistered(ChainhookSpecification),
-    PredicateDeregistered(String),
+    PredicateDeregistered(PredicateDeregisteredEvent),
     PredicateEnabled(ChainhookSpecification),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
@@ -320,6 +320,12 @@ pub enum ObserverEvent {
     PredicateInterrupted(PredicateInterruptedData),
     Terminate,
     StacksChainMempoolEvent(StacksChainMempoolEvent),
+}
+
+#[derive(Clone, Debug)]
+pub struct PredicateDeregisteredEvent {
+    pub predicate_uuid: String,
+    pub chain: Chain,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1203,7 +1209,12 @@ pub async fn start_observer_commands_handler(
                         prometheus_monitoring.btc_metrics_deregister_predicate();
                     }
                     if let Some(ref tx) = observer_events_tx {
-                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                            PredicateDeregisteredEvent {
+                                predicate_uuid: hook_uuid.clone(),
+                                chain: Chain::Bitcoin,
+                            },
+                        ));
                     }
                 }
 
@@ -1384,7 +1395,12 @@ pub async fn start_observer_commands_handler(
                         prometheus_monitoring.stx_metrics_deregister_predicate();
                     }
                     if let Some(ref tx) = observer_events_tx {
-                        let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid.clone()));
+                        let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                            PredicateDeregisteredEvent {
+                                predicate_uuid: hook_uuid.clone(),
+                                chain: Chain::Stacks,
+                            },
+                        ));
                     }
                 }
 
@@ -1502,7 +1518,12 @@ pub async fn start_observer_commands_handler(
                 };
                 // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
                 if let Some(tx) = &observer_events_tx {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                        PredicateDeregisteredEvent {
+                            predicate_uuid: hook_uuid,
+                            chain: Chain::Stacks,
+                        },
+                    ));
                 };
             }
             ObserverCommand::DeregisterBitcoinPredicate(hook_uuid) => {
@@ -1518,9 +1539,14 @@ pub async fn start_observer_commands_handler(
                     // so only those that we find in the store should be removed
                     prometheus_monitoring.btc_metrics_deregister_predicate();
                 };
-                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                // even if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
                 if let Some(tx) = &observer_events_tx {
-                    let _ = tx.send(ObserverEvent::PredicateDeregistered(hook_uuid));
+                    let _ = tx.send(ObserverEvent::PredicateDeregistered(
+                        PredicateDeregisteredEvent {
+                            predicate_uuid: hook_uuid.clone(),
+                            chain: Chain::Bitcoin,
+                        },
+                    ));
                 };
             }
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
