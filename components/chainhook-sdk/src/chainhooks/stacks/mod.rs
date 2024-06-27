@@ -66,8 +66,8 @@ pub struct StacksChainhookSpecification {
 /// ```
 /// You can deserialize the file to this type and create a [StacksChainhookInstance] for the desired network:
 /// ```
-/// use chainhook_sdk::chainhook::stacks::StacksChainhookSpecificationNetworkMap;
-/// use chainhook_sdk::chainhook::stacks::StacksChainhookInstance;
+/// use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
+/// use chainhook_sdk::chainhooks::stacks::StacksChainhookInstance;
 /// use chainhook_types::StacksNetwork;
 ///
 /// fn get_predicate(network: &StacksNetwork) -> Result<StacksChainhookInstance, String> {
@@ -90,7 +90,7 @@ pub struct StacksChainhookSpecificationNetworkMap {
 }
 
 impl StacksChainhookSpecificationNetworkMap {
-    pub fn into_specification_from_network(
+    pub fn into_specification_for_network(
         mut self,
         network: &StacksNetwork,
     ) -> Result<StacksChainhookInstance, String> {

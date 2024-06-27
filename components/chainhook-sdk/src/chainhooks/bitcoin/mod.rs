@@ -75,8 +75,8 @@ pub struct BitcoinChainhookSpecification {
 /// ```
 /// You can deserialize the file to this type and create a [BitcoinChainhookInstance] for the desired network:
 /// ```
-/// use chainhook_sdk::chainhook::bitcoin::BitcoinChainhookSpecificationNetworkMap;
-/// use chainhook_sdk::chainhook::bitcoin::BitcoinChainhookInstance;
+/// use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
+/// use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 /// use chainhook_types::BitcoinNetwork;
 ///
 /// fn get_predicate(network: &BitcoinNetwork) -> Result<BitcoinChainhookInstance, String> {

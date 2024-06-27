@@ -16,7 +16,8 @@ use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, Chainho
 use chainhook_sdk::chainhooks::types::ChainhookInstance;
 use chainhook_sdk::observer::{
     start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
-    PredicateEvaluationReport, PredicateInterruptedData, StacksObserverStartupContext,
+    PredicateDeregisteredEvent, PredicateEvaluationReport, PredicateInterruptedData,
+    StacksObserverStartupContext,
 };
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
@@ -26,6 +27,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::http_api::get_entry_from_predicates_db;
+use self::runloops::{BitcoinScanOp, StacksScanOp};
 
 pub struct Service {
     config: Config,
@@ -304,10 +306,16 @@ impl Service {
         for predicate_with_last_scanned_block in leftover_scans {
             match predicate_with_last_scanned_block {
                 (ChainhookInstance::Stacks(spec), last_scanned_block) => {
-                    let _ = stacks_scan_op_tx.send((spec, last_scanned_block));
+                    let _ = stacks_scan_op_tx.send(StacksScanOp::StartScan {
+                        predicate_spec: spec,
+                        unfinished_scan_data: last_scanned_block,
+                    });
                 }
                 (ChainhookInstance::Bitcoin(spec), last_scanned_block) => {
-                    let _ = bitcoin_scan_op_tx.send((spec, last_scanned_block));
+                    let _ = bitcoin_scan_op_tx.send(BitcoinScanOp::StartScan {
+                        predicate_spec: spec,
+                        unfinished_scan_data: last_scanned_block,
+                    });
                 }
             }
         }
@@ -354,10 +362,16 @@ impl Service {
                     }
                     match spec {
                         ChainhookInstance::Stacks(predicate_spec) => {
-                            let _ = stacks_scan_op_tx.send((predicate_spec, None));
+                            let _ = stacks_scan_op_tx.send(StacksScanOp::StartScan {
+                                predicate_spec,
+                                unfinished_scan_data: None,
+                            });
                         }
                         ChainhookInstance::Bitcoin(predicate_spec) => {
-                            let _ = bitcoin_scan_op_tx.send((predicate_spec, None));
+                            let _ = bitcoin_scan_op_tx.send(BitcoinScanOp::StartScan {
+                                predicate_spec,
+                                unfinished_scan_data: None,
+                            });
                         }
                     }
                 }
@@ -382,14 +396,30 @@ impl Service {
                         );
                     }
                 }
-                ObserverEvent::PredicateDeregistered(uuid) => {
+                ObserverEvent::PredicateDeregistered(PredicateDeregisteredEvent {
+                    predicate_uuid,
+                    chain,
+                }) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
                             open_readwrite_predicates_db_conn_verbose(&config, &ctx)
                         else {
                             continue;
                         };
-                        let predicate_key = ChainhookInstance::either_stx_or_btc_key(&uuid);
+
+                        match chain {
+                            Chain::Bitcoin => {
+                                let _ = bitcoin_scan_op_tx
+                                    .send(BitcoinScanOp::KillScan(predicate_uuid.clone()));
+                            }
+                            Chain::Stacks => {
+                                let _ = stacks_scan_op_tx
+                                    .send(StacksScanOp::KillScan(predicate_uuid.clone()));
+                            }
+                        };
+
+                        let predicate_key =
+                            ChainhookInstance::either_stx_or_btc_key(&predicate_uuid);
                         let res: Result<(), redis::RedisError> =
                             predicates_db_conn.del(predicate_key.clone());
                         if let Err(e) = res {

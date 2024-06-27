@@ -1,4 +1,7 @@
-use std::sync::mpsc::Sender;
+use std::{
+    collections::HashMap,
+    sync::{mpsc::Sender, Arc, RwLock},
+};
 
 use chainhook_sdk::{
     chainhooks::{
@@ -13,7 +16,7 @@ use threadpool::ThreadPool;
 use crate::{
     config::{Config, PredicatesApi},
     scan::{
-        bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate,
+        bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate, common::PredicateScanResult,
         stacks::scan_stacks_chainstate_via_rocksdb_using_predicate,
     },
     service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status},
@@ -22,146 +25,191 @@ use crate::{
 
 use super::ScanningData;
 
+pub enum StacksScanOp {
+    StartScan {
+        predicate_spec: StacksChainhookInstance,
+        unfinished_scan_data: Option<ScanningData>,
+    },
+    KillScan(String),
+}
+
 pub fn start_stacks_scan_runloop(
     config: &Config,
-    stacks_scan_op_rx: crossbeam_channel::Receiver<(StacksChainhookInstance, Option<ScanningData>)>,
+    stacks_scan_op_rx: crossbeam_channel::Receiver<StacksScanOp>,
     observer_command_tx: Sender<ObserverCommand>,
     ctx: &Context,
 ) {
     let stacks_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_stacks_scans);
-    while let Ok((predicate_spec, unfinished_scan_data)) = stacks_scan_op_rx.recv() {
-        let moved_ctx = ctx.clone();
-        let moved_config = config.clone();
-        let observer_command_tx = observer_command_tx.clone();
-        stacks_scan_pool.execute(move || {
-            let stacks_db_conn =
-                match open_readonly_stacks_db_conn(&moved_config.expected_cache_path(), &moved_ctx)
-                {
-                    Ok(db_conn) => db_conn,
-                    Err(e) => {
-                        // todo: if we repeatedly can't connect to the database, we should restart the
-                        // service to get to a healthy state. I don't know if this has been an issue, though
-                        // so we can monitor and possibly remove this todo
-                        error!(
-                            moved_ctx.expect_logger(),
-                            "unable to open stacks db: {}",
-                            e.to_string()
-                        );
-                        unimplemented!()
-                    }
-                };
+    let mut kill_signals = HashMap::new();
 
-            let op = scan_stacks_chainstate_via_rocksdb_using_predicate(
-                &predicate_spec,
+    while let Ok(op) = stacks_scan_op_rx.recv() {
+        match op {
+            StacksScanOp::StartScan {
+                predicate_spec,
                 unfinished_scan_data,
-                &stacks_db_conn,
-                &moved_config,
-                &moved_ctx,
-            );
-            let res = hiro_system_kit::nestable_block_on(op);
-            let (last_block_scanned, predicate_is_expired) = match res {
-                Ok(last_block_scanned) => last_block_scanned,
-                Err(e) => {
-                    warn!(
-                        moved_ctx.expect_logger(),
-                        "Unable to evaluate predicate on Stacks chainstate: {e}",
-                    );
+            } => {
+                let moved_ctx = ctx.clone();
+                let moved_config = config.clone();
+                let observer_command_tx = observer_command_tx.clone();
+                let kill_signal = Arc::new(RwLock::new(false));
+                kill_signals.insert(predicate_spec.uuid.clone(), kill_signal.clone());
+                stacks_scan_pool.execute(move || {
+                    let stacks_db_conn = match open_readonly_stacks_db_conn(
+                        &moved_config.expected_cache_path(),
+                        &moved_ctx,
+                    ) {
+                        Ok(db_conn) => db_conn,
+                        Err(e) => {
+                            // todo: if we repeatedly can't connect to the database, we should restart the
+                            // service to get to a healthy state. I don't know if this has been an issue, though
+                            // so we can monitor and possibly remove this todo
+                            error!(
+                                moved_ctx.expect_logger(),
+                                "unable to open stacks db: {}",
+                                e.to_string()
+                            );
+                            unimplemented!()
+                        }
+                    };
 
-                    // Update predicate status in redis
-                    if let PredicatesApi::On(ref api_config) = moved_config.http_api {
-                        let error =
-                            format!("Unable to evaluate predicate on Stacks chainstate: {e}");
-                        let mut predicates_db_conn =
-                            open_readwrite_predicates_db_conn_or_panic(api_config, &moved_ctx);
-                        set_predicate_interrupted_status(
-                            error,
-                            &predicate_spec.key(),
-                            &mut predicates_db_conn,
-                            &moved_ctx,
-                        );
-                    }
+                    let op = scan_stacks_chainstate_via_rocksdb_using_predicate(
+                        &predicate_spec,
+                        unfinished_scan_data,
+                        &stacks_db_conn,
+                        &moved_config,
+                        Some(kill_signal),
+                        &moved_ctx,
+                    );
+                    let res = hiro_system_kit::nestable_block_on(op);
+                    match res {
+                        Ok(PredicateScanResult::Expired)
+                        | Ok(PredicateScanResult::Deregistered) => {}
+                        Ok(PredicateScanResult::ChainTipReached) => {
+                            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                                ChainhookInstance::Stacks(predicate_spec),
+                            ));
+                        }
+                        Err(e) => {
+                            warn!(
+                                moved_ctx.expect_logger(),
+                                "Unable to evaluate predicate on Stacks chainstate: {e}",
+                            );
 
-                    return;
-                }
-            };
-            match last_block_scanned {
-                Some(last_block_scanned) => {
-                    info!(
-                        moved_ctx.expect_logger(),
-                        "Stacks chainstate scan completed up to block: {}",
-                        last_block_scanned.index
-                    );
-                }
-                None => {
-                    info!(
-                        moved_ctx.expect_logger(),
-                        "Stacks chainstate scan completed. 0 blocks scanned."
-                    );
-                }
+                            // Update predicate status in redis
+                            if let PredicatesApi::On(ref api_config) = moved_config.http_api {
+                                let error = format!(
+                                    "Unable to evaluate predicate on Stacks chainstate: {e}"
+                                );
+                                let mut predicates_db_conn =
+                                    open_readwrite_predicates_db_conn_or_panic(
+                                        api_config, &moved_ctx,
+                                    );
+                                set_predicate_interrupted_status(
+                                    error,
+                                    &predicate_spec.key(),
+                                    &mut predicates_db_conn,
+                                    &moved_ctx,
+                                );
+                            }
+
+                            return;
+                        }
+                    };
+                });
             }
-            if !predicate_is_expired {
-                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                    ChainhookInstance::Stacks(predicate_spec),
-                ));
+            StacksScanOp::KillScan(predicate_uuid) => {
+                let Some(kill_signal) = kill_signals.remove(&predicate_uuid) else {
+                    continue;
+                };
+                let mut kill_signal_writer = kill_signal.write().unwrap();
+                *kill_signal_writer = true;
             }
-        });
+        }
     }
     let _ = stacks_scan_pool.join();
 }
 
+pub enum BitcoinScanOp {
+    StartScan {
+        predicate_spec: BitcoinChainhookInstance,
+        unfinished_scan_data: Option<ScanningData>,
+    },
+    KillScan(String),
+}
+
 pub fn start_bitcoin_scan_runloop(
     config: &Config,
-    bitcoin_scan_op_rx: crossbeam_channel::Receiver<(
-        BitcoinChainhookInstance,
-        Option<ScanningData>,
-    )>,
+    bitcoin_scan_op_rx: crossbeam_channel::Receiver<BitcoinScanOp>,
     observer_command_tx: Sender<ObserverCommand>,
     ctx: &Context,
 ) {
     let bitcoin_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_bitcoin_scans);
+    let mut kill_signals = HashMap::new();
 
-    while let Ok((predicate_spec, unfinished_scan_data)) = bitcoin_scan_op_rx.recv() {
-        let moved_ctx = ctx.clone();
-        let moved_config = config.clone();
-        let observer_command_tx = observer_command_tx.clone();
-        bitcoin_scan_pool.execute(move || {
-            let op = scan_bitcoin_chainstate_via_rpc_using_predicate(
-                &predicate_spec,
+    while let Ok(op) = bitcoin_scan_op_rx.recv() {
+        match op {
+            BitcoinScanOp::StartScan {
+                predicate_spec,
                 unfinished_scan_data,
-                &moved_config,
-                &moved_ctx,
-            );
+            } => {
+                let moved_ctx = ctx.clone();
+                let moved_config = config.clone();
+                let observer_command_tx = observer_command_tx.clone();
+                let kill_signal = Arc::new(RwLock::new(false));
+                kill_signals.insert(predicate_spec.uuid.clone(), kill_signal.clone());
 
-            let predicate_is_expired = match hiro_system_kit::nestable_block_on(op) {
-                Ok(predicate_is_expired) => predicate_is_expired,
-                Err(e) => {
-                    warn!(
-                        moved_ctx.expect_logger(),
-                        "Unable to evaluate predicate on Bitcoin chainstate: {e}",
+                bitcoin_scan_pool.execute(move || {
+                    let op = scan_bitcoin_chainstate_via_rpc_using_predicate(
+                        &predicate_spec,
+                        unfinished_scan_data,
+                        &moved_config,
+                        Some(kill_signal),
+                        &moved_ctx,
                     );
 
-                    // Update predicate status in redis
-                    if let PredicatesApi::On(ref api_config) = moved_config.http_api {
-                        let error =
-                            format!("Unable to evaluate predicate on Bitcoin chainstate: {e}");
-                        let mut predicates_db_conn =
-                            open_readwrite_predicates_db_conn_or_panic(api_config, &moved_ctx);
-                        set_predicate_interrupted_status(
-                            error,
-                            &predicate_spec.key(),
-                            &mut predicates_db_conn,
-                            &moved_ctx,
-                        )
-                    }
-                    return;
-                }
-            };
-            if !predicate_is_expired {
-                let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                    ChainhookInstance::Bitcoin(predicate_spec),
-                ));
+                    match hiro_system_kit::nestable_block_on(op) {
+                        Ok(PredicateScanResult::Expired)
+                        | Ok(PredicateScanResult::Deregistered) => {}
+                        Ok(PredicateScanResult::ChainTipReached) => {
+                            let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
+                                ChainhookInstance::Bitcoin(predicate_spec),
+                            ));
+                        }
+                        Err(e) => {
+                            warn!(
+                                moved_ctx.expect_logger(),
+                                "Unable to evaluate predicate on Bitcoin chainstate: {e}",
+                            );
+
+                            // Update predicate status in redis
+                            if let PredicatesApi::On(ref api_config) = moved_config.http_api {
+                                let error = format!(
+                                    "Unable to evaluate predicate on Bitcoin chainstate: {e}"
+                                );
+                                let mut predicates_db_conn =
+                                    open_readwrite_predicates_db_conn_or_panic(
+                                        api_config, &moved_ctx,
+                                    );
+                                set_predicate_interrupted_status(
+                                    error,
+                                    &predicate_spec.key(),
+                                    &mut predicates_db_conn,
+                                    &moved_ctx,
+                                )
+                            }
+                            return;
+                        }
+                    };
+                });
             }
-        });
+            BitcoinScanOp::KillScan(predicate_uuid) => {
+                let Some(kill_signal) = kill_signals.remove(&predicate_uuid) else {
+                    continue;
+                };
+                let mut kill_signal_writer = kill_signal.write().unwrap();
+                *kill_signal_writer = true;
+            }
+        }
     }
     let _ = bitcoin_scan_pool.join();
 }

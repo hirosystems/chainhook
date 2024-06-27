@@ -524,13 +524,14 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             &predicate_spec,
                             None,
                             &config,
+                            None,
                             &ctx,
                         )
                         .await?;
                     }
                     ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let predicate_spec = match predicate
-                            .into_specification_from_network(&config.network.stacks_network)
+                            .into_specification_for_network(&config.network.stacks_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {
@@ -552,6 +553,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                     None,
                                     &db_conn,
                                     &config,
+                                    None,
                                     &ctx,
                                 )
                                 .await?;
@@ -593,7 +595,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                     }
                     ChainhookSpecificationNetworkMap::Stacks(predicate) => {
                         let _ = match predicate
-                            .into_specification_from_network(&config.network.stacks_network)
+                            .into_specification_for_network(&config.network.stacks_network)
                         {
                             Ok(predicate) => predicate,
                             Err(e) => {

@@ -22,13 +22,17 @@ use chainhook_sdk::types::{
 };
 use chainhook_sdk::utils::{file_append, send_request, Context};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+
+use super::common::PredicateScanResult;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     predicate_spec: &BitcoinChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
     config: &Config,
+    kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
-) -> Result<bool, String> {
+) -> Result<PredicateScanResult, String> {
     let predicate_uuid = &predicate_spec.uuid;
     let auth = Auth::UserPass(
         config.network.bitcoind_rpc_username.clone(),
@@ -62,7 +66,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut block_heights_to_scan = match block_heights_to_scan {
         Some(h) => h,
         // no blocks to scan, go straight to streaming
-        None => return Ok(false),
+        None => return Ok(PredicateScanResult::ChainTipReached),
     };
 
     let mut predicates_db_conn = match config.http_api {
@@ -100,6 +104,17 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
     let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
+        if let Some(kill_signal) = kill_signal.clone() {
+            match kill_signal.read() {
+                Ok(kill_signal) => {
+                    // if true, we're received the kill signal, so break out of the loop
+                    if *kill_signal {
+                        return Ok(PredicateScanResult::Deregistered);
+                    }
+                }
+                Err(_) => {}
+            }
+        }
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
             if number_of_blocks_scanned % 100 == 0 
                 || number_of_blocks_scanned == 0
@@ -242,10 +257,10 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                 set_confirmed_expiration_status(&predicate_spec.key(), predicates_db_conn, ctx);
             }
         }
-        return Ok(true);
+        return Ok(PredicateScanResult::Expired);
     }
 
-    return Ok(false);
+    return Ok(PredicateScanResult::ChainTipReached);
 }
 
 pub async fn process_block_with_predicates(

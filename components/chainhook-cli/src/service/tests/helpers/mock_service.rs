@@ -425,7 +425,7 @@ pub async fn setup_stacks_chainhook_test(
             panic!("test failed with error: {e}");
         });
         let stacks_spec = predicate
-            .into_specification_from_network(&StacksNetwork::Devnet)
+            .into_specification_for_network(&StacksNetwork::Devnet)
             .unwrap_or_else(|e| {
                 flush_redis(redis_port);
                 redis_process.kill().unwrap();

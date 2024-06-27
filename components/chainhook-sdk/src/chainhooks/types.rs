@@ -33,7 +33,7 @@ impl ChainhookStore {
     ) -> Result<ChainhookInstance, String> {
         let spec = match hook {
             ChainhookSpecificationNetworkMap::Stacks(hook) => {
-                let spec = hook.into_specification_from_network(networks.1)?;
+                let spec = hook.into_specification_for_network(networks.1)?;
                 self.stacks_chainhooks.push(spec.clone());
                 ChainhookInstance::Stacks(spec)
             }
