@@ -49,6 +49,62 @@ pub struct BitcoinChainhookSpecification {
     pub action: HookAction,
 }
 
+impl BitcoinChainhookSpecification {
+    pub fn new(predicate: BitcoinPredicateType, action: HookAction) -> Self {
+        BitcoinChainhookSpecification {
+            blocks: None,
+            start_block: None,
+            end_block: None,
+            expire_after_occurrence: None,
+            include_proof: None,
+            include_inputs: None,
+            include_outputs: None,
+            include_witness: None,
+            predicate,
+            action,
+        }
+    }
+
+    pub fn blocks(&mut self, blocks: Vec<u64>) -> &mut Self {
+        self.blocks = Some(blocks);
+        self
+    }
+
+    pub fn start_block(&mut self, start_block: u64) -> &mut Self {
+        self.start_block = Some(start_block);
+        self
+    }
+
+    pub fn end_block(&mut self, end_block: u64) -> &mut Self {
+        self.end_block = Some(end_block);
+        self
+    }
+
+    pub fn expire_after_occurrence(&mut self, occurrence: u64) -> &mut Self {
+        self.expire_after_occurrence = Some(occurrence);
+        self
+    }
+
+    pub fn include_proof(&mut self, do_include: bool) -> &mut Self {
+        self.include_proof = Some(do_include);
+        self
+    }
+
+    pub fn include_inputs(&mut self, do_include: bool) -> &mut Self {
+        self.include_inputs = Some(do_include);
+        self
+    }
+
+    pub fn include_outputs(&mut self, do_include: bool) -> &mut Self {
+        self.include_outputs = Some(do_include);
+        self
+    }
+
+    pub fn include_witness(&mut self, do_include: bool) -> &mut Self {
+        self.include_witness = Some(do_include);
+        self
+}
+
 /// Maps some [BitcoinChainhookSpecification] to a corresponding [BitcoinNetwork]. This allows maintaining one
 /// serialized predicate file for a given predicate on each network.
 ///
