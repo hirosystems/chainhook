@@ -839,6 +839,11 @@ pub enum BitcoinNetwork {
     Mainnet,
 }
 
+impl std::fmt::Display for BitcoinNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 impl BitcoinNetwork {
     pub fn from_str(network: &str) -> Result<BitcoinNetwork, String> {
         let value = match network {
@@ -854,6 +859,15 @@ impl BitcoinNetwork {
             }
         };
         Ok(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            BitcoinNetwork::Regtest => "regtest",
+            BitcoinNetwork::Testnet => "testnet",
+            BitcoinNetwork::Mainnet => "mainnet",
+            BitcoinNetwork::Signet => "signet",
+        }
     }
 }
 
