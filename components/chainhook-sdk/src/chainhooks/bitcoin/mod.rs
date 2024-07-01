@@ -1,5 +1,8 @@
-use super::types::{ChainhookInstance, ExactMatchingRule, HookAction, MatchingRule};
-use crate::utils::Context;
+use super::types::{
+    append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
+    MatchingRule,
+};
+use crate::utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
@@ -103,6 +106,34 @@ impl BitcoinChainhookSpecification {
     pub fn include_witness(&mut self, do_include: bool) -> &mut Self {
         self.include_witness = Some(do_include);
         self
+    }
+
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        if let Err(e) = self.action.validate() {
+            errors.append(&mut append_error_context("invalid 'then_that' value", e));
+        }
+        if let Err(e) = self.predicate.validate() {
+            errors.append(&mut append_error_context("invalid 'if_this' value", e));
+        }
+
+        if let Some(end_block) = self.end_block {
+            let start_block = self.start_block.unwrap_or(0);
+            if start_block > end_block {
+                errors.push(
+                    "Chainhook specification field `end_block` should be greater than `start_block`.".into()
+                );
+            }
+            if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                errors.push(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 /// Maps some [BitcoinChainhookSpecification] to a corresponding [BitcoinNetwork]. This allows maintaining one
@@ -240,6 +271,41 @@ pub enum BitcoinPredicateType {
     OrdinalsProtocol(OrdinalOperations),
 }
 
+impl BitcoinPredicateType {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            BitcoinPredicateType::Block => {}
+            BitcoinPredicateType::Txid(ExactMatchingRule::Equals(txid)) => {
+                if let Err(e) = validate_txid(txid) {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'txid'",
+                        vec![e],
+                    ));
+                }
+            }
+            BitcoinPredicateType::Inputs(input) => {
+                if let Err(e) = input.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'inputs'",
+                        e,
+                    ));
+                }
+            }
+            BitcoinPredicateType::Outputs(outputs) => {
+                if let Err(e) = outputs.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'outputs'",
+                        vec![e],
+                    ));
+                }
+            }
+            BitcoinPredicateType::StacksProtocol(_) => {}
+            BitcoinPredicateType::OrdinalsProtocol(_) => {}
+        }
+        Ok(())
+    }
+}
+
 pub struct BitcoinTriggerChainhook<'a> {
     pub chainhook: &'a BitcoinChainhookInstance,
     pub apply: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
@@ -264,6 +330,15 @@ pub enum InputPredicate {
     WitnessScript(MatchingRule),
 }
 
+impl InputPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            InputPredicate::Txid(txin) => txin.validate(),
+            InputPredicate::WitnessScript(_) => Ok(()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputPredicate {
@@ -273,6 +348,20 @@ pub enum OutputPredicate {
     P2wpkh(ExactMatchingRule),
     P2wsh(ExactMatchingRule),
     Descriptor(DescriptorMatchingRule),
+}
+
+impl OutputPredicate {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            OutputPredicate::OpReturn(_) => {}
+            OutputPredicate::P2pkh(ExactMatchingRule::Equals(_p2pkh)) => {}
+            OutputPredicate::P2sh(ExactMatchingRule::Equals(_p2sh)) => {}
+            OutputPredicate::P2wpkh(ExactMatchingRule::Equals(_p2wpkh)) => {}
+            OutputPredicate::P2wsh(ExactMatchingRule::Equals(_p2wsh)) => {}
+            OutputPredicate::Descriptor(descriptor) => descriptor.validate()?,
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -404,6 +493,15 @@ pub struct TxinPredicate {
     pub vout: u32,
 }
 
+impl TxinPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        if let Err(e) = validate_txid(&self.txid) {
+            return Err(vec![e]);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DescriptorMatchingRule {
@@ -414,6 +512,11 @@ pub struct DescriptorMatchingRule {
 }
 
 impl DescriptorMatchingRule {
+    pub fn validate(&self) -> Result<(), String> {
+        let _ = self.derive_script_pubkeys()?;
+        Ok(())
+    }
+
     pub fn derive_script_pubkeys(&self) -> Result<Vec<String>, String> {
         let DescriptorMatchingRule { expression, range } = self;
         // To derive from descriptors, we need to provide a secp context.

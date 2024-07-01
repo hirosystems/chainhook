@@ -1,6 +1,10 @@
-use crate::utils::{AbstractStacksBlock, Context};
+use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
-use super::types::{BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule, HookAction};
+use super::types::validate_txid;
+use super::types::{
+    append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
+    HookAction,
+};
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
@@ -12,7 +16,10 @@ use reqwest::{Client, Method};
 use schemars::JsonSchema;
 use serde_json::Value as JsonValue;
 use stacks_codec::clarity::codec::StacksMessageCodec;
+use stacks_codec::clarity::vm::types::PrincipalData;
+use stacks_codec::clarity::vm::types::QualifiedContractIdentifier;
 use stacks_codec::clarity::vm::types::{CharType, SequenceData, Value as ClarityValue};
+use stacks_codec::clarity::ClarityName;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
 
@@ -38,6 +45,84 @@ pub struct StacksChainhookSpecification {
     pub predicate: StacksPredicate,
     #[serde(rename = "then_that")]
     pub action: HookAction,
+}
+
+impl StacksChainhookSpecification {
+    pub fn new(predicate: StacksPredicate, action: HookAction) -> Self {
+        StacksChainhookSpecification {
+            blocks: None,
+            start_block: None,
+            end_block: None,
+            expire_after_occurrence: None,
+            capture_all_events: None,
+            include_contract_abi: None,
+            decode_clarity_values: None,
+            predicate,
+            action,
+        }
+    }
+
+    pub fn blocks(&mut self, blocks: Vec<u64>) -> &mut Self {
+        self.blocks = Some(blocks);
+        self
+    }
+
+    pub fn start_block(&mut self, start_block: u64) -> &mut Self {
+        self.start_block = Some(start_block);
+        self
+    }
+
+    pub fn end_block(&mut self, end_block: u64) -> &mut Self {
+        self.end_block = Some(end_block);
+        self
+    }
+
+    pub fn expire_after_occurrence(&mut self, occurrence: u64) -> &mut Self {
+        self.expire_after_occurrence = Some(occurrence);
+        self
+    }
+
+    pub fn capture_all_events(&mut self, do_capture: bool) -> &mut Self {
+        self.capture_all_events = Some(do_capture);
+        self
+    }
+
+    pub fn include_contract_abi(&mut self, do_include: bool) -> &mut Self {
+        self.include_contract_abi = Some(do_include);
+        self
+    }
+
+    pub fn decode_clarity_values(&mut self, do_decode: bool) -> &mut Self {
+        self.decode_clarity_values = Some(do_decode);
+        self
+    }
+
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        if let Err(e) = self.action.validate() {
+            errors.append(&mut append_error_context("invalid 'then_that' value", e));
+        }
+        if let Err(e) = self.predicate.validate() {
+            errors.append(&mut append_error_context("invalid 'if_this' value", e));
+        }
+
+        if let Some(end_block) = self.end_block {
+            let start_block = self.start_block.unwrap_or(0);
+            if start_block > end_block {
+                errors.push(
+                    "Chainhook specification field `end_block` should be greater than `start_block`.".into()
+                );
+            }
+            if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                errors.push(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 /// Maps some [StacksChainhookSpecification] to a corresponding [StacksNetwork]. This allows maintaining one
@@ -174,11 +259,88 @@ pub enum StacksPredicate {
     Txid(ExactMatchingRule),
 }
 
+impl StacksPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            StacksPredicate::BlockHeight(height) => {
+                if let Err(e) = height.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'block_height'",
+                        vec![e],
+                    ));
+                }
+            }
+            StacksPredicate::ContractDeployment(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'contract_deployment'",
+                        vec![e],
+                    ));
+                }
+            }
+            StacksPredicate::ContractCall(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'contract_call'",
+                        e,
+                    ));
+                }
+            }
+            StacksPredicate::PrintEvent(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'print_event'",
+                        e,
+                    ));
+                }
+            }
+            StacksPredicate::FtEvent(_) => {}
+            StacksPredicate::NftEvent(_) => {}
+            StacksPredicate::StxEvent(_) => {}
+            StacksPredicate::Txid(ExactMatchingRule::Equals(txid)) => {
+                if let Err(e) = validate_txid(&txid) {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'txid'",
+                        vec![e],
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct StacksContractCallBasedPredicate {
     pub contract_identifier: String,
     pub method: String,
+}
+
+fn validate_contract_identifier(id: &String) -> Result<(), String> {
+    if let Err(e) = QualifiedContractIdentifier::parse(&id) {
+        return Err(format!("invalid contract identifier: {}", e.to_string()));
+    }
+    Ok(())
+}
+
+impl StacksContractCallBasedPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+
+        if let Err(e) = validate_contract_identifier(&self.contract_identifier) {
+            errors.push(e);
+        }
+        if let Err(e) = ClarityName::try_from(self.method.clone()) {
+            errors.push(format!("invalid contract method: {:?}", e));
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -187,6 +349,26 @@ pub enum StacksContractDeploymentPredicate {
     Deployer(String),
     ImplementTrait(StacksTrait),
 }
+
+impl StacksContractDeploymentPredicate {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            StacksContractDeploymentPredicate::Deployer(deployer) => {
+                if !deployer.eq("*") {
+                    if let Err(e) = PrincipalData::parse_standard_principal(&deployer) {
+                        return Err(format!(
+                            "contract deployer must be a valid Stacks address: {}",
+                            e
+                        ));
+                    }
+                }
+            }
+            StacksContractDeploymentPredicate::ImplementTrait(_) => {}
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StacksTrait {
@@ -209,6 +391,43 @@ pub enum StacksPrintEventBasedPredicate {
         #[serde(rename = "matches_regex")]
         regex: String,
     },
+}
+
+impl StacksPrintEventBasedPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        match self {
+            StacksPrintEventBasedPredicate::Contains {
+                contract_identifier,
+                ..
+            } => {
+                if !contract_identifier.eq("*") {
+                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                        errors.push(e);
+                    }
+                }
+            }
+            StacksPrintEventBasedPredicate::MatchesRegex {
+                contract_identifier,
+                regex,
+            } => {
+                if !contract_identifier.eq("*") {
+                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                        errors.push(e);
+                    }
+                }
+                if let Err(e) = Regex::new(regex) {
+                    errors.push(format!("invalid regex: {}", e.to_string()))
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -1150,3 +1369,6 @@ pub fn handle_stacks_hook_action<'a>(
         )),
     }
 }
+
+#[cfg(test)]
+pub mod tests;
