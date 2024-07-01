@@ -316,7 +316,6 @@ impl HttpHook {
 pub struct FileHook {
     pub path: String,
 }
-
 // todo: can we remove this struct?
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub struct ScriptTemplate {
