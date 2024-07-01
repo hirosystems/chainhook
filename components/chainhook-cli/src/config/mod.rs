@@ -1,6 +1,7 @@
 pub mod file;
 pub mod generator;
 
+use chainhook_sdk::chainhooks::types::ChainhookStore;
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_sdk::types::{
@@ -114,17 +115,14 @@ impl Config {
     pub fn get_event_observer_config(&self) -> EventObserverConfig {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
-            chainhook_config: None,
-            ingestion_port: DEFAULT_INGESTION_PORT,
+            registered_chainhooks: ChainhookStore::new(),
             bitcoind_rpc_username: self.network.bitcoind_rpc_username.clone(),
             bitcoind_rpc_password: self.network.bitcoind_rpc_password.clone(),
             bitcoind_rpc_url: self.network.bitcoind_rpc_url.clone(),
             bitcoin_block_signaling: self.network.bitcoin_block_signaling.clone(),
-            display_logs: false,
-            cache_path: self.storage.working_dir.clone(),
+            display_stacks_ingestion_logs: false,
             bitcoin_network: self.network.bitcoin_network.clone(),
             stacks_network: self.network.stacks_network.clone(),
-            data_handler_tx: None,
             prometheus_monitoring_port: self.monitoring.prometheus_monitoring_port,
         }
     }

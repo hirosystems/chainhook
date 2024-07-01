@@ -1,4 +1,4 @@
-use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
+use chainhook_sdk::chainhooks::types::ChainhookSpecificationNetworkMap;
 use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
@@ -779,7 +779,7 @@ async fn it_allows_specifying_startup_predicate() -> Result<(), String> {
     );
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
-    let startup_predicate = ChainhookFullSpecification::Stacks(predicate);
+    let startup_predicate = ChainhookSpecificationNetworkMap::Stacks(predicate);
     let TestSetupResult {
         mut redis_process,
         working_dir,
@@ -819,7 +819,7 @@ async fn register_predicate_responds_409_if_uuid_in_use() -> Result<(), String> 
     );
     let stacks_spec = serde_json::from_value(predicate.clone())
         .expect("failed to set up stacks chanhook spec for test");
-    let startup_predicate = ChainhookFullSpecification::Stacks(stacks_spec);
+    let startup_predicate = ChainhookSpecificationNetworkMap::Stacks(stacks_spec);
 
     let TestSetupResult {
         mut redis_process,

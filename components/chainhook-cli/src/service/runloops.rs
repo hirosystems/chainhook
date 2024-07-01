@@ -4,8 +4,9 @@ use std::{
 };
 
 use chainhook_sdk::{
-    chainhooks::types::{
-        BitcoinChainhookSpecification, ChainhookSpecification, StacksChainhookSpecification,
+    chainhooks::{
+        bitcoin::BitcoinChainhookInstance, stacks::StacksChainhookInstance,
+        types::ChainhookInstance,
     },
     observer::ObserverCommand,
     utils::Context,
@@ -26,7 +27,7 @@ use super::ScanningData;
 
 pub enum StacksScanOp {
     StartScan {
-        predicate_spec: StacksChainhookSpecification,
+        predicate_spec: StacksChainhookInstance,
         unfinished_scan_data: Option<ScanningData>,
     },
     KillScan(String),
@@ -85,7 +86,7 @@ pub fn start_stacks_scan_runloop(
                         | Ok(PredicateScanResult::Deregistered) => {}
                         Ok(PredicateScanResult::ChainTipReached) => {
                             let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                                ChainhookSpecification::Stacks(predicate_spec),
+                                ChainhookInstance::Stacks(predicate_spec),
                             ));
                         }
                         Err(e) => {
@@ -130,7 +131,7 @@ pub fn start_stacks_scan_runloop(
 
 pub enum BitcoinScanOp {
     StartScan {
-        predicate_spec: BitcoinChainhookSpecification,
+        predicate_spec: BitcoinChainhookInstance,
         unfinished_scan_data: Option<ScanningData>,
     },
     KillScan(String),
@@ -171,7 +172,7 @@ pub fn start_bitcoin_scan_runloop(
                         | Ok(PredicateScanResult::Deregistered) => {}
                         Ok(PredicateScanResult::ChainTipReached) => {
                             let _ = observer_command_tx.send(ObserverCommand::EnablePredicate(
-                                ChainhookSpecification::Bitcoin(predicate_spec),
+                                ChainhookInstance::Bitcoin(predicate_spec),
                             ));
                         }
                         Err(e) => {

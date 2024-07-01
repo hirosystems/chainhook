@@ -24,9 +24,9 @@ use chainhook_sdk::{
     utils::Context,
 };
 use chainhook_sdk::{
-    chainhooks::{
-        stacks::{handle_stacks_hook_action, StacksChainhookOccurrence, StacksTriggerChainhook},
-        types::StacksChainhookSpecification,
+    chainhooks::stacks::{
+        handle_stacks_hook_action, StacksChainhookInstance, StacksChainhookOccurrence,
+        StacksTriggerChainhook,
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };
@@ -171,7 +171,7 @@ pub async fn get_canonical_fork_from_tsv(
 }
 
 pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
-    predicate_spec: &StacksChainhookSpecification,
+    predicate_spec: &StacksChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
     stacks_db_conn: &DB,
     config: &Config,
@@ -441,7 +441,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
 }
 
 pub async fn scan_stacks_chainstate_via_csv_using_predicate(
-    predicate_spec: &StacksChainhookSpecification,
+    predicate_spec: &StacksChainhookInstance,
     config: &mut Config,
     ctx: &Context,
 ) -> Result<BlockIdentifier, String> {

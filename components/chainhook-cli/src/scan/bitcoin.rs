@@ -10,7 +10,7 @@ use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
-use chainhook_sdk::chainhooks::types::BitcoinChainhookSpecification;
+use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
@@ -27,7 +27,7 @@ use std::sync::{Arc, RwLock};
 use super::common::PredicateScanResult;
 
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
-    predicate_spec: &BitcoinChainhookSpecification,
+    predicate_spec: &BitcoinChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
     config: &Config,
     kill_signal: Option<Arc<RwLock<bool>>>,
@@ -265,7 +265,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
 pub async fn process_block_with_predicates(
     block: BitcoinBlockData,
-    predicates: &Vec<&BitcoinChainhookSpecification>,
+    predicates: &Vec<&BitcoinChainhookInstance>,
     event_observer_config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<u32, String> {

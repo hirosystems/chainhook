@@ -4,14 +4,15 @@ mod zmq;
 
 use crate::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
-    BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload, BitcoinTriggerChainhook,
+    BitcoinChainhookInstance, BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload,
+    BitcoinTriggerChainhook,
 };
 use crate::chainhooks::stacks::{
-    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
+    evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action, StacksChainhookInstance,
     StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
 };
 use crate::chainhooks::types::{
-    ChainhookConfig, ChainhookFullSpecification, ChainhookSpecification,
+    ChainhookInstance, ChainhookSpecificationNetworkMap, ChainhookStore,
 };
 
 use crate::indexer::bitcoin::{
@@ -39,7 +40,6 @@ use rocket::Shutdown;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
-use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
@@ -68,40 +68,286 @@ pub enum DataHandlerEvent {
 
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
-    pub chainhook_config: Option<ChainhookConfig>,
+    pub registered_chainhooks: ChainhookStore,
     pub bitcoin_rpc_proxy_enabled: bool,
-    pub ingestion_port: u16,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
     pub bitcoind_rpc_url: String,
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
-    pub display_logs: bool,
-    pub cache_path: String,
+    pub display_stacks_ingestion_logs: bool,
     pub bitcoin_network: BitcoinNetwork,
     pub stacks_network: StacksNetwork,
-    pub data_handler_tx: Option<crossbeam_channel::Sender<DataHandlerEvent>>,
     pub prometheus_monitoring_port: Option<u16>,
 }
 
+/// A builder that is used to create a general purpose [EventObserverConfig].
+///
+/// ## Examples
+/// ```
+/// use chainhook_sdk::observer::EventObserverConfig;
+/// use chainhook_sdk::observer::EventObserverConfigBuilder;
+///
+/// fn get_config() -> Result<EventObserverConfig, String> {
+///     EventObserverConfigBuilder::new()
+///         .bitcoind_rpc_password("my_password")
+///         .bitcoin_network("mainnet")
+///         .stacks_network("mainnet")
+///         .finish()
+/// }
+/// ```
 #[derive(Deserialize, Debug, Clone)]
-pub struct EventObserverConfigOverrides {
-    pub ingestion_port: Option<u16>,
+pub struct EventObserverConfigBuilder {
     pub bitcoind_rpc_username: Option<String>,
     pub bitcoind_rpc_password: Option<String>,
     pub bitcoind_rpc_url: Option<String>,
     pub bitcoind_zmq_url: Option<String>,
+    pub chainhook_stacks_block_ingestion_port: Option<u16>,
     pub stacks_node_rpc_url: Option<String>,
-    pub display_logs: Option<bool>,
-    pub cache_path: Option<String>,
+    pub display_stacks_ingestion_logs: Option<bool>,
     pub bitcoin_network: Option<String>,
     pub stacks_network: Option<String>,
+    pub prometheus_monitoring_port: Option<u16>,
+}
+
+impl EventObserverConfigBuilder {
+    pub fn new() -> Self {
+        EventObserverConfigBuilder {
+            bitcoind_rpc_username: None,
+            bitcoind_rpc_password: None,
+            bitcoind_rpc_url: None,
+            bitcoind_zmq_url: None,
+            chainhook_stacks_block_ingestion_port: None,
+            stacks_node_rpc_url: None,
+            display_stacks_ingestion_logs: None,
+            bitcoin_network: None,
+            stacks_network: None,
+            prometheus_monitoring_port: None,
+        }
+    }
+
+    /// Sets the bitcoind node's RPC username.
+    pub fn bitcoind_rpc_username(&mut self, username: &str) -> &mut Self {
+        self.bitcoind_rpc_username = Some(username.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC password.
+    pub fn bitcoind_rpc_password(&mut self, password: &str) -> &mut Self {
+        self.bitcoind_rpc_password = Some(password.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC url.
+    pub fn bitcoind_rpc_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's ZMQ url, used by the observer to receive new block events from bitcoind.
+    pub fn bitcoind_zmq_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_zmq_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the Bitcoin network. Must be a valid bitcoin network string according to [BitcoinNetwork::from_str].
+    pub fn bitcoin_network(&mut self, network: &str) -> &mut Self {
+        self.bitcoin_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Stacks network. Must be a valid bitcoin network string according to [StacksNetwork::from_str].
+    pub fn stacks_network(&mut self, network: &str) -> &mut Self {
+        self.stacks_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Stacks node's RPC url.
+    pub fn stacks_node_rpc_url(&mut self, url: &str) -> &mut Self {
+        self.stacks_node_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the port at which Chainhook will observer Stacks blockchain events. The Stacks node's config should have an events_observer
+    /// entry matching this port in order to send block events the Chainhook.
+    pub fn chainhook_stacks_block_ingestion_port(&mut self, port: u16) -> &mut Self {
+        self.chainhook_stacks_block_ingestion_port = Some(port);
+        self
+    }
+
+    /// Sets whether Chainhook should display Stacks ingestion logs.
+    pub fn display_stacks_ingestion_logs(&mut self, display_logs: bool) -> &mut Self {
+        self.display_stacks_ingestion_logs = Some(display_logs);
+        self
+    }
+
+    /// Sets the Prometheus monitoring port.
+    pub fn prometheus_monitoring_port(&mut self, port: u16) -> &mut Self {
+        self.prometheus_monitoring_port = Some(port);
+        self
+    }
+
+    /// Attempts to convert a [EventObserverConfigBuilder] instance into an [EventObserverConfig], filling in
+    /// defaults as necessary according to [EventObserverConfig::default].
+    ///
+    /// This function will return an error if the `bitcoin_network` or `stacks_network` strings are set and are not a valid [BitcoinNetwork] or [StacksNetwork].
+    ///
+    pub fn finish(&self) -> Result<EventObserverConfig, String> {
+        EventObserverConfig::new_using_overrides(Some(self))
+    }
+}
+
+/// A builder that is used to create an [EventObserverConfig] that is tailored for use with a bitcoind node emitting events via the ZMQ interface.
+///
+/// ## Examples
+/// ```
+/// use chainhook_sdk::observer::EventObserverConfig;
+/// use chainhook_sdk::observer::BitcoinEventObserverConfigBuilder;
+///
+/// fn get_config() -> Result<EventObserverConfig, String> {
+///     BitcoinEventObserverConfigBuilder::new()
+///         .rpc_password("my_password")
+///         .network("mainnet")
+///         .finish()
+/// }
+/// ```
+pub struct BitcoinEventObserverConfigBuilder {
+    pub bitcoind_rpc_username: Option<String>,
+    pub bitcoind_rpc_password: Option<String>,
+    pub bitcoind_rpc_url: Option<String>,
+    pub bitcoin_network: Option<String>,
+    pub bitcoind_zmq_url: Option<String>,
+    pub prometheus_monitoring_port: Option<u16>,
+}
+impl BitcoinEventObserverConfigBuilder {
+    pub fn new() -> Self {
+        BitcoinEventObserverConfigBuilder {
+            bitcoind_rpc_username: None,
+            bitcoind_rpc_password: None,
+            bitcoind_rpc_url: None,
+            bitcoin_network: None,
+            bitcoind_zmq_url: None,
+            prometheus_monitoring_port: None,
+        }
+    }
+
+    /// Sets the bitcoind node's RPC username.
+    pub fn rpc_username(&mut self, username: &str) -> &mut Self {
+        self.bitcoind_rpc_username = Some(username.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC password.
+    pub fn rpc_password(&mut self, password: &str) -> &mut Self {
+        self.bitcoind_rpc_password = Some(password.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's RPC url.
+    pub fn rpc_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_rpc_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the bitcoind node's ZMQ url, used by the observer to receive new block events from bitcoind.
+    pub fn zmq_url(&mut self, url: &str) -> &mut Self {
+        self.bitcoind_zmq_url = Some(url.to_string());
+        self
+    }
+
+    /// Sets the Bitcoin network. Must be a valid bitcoin network string according to [BitcoinNetwork::from_str].
+    pub fn network(&mut self, network: &str) -> &mut Self {
+        self.bitcoin_network = Some(network.to_string());
+        self
+    }
+
+    /// Sets the Prometheus monitoring port.
+    pub fn prometheus_monitoring_port(&mut self, port: u16) -> &mut Self {
+        self.prometheus_monitoring_port = Some(port);
+        self
+    }
+
+    /// Attempts to convert a [BitcoinEventObserverConfigBuilder] instance into an [EventObserverConfig], filling in
+    /// defaults as necessary according to [EventObserverConfig::default].
+    ///
+    /// This function will return an error if the `bitcoin_network` string is set and is not a valid [BitcoinNetwork].
+    pub fn finish(&self) -> Result<EventObserverConfig, String> {
+        let bitcoin_network = if let Some(network) = self.bitcoin_network.as_ref() {
+            BitcoinNetwork::from_str(&network)?
+        } else {
+            BitcoinNetwork::Regtest
+        };
+        Ok(EventObserverConfig {
+            registered_chainhooks: ChainhookStore::new(),
+            bitcoin_rpc_proxy_enabled: false,
+            bitcoind_rpc_username: self
+                .bitcoind_rpc_username
+                .clone()
+                .unwrap_or_else(|| "devnet".into()),
+            bitcoind_rpc_password: self
+                .bitcoind_rpc_password
+                .clone()
+                .unwrap_or_else(|| "devnet".into()),
+            bitcoind_rpc_url: self
+                .bitcoind_rpc_url
+                .clone()
+                .unwrap_or_else(|| "http://localhost:18443".into()),
+            bitcoin_block_signaling: BitcoinBlockSignaling::ZeroMQ(
+                self.bitcoind_zmq_url
+                    .clone()
+                    .unwrap_or_else(|| "tcp://0.0.0.0:18543".into()),
+            ),
+            display_stacks_ingestion_logs: false,
+            bitcoin_network: bitcoin_network,
+            stacks_network: StacksNetwork::Devnet,
+            prometheus_monitoring_port: self.prometheus_monitoring_port,
+        })
+    }
 }
 
 impl EventObserverConfig {
-    pub fn get_cache_path_buf(&self) -> PathBuf {
-        let mut path_buf = PathBuf::new();
-        path_buf.push(&self.cache_path);
-        path_buf
+    pub fn default() -> Self {
+        EventObserverConfig {
+            registered_chainhooks: ChainhookStore::new(),
+            bitcoin_rpc_proxy_enabled: false,
+            bitcoind_rpc_username: "devnet".into(),
+            bitcoind_rpc_password: "devnet".into(),
+            bitcoind_rpc_url: "http://localhost:18443".into(),
+            bitcoin_block_signaling: BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
+                DEFAULT_STACKS_NODE_RPC.to_string(),
+                DEFAULT_INGESTION_PORT,
+            )),
+            display_stacks_ingestion_logs: false,
+            bitcoin_network: BitcoinNetwork::Regtest,
+            stacks_network: StacksNetwork::Devnet,
+            prometheus_monitoring_port: None,
+        }
+    }
+
+    /// Adds a [ChainhookInstance] to config's the registered chainhook store, returning the updated config.
+    pub fn register_chainhook_instance(
+        &mut self,
+        spec: ChainhookInstance,
+    ) -> Result<&mut Self, String> {
+        let mut chainhook_config = ChainhookStore::new();
+        chainhook_config.register_instance(spec)?;
+        self.registered_chainhooks = chainhook_config;
+
+        Ok(self)
+    }
+
+    /// Adds a [BitcoinChainhookInstance] to the config's registered chainhook store, returning the updated config.
+    pub fn register_bitcoin_chainhook_instance(
+        &mut self,
+        spec: BitcoinChainhookInstance,
+    ) -> Result<&mut Self, String> {
+        self.register_chainhook_instance(ChainhookInstance::Bitcoin(spec))
+    }
+    /// Adds a [StacksChainhookInstance] to the config's registered chainhook store, returning the updated config.
+    pub fn register_stacks_chainhook_instance(
+        &mut self,
+        spec: StacksChainhookInstance,
+    ) -> Result<&mut Self, String> {
+        self.register_chainhook_instance(ChainhookInstance::Stacks(spec))
     }
 
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
@@ -115,23 +361,6 @@ impl EventObserverConfig {
         bitcoin_config
     }
 
-    pub fn get_chainhook_store(&self) -> ChainhookStore {
-        let mut chainhook_store = ChainhookStore::new();
-        // If authorization not required, we create a default ChainhookConfig
-        if let Some(ref chainhook_config) = self.chainhook_config {
-            let mut chainhook_config = chainhook_config.clone();
-            chainhook_store
-                .predicates
-                .stacks_chainhooks
-                .append(&mut chainhook_config.stacks_chainhooks);
-            chainhook_store
-                .predicates
-                .bitcoin_chainhooks
-                .append(&mut chainhook_config.bitcoin_chainhooks);
-        }
-        chainhook_store
-    }
-
     pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
         match self.bitcoin_block_signaling {
             BitcoinBlockSignaling::Stacks(ref config) => config,
@@ -143,7 +372,7 @@ impl EventObserverConfig {
     ///
     /// *Note: This is used by external crates, so it should not be removed, even if not used internally by Chainhook.*
     pub fn new_using_overrides(
-        overrides: Option<&EventObserverConfigOverrides>,
+        overrides: Option<&EventObserverConfigBuilder>,
     ) -> Result<EventObserverConfig, String> {
         let bitcoin_network =
             if let Some(network) = overrides.and_then(|c| c.bitcoin_network.as_ref()) {
@@ -161,38 +390,35 @@ impl EventObserverConfig {
 
         let config = EventObserverConfig {
             bitcoin_rpc_proxy_enabled: false,
-            chainhook_config: None,
-            ingestion_port: overrides
-                .and_then(|c| c.ingestion_port)
-                .unwrap_or(DEFAULT_INGESTION_PORT),
+            registered_chainhooks: ChainhookStore::new(),
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
-                .unwrap_or("devnet".to_string()),
+                .unwrap_or_else(|| "devnet".to_string()),
             bitcoind_rpc_password: overrides
                 .and_then(|c| c.bitcoind_rpc_password.clone())
-                .unwrap_or("devnet".to_string()),
+                .unwrap_or_else(|| "devnet".to_string()),
             bitcoind_rpc_url: overrides
                 .and_then(|c| c.bitcoind_rpc_url.clone())
-                .unwrap_or("http://localhost:18443".to_string()),
+                .unwrap_or_else(|| "http://localhost:18443".to_string()),
             bitcoin_block_signaling: overrides
                 .and_then(|c| c.bitcoind_zmq_url.as_ref())
                 .map(|url| BitcoinBlockSignaling::ZeroMQ(url.clone()))
-                .unwrap_or(BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
-                    overrides
-                        .and_then(|c| c.stacks_node_rpc_url.clone())
-                        .unwrap_or(DEFAULT_STACKS_NODE_RPC.to_string()),
-                    overrides
-                        .and_then(|c| c.ingestion_port)
-                        .unwrap_or(DEFAULT_INGESTION_PORT),
-                ))),
-            display_logs: overrides.and_then(|c| c.display_logs).unwrap_or(false),
-            cache_path: overrides
-                .and_then(|c| c.cache_path.clone())
-                .unwrap_or("cache".to_string()),
+                .unwrap_or_else(|| {
+                    BitcoinBlockSignaling::Stacks(StacksNodeConfig::new(
+                        overrides
+                            .and_then(|c| c.stacks_node_rpc_url.clone())
+                            .unwrap_or_else(|| DEFAULT_STACKS_NODE_RPC.to_string()),
+                        overrides
+                            .and_then(|c| c.chainhook_stacks_block_ingestion_port)
+                            .unwrap_or_else(|| DEFAULT_INGESTION_PORT),
+                    ))
+                }),
+            display_stacks_ingestion_logs: overrides
+                .and_then(|c| c.display_stacks_ingestion_logs)
+                .unwrap_or_else(|| false),
             bitcoin_network,
             stacks_network,
-            data_handler_tx: None,
-            prometheus_monitoring_port: None,
+            prometheus_monitoring_port: overrides.and_then(|c| c.prometheus_monitoring_port),
         };
         Ok(config)
     }
@@ -211,8 +437,8 @@ pub enum ObserverCommand {
     PropagateBitcoinChainEvent(BlockchainEvent),
     PropagateStacksChainEvent(StacksChainEvent),
     PropagateStacksMempoolEvent(StacksChainMempoolEvent),
-    RegisterPredicate(ChainhookFullSpecification),
-    EnablePredicate(ChainhookSpecification),
+    RegisterPredicate(ChainhookSpecificationNetworkMap),
+    EnablePredicate(ChainhookInstance),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
     ExpireBitcoinPredicate(HookExpirationData),
@@ -311,9 +537,9 @@ pub enum ObserverEvent {
     BitcoinChainEvent((BitcoinChainEvent, PredicateEvaluationReport)),
     StacksChainEvent((StacksChainEvent, PredicateEvaluationReport)),
     NotifyBitcoinTransactionProxied,
-    PredicateRegistered(ChainhookSpecification),
+    PredicateRegistered(ChainhookInstance),
     PredicateDeregistered(PredicateDeregisteredEvent),
-    PredicateEnabled(ChainhookSpecification),
+    PredicateEnabled(ChainhookInstance),
     BitcoinPredicateTriggered(BitcoinChainhookOccurrencePayload),
     StacksPredicateTriggered(StacksChainhookOccurrencePayload),
     PredicatesTriggered(usize),
@@ -348,22 +574,6 @@ pub struct BitcoinConfig {
     pub rpc_url: String,
     pub network: BitcoinNetwork,
     pub bitcoin_block_signaling: BitcoinBlockSignaling,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChainhookStore {
-    pub predicates: ChainhookConfig,
-}
-
-impl ChainhookStore {
-    pub fn new() -> Self {
-        Self {
-            predicates: ChainhookConfig {
-                stacks_chainhooks: vec![],
-                bitcoin_chainhooks: vec![],
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -441,6 +651,98 @@ impl ObserverSidecar {
     }
 }
 
+/// A helper struct used to configure and call [start_event_observer], which spawns a thread to observer chain events.
+///
+/// ### Examples
+/// ```
+/// use chainhook_sdk::observer::EventObserverBuilder;
+/// use chainhook_sdk::observer::EventObserverConfig;
+/// use chainhook_sdk::observer::ObserverCommand;
+/// use chainhook_sdk::utils::Context;
+/// use std::error::Error;
+/// use std::sync::mpsc::{Receiver, Sender};
+///
+/// fn start_event_observer(
+///     config: EventObserverConfig,
+///     observer_commands_tx: &Sender<ObserverCommand>,
+///     observer_commands_rx: Receiver<ObserverCommand>,
+///     ctx: &Context,
+/// )-> Result<(), Box<dyn Error>> {
+///     EventObserverBuilder::new(
+///         config,
+///         &observer_commands_tx,
+///         observer_commands_rx,
+///         &ctx
+///     )
+///     .start()
+/// }
+/// ```
+pub struct EventObserverBuilder {
+    config: EventObserverConfig,
+    observer_commands_tx: Sender<ObserverCommand>,
+    observer_commands_rx: Receiver<ObserverCommand>,
+    ctx: Context,
+    observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    observer_sidecar: Option<ObserverSidecar>,
+    stacks_startup_context: Option<StacksObserverStartupContext>,
+}
+
+impl EventObserverBuilder {
+    pub fn new(
+        config: EventObserverConfig,
+        observer_commands_tx: &Sender<ObserverCommand>,
+        observer_commands_rx: Receiver<ObserverCommand>,
+        ctx: &Context,
+    ) -> Self {
+        EventObserverBuilder {
+            config: config,
+            observer_commands_tx: observer_commands_tx.clone(),
+            observer_commands_rx: observer_commands_rx,
+            ctx: ctx.clone(),
+            observer_events_tx: None,
+            observer_sidecar: None,
+            stacks_startup_context: None,
+        }
+    }
+
+    /// Sets the `observer_events_tx` Sender. Set this and listen on the corresponding
+    /// Receiver to be notified of every [ObserverEvent].
+    pub fn events_tx(
+        &mut self,
+        observer_events_tx: crossbeam_channel::Sender<ObserverEvent>,
+    ) -> &mut Self {
+        self.observer_events_tx = Some(observer_events_tx);
+        self
+    }
+
+    /// Sets a sidecar for the observer. See [ObserverSidecar].
+    pub fn sidecar(&mut self, sidecar: ObserverSidecar) -> &mut Self {
+        self.observer_sidecar = Some(sidecar);
+        self
+    }
+
+    /// Sets the Stacks startup context. See [StacksObserverStartupContext].
+    pub fn stacks_startup_context(&mut self, context: StacksObserverStartupContext) -> &mut Self {
+        self.stacks_startup_context = Some(context);
+        self
+    }
+
+    /// Starts the event observer, calling [start_event_observer]. This function consumes the
+    /// [EventObserverBuilder] and spawns a new thread to run the observer.
+    pub fn start(self) -> Result<(), Box<dyn Error>> {
+        start_event_observer(
+            self.config,
+            self.observer_commands_tx,
+            self.observer_commands_rx,
+            self.observer_events_tx,
+            self.observer_sidecar,
+            self.stacks_startup_context,
+            self.ctx,
+        )
+    }
+}
+
+/// Spawns a thread to observe blockchain events. Use [EventObserverBuilder] to configure easily.
 pub fn start_event_observer(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
@@ -543,7 +845,7 @@ pub async fn start_bitcoin_event_observer(
     observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
-    let chainhook_store = config.get_chainhook_store();
+    let chainhook_store = config.registered_chainhooks.clone();
     #[cfg(feature = "zeromq")]
     {
         let ctx_moved = ctx.clone();
@@ -556,8 +858,8 @@ pub async fn start_bitcoin_event_observer(
 
     let prometheus_monitoring = PrometheusMonitoring::new();
     prometheus_monitoring.initialize(
-        chainhook_store.predicates.stacks_chainhooks.len() as u64,
-        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+        chainhook_store.stacks_chainhooks.len() as u64,
+        chainhook_store.bitcoin_chainhooks.len() as u64,
         None,
     );
 
@@ -609,7 +911,7 @@ pub async fn start_stacks_event_observer(
 
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
-    let log_level = if config.display_logs {
+    let log_level = if config.display_stacks_ingestion_logs {
         if cfg!(feature = "cli") {
             LogLevel::Critical
         } else {
@@ -623,7 +925,7 @@ pub async fn start_stacks_event_observer(
     let bitcoin_rpc_proxy_enabled = config.bitcoin_rpc_proxy_enabled;
     let bitcoin_config = config.get_bitcoin_config();
 
-    let chainhook_store = config.get_chainhook_store();
+    let chainhook_store = config.registered_chainhooks.clone();
 
     let indexer_rw_lock = Arc::new(RwLock::new(indexer));
 
@@ -631,8 +933,8 @@ pub async fn start_stacks_event_observer(
 
     let prometheus_monitoring = PrometheusMonitoring::new();
     prometheus_monitoring.initialize(
-        chainhook_store.predicates.stacks_chainhooks.len() as u64,
-        chainhook_store.predicates.bitcoin_chainhooks.len() as u64,
+        chainhook_store.stacks_chainhooks.len() as u64,
+        chainhook_store.bitcoin_chainhooks.len() as u64,
         Some(stacks_startup_context.last_block_height_appended),
     );
 
@@ -1075,7 +1377,6 @@ pub async fn start_observer_commands_handler(
                 let mut report = PredicateEvaluationReport::new();
 
                 let bitcoin_chainhooks = chainhook_store
-                    .predicates
                     .bitcoin_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
@@ -1202,7 +1503,6 @@ pub async fn start_observer_commands_handler(
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
                     if chainhook_store
-                        .predicates
                         .deregister_bitcoin_hook(hook_uuid.clone())
                         .is_some()
                     {
@@ -1226,12 +1526,10 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
-                            chainhook_store
-                                .predicates
-                                .deregister_bitcoin_hook(data.chainhook.uuid.clone());
+                            chainhook_store.deregister_bitcoin_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookSpecification::bitcoin_key(&data.chainhook.uuid),
+                                    predicate_key: ChainhookInstance::bitcoin_key(&data.chainhook.uuid),
                                     error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
                                 }));
                             }
@@ -1254,7 +1552,6 @@ pub async fn start_observer_commands_handler(
                 let mut report = PredicateEvaluationReport::new();
 
                 let stacks_chainhooks = chainhook_store
-                    .predicates
                     .stacks_chainhooks
                     .iter()
                     .filter(|p| p.enabled)
@@ -1388,7 +1685,6 @@ pub async fn start_observer_commands_handler(
 
                 for hook_uuid in hooks_ids_to_deregister.iter() {
                     if chainhook_store
-                        .predicates
                         .deregister_stacks_hook(hook_uuid.clone())
                         .is_some()
                     {
@@ -1420,12 +1716,10 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
-                            chainhook_store
-                                .predicates
-                                .deregister_stacks_hook(data.chainhook.uuid.clone());
+                            chainhook_store.deregister_stacks_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookSpecification::stacks_key(&data.chainhook.uuid),
+                                    predicate_key: ChainhookInstance::stacks_key(&data.chainhook.uuid),
                                     error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
                                 }));
                             }
@@ -1458,28 +1752,26 @@ pub async fn start_observer_commands_handler(
             ObserverCommand::RegisterPredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling RegisterPredicate command"));
 
-                let mut spec = match chainhook_store
-                    .predicates
-                    .register_full_specification(networks, spec)
-                {
-                    Ok(spec) => spec,
-                    Err(e) => {
-                        ctx.try_log(|logger| {
-                            slog::warn!(
-                                logger,
-                                "Unable to register new chainhook spec: {}",
-                                e.to_string()
-                            )
-                        });
-                        continue;
-                    }
-                };
+                let mut spec =
+                    match chainhook_store.register_instance_from_network_map(networks, spec) {
+                        Ok(spec) => spec,
+                        Err(e) => {
+                            ctx.try_log(|logger| {
+                                slog::warn!(
+                                    logger,
+                                    "Unable to register new chainhook spec: {}",
+                                    e.to_string()
+                                )
+                            });
+                            continue;
+                        }
+                    };
 
                 match spec {
-                    ChainhookSpecification::Bitcoin(_) => {
+                    ChainhookInstance::Bitcoin(_) => {
                         prometheus_monitoring.btc_metrics_register_predicate()
                     }
-                    ChainhookSpecification::Stacks(_) => {
+                    ChainhookInstance::Stacks(_) => {
                         prometheus_monitoring.stx_metrics_register_predicate()
                     }
                 };
@@ -1493,12 +1785,12 @@ pub async fn start_observer_commands_handler(
                     ctx.try_log(|logger| {
                         slog::debug!(logger, "Enabling Predicate {}", spec.uuid())
                     });
-                    chainhook_store.predicates.enable_specification(&mut spec);
+                    chainhook_store.enable_instance(&mut spec);
                 }
             }
             ObserverCommand::EnablePredicate(mut spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
-                chainhook_store.predicates.enable_specification(&mut spec);
+                chainhook_store.enable_instance(&mut spec);
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateEnabled(spec));
                 }
@@ -1507,9 +1799,7 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
-                let hook = chainhook_store
-                    .predicates
-                    .deregister_stacks_hook(hook_uuid.clone());
+                let hook = chainhook_store.deregister_stacks_hook(hook_uuid.clone());
 
                 if hook.is_some() {
                     // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
@@ -1530,9 +1820,7 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterBitcoinPredicate command")
                 });
-                let hook = chainhook_store
-                    .predicates
-                    .deregister_bitcoin_hook(hook_uuid.clone());
+                let hook = chainhook_store.deregister_bitcoin_hook(hook_uuid.clone());
 
                 if hook.is_some() {
                     // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
@@ -1554,9 +1842,7 @@ pub async fn start_observer_commands_handler(
                 block_height,
             }) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
-                chainhook_store
-                    .predicates
-                    .expire_stacks_hook(hook_uuid, block_height);
+                chainhook_store.expire_stacks_hook(hook_uuid, block_height);
             }
             ObserverCommand::ExpireBitcoinPredicate(HookExpirationData {
                 hook_uuid,
@@ -1565,9 +1851,7 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling ExpireBitcoinPredicate command")
                 });
-                chainhook_store
-                    .predicates
-                    .expire_bitcoin_hook(hook_uuid, block_height);
+                chainhook_store.expire_bitcoin_hook(hook_uuid, block_height);
             }
         }
     }

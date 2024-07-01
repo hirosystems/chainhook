@@ -5,7 +5,7 @@ use std::{
 };
 
 use chainhook_sdk::{
-    chainhooks::types::{ChainhookFullSpecification, ChainhookSpecification},
+    chainhooks::types::{ChainhookSpecificationNetworkMap, ChainhookInstance},
     observer::ObserverCommand,
     utils::Context,
 };
@@ -120,7 +120,7 @@ fn handle_get_predicates(
 #[openapi(tag = "Managing Predicates")]
 #[post("/v1/chainhooks", format = "application/json", data = "<predicate>")]
 fn handle_create_predicate(
-    predicate: Result<Json<ChainhookFullSpecification>, rocket::serde::json::Error>,
+    predicate: Result<Json<ChainhookSpecificationNetworkMap>, rocket::serde::json::Error>,
     api_config: &State<PredicatesApiConfig>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
@@ -149,7 +149,7 @@ fn handle_create_predicate(
 
     if let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn(api_config) {
         match get_entry_from_predicates_db(
-            &ChainhookSpecification::either_stx_or_btc_key(&predicate_uuid),
+            &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
             &mut predicates_db_conn,
             &ctx,
         ) {
@@ -195,7 +195,7 @@ fn handle_get_predicate(
     match open_readwrite_predicates_db_conn(api_config) {
         Ok(mut predicates_db_conn) => {
             let (predicate, status) = match get_entry_from_predicates_db(
-                &ChainhookSpecification::either_stx_or_btc_key(&predicate_uuid),
+                &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
                 &mut predicates_db_conn,
                 &ctx,
             ) {
@@ -281,7 +281,7 @@ pub fn get_entry_from_predicates_db(
     predicate_key: &str,
     predicate_db_conn: &mut Connection,
     _ctx: &Context,
-) -> Result<Option<(ChainhookSpecification, PredicateStatus)>, String> {
+) -> Result<Option<(ChainhookInstance, PredicateStatus)>, String> {
     let entry: HashMap<String, String> = predicate_db_conn.hgetall(predicate_key).map_err(|e| {
         format!(
             "unable to load chainhook associated with key {}: {}",
@@ -295,7 +295,7 @@ pub fn get_entry_from_predicates_db(
         Some(payload) => payload,
     };
 
-    let spec = ChainhookSpecification::deserialize_specification(&encoded_spec)?;
+    let spec = ChainhookInstance::deserialize_specification(&encoded_spec)?;
 
     let encoded_status = match entry.get("status") {
         None => Err(format!(
@@ -313,9 +313,9 @@ pub fn get_entry_from_predicates_db(
 pub fn get_entries_from_predicates_db(
     predicate_db_conn: &mut Connection,
     ctx: &Context,
-) -> Result<Vec<(ChainhookSpecification, PredicateStatus)>, String> {
+) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let chainhooks_to_load: Vec<String> = predicate_db_conn
-        .scan_match(ChainhookSpecification::either_stx_or_btc_key("*"))
+        .scan_match(ChainhookInstance::either_stx_or_btc_key("*"))
         .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?
         .into_iter()
         .collect();
@@ -349,7 +349,7 @@ pub fn get_entries_from_predicates_db(
 pub fn load_predicates_from_redis(
     config: &crate::config::Config,
     ctx: &Context,
-) -> Result<Vec<(ChainhookSpecification, PredicateStatus)>, String> {
+) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
     let client = redis::Client::open(redis_uri)
         .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
@@ -378,11 +378,11 @@ pub fn get_routes_spec() -> (Vec<rocket::Route>, OpenApi) {
 }
 
 fn serialized_predicate_with_status(
-    predicate: &ChainhookSpecification,
+    predicate: &ChainhookInstance,
     status: &PredicateStatus,
 ) -> JsonValue {
     match (predicate, status) {
-        (ChainhookSpecification::Stacks(spec), status) => json!({
+        (ChainhookInstance::Stacks(spec), status) => json!({
             "chain": "stacks",
             "uuid": spec.uuid,
             "network": spec.network,
@@ -390,7 +390,7 @@ fn serialized_predicate_with_status(
             "status": status,
             "enabled": spec.enabled,
         }),
-        (ChainhookSpecification::Bitcoin(spec), status) => json!({
+        (ChainhookInstance::Bitcoin(spec), status) => json!({
             "chain": "bitcoin",
             "uuid": spec.uuid,
             "network": spec.network,

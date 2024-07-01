@@ -1,6 +1,7 @@
 use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
+    chainhooks::types::ChainhookStore,
     observer::{start_event_observer, EventObserverConfig},
     types::{BitcoinNetwork, StacksNodeConfig},
     utils::Context,
@@ -184,13 +185,12 @@ async fn it_responds_200_for_unimplemented_endpoints(
     body: Option<&Value>,
 ) {
     let ingestion_port = get_free_port().unwrap();
-    let (working_dir, _tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
+    let (_working_dir, _tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
         panic!("test failed with error: {e}");
     });
     let config = EventObserverConfig {
-        chainhook_config: None,
+        registered_chainhooks: ChainhookStore::new(),
         bitcoin_rpc_proxy_enabled: false,
-        ingestion_port: ingestion_port,
         bitcoind_rpc_username: format!(""),
         bitcoind_rpc_password: format!(""),
         bitcoind_rpc_url: format!(""),
@@ -200,11 +200,9 @@ async fn it_responds_200_for_unimplemented_endpoints(
                 ingestion_port: ingestion_port,
             },
         ),
-        display_logs: false,
-        cache_path: working_dir,
+        display_stacks_ingestion_logs: false,
         bitcoin_network: BitcoinNetwork::Regtest,
         stacks_network: chainhook_sdk::types::StacksNetwork::Devnet,
-        data_handler_tx: None,
         prometheus_monitoring_port: None,
     };
     start_and_ping_event_observer(config, ingestion_port).await;

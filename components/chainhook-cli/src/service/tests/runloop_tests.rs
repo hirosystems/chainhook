@@ -1,9 +1,10 @@
 use std::{path::PathBuf, sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
-    chainhooks::types::{
-        BitcoinChainhookSpecification, BitcoinPredicateType, BlockIdentifierIndexRule, HookAction,
-        StacksChainhookSpecification, StacksPredicate,
+    chainhooks::{
+        bitcoin::{BitcoinChainhookInstance, BitcoinPredicateType},
+        stacks::{StacksChainhookInstance, StacksPredicate},
+        types::{BlockIdentifierIndexRule, HookAction},
     },
     types::{BitcoinNetwork, StacksNetwork},
     utils::Context,
@@ -65,7 +66,7 @@ async fn test_stacks_runloop_kill_scan() {
         .expect("unable to spawn thread");
 
     let uuid = "test".to_string();
-    let predicate_spec = StacksChainhookSpecification {
+    let predicate_spec = StacksChainhookInstance {
         uuid: uuid.clone(),
         owner_uuid: None,
         name: "idc".to_string(),
@@ -133,7 +134,7 @@ async fn test_stacks_bitcoin_kill_scan() {
         .expect("unable to spawn thread");
 
     let uuid = "test".to_string();
-    let predicate_spec = BitcoinChainhookSpecification {
+    let predicate_spec = BitcoinChainhookInstance {
         uuid: uuid.clone(),
         owner_uuid: None,
         name: "idc".to_string(),
