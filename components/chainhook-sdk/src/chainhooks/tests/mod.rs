@@ -8,7 +8,7 @@ use super::{
         StacksChainhookOccurrence, StacksTriggerChainhook,
     },
     types::{
-        ExactMatchingRule, FileHook, StacksChainhookSpecification,
+        ExactMatchingRule, FileHook, RegexWrapper, StacksChainhookSpecification,
         StacksContractCallBasedPredicate, StacksContractDeploymentPredicate,
         StacksFtEventBasedPredicate, StacksNftEventBasedPredicate, StacksPrintEventBasedPredicate,
         StacksTrait,
@@ -334,7 +334,7 @@ pub mod fixtures;
     vec![vec![get_test_event_payload_by_type("smart_contract_print_event")]],
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
         contract_identifier: "ST3AXH4EBHD63FCFPTZ8GR29TNTVWDYPGY0KDY5E5.loan-data".to_string(),
-        regex: "(some)|(value)".to_string(),
+        regex: RegexWrapper::new("(some)|(value)"),
     }),
     1;
     "PrintEvent predicate matches contract_identifier and regex"
@@ -343,7 +343,7 @@ pub mod fixtures;
     vec![vec![get_test_event_payload_by_type("smart_contract_print_event")]],
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
         contract_identifier: "*".to_string(),
-        regex: "(some)|(value)".to_string(),
+        regex: RegexWrapper::new("(some)|(value)"),
     }),
     1;
     "PrintEvent predicate contract_identifier wildcard checks all print events for match with regex"
@@ -352,7 +352,7 @@ pub mod fixtures;
     vec![vec![get_test_event_payload_by_type("smart_contract_print_event")]],
     StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex {
         contract_identifier: "*".to_string(),
-        regex: "[".to_string(),
+        regex: RegexWrapper::new("["),
     }),
     0
     ;

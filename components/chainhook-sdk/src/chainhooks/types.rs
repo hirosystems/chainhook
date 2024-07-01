@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, HashSet};
 
 use chainhook_types::{BitcoinNetwork, StacksNetwork};
+use regex::Regex;
 use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{de, Deserialize, Deserializer, Serialize};
+extern crate serde_regex;
 
 use schemars::JsonSchema;
 
@@ -811,6 +813,69 @@ pub enum StacksTrait {
     Any,
 }
 
+// TODO: Move these somewhere reasonable
+#[derive(Clone, Debug)]
+pub struct RegexWrapper(Regex);
+
+impl PartialEq for RegexWrapper {
+    fn eq(&self, other: &RegexWrapper) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
+impl RegexWrapper {
+    pub fn new(pattern: &str) -> Self {
+        match Regex::new(pattern) {
+            Ok(regex) => RegexWrapper(regex),
+            Err(e) => {
+                // TODO mmmm not sure here...
+                error!("unable to parse regex: {}", e);
+                panic!("unable to parse regex: {}", e);
+            }
+        }
+    }
+
+    pub fn is_match(&self, text: &str) -> bool {
+        self.0.is_match(text)
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl Serialize for RegexWrapper {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.0.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for RegexWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Regex::new(&s)
+            .map(RegexWrapper)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+// Implement JsonSchema for RegexWrapper
+impl JsonSchema for RegexWrapper {
+    fn schema_name() -> String {
+        "Regex".to_string()
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        String::json_schema(gen)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
@@ -822,7 +887,7 @@ pub enum StacksPrintEventBasedPredicate {
     MatchesRegex {
         contract_identifier: String,
         #[serde(rename = "matches_regex")]
-        regex: String,
+        regex: RegexWrapper,
     },
 }
 
