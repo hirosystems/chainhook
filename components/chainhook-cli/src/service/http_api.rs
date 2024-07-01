@@ -5,7 +5,7 @@ use std::{
 };
 
 use chainhook_sdk::{
-    chainhooks::types::{ChainhookSpecificationNetworkMap, ChainhookInstance},
+    chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap},
     observer::ObserverCommand,
     utils::Context,
 };

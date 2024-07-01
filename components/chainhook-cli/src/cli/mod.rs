@@ -506,6 +506,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let mut config =
                     Config::default(false, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
                 let predicate = load_predicate_from_path(&cmd.predicate_path)?;
+                predicate.validate()?;
                 match predicate {
                     ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {
                         let predicate_spec = match predicate
@@ -578,6 +579,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                 let config = Config::default(false, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
                 let predicate: ChainhookSpecificationNetworkMap =
                     load_predicate_from_path(&cmd.predicate_path)?;
+                predicate.validate()?;
 
                 match predicate {
                     ChainhookSpecificationNetworkMap::Bitcoin(predicate) => {

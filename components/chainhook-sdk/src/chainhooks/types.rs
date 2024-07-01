@@ -1,11 +1,10 @@
+use std::str::FromStr;
+
 use chainhook_types::{BitcoinNetwork, StacksNetwork};
-use reqwest::Url;
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 
 use schemars::JsonSchema;
-
-use crate::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
 
 use crate::chainhooks::bitcoin::BitcoinChainhookInstance;
 use crate::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
@@ -207,37 +206,37 @@ impl ChainhookSpecificationNetworkMap {
     pub fn validate(&self) -> Result<(), String> {
         match &self {
             Self::Bitcoin(data) => {
-                for (_, spec) in data.networks.iter() {
-                    let _ = spec.action.validate()?;
-                    if let Some(end_block) = spec.end_block {
-                        let start_block = spec.start_block.unwrap_or(0);
-                        if start_block > end_block {
-                            return Err(
-                                "Chainhook specification field `end_block` should be greater than `start_block`."
-                                    .into(),
-                            );
-                        }
-                        if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
-                            return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
-                        }
+                let mut errors = vec![];
+                for (network, spec) in data.networks.iter() {
+                    if let Err(e) = spec.validate() {
+                        errors.append(&mut append_error_context(
+                            &format!(
+                                "invalid Bitcoin predicate '{}' for network {}",
+                                data.name, network
+                            ),
+                            e,
+                        ));
                     }
+                }
+                if !errors.is_empty() {
+                    return Err(errors.join("\n"));
                 }
             }
             Self::Stacks(data) => {
-                for (_, spec) in data.networks.iter() {
-                    let _ = spec.action.validate()?;
-                    if let Some(end_block) = spec.end_block {
-                        let start_block = spec.start_block.unwrap_or(0);
-                        if start_block > end_block {
-                            return Err(
-                                "Chainhook specification field `end_block` should be greater than `start_block`."
-                                    .into(),
-                            );
-                        }
-                        if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
-                            return Err(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
-                        }
+                let mut errors = vec![];
+                for (network, spec) in data.networks.iter() {
+                    if let Err(e) = spec.validate() {
+                        errors.append(&mut append_error_context(
+                            &format!(
+                                "invalid Stacks predicate '{}' for network {}",
+                                data.name, network
+                            ),
+                            e,
+                        ));
                     }
+                }
+                if !errors.is_empty() {
+                    return Err(errors.join("\n"));
                 }
             }
         }
@@ -270,11 +269,12 @@ pub enum HookAction {
 }
 
 impl HookAction {
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
         match &self {
             HookAction::HttpPost(spec) => {
-                let _ = Url::parse(&spec.url)
-                    .map_err(|e| format!("hook action url invalid ({})", e.to_string()))?;
+                if let Err(e) = spec.validate() {
+                    return Err(append_error_context("invalid 'http_post' data", e));
+                }
             }
             HookAction::FileAppend(_) => {}
             HookAction::Noop => {}
@@ -288,6 +288,27 @@ impl HookAction {
 pub struct HttpHook {
     pub url: String,
     pub authorization_header: String,
+}
+
+impl HttpHook {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        if let Err(e) = reqwest::Url::from_str(&self.url) {
+            errors.push(format!("url string must be a valid Url: {}", e.to_string()));
+        }
+        if let Err(e) = reqwest::header::HeaderValue::from_str(&self.authorization_header) {
+            errors.push(format!(
+                "auth header must be a valid header value: {}",
+                e.to_string()
+            ));
+        };
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -347,6 +368,26 @@ pub enum BlockIdentifierIndexRule {
     HigherThan(u64),
     LowerThan(u64),
     Between(u64, u64),
+}
+
+impl BlockIdentifierIndexRule {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            BlockIdentifierIndexRule::Equals(_) => {}
+            BlockIdentifierIndexRule::HigherThan(_) => {}
+            BlockIdentifierIndexRule::LowerThan(val) => {
+                if val.eq(&0) {
+                    return Err("'lower_than' filter must be greater than 0".into());
+                }
+            }
+            BlockIdentifierIndexRule::Between(lhs, rhs) => {
+                if lhs >= rhs {
+                    return Err("'between' filter must have left-hand-side valud greater than right-hand-side value".into());
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -897,4 +938,24 @@ pub fn opcode_to_hex(asm: &str) -> Option<u8> {
         "OP_RETURN_255" => Some(0xff),
         _ => None,
     }
+}
+
+pub fn append_error_context(context: &str, errors: Vec<String>) -> Vec<String> {
+    errors
+        .iter()
+        .map(|e| format!("{}: {}", context, e))
+        .collect()
+}
+
+pub fn is_hex(s: &str) -> bool {
+    s.chars().all(|c| c.is_digit(16))
+}
+
+pub fn validate_txid(txid: &String) -> Result<(), String> {
+    if !txid.starts_with("0x") || txid.len() != 66 || !is_hex(&txid[2..66]) {
+        return Err(
+            "txid must be a 32 byte (64 character) hexadecimal string prefixed with '0x'".into(),
+        );
+    }
+    Ok(())
 }
