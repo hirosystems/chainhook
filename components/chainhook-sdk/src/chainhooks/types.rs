@@ -210,7 +210,10 @@ impl ChainhookSpecificationNetworkMap {
                 for (network, spec) in data.networks.iter() {
                     if let Err(e) = spec.validate() {
                         errors.append(&mut append_error_context(
-                            &format!("invalid Bitcoin predicate for network {}", network),
+                            &format!(
+                                "invalid Bitcoin predicate '{}' for network {}",
+                                data.name, network
+                            ),
                             e,
                         ));
                     }
@@ -224,7 +227,10 @@ impl ChainhookSpecificationNetworkMap {
                 for (network, spec) in data.networks.iter() {
                     if let Err(e) = spec.validate() {
                         errors.append(&mut append_error_context(
-                            &format!("invalid Stacks predicate for network {}", network),
+                            &format!(
+                                "invalid Stacks predicate '{}' for network {}",
+                                data.name, network
+                            ),
                             e,
                         ));
                     }
