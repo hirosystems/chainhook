@@ -14,8 +14,9 @@ use miniscript::bitcoin::secp256k1::Secp256k1;
 use miniscript::Descriptor;
 
 use reqwest::{Client, Method};
-use serde::{de, Deserialize, Deserializer};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value as JsonValue;
+use std::fmt::Debug;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     str::FromStr,
@@ -173,8 +174,8 @@ impl BitcoinTransactionFilterPredicate {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "scope")]
+#[derive(Clone, Debug, Serialize)]
+// #[serde(rename_all = "snake_case", tag = "scope")]
 pub enum BitcoinPredicateType {
     Block,
     Txid(ExactMatchingRule),
@@ -182,6 +183,80 @@ pub enum BitcoinPredicateType {
     Outputs(OutputPredicate),
     StacksProtocol(StacksOperations),
     OrdinalsProtocol(OrdinalOperations),
+    // todo: look into skipping JsonSchema derivation
+    Custom(Box<dyn CustomBitcoinPredicate>),
+}
+
+// implement Clone, Debug, Serialize, Deserialize, PartialEq
+// validate fn
+// evaluate fn
+pub trait CustomBitcoinPredicate:
+    CustomBitcoinPredicateClone + Debug + CustomBitcoinPredicateSerialize
+{
+    fn validate(&self) -> Result<(), Vec<String>>;
+    fn evaluate_tx(&self, tx: &BitcoinTransactionData, ctx: &Context) -> bool;
+}
+
+// pub trait CustomBitcoinPredicateBox:
+//     CustomBitcoinPredicate + CustomBitcoinPredicateSerialize
+// {
+// }
+
+// impl<T> CustomBitcoinPredicateBox for T where
+//     T: CustomBitcoinPredicate + CustomBitcoinPredicateSerialize
+// {
+// }
+
+pub trait CustomBitcoinPredicateClone {
+    fn clone_box(&self) -> Box<dyn CustomBitcoinPredicate>;
+}
+
+impl<T> CustomBitcoinPredicateClone for T
+where
+    T: 'static + CustomBitcoinPredicate + Clone,
+{
+    fn clone_box(&self) -> Box<dyn CustomBitcoinPredicate> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn CustomBitcoinPredicate> {
+    fn clone(&self) -> Box<dyn CustomBitcoinPredicate> {
+        self.as_ref().clone_box()
+    }
+}
+
+pub trait CustomBitcoinPredicateSerialize {
+    fn serialize_box(&self) -> String;
+}
+
+impl<T> CustomBitcoinPredicateSerialize for T
+where
+    T: 'static + CustomBitcoinPredicate + Serialize,
+{
+    fn serialize_box(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+}
+
+// impl Serialize for Box<dyn CustomBitcoinPredicateBox> {
+//     fn serialize(&self, s: dyn serde::Serializer) -> Result<S::Ok, S::Error> {
+
+//     }
+// }
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct MyCustomPredicate {
+    field_1: String,
+}
+
+impl CustomBitcoinPredicate for MyCustomPredicate {
+    fn validate(&self) -> Result<(), Vec<String>> {
+        Ok(())
+    }
+    fn evaluate_tx(&self, tx: &BitcoinTransactionData, ctx: &Context) -> bool {
+        false
+    }
 }
 
 pub struct BitcoinTriggerChainhook<'a> {
