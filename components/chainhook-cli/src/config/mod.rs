@@ -1,6 +1,9 @@
 pub mod file;
 pub mod generator;
 
+use chainhook_sdk::chainhooks::types::{
+    PoxConfig, POX_CONFIG_DEVNET, POX_CONFIG_MAINNET, POX_CONFIG_TESTNET,
+};
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_sdk::types::{
@@ -27,6 +30,7 @@ pub const BITCOIN_MAX_PREDICATE_REGISTRATION: usize = 50;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Config {
     pub storage: StorageConfig,
+    pub pox_config: PoxConfig,
     pub http_api: PredicatesApi,
     pub event_sources: Vec<EventSourceConfig>,
     pub limits: LimitsConfig,
@@ -158,6 +162,22 @@ impl Config {
         let config = Config {
             storage: StorageConfig {
                 working_dir: config_file.storage.working_dir.unwrap_or("cache".into()),
+            },
+            pox_config: match config_file.pox_config {
+                None => match stacks_network {
+                    StacksNetwork::Mainnet => POX_CONFIG_MAINNET,
+                    StacksNetwork::Devnet => POX_CONFIG_DEVNET,
+                    _ => POX_CONFIG_TESTNET,
+                },
+                Some(pox_config) => PoxConfig {
+                    genesis_block_height: pox_config.genesis_block_height.unwrap_or(666050).into(),
+                    prepare_phase_len: pox_config.prepare_phase_len.unwrap_or(20).into(),
+                    reward_phase_len: pox_config.reward_phase_len.unwrap_or(1000).into(),
+                    rewarded_addresses_per_block: pox_config
+                        .rewarded_addresses_per_block
+                        .unwrap_or(2)
+                        .into(),
+                },
             },
             http_api: match config_file.http_api {
                 None => PredicatesApi::Off,
@@ -334,6 +354,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
+            pox_config: POX_CONFIG_DEVNET,
             http_api: PredicatesApi::Off,
             event_sources: vec![],
             limits: LimitsConfig {
@@ -366,6 +387,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
+            pox_config: POX_CONFIG_TESTNET,
             http_api: PredicatesApi::Off,
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_TESTNET_STACKS_TSV_ARCHIVE.into(),
@@ -400,6 +422,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
+            pox_config: POX_CONFIG_MAINNET,
             http_api: PredicatesApi::Off,
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
