@@ -1,3 +1,17 @@
+## [1.7.0](https://github.com/hirosystems/chainhook/compare/v1.6.2...v1.7.0) (2024-07-05)
+
+### New Features
+* predicate validation (#611)
+* improve chainhook-sdk interface (#608)
+
+### Bug Fixes
+
+* allow aborting a predicate scan (#601)
+
+### CI
+* add snapcraft.yaml (#607) - releases are now available on the [snap store](https://snapcraft.io/chainhook)!
+* winget pkg version bump (#606) - releases are now available on winget!
+
 ## [1.6.2](https://github.com/hirosystems/chainhook/compare/v1.6.1...v1.6.2) (2024-06-06)
 
 ### Bug Fixes
