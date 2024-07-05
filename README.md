@@ -16,9 +16,35 @@ Benefits are plurals:
 - Cost Optimization for data storage management and scaling.
 
 ---
-## Install chainhook
+## Install Chainhook
 
-### Install from the source
+There are a few options when installing Chainhook.
+
+### macOS
+Chainhook can be installed on macOS using Homebrew with the following command:
+```terminal
+brew install chainhook
+```
+
+### Linux
+Chainhook is also available on the [snap store](https://snapcraft.io/chainhook) for Linux users.
+To install, run:
+```terminal
+sudo snap install chainhook
+```
+
+### Windows
+Windows users can install via winget:
+```
+winget install HiroSystems.Chainhook
+```
+
+### Download Builds
+If you don't like using package managers and want to download our builds directly, they are published to our [release page](https://github.com/hirosystems/chainhook/releases).
+
+### Install from Source
+
+Finally, you can also build our source code directly:
 
 ```bash 
 $ git clone https://github.com/hirosystems/chainhook.git
