@@ -759,12 +759,18 @@ pub enum StacksNetwork {
     Mainnet,
 }
 
+impl std::fmt::Display for StacksNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 impl StacksNetwork {
     pub fn from_str(network: &str) -> Result<StacksNetwork, String> {
         let value = match network {
             "devnet" => StacksNetwork::Devnet,
             "testnet" => StacksNetwork::Testnet,
             "mainnet" => StacksNetwork::Mainnet,
+            "simnet" => StacksNetwork::Simnet,
             _ => {
                 return Err(format!(
                     "network '{}' unsupported (mainnet, testnet, devnet, simnet)",
@@ -773,6 +779,15 @@ impl StacksNetwork {
             }
         };
         Ok(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            StacksNetwork::Devnet => "devnet",
+            StacksNetwork::Testnet => "testnet",
+            StacksNetwork::Mainnet => "mainnet",
+            StacksNetwork::Simnet => "simnet",
+        }
     }
 
     pub fn is_simnet(&self) -> bool {
@@ -839,6 +854,11 @@ pub enum BitcoinNetwork {
     Mainnet,
 }
 
+impl std::fmt::Display for BitcoinNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 impl BitcoinNetwork {
     pub fn from_str(network: &str) -> Result<BitcoinNetwork, String> {
         let value = match network {
@@ -854,6 +874,15 @@ impl BitcoinNetwork {
             }
         };
         Ok(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            BitcoinNetwork::Regtest => "regtest",
+            BitcoinNetwork::Testnet => "testnet",
+            BitcoinNetwork::Mainnet => "mainnet",
+            BitcoinNetwork::Signet => "signet",
+        }
     }
 }
 

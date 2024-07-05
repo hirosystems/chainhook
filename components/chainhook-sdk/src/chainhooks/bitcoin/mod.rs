@@ -1,5 +1,8 @@
-use super::types::{ChainhookInstance, ExactMatchingRule, HookAction, MatchingRule};
-use crate::utils::Context;
+use super::types::{
+    append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
+    MatchingRule,
+};
+use crate::utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
@@ -47,6 +50,90 @@ pub struct BitcoinChainhookSpecification {
     pub predicate: BitcoinPredicateType,
     #[serde(rename = "then_that")]
     pub action: HookAction,
+}
+
+impl BitcoinChainhookSpecification {
+    pub fn new(predicate: BitcoinPredicateType, action: HookAction) -> Self {
+        BitcoinChainhookSpecification {
+            blocks: None,
+            start_block: None,
+            end_block: None,
+            expire_after_occurrence: None,
+            include_proof: None,
+            include_inputs: None,
+            include_outputs: None,
+            include_witness: None,
+            predicate,
+            action,
+        }
+    }
+
+    pub fn blocks(&mut self, blocks: Vec<u64>) -> &mut Self {
+        self.blocks = Some(blocks);
+        self
+    }
+
+    pub fn start_block(&mut self, start_block: u64) -> &mut Self {
+        self.start_block = Some(start_block);
+        self
+    }
+
+    pub fn end_block(&mut self, end_block: u64) -> &mut Self {
+        self.end_block = Some(end_block);
+        self
+    }
+
+    pub fn expire_after_occurrence(&mut self, occurrence: u64) -> &mut Self {
+        self.expire_after_occurrence = Some(occurrence);
+        self
+    }
+
+    pub fn include_proof(&mut self, do_include: bool) -> &mut Self {
+        self.include_proof = Some(do_include);
+        self
+    }
+
+    pub fn include_inputs(&mut self, do_include: bool) -> &mut Self {
+        self.include_inputs = Some(do_include);
+        self
+    }
+
+    pub fn include_outputs(&mut self, do_include: bool) -> &mut Self {
+        self.include_outputs = Some(do_include);
+        self
+    }
+
+    pub fn include_witness(&mut self, do_include: bool) -> &mut Self {
+        self.include_witness = Some(do_include);
+        self
+    }
+
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        if let Err(e) = self.action.validate() {
+            errors.append(&mut append_error_context("invalid 'then_that' value", e));
+        }
+        if let Err(e) = self.predicate.validate() {
+            errors.append(&mut append_error_context("invalid 'if_this' value", e));
+        }
+
+        if let Some(end_block) = self.end_block {
+            let start_block = self.start_block.unwrap_or(0);
+            if start_block > end_block {
+                errors.push(
+                    "Chainhook specification field `end_block` should be greater than `start_block`.".into()
+                );
+            }
+            if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                errors.push(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 /// Maps some [BitcoinChainhookSpecification] to a corresponding [BitcoinNetwork]. This allows maintaining one
@@ -184,6 +271,41 @@ pub enum BitcoinPredicateType {
     OrdinalsProtocol(OrdinalOperations),
 }
 
+impl BitcoinPredicateType {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            BitcoinPredicateType::Block => {}
+            BitcoinPredicateType::Txid(ExactMatchingRule::Equals(txid)) => {
+                if let Err(e) = validate_txid(txid) {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'txid'",
+                        vec![e],
+                    ));
+                }
+            }
+            BitcoinPredicateType::Inputs(input) => {
+                if let Err(e) = input.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'inputs'",
+                        e,
+                    ));
+                }
+            }
+            BitcoinPredicateType::Outputs(outputs) => {
+                if let Err(e) = outputs.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'outputs'",
+                        vec![e],
+                    ));
+                }
+            }
+            BitcoinPredicateType::StacksProtocol(_) => {}
+            BitcoinPredicateType::OrdinalsProtocol(_) => {}
+        }
+        Ok(())
+    }
+}
+
 pub struct BitcoinTriggerChainhook<'a> {
     pub chainhook: &'a BitcoinChainhookInstance,
     pub apply: Vec<(Vec<&'a BitcoinTransactionData>, &'a BitcoinBlockData)>,
@@ -208,6 +330,15 @@ pub enum InputPredicate {
     WitnessScript(MatchingRule),
 }
 
+impl InputPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            InputPredicate::Txid(txin) => txin.validate(),
+            InputPredicate::WitnessScript(_) => Ok(()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputPredicate {
@@ -217,6 +348,20 @@ pub enum OutputPredicate {
     P2wpkh(ExactMatchingRule),
     P2wsh(ExactMatchingRule),
     Descriptor(DescriptorMatchingRule),
+}
+
+impl OutputPredicate {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            OutputPredicate::OpReturn(_) => {}
+            OutputPredicate::P2pkh(ExactMatchingRule::Equals(_p2pkh)) => {}
+            OutputPredicate::P2sh(ExactMatchingRule::Equals(_p2sh)) => {}
+            OutputPredicate::P2wpkh(ExactMatchingRule::Equals(_p2wpkh)) => {}
+            OutputPredicate::P2wsh(ExactMatchingRule::Equals(_p2wsh)) => {}
+            OutputPredicate::Descriptor(descriptor) => descriptor.validate()?,
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -348,6 +493,15 @@ pub struct TxinPredicate {
     pub vout: u32,
 }
 
+impl TxinPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        if let Err(e) = validate_txid(&self.txid) {
+            return Err(vec![e]);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DescriptorMatchingRule {
@@ -355,6 +509,43 @@ pub struct DescriptorMatchingRule {
     pub expression: String,
     #[serde(default, deserialize_with = "deserialize_descriptor_range")]
     pub range: Option<[u32; 2]>,
+}
+
+impl DescriptorMatchingRule {
+    pub fn validate(&self) -> Result<(), String> {
+        let _ = self.derive_script_pubkeys()?;
+        Ok(())
+    }
+
+    pub fn derive_script_pubkeys(&self) -> Result<Vec<String>, String> {
+        let DescriptorMatchingRule { expression, range } = self;
+        // To derive from descriptors, we need to provide a secp context.
+        let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
+        let (desc, _) = Descriptor::parse_descriptor(&sig, expression)
+            .map_err(|e| format!("invalid descriptor: {}", e.to_string()))?;
+
+        // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
+        // defined by the predicate OR fallback to a default range of [0,5] when not set.
+        // When the descriptor is not derivable we force to create a unique iteration by
+        // ranging over [0,1].
+        let range = if desc.has_wildcard() {
+            range.unwrap_or([0, 5])
+        } else {
+            [0, 1]
+        };
+
+        let mut script_pubkeys = vec![];
+        // Derive the addresses and try to match them against the outputs.
+        for i in range[0]..range[1] {
+            let derived = desc
+                .derived_descriptor(&ver, i)
+                .map_err(|e| format!("error deriving descriptor: {}", e))?;
+
+            // Extract and encode the derived pubkey.
+            script_pubkeys.push(hex::encode(derived.script_pubkey().as_bytes()));
+        }
+        Ok(script_pubkeys)
+    }
 }
 
 // deserialize_descriptor_range makes sure that the range value is valid.
@@ -788,31 +979,11 @@ impl BitcoinPredicateType {
                 }
                 false
             }
-            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(
-                DescriptorMatchingRule { expression, range },
-            )) => {
-                // To derive from descriptors, we need to provide a secp context.
-                let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
-                let (desc, _) = Descriptor::parse_descriptor(&sig, expression).unwrap();
+            BitcoinPredicateType::Outputs(OutputPredicate::Descriptor(descriptor)) => {
+                let script_pubkeys = descriptor.derive_script_pubkeys().unwrap();
 
-                // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
-                // defined by the predicate OR fallback to a default range of [0,5] when not set.
-                // When the descriptor is not derivable we force to create a unique iteration by
-                // ranging over [0,1].
-                let range = if desc.has_wildcard() {
-                    range.unwrap_or([0, 5])
-                } else {
-                    [0, 1]
-                };
-
-                // Derive the addresses and try to match them against the outputs.
-                for i in range[0]..range[1] {
-                    let derived = desc.derived_descriptor(&ver, i).unwrap();
-
-                    // Extract and encode the derived pubkey.
-                    let script_pubkey = hex::encode(derived.script_pubkey().as_bytes());
-
-                    // Match that script against the tx outputs.
+                for script_pubkey in script_pubkeys {
+                    // Match the script against the tx outputs.
                     for (index, output) in tx.metadata.outputs.iter().enumerate() {
                         if output.script_pubkey[2..] == script_pubkey {
                             ctx.try_log(|logger| {

@@ -11,6 +11,7 @@ use chainhook_types::bitcoin::TxOut;
 
 use chainhook_types::{BitcoinNetwork, Brc20Operation, Brc20TokenDeployData};
 use test_case::test_case;
+mod hook_spec_validation;
 
 #[test_case(
     "0x6affAAAA",
