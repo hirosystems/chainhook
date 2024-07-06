@@ -1,3 +1,51 @@
+## [1.7.0](https://github.com/hirosystems/chainhook/compare/v1.6.2...v1.7.0) (2024-07-05)
+
+### New Features
+* predicate validation (#611)
+* improve chainhook-sdk interface (#608)
+
+### Bug Fixes
+
+* allow aborting a predicate scan (#601)
+
+### CI
+* add snapcraft.yaml (#607) - releases are now available on the [snap store](https://snapcraft.io/chainhook)!
+* winget pkg version bump (#606) - releases are now available on winget!
+
+## [1.6.2](https://github.com/hirosystems/chainhook/compare/v1.6.1...v1.6.2) (2024-06-06)
+
+### Bug Fixes
+
+* use `stacks_node_rpc_url` from config (#579)
+* print to console for unknown cli commands (#595)
+
+### CI
+* revamp ci (#594) - This PR adds builds to our [Releases](https://github.com/hirosystems/chainhook/releases) page for Windows, Linux, and MacOS!
+
+  
+## [1.6.1](https://github.com/hirosystems/chainhook/compare/v1.6.0...v1.6.1) (2024-05-15)
+
+### Bug Fixes
+
+* serialize brc-20 data ([#585](https://github.com/hirosystems/chainhook/issues/585)) ([9011a0c](https://github.com/hirosystems/chainhook/commit/9011a0ce49d9d38a6d7a6776d7f37b709a355386))
+
+
+## [1.6.0](https://github.com/hirosystems/chainhook/compare/v1.5.1...v1.6.0) (2024-05-09)
+
+
+### Features
+
+* add Bitcoin transaction index to typescript client ([#568](https://github.com/hirosystems/chainhook/issues/568)) ([6f7eba4](https://github.com/hirosystems/chainhook/commit/6f7eba4c60d96dc088c08708cc5af2381ee62012))
+
+
+### Bug Fixes
+
+* add stacks event position to ts client ([#575](https://github.com/hirosystems/chainhook/issues/575)) ([3c48eeb](https://github.com/hirosystems/chainhook/commit/3c48eeb8adf0b6ef7998702f1d082c960f00f950))
+* add starting stacks height for prometheus metrics ([#567](https://github.com/hirosystems/chainhook/issues/567)) ([6a8c086](https://github.com/hirosystems/chainhook/commit/6a8c0869278aad54f5100216ceb5b2d8f98ad002))
+* make bitcoin payload serialization deserializable ([#569](https://github.com/hirosystems/chainhook/issues/569)) ([5f20a86](https://github.com/hirosystems/chainhook/commit/5f20a869acbd057d855b9601a4fb1072e75ab4c4))
+* set `Interrupted` status for streaming predicates that fail ([#574](https://github.com/hirosystems/chainhook/issues/574)) ([11bde53](https://github.com/hirosystems/chainhook/commit/11bde5344b1b42bd7561e632e36265a9698fc095)), closes [#523](https://github.com/hirosystems/chainhook/issues/523)
+* shut down observer on bitcoin block download failure ([#573](https://github.com/hirosystems/chainhook/issues/573)) ([f3530b7](https://github.com/hirosystems/chainhook/commit/f3530b74d9d25c111338d06085e2dae6fe527932)), closes [#572](https://github.com/hirosystems/chainhook/issues/572)
+
 ## [1.5.1](https://github.com/hirosystems/chainhook/compare/v1.5.0...v1.5.1) (2024-04-12)
 
 

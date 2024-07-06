@@ -1,27 +1,458 @@
-use crate::utils::{AbstractStacksBlock, Context};
+use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
+use super::types::validate_txid;
 use super::types::{
-    BlockIdentifierIndexRule, ExactMatchingRule, HookAction, StacksChainhookSpecification,
-    StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
+    append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
+    HookAction,
 };
 use chainhook_types::{
-    BlockIdentifier, StacksChainEvent, StacksTransactionData, StacksTransactionEvent,
-    StacksTransactionEventPayload, StacksTransactionKind, TransactionIdentifier,
+    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
+    StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
+    TransactionIdentifier,
 };
 use hiro_system_kit::slog;
 use regex::Regex;
 use reqwest::{Client, Method};
+use schemars::JsonSchema;
 use serde_json::Value as JsonValue;
 use stacks_codec::clarity::codec::StacksMessageCodec;
+use stacks_codec::clarity::vm::types::PrincipalData;
+use stacks_codec::clarity::vm::types::QualifiedContractIdentifier;
 use stacks_codec::clarity::vm::types::{CharType, SequenceData, Value as ClarityValue};
+use stacks_codec::clarity::ClarityName;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
 
 use reqwest::RequestBuilder;
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct StacksChainhookSpecification {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_block: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_block: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expire_after_occurrence: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_all_events: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decode_clarity_values: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_contract_abi: Option<bool>,
+    #[serde(rename = "if_this")]
+    pub predicate: StacksPredicate,
+    #[serde(rename = "then_that")]
+    pub action: HookAction,
+}
+
+impl StacksChainhookSpecification {
+    pub fn new(predicate: StacksPredicate, action: HookAction) -> Self {
+        StacksChainhookSpecification {
+            blocks: None,
+            start_block: None,
+            end_block: None,
+            expire_after_occurrence: None,
+            capture_all_events: None,
+            include_contract_abi: None,
+            decode_clarity_values: None,
+            predicate,
+            action,
+        }
+    }
+
+    pub fn blocks(&mut self, blocks: Vec<u64>) -> &mut Self {
+        self.blocks = Some(blocks);
+        self
+    }
+
+    pub fn start_block(&mut self, start_block: u64) -> &mut Self {
+        self.start_block = Some(start_block);
+        self
+    }
+
+    pub fn end_block(&mut self, end_block: u64) -> &mut Self {
+        self.end_block = Some(end_block);
+        self
+    }
+
+    pub fn expire_after_occurrence(&mut self, occurrence: u64) -> &mut Self {
+        self.expire_after_occurrence = Some(occurrence);
+        self
+    }
+
+    pub fn capture_all_events(&mut self, do_capture: bool) -> &mut Self {
+        self.capture_all_events = Some(do_capture);
+        self
+    }
+
+    pub fn include_contract_abi(&mut self, do_include: bool) -> &mut Self {
+        self.include_contract_abi = Some(do_include);
+        self
+    }
+
+    pub fn decode_clarity_values(&mut self, do_decode: bool) -> &mut Self {
+        self.decode_clarity_values = Some(do_decode);
+        self
+    }
+
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        if let Err(e) = self.action.validate() {
+            errors.append(&mut append_error_context("invalid 'then_that' value", e));
+        }
+        if let Err(e) = self.predicate.validate() {
+            errors.append(&mut append_error_context("invalid 'if_this' value", e));
+        }
+
+        if let Some(end_block) = self.end_block {
+            let start_block = self.start_block.unwrap_or(0);
+            if start_block > end_block {
+                errors.push(
+                    "Chainhook specification field `end_block` should be greater than `start_block`.".into()
+                );
+            }
+            if (end_block - start_block) > MAX_BLOCK_HEIGHTS_ENTRIES {
+                errors.push(format!("Chainhook specification exceeds max number of blocks to scan. Maximum: {}, Attempted: {}", MAX_BLOCK_HEIGHTS_ENTRIES, (end_block - start_block)));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+/// Maps some [StacksChainhookSpecification] to a corresponding [StacksNetwork]. This allows maintaining one
+/// serialized predicate file for a given predicate on each network.
+///
+/// ### Examples
+/// Given some file `predicate.json`:
+/// ```json
+/// {
+///   "uuid": "my-id",
+///   "name": "My Predicate",
+///   "chain": "stacks",
+///   "version": 1,
+///   "networks": {
+///     "devnet": {
+///       // ...
+///     },
+///     "testnet": {
+///       // ...
+///     },
+///     "mainnet": {
+///       // ...
+///     }
+///   }
+/// }
+/// ```
+/// You can deserialize the file to this type and create a [StacksChainhookInstance] for the desired network:
+/// ```
+/// use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
+/// use chainhook_sdk::chainhooks::stacks::StacksChainhookInstance;
+/// use chainhook_types::StacksNetwork;
+///
+/// fn get_predicate(network: &StacksNetwork) -> Result<StacksChainhookInstance, String> {
+///     let json_predicate =
+///         std::fs::read_to_string("./predicate.json").expect("Unable to read file");
+///     let hook_map: StacksChainhookSpecificationNetworkMap =
+///         serde_json::from_str(&json_predicate).expect("Unable to parse Chainhook map");
+///     hook_map.into_specification_for_network(network)
+/// }
+///
+/// ```
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub struct StacksChainhookSpecificationNetworkMap {
+    pub uuid: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_uuid: Option<String>,
+    pub name: String,
+    pub version: u32,
+    pub networks: BTreeMap<StacksNetwork, StacksChainhookSpecification>,
+}
+
+impl StacksChainhookSpecificationNetworkMap {
+    pub fn into_specification_for_network(
+        mut self,
+        network: &StacksNetwork,
+    ) -> Result<StacksChainhookInstance, String> {
+        let spec = self
+            .networks
+            .remove(network)
+            .ok_or("Network unknown".to_string())?;
+        Ok(StacksChainhookInstance {
+            uuid: self.uuid,
+            owner_uuid: self.owner_uuid,
+            name: self.name,
+            network: network.clone(),
+            version: self.version,
+            start_block: spec.start_block,
+            end_block: spec.end_block,
+            blocks: spec.blocks,
+            capture_all_events: spec.capture_all_events,
+            decode_clarity_values: spec.decode_clarity_values,
+            expire_after_occurrence: spec.expire_after_occurrence,
+            include_contract_abi: spec.include_contract_abi,
+            predicate: spec.predicate,
+            action: spec.action,
+            enabled: false,
+            expired_at: None,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct StacksChainhookInstance {
+    pub uuid: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_uuid: Option<String>,
+    pub name: String,
+    pub network: StacksNetwork,
+    pub version: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocks: Option<Vec<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_block: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_block: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expire_after_occurrence: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_all_events: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decode_clarity_values: Option<bool>,
+    pub include_contract_abi: Option<bool>,
+    #[serde(rename = "predicate")]
+    pub predicate: StacksPredicate,
+    pub action: HookAction,
+    pub enabled: bool,
+    pub expired_at: Option<u64>,
+}
+
+impl StacksChainhookInstance {
+    pub fn key(&self) -> String {
+        ChainhookInstance::stacks_key(&self.uuid)
+    }
+
+    pub fn is_predicate_targeting_block_header(&self) -> bool {
+        match &self.predicate {
+            StacksPredicate::BlockHeight(_) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "scope")]
+pub enum StacksPredicate {
+    BlockHeight(BlockIdentifierIndexRule),
+    ContractDeployment(StacksContractDeploymentPredicate),
+    ContractCall(StacksContractCallBasedPredicate),
+    PrintEvent(StacksPrintEventBasedPredicate),
+    FtEvent(StacksFtEventBasedPredicate),
+    NftEvent(StacksNftEventBasedPredicate),
+    StxEvent(StacksStxEventBasedPredicate),
+    Txid(ExactMatchingRule),
+}
+
+impl StacksPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        match self {
+            StacksPredicate::BlockHeight(height) => {
+                if let Err(e) = height.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'block_height'",
+                        vec![e],
+                    ));
+                }
+            }
+            StacksPredicate::ContractDeployment(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'contract_deployment'",
+                        vec![e],
+                    ));
+                }
+            }
+            StacksPredicate::ContractCall(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'contract_call'",
+                        e,
+                    ));
+                }
+            }
+            StacksPredicate::PrintEvent(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'print_event'",
+                        e,
+                    ));
+                }
+            }
+            StacksPredicate::FtEvent(_) => {}
+            StacksPredicate::NftEvent(_) => {}
+            StacksPredicate::StxEvent(_) => {}
+            StacksPredicate::Txid(ExactMatchingRule::Equals(txid)) => {
+                if let Err(e) = validate_txid(&txid) {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'txid'",
+                        vec![e],
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StacksContractCallBasedPredicate {
+    pub contract_identifier: String,
+    pub method: String,
+}
+
+fn validate_contract_identifier(id: &String) -> Result<(), String> {
+    if let Err(e) = QualifiedContractIdentifier::parse(&id) {
+        return Err(format!("invalid contract identifier: {}", e.to_string()));
+    }
+    Ok(())
+}
+
+impl StacksContractCallBasedPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+
+        if let Err(e) = validate_contract_identifier(&self.contract_identifier) {
+            errors.push(e);
+        }
+        if let Err(e) = ClarityName::try_from(self.method.clone()) {
+            errors.push(format!("invalid contract method: {:?}", e));
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksContractDeploymentPredicate {
+    Deployer(String),
+    ImplementTrait(StacksTrait),
+}
+
+impl StacksContractDeploymentPredicate {
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            StacksContractDeploymentPredicate::Deployer(deployer) => {
+                if !deployer.eq("*") {
+                    if let Err(e) = PrincipalData::parse_standard_principal(&deployer) {
+                        return Err(format!(
+                            "contract deployer must be a valid Stacks address: {}",
+                            e
+                        ));
+                    }
+                }
+            }
+            StacksContractDeploymentPredicate::ImplementTrait(_) => {}
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksTrait {
+    Sip09,
+    Sip10,
+    #[serde(rename = "*")]
+    Any,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[serde(untagged)]
+pub enum StacksPrintEventBasedPredicate {
+    Contains {
+        contract_identifier: String,
+        contains: String,
+    },
+    MatchesRegex {
+        contract_identifier: String,
+        #[serde(rename = "matches_regex")]
+        regex: String,
+    },
+}
+
+impl StacksPrintEventBasedPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = vec![];
+        match self {
+            StacksPrintEventBasedPredicate::Contains {
+                contract_identifier,
+                ..
+            } => {
+                if !contract_identifier.eq("*") {
+                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                        errors.push(e);
+                    }
+                }
+            }
+            StacksPrintEventBasedPredicate::MatchesRegex {
+                contract_identifier,
+                regex,
+            } => {
+                if !contract_identifier.eq("*") {
+                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                        errors.push(e);
+                    }
+                }
+                if let Err(e) = Regex::new(regex) {
+                    errors.push(format!("invalid regex: {}", e.to_string()))
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StacksFtEventBasedPredicate {
+    pub asset_identifier: String,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StacksNftEventBasedPredicate {
+    pub asset_identifier: String,
+    pub actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct StacksStxEventBasedPredicate {
+    pub actions: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct StacksTriggerChainhook<'a> {
-    pub chainhook: &'a StacksChainhookSpecification,
+    pub chainhook: &'a StacksChainhookInstance,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
     pub rollback: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
 }
@@ -103,7 +534,7 @@ impl<'a> StacksTriggerChainhook<'a> {
 
 pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
     chain_event: &'a StacksChainEvent,
-    active_chainhooks: Vec<&'a StacksChainhookSpecification>,
+    active_chainhooks: Vec<&'a StacksChainhookInstance>,
     ctx: &Context,
 ) -> (
     Vec<StacksTriggerChainhook<'a>>,
@@ -301,7 +732,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
 
 pub fn evaluate_stacks_chainhook_on_blocks<'a>(
     blocks: Vec<&'a dyn AbstractStacksBlock>,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     ctx: &Context,
 ) -> (
     Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
@@ -338,7 +769,7 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
 
 pub fn evaluate_stacks_predicate_on_block<'a>(
     block: &'a dyn AbstractStacksBlock,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     _ctx: &Context,
 ) -> bool {
     match &chainhook.predicate {
@@ -366,7 +797,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 
 pub fn evaluate_stacks_predicate_on_transaction<'a>(
     transaction: &'a StacksTransactionData,
-    chainhook: &'a StacksChainhookSpecification,
+    chainhook: &'a StacksChainhookInstance,
     ctx: &Context,
 ) -> bool {
     match &chainhook.predicate {
@@ -938,3 +1369,6 @@ pub fn handle_stacks_hook_action<'a>(
         )),
     }
 }
+
+#[cfg(test)]
+pub mod tests;

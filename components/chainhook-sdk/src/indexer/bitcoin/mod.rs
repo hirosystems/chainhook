@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use crate::chainhooks::types::{
+use crate::chainhooks::bitcoin::{
     get_canonical_pox_config, get_stacks_canonical_magic_bytes, PoxConfig, StacksOpcodes,
 };
-
 use crate::observer::BitcoinConfig;
 use crate::utils::Context;
 use bitcoincore_rpc::bitcoin::hashes::Hash;
@@ -92,9 +91,8 @@ pub struct GetRawTransactionResultVinScriptSig {
 }
 
 impl BitcoinTransactionInputFullBreakdown {
-    /// Whether this input is from a coinbase tx.
-    /// The [txid], [vout] and [script_sig] fields are not provided
-    /// for coinbase transactions.
+    /// Whether this input is from a coinbase tx. If there is not a [BitcoinTransactionInputFullBreakdown::txid] field, the transaction is a coinbase transaction.
+    // Note: vout and script_sig fields are also not provided for coinbase transactions.
     pub fn is_coinbase(&self) -> bool {
         self.txid.is_none()
     }
