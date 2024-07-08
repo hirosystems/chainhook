@@ -330,7 +330,7 @@ pub fn standardize_stacks_block(
     let pox_cycle_length: u64 = (chain_ctx.pox_config.get_pox_cycle_len()).into();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
-        1 + (chain_ctx.pox_config.genesis_block_height as u64),
+        1 + (chain_ctx.pox_config.first_burnchain_block_height as u64),
     );
     let pox_cycle_id: u32 = (current_len / pox_cycle_length).try_into().unwrap_or(0);
     let mut events: HashMap<&String, Vec<&NewEvent>> = HashMap::new();

@@ -7,7 +7,7 @@ use crate::service::{
     http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
     PredicateStatus, Service,
 };
-use chainhook_sdk::chainhooks::types::POX_CONFIG_DEVNET;
+use chainhook_sdk::chainhooks::types::PoxConfig;
 use chainhook_sdk::{
     chainhooks::stacks::StacksChainhookSpecificationNetworkMap,
     chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap},
@@ -298,7 +298,7 @@ pub fn get_chainhook_config(
     };
     Config {
         http_api: PredicatesApi::On(api_config),
-        pox_config: POX_CONFIG_DEVNET,
+        pox_config: PoxConfig::devnet_default(),
         storage: StorageConfig {
             working_dir: working_dir.into(),
         },

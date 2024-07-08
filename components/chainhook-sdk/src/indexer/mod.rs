@@ -3,7 +3,7 @@ pub mod fork_scratch_pad;
 pub mod stacks;
 
 use crate::{
-    chainhooks::types::{PoxConfig, POX_CONFIG_DEVNET, POX_CONFIG_MAINNET, POX_CONFIG_TESTNET},
+    chainhooks::types::PoxConfig,
     utils::{AbstractBlock, Context},
 };
 
@@ -35,9 +35,9 @@ impl StacksChainContext {
         StacksChainContext {
             asset_class_map: HashMap::new(),
             pox_config: match network {
-                StacksNetwork::Mainnet => POX_CONFIG_MAINNET,
-                StacksNetwork::Testnet => POX_CONFIG_TESTNET,
-                _ => POX_CONFIG_DEVNET,
+                StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
+                StacksNetwork::Testnet => PoxConfig::testnet_default(),
+                _ => PoxConfig::devnet_default(),
             },
         }
     }

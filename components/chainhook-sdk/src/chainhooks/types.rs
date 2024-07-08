@@ -363,27 +363,48 @@ impl ScriptTemplate {
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct PoxConfig {
-    pub genesis_block_height: u64,
+    pub first_burnchain_block_height: u64,
     pub prepare_phase_len: u64,
     pub reward_phase_len: u64,
     pub rewarded_addresses_per_block: usize,
 }
 
 impl PoxConfig {
+    pub fn mainnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 666050,
+            prepare_phase_len: 100,
+            reward_phase_len: 2000,
+            rewarded_addresses_per_block: 2,
+        }
+    }
+
+    pub fn testnet_default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 2000000,
+            prepare_phase_len: 50,
+            reward_phase_len: 1000,
+            rewarded_addresses_per_block: 2,
+        }
+    }
+
+    pub fn devnet_default() -> PoxConfig {
+        Self::default()
+    }
     pub fn get_pox_cycle_len(&self) -> u64 {
         self.prepare_phase_len + self.reward_phase_len
     }
 
     pub fn get_pox_cycle_id(&self, block_height: u64) -> u64 {
-        (block_height.saturating_sub(self.genesis_block_height)) / self.get_pox_cycle_len()
+        (block_height.saturating_sub(self.first_burnchain_block_height)) / self.get_pox_cycle_len()
     }
 
     pub fn get_pos_in_pox_cycle(&self, block_height: u64) -> u64 {
-        (block_height.saturating_sub(self.genesis_block_height)) % self.get_pox_cycle_len()
+        (block_height.saturating_sub(self.first_burnchain_block_height)) % self.get_pox_cycle_len()
     }
 
     pub fn get_burn_address(&self) -> &str {
-        match self.genesis_block_height {
+        match self.first_burnchain_block_height {
             666050 => "1111111111111111111114oLvT2",
             2000000 => "burn-address-regtest",
             _ => "burn-address",
@@ -391,32 +412,22 @@ impl PoxConfig {
     }
 }
 
-pub const POX_CONFIG_MAINNET: PoxConfig = PoxConfig {
-    genesis_block_height: 666050,
-    prepare_phase_len: 100,
-    reward_phase_len: 2000,
-    rewarded_addresses_per_block: 2,
-};
-
-pub const POX_CONFIG_TESTNET: PoxConfig = PoxConfig {
-    genesis_block_height: 2000000,
-    prepare_phase_len: 50,
-    reward_phase_len: 1000,
-    rewarded_addresses_per_block: 2,
-};
-
-pub const POX_CONFIG_DEVNET: PoxConfig = PoxConfig {
-    genesis_block_height: 100,
-    prepare_phase_len: 5,
-    reward_phase_len: 20,
-    rewarded_addresses_per_block: 2,
-};
+impl Default for PoxConfig {
+    fn default() -> PoxConfig {
+        PoxConfig {
+            first_burnchain_block_height: 100,
+            prepare_phase_len: 5,
+            reward_phase_len: 15,
+            rewarded_addresses_per_block: 2,
+        }
+    }
+}
 
 pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
     match network {
-        BitcoinNetwork::Mainnet => POX_CONFIG_MAINNET,
-        BitcoinNetwork::Testnet => POX_CONFIG_TESTNET,
-        BitcoinNetwork::Regtest => POX_CONFIG_DEVNET,
+        BitcoinNetwork::Mainnet => PoxConfig::mainnet_default(),
+        BitcoinNetwork::Testnet => PoxConfig::testnet_default(),
+        BitcoinNetwork::Regtest => PoxConfig::default(),
         BitcoinNetwork::Signet => unreachable!(),
     }
 }

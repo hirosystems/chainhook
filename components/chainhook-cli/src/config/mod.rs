@@ -1,9 +1,7 @@
 pub mod file;
 pub mod generator;
 
-use chainhook_sdk::chainhooks::types::{
-    PoxConfig, POX_CONFIG_DEVNET, POX_CONFIG_MAINNET, POX_CONFIG_TESTNET, ChainhookStore
-};
+use chainhook_sdk::chainhooks::types::{ChainhookStore, PoxConfig};
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::EventObserverConfig;
 use chainhook_sdk::types::{
@@ -162,12 +160,15 @@ impl Config {
             },
             pox_config: match config_file.pox_config {
                 None => match stacks_network {
-                    StacksNetwork::Mainnet => POX_CONFIG_MAINNET,
-                    StacksNetwork::Devnet => POX_CONFIG_DEVNET,
-                    _ => POX_CONFIG_TESTNET,
+                    StacksNetwork::Mainnet => PoxConfig::mainnet_default(),
+                    StacksNetwork::Devnet => PoxConfig::testnet_default(),
+                    _ => PoxConfig::default(),
                 },
                 Some(pox_config) => PoxConfig {
-                    genesis_block_height: pox_config.genesis_block_height.unwrap_or(666050).into(),
+                    first_burnchain_block_height: pox_config
+                        .first_burnchain_block_height
+                        .unwrap_or(666050)
+                        .into(),
                     prepare_phase_len: pox_config.prepare_phase_len.unwrap_or(20).into(),
                     reward_phase_len: pox_config.reward_phase_len.unwrap_or(1000).into(),
                     rewarded_addresses_per_block: pox_config
@@ -351,7 +352,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
-            pox_config: POX_CONFIG_DEVNET,
+            pox_config: PoxConfig::devnet_default(),
             http_api: PredicatesApi::Off,
             event_sources: vec![],
             limits: LimitsConfig {
@@ -384,7 +385,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
-            pox_config: POX_CONFIG_TESTNET,
+            pox_config: PoxConfig::testnet_default(),
             http_api: PredicatesApi::Off,
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_TESTNET_STACKS_TSV_ARCHIVE.into(),
@@ -419,7 +420,7 @@ impl Config {
             storage: StorageConfig {
                 working_dir: default_cache_path(),
             },
-            pox_config: POX_CONFIG_MAINNET,
+            pox_config: PoxConfig::mainnet_default(),
             http_api: PredicatesApi::Off,
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),

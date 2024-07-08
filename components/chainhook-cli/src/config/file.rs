@@ -13,7 +13,7 @@ pub struct ConfigFile {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct PoxConfigFile {
-    pub genesis_block_height: Option<u64>,
+    pub first_burnchain_block_height: Option<u64>,
     pub prepare_phase_len: Option<u64>,
     pub reward_phase_len: Option<u64>,
     pub rewarded_addresses_per_block: Option<usize>,
