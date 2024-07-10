@@ -1,6 +1,6 @@
 use super::types::{
     append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
-    MatchingRule, PoxConfig,
+    MatchingRule, PoxConfig, TxinPredicate,
 };
 use crate::utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
@@ -434,22 +434,6 @@ impl TryFrom<u8> for StacksOpcodes {
             x if x == StacksOpcodes::TransferStx as u8 => Ok(StacksOpcodes::TransferStx),
             _ => Err(()),
         }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct TxinPredicate {
-    pub txid: String,
-    pub vout: u32,
-}
-
-impl TxinPredicate {
-    pub fn validate(&self) -> Result<(), Vec<String>> {
-        if let Err(e) = validate_txid(&self.txid) {
-            return Err(vec![e]);
-        }
-        Ok(())
     }
 }
 

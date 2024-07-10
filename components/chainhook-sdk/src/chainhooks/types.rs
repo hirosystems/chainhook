@@ -464,6 +464,15 @@ pub struct TxinPredicate {
     pub vout: u32,
 }
 
+impl TxinPredicate {
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        if let Err(e) = validate_txid(&self.txid) {
+            return Err(vec![e]);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockIdentifierIndexRule {
