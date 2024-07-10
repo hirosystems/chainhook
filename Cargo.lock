@@ -5204,3 +5204,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "stacks-codec"
+version = "2.7.0"
+source = "git+https://github.com/hirosystems/clarinet.git#b60ee86cb214865701071254dd5786e3aee3bec6"
