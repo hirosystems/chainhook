@@ -327,9 +327,7 @@ pub fn standardize_stacks_block(
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
-    let pox_cycle_length: u64 = (chain_ctx.pox_config.prepare_phase_block_length
-        + chain_ctx.pox_config.reward_phase_block_length)
-        .into();
+    let pox_cycle_length: u64 = (chain_ctx.pox_config.get_pox_cycle_len()).into();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
         1 + (chain_ctx.pox_config.first_burnchain_block_height as u64),

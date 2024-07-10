@@ -1,6 +1,6 @@
 use super::types::{
     append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
-    MatchingRule,
+    MatchingRule, PoxConfig,
 };
 use crate::utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
@@ -403,60 +403,11 @@ pub fn get_stacks_canonical_magic_bytes(network: &BitcoinNetwork) -> [u8; 2] {
     }
 }
 
-pub struct PoxConfig {
-    pub genesis_block_height: u64,
-    pub prepare_phase_len: u64,
-    pub reward_phase_len: u64,
-    pub rewarded_addresses_per_block: usize,
-}
-
-impl PoxConfig {
-    pub fn get_pox_cycle_len(&self) -> u64 {
-        self.prepare_phase_len + self.reward_phase_len
-    }
-
-    pub fn get_pox_cycle_id(&self, block_height: u64) -> u64 {
-        (block_height.saturating_sub(self.genesis_block_height)) / self.get_pox_cycle_len()
-    }
-
-    pub fn get_pos_in_pox_cycle(&self, block_height: u64) -> u64 {
-        (block_height.saturating_sub(self.genesis_block_height)) % self.get_pox_cycle_len()
-    }
-
-    pub fn get_burn_address(&self) -> &str {
-        match self.genesis_block_height {
-            666050 => "1111111111111111111114oLvT2",
-            2000000 => "burn-address-regtest",
-            _ => "burn-address",
-        }
-    }
-}
-const POX_CONFIG_MAINNET: PoxConfig = PoxConfig {
-    genesis_block_height: 666050,
-    prepare_phase_len: 100,
-    reward_phase_len: 2100,
-    rewarded_addresses_per_block: 2,
-};
-
-const POX_CONFIG_TESTNET: PoxConfig = PoxConfig {
-    genesis_block_height: 2000000,
-    prepare_phase_len: 50,
-    reward_phase_len: 1050,
-    rewarded_addresses_per_block: 2,
-};
-
-const POX_CONFIG_DEVNET: PoxConfig = PoxConfig {
-    genesis_block_height: 100,
-    prepare_phase_len: 4,
-    reward_phase_len: 10,
-    rewarded_addresses_per_block: 2,
-};
-
 pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
     match network {
-        BitcoinNetwork::Mainnet => POX_CONFIG_MAINNET,
-        BitcoinNetwork::Testnet => POX_CONFIG_TESTNET,
-        BitcoinNetwork::Regtest => POX_CONFIG_DEVNET,
+        BitcoinNetwork::Mainnet => PoxConfig::mainnet_default(),
+        BitcoinNetwork::Testnet => PoxConfig::testnet_default(),
+        BitcoinNetwork::Regtest => PoxConfig::devnet_default(),
         BitcoinNetwork::Signet => unreachable!(),
     }
 }

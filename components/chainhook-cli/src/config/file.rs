@@ -3,11 +3,20 @@ use chainhook_sdk::types::BitcoinNetwork;
 #[derive(Deserialize, Debug, Clone)]
 pub struct ConfigFile {
     pub storage: StorageConfigFile,
+    pub pox_config: Option<PoxConfigFile>,
     pub http_api: Option<PredicatesApiConfigFile>,
     pub event_source: Option<Vec<EventSourceConfigFile>>,
     pub limits: LimitsConfigFile,
     pub network: NetworkConfigFile,
     pub monitoring: Option<MonitoringConfigFile>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PoxConfigFile {
+    pub first_burnchain_block_height: Option<u64>,
+    pub prepare_phase_len: Option<u64>,
+    pub reward_phase_len: Option<u64>,
+    pub rewarded_addresses_per_block: Option<usize>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
