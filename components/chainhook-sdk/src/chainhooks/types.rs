@@ -361,11 +361,12 @@ impl ScriptTemplate {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct PoxConfig {
     pub first_burnchain_block_height: u64,
     pub prepare_phase_len: u64,
     pub reward_phase_len: u64,
+    // TODO currently unused
     pub rewarded_addresses_per_block: usize,
 }
 

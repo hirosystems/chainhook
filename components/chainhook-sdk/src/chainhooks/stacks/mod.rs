@@ -1,10 +1,10 @@
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
-use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
+use super::types::{validate_txid, PoxConfig};
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
@@ -41,6 +41,8 @@ pub struct StacksChainhookSpecification {
     pub decode_clarity_values: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_contract_abi: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pox_config: Option<PoxConfig>,
     #[serde(rename = "if_this")]
     pub predicate: StacksPredicate,
     #[serde(rename = "then_that")]
@@ -57,6 +59,7 @@ impl StacksChainhookSpecification {
             capture_all_events: None,
             include_contract_abi: None,
             decode_clarity_values: None,
+            pox_config: None,
             predicate,
             action,
         }
@@ -197,6 +200,7 @@ impl StacksChainhookSpecificationNetworkMap {
             expire_after_occurrence: spec.expire_after_occurrence,
             include_contract_abi: spec.include_contract_abi,
             predicate: spec.predicate,
+            pox_config: spec.pox_config,
             action: spec.action,
             enabled: false,
             expired_at: None,
@@ -225,6 +229,8 @@ pub struct StacksChainhookInstance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decode_clarity_values: Option<bool>,
     pub include_contract_abi: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pox_config: Option<PoxConfig>,
     #[serde(rename = "predicate")]
     pub predicate: StacksPredicate,
     pub action: HookAction,
