@@ -78,7 +78,7 @@ pub async fn get_canonical_fork_from_tsv(
     let mut start_block = start_block.unwrap_or(0);
     info!(
         ctx.expect_logger(),
-        "Parsing tsv file to determine canoncial fork"
+        "Parsing tsv file to determine canonical fork"
     );
     let parsing_handle = hiro_system_kit::thread_named("Stacks chainstate CSV parsing")
         .spawn(move || {
