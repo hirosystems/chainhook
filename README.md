@@ -654,7 +654,7 @@ Putting all the pieces together:
 Developers can test their Stacks predicates without spinning up a Stacks node.
 To date, the Stacks blockchain has just over 2 years of activity, and the `chainhook` utility is able to work with both `testnet` and `mainnet` chainstates, in memory.  
 
-To test a Stacks `if_this` / `then_that` predicate, the following command can by used:
+To test a Stacks `if_this` / `then_that` predicate, the following command can be used:
 
 ```bash
 $ chainhook predicates scan ./path/to/predicate.json  --testnet
@@ -693,7 +693,7 @@ If you encounter a bug or have a feature request, we encourage you to follow the
 
  1. **Search for existing issues:** Before submitting a new issue, please search [existing and closed issues](../../issues) to check if a similar problem or feature request has already been reported.
  1. **Open a new issue:** If it hasn't been addressed, please [open a new issue](../../issues/new/choose). Choose the appropriate issue template and provide as much detail as possible, including steps to reproduce the bug or a clear description of the requested feature.
- 1. **Evaluation SLA:** Our team reads and evaluates all the issues and pull requests. We are avaliable Monday to Friday and we make a best effort to respond within 7 business days.
+ 1. **Evaluation SLA:** Our team reads and evaluates all the issues and pull requests. We are available Monday to Friday and we make a best effort to respond within 7 business days.
 
 Please **do not** use the issue tracker for personal support requests or to ask for the status of a transaction. You'll find help at the [#support Discord channel](https://discord.gg/SK3DxdsP).
 
