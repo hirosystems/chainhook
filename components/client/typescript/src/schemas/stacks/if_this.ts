@@ -79,6 +79,7 @@ export const StacksIfThisOptionsSchema = Type.Object({
   end_block: Type.Optional(Type.Integer()),
   expire_after_occurrence: Type.Optional(Type.Integer()),
   decode_clarity_values: Type.Optional(Type.Boolean()),
+  include_contract_abi: Type.Optional(Type.Boolean()),
 });
 export type StacksIfThisOptions = Static<typeof StacksIfThisOptionsSchema>;
 
