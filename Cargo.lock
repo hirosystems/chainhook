@@ -496,6 +496,7 @@ dependencies = [
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "chainhook-types",
+ "clarity",
  "crossbeam-channel",
  "dashmap",
  "futures",
