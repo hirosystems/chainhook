@@ -1,10 +1,10 @@
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
-use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
+use super::types::{validate_txid, PoxConfig};
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
