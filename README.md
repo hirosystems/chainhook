@@ -477,7 +477,7 @@ The current `stacks` predicates support the following `if_this` constructs:
 //  - string type, fully qualifying the contract to observe. example: `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.monkey-sip09`
 // `contains` or `matches_regex` argument admits:
 //  - `contains` string type, used for matching event containing the specific string.
-//  - `matches_regex` string type that should be a valid regex, used for matching event that regex matches with specific string.
+//  - `matches_regex` string type that should be a valid regex, used for matching event that regex matches with a specific string.
 {
     "if_this": {
         "scope": "print_event",
