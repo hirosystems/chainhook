@@ -627,7 +627,8 @@ fn try_parse_stacks_operation(
             if let Some(mining_post_commit) = outputs.get(mining_output_index) {
                 mining_sats_left = mining_post_commit.value.to_sat();
                 mining_address_post_commit = match mining_post_commit.script_pub_key.script() {
-                    Ok(script) => Address::from_script(&script, bitcoin::Network::Bitcoin).map(|a| a.to_string())
+                    Ok(script) => Address::from_script(&script, bitcoin::Network::Bitcoin)
+                        .map(|a| a.to_string())
                         .ok(),
                     Err(_) => None,
                 };

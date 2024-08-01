@@ -70,9 +70,8 @@ pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result
             {
                 match open_readwrite_stacks_db_conn(base_dir, ctx) {
                     Ok(_) => {
-                        let db = DB::open_for_read_only(&opts, path, false).map_err(|e| {
-                            format!("unable to open stacks.rocksdb: {}", e)
-                        })?;
+                        let db = DB::open_for_read_only(&opts, path, false)
+                            .map_err(|e| format!("unable to open stacks.rocksdb: {}", e))?;
                         Ok(db)
                     }
                     Err(e) => Err(e),
@@ -87,8 +86,7 @@ pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result
 pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
     let path = get_default_stacks_db_file_path(base_dir);
     let opts = get_db_default_options();
-    let db = DB::open(&opts, path)
-        .map_err(|e| format!("unable to open stacks.rocksdb: {}", e))?;
+    let db = DB::open(&opts, path).map_err(|e| format!("unable to open stacks.rocksdb: {}", e))?;
     Ok(db)
 }
 
@@ -195,9 +193,12 @@ pub fn delete_confirmed_entry_from_stacks_blocks(
 pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
     stacks_db
         .get(get_last_unconfirmed_insert_key())
-        .unwrap_or(None).map(|bytes| u64::from_be_bytes([
+        .unwrap_or(None)
+        .map(|bytes| {
+            u64::from_be_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]))
+            ])
+        })
 }
 
 pub fn get_all_unconfirmed_blocks(
@@ -226,9 +227,12 @@ pub fn get_all_unconfirmed_blocks(
 pub fn get_last_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<u64> {
     stacks_db
         .get(get_last_confirmed_insert_key())
-        .unwrap_or(None).map(|bytes| u64::from_be_bytes([
+        .unwrap_or(None)
+        .map(|bytes| {
+            u64::from_be_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]))
+            ])
+        })
 }
 
 pub fn confirm_entries_in_stacks_blocks(
@@ -273,10 +277,8 @@ pub fn get_stacks_block_at_block_height(
         }) {
             Ok(Some(entry)) => {
                 return Ok(Some({
-                    let spec: StacksBlockData =
-                        serde_json::from_slice(&entry[..]).map_err(|e| {
-                            format!("unable to deserialize Stacks block {}", e)
-                        })?;
+                    let spec: StacksBlockData = serde_json::from_slice(&entry[..])
+                        .map_err(|e| format!("unable to deserialize Stacks block {}", e))?;
                     spec
                 }))
             }

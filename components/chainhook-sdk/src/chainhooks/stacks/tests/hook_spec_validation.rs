@@ -1,8 +1,12 @@
-use std::collections::BTreeMap;
-use crate::chainhooks::stacks::{StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap, StacksContractCallBasedPredicate, StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate};
-use crate::chainhooks::types::*;
+use crate::chainhooks::stacks::{
+    StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap,
+    StacksContractCallBasedPredicate, StacksContractDeploymentPredicate, StacksPredicate,
+    StacksPrintEventBasedPredicate,
+};
 use crate::chainhooks::types::HttpHook;
+use crate::chainhooks::types::*;
 use chainhook_types::StacksNetwork;
+use std::collections::BTreeMap;
 use test_case::test_case;
 
 lazy_static! {
@@ -32,24 +36,24 @@ lazy_static! {
     static ref CONTRACT_METHOD_ERR: String = "invalid predicate for scope 'contract_call': invalid contract method: BadNameValue(\"ClarityName\", \"!@*&!*\")".into();
     static ref PRINT_EVENT_ID_ERR: String = "invalid predicate for scope 'print_event': invalid contract identifier: ParseError(\"Invalid principal literal: base58ck checksum 0x147e6835 does not match expected 0x9b3dfe6a\")".into();
     static ref INVALID_REGEX_ERR: String = "invalid predicate for scope 'print_event': invalid regex: regex parse error:\n    [\\]\n    ^\nerror: unclosed character class".into();
-    
+
     static ref INVALID_PREDICATE: StacksPredicate = StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex { contract_identifier: CONTRACT_ID_INVALID_ADDRESS.clone(), regex:  INVALID_REGEX.clone() });
-    static ref INVALID_HOOK_ACTION: HookAction = 
+    static ref INVALID_HOOK_ACTION: HookAction =
         HookAction::HttpPost(HttpHook { url: "".into(), authorization_header: "\n".into() });
     static ref ALL_INVALID_SPEC: StacksChainhookSpecification = StacksChainhookSpecification::new(INVALID_PREDICATE.clone(), INVALID_HOOK_ACTION.clone());
-    static ref ALL_INVALID_SPEC_NETWORK_MAP: ChainhookSpecificationNetworkMap = 
+    static ref ALL_INVALID_SPEC_NETWORK_MAP: ChainhookSpecificationNetworkMap =
         ChainhookSpecificationNetworkMap::Stacks(
-            StacksChainhookSpecificationNetworkMap { 
-                uuid: "test".into(), 
-                owner_uuid: None, 
-                name: "test".into(), 
-                version: 1, 
+            StacksChainhookSpecificationNetworkMap {
+                uuid: "test".into(),
+                owner_uuid: None,
+                name: "test".into(),
+                version: 1,
                 networks: BTreeMap::from([
                     (StacksNetwork::Simnet, ALL_INVALID_SPEC.clone()),
                     (StacksNetwork::Devnet, ALL_INVALID_SPEC.clone()),
                     (StacksNetwork::Testnet, ALL_INVALID_SPEC.clone()),
                     (StacksNetwork::Mainnet, ALL_INVALID_SPEC.clone()),
-                ]) 
+                ])
             }
         );
 
@@ -191,7 +195,6 @@ fn it_validates_stacks_predicates(predicate: &StacksPredicate, expected_err: Opt
         );
     }
 }
-
 
 #[test_case(&ALL_INVALID_SPEC_NETWORK_MAP, INVALID_SPEC_NETWORK_MAP_ERR.clone())]
 fn it_validates_stacks_chainhook_specs(

@@ -506,18 +506,14 @@ pub struct BitcoinChainhookOccurrencePayload {
 }
 
 impl BitcoinChainhookOccurrencePayload {
-    pub fn from_trigger(
-        trigger: BitcoinTriggerChainhook<'_>,
-    ) -> BitcoinChainhookOccurrencePayload {
+    pub fn from_trigger(trigger: BitcoinTriggerChainhook<'_>) -> BitcoinChainhookOccurrencePayload {
         BitcoinChainhookOccurrencePayload {
             apply: trigger
                 .apply
                 .into_iter()
                 .map(|(transactions, block)| {
                     let mut block = block.clone();
-                    block.transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    block.transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     BitcoinTransactionPayload { block }
                 })
                 .collect::<Vec<_>>(),
@@ -526,9 +522,7 @@ impl BitcoinChainhookOccurrencePayload {
                 .into_iter()
                 .map(|(transactions, block)| {
                     let mut block = block.clone();
-                    block.transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    block.transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     BitcoinTransactionPayload { block }
                 })
                 .collect::<Vec<_>>(),

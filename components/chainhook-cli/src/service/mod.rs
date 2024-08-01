@@ -441,12 +441,14 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Bitcoin,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Bitcoin,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireBitcoinPredicate(
@@ -466,12 +468,14 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Bitcoin,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Bitcoin,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireBitcoinPredicate(
@@ -570,12 +574,14 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithBlocks(data) => {
                                 stacks_event += 1;
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Stacks,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Stacks,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireStacksPredicate(
@@ -593,12 +599,14 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithReorg(data) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Stacks,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Stacks,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireStacksPredicate(
@@ -633,7 +641,8 @@ impl Service {
                                 &mut self.config,
                                 &self.ctx,
                             )
-                            .await {
+                            .await
+                            {
                                 error!(
                                     self.ctx.expect_logger(),
                                     "Failed to update database from archive: {e}"

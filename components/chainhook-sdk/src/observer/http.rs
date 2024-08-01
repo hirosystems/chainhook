@@ -267,13 +267,8 @@ pub fn handle_new_microblocks(
     // Standardize the structure of the microblock, and identify the
     // kind of update that this new microblock would imply
     let chain_event = match indexer_rw_lock.inner().write() {
-        Ok(mut indexer) => {
-            
-            indexer.handle_stacks_marshalled_microblock_trail(
-                marshalled_microblock.into_inner(),
-                ctx,
-            )
-        }
+        Ok(mut indexer) => indexer
+            .handle_stacks_marshalled_microblock_trail(marshalled_microblock.into_inner(), ctx),
         Err(e) => {
             ctx.try_log(|logger| {
                 slog::warn!(

@@ -82,12 +82,12 @@ pub async fn filter_predicate_status_from_all_predicates(
                         match matching_predicate {
                             Some(predicate) => match predicate.get("status") {
                                 Some(status) => {
-                                    return serde_json::from_value(status.clone()).map_err(|e| {
-                                        format!("failed to parse status {}", e)
-                                    });
+                                    return serde_json::from_value(status.clone())
+                                        .map_err(|e| format!("failed to parse status {}", e));
                                 }
                                 None => {
-                                    return Err("no status field on matching get predicates result".to_string())
+                                    return Err("no status field on matching get predicates result"
+                                        .to_string())
                                 }
                             },
                             None => {
@@ -98,7 +98,9 @@ pub async fn filter_predicate_status_from_all_predicates(
                         }
                     }
                     None => {
-                        return Err("failed to parse get predicate response's result field".to_string())
+                        return Err(
+                            "failed to parse get predicate response's result field".to_string()
+                        )
                     }
                 },
                 None => {
@@ -267,10 +269,7 @@ pub fn flush_redis(port: u16) {
     let client = redis::Client::open(format!("redis://localhost:{port}/"))
         .expect("unable to connect to redis");
     let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
-    let db_keys: Vec<String> = predicate_db_conn
-        .scan_match("*")
-        .unwrap()
-        .collect();
+    let db_keys: Vec<String> = predicate_db_conn.scan_match("*").unwrap().collect();
     for k in db_keys {
         predicate_db_conn.del::<_, ()>(&k).unwrap();
     }
@@ -343,12 +342,7 @@ pub async fn start_chainhook_service(
             );
             let _ = hiro_system_kit::nestable_block_on(future);
         })
-        .map_err(|e| {
-            format!(
-                "failed to start chainhook service thread, {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to start chainhook service thread, {}", e))?;
 
     // Loop to check if the server is ready
     let mut attempts = 0;

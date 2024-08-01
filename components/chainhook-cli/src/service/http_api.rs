@@ -156,7 +156,7 @@ fn handle_create_predicate(
             return Json(json!({
                 "status": 409,
                 "error": "Predicate uuid already in use",
-            }))
+            }));
         }
     }
 
@@ -273,8 +273,7 @@ pub fn get_entry_from_predicates_db(
     let entry: HashMap<String, String> = predicate_db_conn.hgetall(predicate_key).map_err(|e| {
         format!(
             "unable to load chainhook associated with key {}: {}",
-            predicate_key,
-            e
+            predicate_key, e
         )
     })?;
 
@@ -338,8 +337,8 @@ pub fn load_predicates_from_redis(
     ctx: &Context,
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
-    let client = redis::Client::open(redis_uri)
-        .map_err(|e| format!("unable to connect to redis: {}", e))?;
+    let client =
+        redis::Client::open(redis_uri).map_err(|e| format!("unable to connect to redis: {}", e))?;
     let mut predicate_db_conn = client
         .get_connection()
         .map_err(|e| format!("unable to connect to redis: {}", e))?;

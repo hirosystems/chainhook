@@ -303,10 +303,7 @@ impl HttpHook {
             errors.push(format!("url string must be a valid Url: {}", e));
         }
         if let Err(e) = reqwest::header::HeaderValue::from_str(&self.authorization_header) {
-            errors.push(format!(
-                "auth header must be a valid header value: {}",
-                e
-            ));
+            errors.push(format!("auth header must be a valid header value: {}", e));
         };
 
         if errors.is_empty() {

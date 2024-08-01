@@ -6,11 +6,11 @@ use crate::service::{
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
+use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
-use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
@@ -49,10 +49,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut chain_tip = match bitcoin_rpc.get_blockchain_info() {
         Ok(result) => result.blocks,
         Err(e) => {
-            return Err(format!(
-                "unable to retrieve Bitcoin chain tip ({})",
-                e
-            ));
+            return Err(format!("unable to retrieve Bitcoin chain tip ({})", e));
         }
     };
 
@@ -138,10 +135,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             chain_tip = match bitcoin_rpc.get_blockchain_info() {
                 Ok(result) => result.blocks,
                 Err(e) => {
-                    return Err(format!(
-                        "unable to retrieve Bitcoin chain tip ({})",
-                        e
-                    ));
+                    return Err(format!("unable to retrieve Bitcoin chain tip ({})", e));
                 }
             };
             // if the chain hasn't progressed, break out so we can enter streaming mode
@@ -303,9 +297,7 @@ pub async fn execute_predicates_action<'a>(
                     BitcoinChainhookOccurrence::Http(request, _) => {
                         send_request(request, 10, 3, ctx).await?
                     }
-                    BitcoinChainhookOccurrence::File(path, bytes) => {
-                        file_append(path, bytes, ctx)?
-                    }
+                    BitcoinChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx)?,
                     BitcoinChainhookOccurrence::Data(_payload) => {}
                 };
             }

@@ -1,10 +1,10 @@
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
+use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
-use super::types::validate_txid;
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
@@ -482,17 +482,13 @@ pub struct StacksChainhookOccurrencePayload {
 }
 
 impl StacksChainhookOccurrencePayload {
-    pub fn from_trigger(
-        trigger: StacksTriggerChainhook<'_>,
-    ) -> StacksChainhookOccurrencePayload {
+    pub fn from_trigger(trigger: StacksTriggerChainhook<'_>) -> StacksChainhookOccurrencePayload {
         StacksChainhookOccurrencePayload {
             apply: trigger
                 .apply
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksApplyTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -503,9 +499,7 @@ impl StacksChainhookOccurrencePayload {
                 .rollback
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksRollbackTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -947,7 +941,9 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
         }
         StacksPredicate::PrintEvent(expected_event) => {
             for event in transaction.metadata.receipt.events.iter() {
-                if let StacksTransactionEventPayload::SmartContractEvent(actual) = &event.event_payload {
+                if let StacksTransactionEventPayload::SmartContractEvent(actual) =
+                    &event.event_payload
+                {
                     if actual.topic == "print" {
                         match expected_event {
                             StacksPrintEventBasedPredicate::Contains {
@@ -1233,7 +1229,7 @@ pub fn serialized_decoded_clarity_value(hex_value: &str, ctx: &Context) -> serde
         Ok(bytes) => bytes,
         _ => return json!(hex_value.to_string()),
     };
-    
+
     match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => serialize_to_json(&value),
         Err(e) => {

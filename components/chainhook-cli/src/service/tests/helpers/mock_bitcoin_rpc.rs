@@ -187,10 +187,7 @@ fn handle_rpc(
             })
         }
         "getblockchaininfo" => {
-            let (branch, (chain_tip, _)) = fork_tracker
-                .iter()
-                .max_by(|a, b| a.1.cmp(b.1))
-                .unwrap();
+            let (branch, (chain_tip, _)) = fork_tracker.iter().max_by(|a, b| a.1.cmp(b.1)).unwrap();
 
             let hash = branch_and_height_to_hash(Some(*branch), *chain_tip);
             let blockchain_info = GetBlockchainInfoResult {
@@ -243,10 +240,7 @@ fn handle_rpc(
             })
         }
         "getblockhash" => {
-            let (branch, _) = fork_tracker
-                .iter()
-                .max_by(|a, b| a.1.cmp(b.1))
-                .unwrap();
+            let (branch, _) = fork_tracker.iter().max_by(|a, b| a.1.cmp(b.1)).unwrap();
 
             let height = rpc.params[0].as_u64().unwrap();
             let hash = branch_and_height_to_hash(Some(*branch), height);

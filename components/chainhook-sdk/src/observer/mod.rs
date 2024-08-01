@@ -363,7 +363,6 @@ impl EventObserverConfig {
     }
 
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
-        
         BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
             password: self.bitcoind_rpc_password.clone(),
@@ -1049,8 +1048,7 @@ pub fn get_bitcoin_proof(
         Ok(proof) => Ok(format!("0x{}", hex::encode(&proof))),
         Err(e) => Err(format!(
             "failed collecting proof for transaction {}: {}",
-            transaction_identifier.hash,
-            e
+            transaction_identifier.hash, e
         )),
     }
 }
@@ -1361,7 +1359,8 @@ pub async fn start_observer_commands_handler(
 
                         if let Some(highest_tip_block) = blocks_to_apply
                             .iter()
-                            .max_by_key(|b| b.block_identifier.index) {
+                            .max_by_key(|b| b.block_identifier.index)
+                        {
                             prometheus_monitoring.btc_metrics_set_reorg(
                                 highest_tip_block.timestamp.into(),
                                 blocks_to_apply.len() as u64,

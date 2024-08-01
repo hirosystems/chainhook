@@ -91,9 +91,11 @@ pub async fn get_canonical_fork_from_tsv(
 
             for result in reader_builder.deserialize() {
                 let record: Record = result.unwrap();
-                if let RecordKind::StacksBlockReceived = &record.kind { if let Err(_e) = record_tx.send(Some(record)) {
-                    break;
-                } };
+                if let RecordKind::StacksBlockReceived = &record.kind {
+                    if let Err(_e) = record_tx.send(Some(record)) {
+                        break;
+                    }
+                };
             }
             let _ = record_tx.send(None);
         })

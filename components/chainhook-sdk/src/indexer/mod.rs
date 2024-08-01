@@ -109,7 +109,6 @@ impl Indexer {
         header: BlockHeader,
         ctx: &Context,
     ) -> Result<Option<BlockchainEvent>, String> {
-        
         self.bitcoin_blocks_pool.process_header(header, ctx)
     }
 

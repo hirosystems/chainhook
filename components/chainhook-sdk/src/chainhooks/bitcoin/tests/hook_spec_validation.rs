@@ -1,8 +1,8 @@
 use super::*;
+use crate::chainhooks::types::HttpHook;
 use crate::chainhooks::{bitcoin::InscriptionFeedData, types::ChainhookSpecificationNetworkMap};
 use chainhook_types::BitcoinNetwork;
 use test_case::test_case;
-use crate::chainhooks::types::HttpHook;
 
 lazy_static! {
     static ref TXID_NO_PREFIX: String = "1234567890123456789012345678901234567890123456789012345678901234".into();
@@ -21,22 +21,22 @@ lazy_static! {
 
     static ref INVALID_TXID_PREDICATE: BitcoinPredicateType =
         BitcoinPredicateType::Txid(ExactMatchingRule::Equals("test".into()));
-    static ref INVALID_HOOK_ACTION: HookAction = 
+    static ref INVALID_HOOK_ACTION: HookAction =
         HookAction::HttpPost(HttpHook { url: "".into(), authorization_header: "\n".into() });
     static ref ALL_INVALID_SPEC: BitcoinChainhookSpecification = BitcoinChainhookSpecification::new(INVALID_TXID_PREDICATE.clone(), INVALID_HOOK_ACTION.clone());
-    static ref ALL_INVALID_SPEC_NETWORK_MAP: ChainhookSpecificationNetworkMap = 
+    static ref ALL_INVALID_SPEC_NETWORK_MAP: ChainhookSpecificationNetworkMap =
         ChainhookSpecificationNetworkMap::Bitcoin(
-            BitcoinChainhookSpecificationNetworkMap { 
-                uuid: "test".into(), 
-                owner_uuid: None, 
-                name: "test".into(), 
-                version: 1, 
+            BitcoinChainhookSpecificationNetworkMap {
+                uuid: "test".into(),
+                owner_uuid: None,
+                name: "test".into(),
+                version: 1,
                 networks: BTreeMap::from([
                     (BitcoinNetwork::Regtest, ALL_INVALID_SPEC.clone()),
                     (BitcoinNetwork::Signet, ALL_INVALID_SPEC.clone()),
                     (BitcoinNetwork::Mainnet, ALL_INVALID_SPEC.clone()),
                     (BitcoinNetwork::Testnet, ALL_INVALID_SPEC.clone()),
-                ]) 
+                ])
             }
         );
 }
@@ -137,16 +137,15 @@ lazy_static! {
 #[test_case(&BitcoinPredicateType::StacksProtocol(StacksOperations::StackerRewarded), None; "stacks protocol")]
 // BitcoinPredicateType::OrdinalsProtocol
 #[test_case(&BitcoinPredicateType::OrdinalsProtocol(OrdinalOperations::InscriptionFeed(InscriptionFeedData { meta_protocols: None})), None; "ordinals protocol")]
-fn it_validates_bitcoin_predicates(predicate: &BitcoinPredicateType, expected_err: Option<Vec<String>>) {
+fn it_validates_bitcoin_predicates(
+    predicate: &BitcoinPredicateType,
+    expected_err: Option<Vec<String>>,
+) {
     if let Err(e) = predicate.validate() {
         if let Some(expected) = expected_err {
             assert_eq!(e, expected);
-        }
-        else {
-            panic!(
-                "Unexpected error in predicate validation: {:?}",
-                predicate
-            );
+        } else {
+            panic!("Unexpected error in predicate validation: {:?}", predicate);
         }
     } else if expected_err.is_some() {
         panic!(
@@ -156,19 +155,14 @@ fn it_validates_bitcoin_predicates(predicate: &BitcoinPredicateType, expected_er
     }
 }
 
-
 #[test_case(&INVALID_HOOK_ACTION, Some(vec![INVALID_URL_ERR.clone(), INVALID_HTTP_HEADER_ERR.clone()]); "invalid http_post action"
 )]
 fn it_validates_hook_actions(action: &HookAction, expected_err: Option<Vec<String>>) {
     if let Err(e) = action.validate() {
         if let Some(expected) = expected_err {
             assert_eq!(e, expected);
-        }
-        else {
-            panic!(
-                "Unexpected error in predicate validation: {:?}",
-                action
-            );
+        } else {
+            panic!("Unexpected error in predicate validation: {:?}", action);
         }
     } else if expected_err.is_some() {
         panic!(

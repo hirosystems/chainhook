@@ -55,17 +55,11 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
                     Ok(0) => break,
                     Ok(n) => {
                         if let Err(e) = file.write_all(&buffer[..n]) {
-                            return Err(format!(
-                                "unable to update compressed archive: {}",
-                                e
-                            ));
+                            return Err(format!("unable to update compressed archive: {}", e));
                         }
                     }
                     Err(e) => {
-                        return Err(format!(
-                            "unable to write compressed archive: {}",
-                            e
-                        ));
+                        return Err(format!("unable to write compressed archive: {}", e));
                     }
                 }
             }

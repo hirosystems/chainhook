@@ -207,11 +207,7 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
                 let _ = file.write_all(&bytes);
             }
             Err(e) => {
-                let msg = format!(
-                    "unable to create file {}: {}",
-                    file_path.display(),
-                    e
-                );
+                let msg = format!("unable to create file {}: {}", file_path.display(), e);
                 ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
                 return Err(msg);
             }
@@ -220,7 +216,6 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
 
     let mut file = match OpenOptions::new()
         .create(false)
-        
         .append(true)
         .open(file_path)
     {

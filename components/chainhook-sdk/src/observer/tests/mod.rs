@@ -80,7 +80,6 @@ fn stacks_chainhook_contract_call(
         },
     );
 
-    
     StacksChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
@@ -114,7 +113,6 @@ fn bitcoin_chainhook_p2pkh(
         },
     );
 
-    
     BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
@@ -146,7 +144,6 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap
         },
     );
 
-    
     BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),

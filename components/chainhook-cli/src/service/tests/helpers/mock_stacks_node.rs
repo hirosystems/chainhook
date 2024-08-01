@@ -315,12 +315,7 @@ pub async fn mine_stacks_block(
         .map_err(|e| format!("failed to send new_block request: {}", e))?
         .text()
         .await
-        .map_err(|e| {
-            format!(
-                "failed to parse response for new_block request: {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to parse response for new_block request: {}", e))?;
     Ok(())
 }
 
@@ -393,12 +388,7 @@ async fn call_new_burn_block(
         .map_err(|e| format!("failed to send new_burn_block request: {}", e))?
         .text()
         .await
-        .map_err(|e| {
-            format!(
-                "failed to parse response for new_burn_block request: {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to parse response for new_burn_block request: {}", e))?;
     Ok(())
 }
 

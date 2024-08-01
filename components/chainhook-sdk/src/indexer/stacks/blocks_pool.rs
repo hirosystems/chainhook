@@ -508,12 +508,13 @@ impl StacksBlockPool {
                         micro_fork.try_append_block(&microblock, ctx);
                     if block_appended {
                         ctx.try_log(|logger| {
-                            slog::info!(logger,
-                            "Attempt to append micro fork {} with {} (parent = {}) succeeded",
-                            micro_fork,
-                            microblock.block_identifier,
-                            microblock.parent_block_identifier
-                        )
+                            slog::info!(
+                                logger,
+                                "Attempt to append micro fork {} with {} (parent = {}) succeeded",
+                                micro_fork,
+                                microblock.block_identifier,
+                                microblock.parent_block_identifier
+                            )
                         });
                         if let Some(new_micro_fork) = new_micro_fork.take() {
                             microforks.push(new_micro_fork);
@@ -696,7 +697,8 @@ impl StacksBlockPool {
             (Some(last_microblock), Some(microforks)) => {
                 let previous_canonical_segment = self
                     .canonical_micro_fork_id
-                    .get(&block.parent_block_identifier).map(|id| microforks[*id].clone());
+                    .get(&block.parent_block_identifier)
+                    .map(|id| microforks[*id].clone());
 
                 let mut new_canonical_segment = None;
                 for (microfork_id, microfork) in microforks.iter().enumerate() {
