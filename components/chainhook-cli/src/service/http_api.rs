@@ -89,7 +89,7 @@ fn handle_get_predicates(
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP GET /v1/chainhooks"));
     match open_readwrite_predicates_db_conn(api_config) {
         Ok(mut predicates_db_conn) => {
-            let predicates = match get_entries_from_predicates_db(&mut predicates_db_conn, &ctx) {
+            let predicates = match get_entries_from_predicates_db(&mut predicates_db_conn, ctx) {
                 Ok(predicates) => predicates,
                 Err(e) => {
                     ctx.try_log(|logger| slog::warn!(logger, "unable to retrieve predicates: {e}"));
@@ -148,27 +148,21 @@ fn handle_create_predicate(
     let predicate_uuid = predicate.get_uuid().to_string();
 
     if let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn(api_config) {
-        match get_entry_from_predicates_db(
+        if let Ok(Some(_)) = get_entry_from_predicates_db(
             &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
             &mut predicates_db_conn,
-            &ctx,
+            ctx,
         ) {
-            Ok(Some(_)) => {
-                return Json(json!({
-                    "status": 409,
-                    "error": "Predicate uuid already in use",
-                }))
-            }
-            _ => {}
+            return Json(json!({
+                "status": 409,
+                "error": "Predicate uuid already in use",
+            }))
         }
     }
 
     let background_job_tx = background_job_tx.inner();
-    match background_job_tx.lock() {
-        Ok(tx) => {
-            let _ = tx.send(ObserverCommand::RegisterPredicate(predicate));
-        }
-        _ => {}
+    if let Ok(tx) = background_job_tx.lock() {
+        let _ = tx.send(ObserverCommand::RegisterPredicate(predicate));
     };
 
     Json(json!({
@@ -197,7 +191,7 @@ fn handle_get_predicate(
             let (predicate, status) = match get_entry_from_predicates_db(
                 &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
                 &mut predicates_db_conn,
-                &ctx,
+                ctx,
             ) {
                 Ok(Some(predicate_with_status)) => predicate_with_status,
                 _ => {
@@ -235,11 +229,8 @@ fn handle_delete_stacks_predicate(
     });
 
     let background_job_tx = background_job_tx.inner();
-    match background_job_tx.lock() {
-        Ok(tx) => {
-            let _ = tx.send(ObserverCommand::DeregisterStacksPredicate(predicate_uuid));
-        }
-        _ => {}
+    if let Ok(tx) = background_job_tx.lock() {
+        let _ = tx.send(ObserverCommand::DeregisterStacksPredicate(predicate_uuid));
     };
 
     Json(json!({
@@ -264,11 +255,8 @@ fn handle_delete_bitcoin_predicate(
     });
 
     let background_job_tx = background_job_tx.inner();
-    match background_job_tx.lock() {
-        Ok(tx) => {
-            let _ = tx.send(ObserverCommand::DeregisterBitcoinPredicate(predicate_uuid));
-        }
-        _ => {}
+    if let Ok(tx) = background_job_tx.lock() {
+        let _ = tx.send(ObserverCommand::DeregisterBitcoinPredicate(predicate_uuid));
     };
 
     Json(json!({
@@ -286,7 +274,7 @@ pub fn get_entry_from_predicates_db(
         format!(
             "unable to load chainhook associated with key {}: {}",
             predicate_key,
-            e.to_string()
+            e
         )
     })?;
 
@@ -295,7 +283,7 @@ pub fn get_entry_from_predicates_db(
         Some(payload) => payload,
     };
 
-    let spec = ChainhookInstance::deserialize_specification(&encoded_spec)?;
+    let spec = ChainhookInstance::deserialize_specification(encoded_spec)?;
 
     let encoded_status = match entry.get("status") {
         None => Err(format!(
@@ -305,7 +293,7 @@ pub fn get_entry_from_predicates_db(
         Some(payload) => Ok(payload),
     }?;
 
-    let status = serde_json::from_str(&encoded_status).map_err(|e| format!("{}", e.to_string()))?;
+    let status = serde_json::from_str(encoded_status).map_err(|e| format!("{}", e))?;
 
     Ok(Some((spec, status)))
 }
@@ -316,8 +304,7 @@ pub fn get_entries_from_predicates_db(
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let chainhooks_to_load: Vec<String> = predicate_db_conn
         .scan_match(ChainhookInstance::either_stx_or_btc_key("*"))
-        .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?
-        .into_iter()
+        .map_err(|e| format!("unable to connect to redis: {}", e))?
         .collect();
 
     let mut predicates = vec![];
@@ -352,17 +339,17 @@ pub fn load_predicates_from_redis(
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
     let client = redis::Client::open(redis_uri)
-        .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
+        .map_err(|e| format!("unable to connect to redis: {}", e))?;
     let mut predicate_db_conn = client
         .get_connection()
-        .map_err(|e| format!("unable to connect to redis: {}", e.to_string()))?;
+        .map_err(|e| format!("unable to connect to redis: {}", e))?;
     get_entries_from_predicates_db(&mut predicate_db_conn, ctx)
 }
 
 pub fn document_predicate_api_server() -> Result<String, String> {
     let (_, spec) = get_routes_spec();
     let json_spec = serde_json::to_string_pretty(&spec)
-        .map_err(|e| format!("failed to serialize openapi spec: {}", e.to_string()))?;
+        .map_err(|e| format!("failed to serialize openapi spec: {}", e))?;
     Ok(json_spec)
 }
 

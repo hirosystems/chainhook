@@ -61,7 +61,7 @@ async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Sh
             let result = obj.get("result").unwrap().to_string();
             Ok((status, result))
         }
-        _ => Err(format!("Register predicate result is not correct type")),
+        _ => Err("Register predicate result is not correct type".to_string()),
     }
     .map_err(|e| (e, moved_shutdown))?;
 
@@ -81,9 +81,7 @@ async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Sh
                     .unwrap();
             Ok(registered_predicate)
         }
-        _ => Err(format!(
-            "Received wrong observer command for predicate registration"
-        )),
+        _ => Err("Received wrong observer command for predicate registration".to_string()),
     }
     .map_err(|e| (e, moved_shutdown))?;
 
@@ -356,7 +354,7 @@ async fn await_new_scanning_status_complete(
             PredicateStatus::New | PredicateStatus::Scanning(_) => {
                 attempts += 1;
                 if attempts == 10 {
-                    return Err(format!("predicate stuck in new/scanning status"));
+                    return Err("predicate stuck in new/scanning status".to_string());
                 }
                 sleep(Duration::new(1, 0));
             }
@@ -1009,7 +1007,7 @@ pub fn cleanup_err(
 }
 
 pub fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
-    let _ = std::fs::remove_dir_all(&working_dir);
+    let _ = std::fs::remove_dir_all(working_dir);
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }

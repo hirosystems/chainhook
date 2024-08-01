@@ -111,10 +111,8 @@ pub fn start_stacks_scan_runloop(
                                     &moved_ctx,
                                 );
                             }
-
-                            return;
                         }
-                    };
+                    }
                 });
             }
             StacksScanOp::KillScan(predicate_uuid) => {
@@ -126,7 +124,7 @@ pub fn start_stacks_scan_runloop(
             }
         }
     }
-    let _ = stacks_scan_pool.join();
+    stacks_scan_pool.join();
 }
 
 pub enum BitcoinScanOp {
@@ -197,9 +195,8 @@ pub fn start_bitcoin_scan_runloop(
                                     &moved_ctx,
                                 )
                             }
-                            return;
                         }
-                    };
+                    }
                 });
             }
             BitcoinScanOp::KillScan(predicate_uuid) => {
@@ -211,5 +208,5 @@ pub fn start_bitcoin_scan_runloop(
             }
         }
     }
-    let _ = bitcoin_scan_pool.join();
+    bitcoin_scan_pool.join();
 }

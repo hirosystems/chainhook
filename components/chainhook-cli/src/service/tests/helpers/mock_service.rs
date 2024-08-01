@@ -42,20 +42,20 @@ pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStat
                 Some(result) => match result.get("status") {
                     Some(status) => {
                         return serde_json::from_value(status.clone())
-                            .map_err(|e| format!("failed to parse status {}", e.to_string()));
+                            .map_err(|e| format!("failed to parse status {}", e));
                     }
-                    None => return Err(format!("no status field on get predicate result")),
+                    None => return Err("no status field on get predicate result".to_string()),
                 },
                 None => {
                     attempts += 1;
                     if attempts == 10 {
-                        return Err(format!("no result field on get predicate response"));
+                        return Err("no result field on get predicate response".to_string());
                     } else {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                 }
             },
-            None => return Err(format!("failed to parse get predicate response")),
+            None => return Err("failed to parse get predicate response".to_string()),
         }
     }
 }
@@ -83,13 +83,11 @@ pub async fn filter_predicate_status_from_all_predicates(
                             Some(predicate) => match predicate.get("status") {
                                 Some(status) => {
                                     return serde_json::from_value(status.clone()).map_err(|e| {
-                                        format!("failed to parse status {}", e.to_string())
+                                        format!("failed to parse status {}", e)
                                     });
                                 }
                                 None => {
-                                    return Err(format!(
-                                        "no status field on matching get predicates result"
-                                    ))
+                                    return Err("no status field on matching get predicates result".to_string())
                                 }
                             },
                             None => {
@@ -100,21 +98,19 @@ pub async fn filter_predicate_status_from_all_predicates(
                         }
                     }
                     None => {
-                        return Err(format!(
-                            "failed to parse get predicate response's result field"
-                        ))
+                        return Err("failed to parse get predicate response's result field".to_string())
                     }
                 },
                 None => {
                     attempts += 1;
                     if attempts == 10 {
-                        return Err(format!("no result field on get predicates response"));
+                        return Err("no result field on get predicates response".to_string());
                     } else {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                 }
             },
-            None => return Err(format!("failed to parse get predicate response")),
+            None => return Err("failed to parse get predicate response".to_string()),
         }
     }
 }
@@ -181,8 +177,8 @@ pub async fn call_ping(port: u16) -> Result<JsonValue, String> {
     let res = call_observer_svc(&url, Method::GET, None).await?;
     match res.get("result") {
         Some(result) => serde_json::from_value(result.clone())
-            .map_err(|e| format!("failed to parse observer metrics {}", e.to_string())),
-        None => Err(format!("Failed parse result of observer ping")),
+            .map_err(|e| format!("failed to parse observer metrics {}", e)),
+        None => Err("Failed parse result of observer ping".to_string()),
     }
 }
 
@@ -242,7 +238,7 @@ pub async fn start_redis(port: u16) -> Result<Child, String> {
         .arg(format!("--port {port}"))
         .stdout(Stdio::null())
         .spawn()
-        .map_err(|e| format!("failed to create start-redis command: {}", e.to_string()))?;
+        .map_err(|e| format!("failed to create start-redis command: {}", e))?;
     let mut attempts = 0;
     loop {
         match redis::Client::open(format!("redis://localhost:{port}/")) {
@@ -251,7 +247,7 @@ pub async fn start_redis(port: u16) -> Result<Child, String> {
                 Err(e) => {
                     attempts += 1;
                     if attempts == 10 {
-                        return Err(format!("failed to start redis service: {}", e.to_string()));
+                        return Err(format!("failed to start redis service: {}", e));
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await
                 }
@@ -259,7 +255,7 @@ pub async fn start_redis(port: u16) -> Result<Child, String> {
             Err(e) => {
                 attempts += 1;
                 if attempts == 10 {
-                    return Err(format!("failed to start redis service: {}", e.to_string()));
+                    return Err(format!("failed to start redis service: {}", e));
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await
             }
@@ -274,7 +270,6 @@ pub fn flush_redis(port: u16) {
     let db_keys: Vec<String> = predicate_db_conn
         .scan_match("*")
         .unwrap()
-        .into_iter()
         .collect();
     for k in db_keys {
         predicate_db_conn.del::<_, ()>(&k).unwrap();
@@ -343,7 +338,7 @@ pub async fn start_chainhook_service(
     let _ = hiro_system_kit::thread_named("Chainhook service")
         .spawn(move || {
             let future = service.run(
-                startup_predicates.unwrap_or(vec![]),
+                startup_predicates.unwrap_or_default(),
                 Some((moved_observer_command_tx, observer_command_rx)),
             );
             let _ = hiro_system_kit::nestable_block_on(future);
@@ -351,7 +346,7 @@ pub async fn start_chainhook_service(
         .map_err(|e| {
             format!(
                 "failed to start chainhook service thread, {}",
-                e.to_string()
+                e
             )
         })?;
 
@@ -360,7 +355,7 @@ pub async fn start_chainhook_service(
     const MAX_ATTEMPTS: u32 = 10;
     loop {
         if attempts >= MAX_ATTEMPTS {
-            return Err(format!("failed to ping chainhook service"));
+            return Err("failed to ping chainhook service".to_string());
         }
 
         if let Ok(_client) = reqwest::Client::new()
@@ -525,7 +520,7 @@ pub async fn setup_bitcoin_chainhook_test(starting_chain_tip: u64) -> TestSetupR
     let _ = hiro_system_kit::thread_named("Bitcoin rpc service")
         .spawn(move || {
             let future = mock_bitcoin_rpc(bitcoin_rpc_port, starting_chain_tip);
-            let _ = hiro_system_kit::nestable_block_on(future);
+            hiro_system_kit::nestable_block_on(future);
         })
         .expect("unable to spawn thread");
 

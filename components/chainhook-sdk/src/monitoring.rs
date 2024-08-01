@@ -44,6 +44,12 @@ pub struct PrometheusMonitoring {
     pub registry: Registry,
 }
 
+impl Default for PrometheusMonitoring {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrometheusMonitoring {
     pub fn new() -> PrometheusMonitoring {
         let registry = Registry::new();
@@ -264,7 +270,7 @@ impl PrometheusMonitoring {
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Could not get current time in ms")
-            .as_secs() as u64;
+            .as_secs();
         self.stx_last_block_ingestion_time.set(time);
     }
 
@@ -332,7 +338,7 @@ impl PrometheusMonitoring {
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Could not get current time in ms")
-            .as_secs() as u64;
+            .as_secs();
         self.btc_last_block_ingestion_time.set(time);
     }
 

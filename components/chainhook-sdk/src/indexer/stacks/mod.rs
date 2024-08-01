@@ -255,7 +255,7 @@ impl NewEvent {
                 },
             });
         }
-        return Err(format!("unable to support event type"));
+        Err("unable to support event type".to_string())
     }
 }
 
@@ -277,11 +277,11 @@ pub fn standardize_stacks_serialized_block_header(
     serialized_block: &str,
 ) -> Result<(BlockIdentifier, BlockIdentifier), String> {
     let mut block_header: NewBlockHeader = serde_json::from_str(serialized_block)
-        .map_err(|e| format!("unable to parse stacks block_header {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block_header {}", e))?;
     let hash = block_header
         .index_block_hash
         .take()
-        .ok_or(format!("unable to retrieve index_block_hash"))?;
+        .ok_or("unable to retrieve index_block_hash".to_string())?;
     let block_identifier = BlockIdentifier {
         hash,
         index: block_header.block_height,
@@ -289,7 +289,7 @@ pub fn standardize_stacks_serialized_block_header(
     let parent_hash = block_header
         .parent_index_block_hash
         .take()
-        .ok_or(format!("unable to retrieve parent_index_block_hash"))?;
+        .ok_or("unable to retrieve parent_index_block_hash".to_string())?;
 
     let parent_height = block_identifier.index.saturating_sub(1);
     let parent_block_identifier = BlockIdentifier {
@@ -306,7 +306,7 @@ pub fn standardize_stacks_serialized_block(
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
     let mut block: NewBlock = serde_json::from_str(serialized_block)
-        .map_err(|e| format!("unable to parse stacks block_header {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block_header {}", e))?;
     standardize_stacks_block(indexer_config, &mut block, chain_ctx, ctx)
 }
 
@@ -317,7 +317,7 @@ pub fn standardize_stacks_marshalled_block(
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
     let mut block: NewBlock = serde_json::from_value(marshalled_block)
-        .map_err(|e| format!("unable to parse stacks block {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block {}", e))?;
     standardize_stacks_block(indexer_config, &mut block, chain_ctx, ctx)
 }
 
@@ -327,23 +327,23 @@ pub fn standardize_stacks_block(
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
-    let pox_cycle_length: u64 = (chain_ctx.pox_config.get_pox_cycle_len()).into();
+    let pox_cycle_length: u64 = chain_ctx.pox_config.get_pox_cycle_len();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
-        1 + (chain_ctx.pox_config.first_burnchain_block_height as u64),
+        1 + chain_ctx.pox_config.first_burnchain_block_height,
     );
     let pox_cycle_id: u32 = (current_len / pox_cycle_length).try_into().unwrap_or(0);
     let mut events: HashMap<&String, Vec<&NewEvent>> = HashMap::new();
     for event in block.events.iter() {
         events
             .entry(&event.txid)
-            .and_modify(|events| events.push(&event))
+            .and_modify(|events| events.push(event))
             .or_insert(vec![&event]);
     }
 
     let mut transactions = vec![];
     for tx in block.transactions.iter() {
-        let tx_events = events.remove(&tx.txid).unwrap_or(vec![]);
+        let tx_events = events.remove(&tx.txid).unwrap_or_default();
         let (description, tx_type, fee, nonce, sender, sponsor) =
             match get_tx_description(&tx.raw_tx, &tx_events) {
                 Ok(desc) => desc,
@@ -355,7 +355,7 @@ pub fn standardize_stacks_block(
                     return Err(format!(
                         "unable to standardize block #{} ({})",
                         block.block_height,
-                        e.to_string()
+                        e
                     ));
                 }
             };
@@ -446,7 +446,7 @@ pub fn standardize_stacks_serialized_microblock_trail(
 ) -> Result<Vec<StacksMicroblockData>, String> {
     let mut microblock_trail: NewMicroblockTrail =
         serde_json::from_str(serialized_microblock_trail)
-            .map_err(|e| format!("unable to parse microblock trail {}", e.to_string()))?;
+            .map_err(|e| format!("unable to parse microblock trail {}", e))?;
     standardize_stacks_microblock_trail(indexer_config, &mut microblock_trail, chain_ctx, ctx)
 }
 
@@ -458,7 +458,7 @@ pub fn standardize_stacks_marshalled_microblock_trail(
 ) -> Result<Vec<StacksMicroblockData>, String> {
     let mut microblock_trail: NewMicroblockTrail =
         serde_json::from_value(marshalled_microblock_trail)
-            .map_err(|e| format!("unable to parse microblock trail {}", e.to_string()))?;
+            .map_err(|e| format!("unable to parse microblock trail {}", e))?;
     standardize_stacks_microblock_trail(indexer_config, &mut microblock_trail, chain_ctx, ctx)
 }
 
@@ -472,7 +472,7 @@ pub fn standardize_stacks_microblock_trail(
     for event in microblock_trail.events.iter() {
         events
             .entry(&event.txid)
-            .and_modify(|events| events.push(&event))
+            .and_modify(|events| events.push(event))
             .or_insert(vec![&event]);
     }
     let mut microblocks_set: BTreeMap<
@@ -480,7 +480,7 @@ pub fn standardize_stacks_microblock_trail(
         Vec<StacksTransactionData>,
     > = BTreeMap::new();
     for tx in microblock_trail.transactions.iter() {
-        let tx_events = events.remove(&tx.txid).unwrap_or(vec![]);
+        let tx_events = events.remove(&tx.txid).unwrap_or_default();
         let (description, tx_type, fee, nonce, sender, sponsor) =
             get_tx_description(&tx.raw_tx, &tx_events).expect("unable to parse transaction");
 
@@ -567,21 +567,21 @@ pub fn get_value_description(raw_value: &str, ctx: &Context) -> String {
         Some(raw_value) => raw_value,
         _ => return raw_value.to_string(),
     };
-    let value_bytes = match hex::decode(&raw_value) {
+    let value_bytes = match hex::decode(raw_value) {
         Ok(bytes) => bytes,
         _ => return raw_value.to_string(),
     };
 
-    let value = match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
+    
+    match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => format!("{}", value),
         Err(e) => {
             ctx.try_log(|logger| {
                 slog::error!(logger, "unable to deserialize clarity value {:?}", e)
             });
-            return raw_value.to_string();
+            raw_value.to_string()
         }
-    };
-    value
+    }
 }
 
 pub fn get_tx_description(
@@ -602,22 +602,20 @@ pub fn get_tx_description(
         Some(raw_tx) => raw_tx,
         _ => return Err("unable to read txid".into()),
     };
-    let tx_bytes = match hex::decode(&raw_tx) {
+    let tx_bytes = match hex::decode(raw_tx) {
         Ok(bytes) => bytes,
-        Err(e) => return Err(format!("unable to read txid {}", e.to_string())),
+        Err(e) => return Err(format!("unable to read txid {}", e)),
     };
 
     // Handle Stacks transitions operated through Bitcoin transactions
     if tx_bytes.eq(&[0]) {
         if tx_events.is_empty() {
-            return Err(format!(
-                "received block with transaction '0x00' and no events"
-            ));
+            return Err("received block with transaction '0x00' and no events".to_string());
         };
         for event in tx_events.iter() {
             if let Some(ref event_data) = event.stx_transfer_event {
                 let data: STXTransferEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 let description = format!(
                     "transfered: {} µSTX from {} to {} through Bitcoin transaction",
                     data.amount, data.sender, data.recipient
@@ -626,7 +624,7 @@ pub fn get_tx_description(
                 return Ok((description, tx_type, 0, 0, data.sender, None));
             } else if let Some(ref event_data) = event.stx_lock_event {
                 let data: STXLockEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 let description = format!(
                     "stacked: {} µSTX by {} through Bitcoin transaction",
                     data.locked_amount, data.locked_address,
@@ -640,85 +638,82 @@ pub fn get_tx_description(
                 return Ok((description, tx_type, 0, 0, data.locked_address, None));
             } else if let Some(ref event_data) = event.contract_event {
                 let data: SmartContractEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 if let Some(ClarityValue::Response(data)) =
                     try_decode_clarity_value(&data.hex_value)
                 {
                     if data.committed {
                         if let ClarityValue::Tuple(outter) = *data.data {
                             if let Some(ClarityValue::Tuple(inner)) = outter.data_map.get("data") {
-                                match (
+                                if let (
+                                        Some(ClarityValue::Principal(stacking_address)),
+                                        Some(ClarityValue::UInt(amount_ustx)),
+                                        Some(ClarityValue::Principal(delegate)),
+                                        Some(ClarityValue::Optional(pox_addr)),
+                                        Some(ClarityValue::Optional(unlock_burn_height)),
+                                    ) = (
                                     &outter.data_map.get("stacker"),
                                     &inner.data_map.get("amount-ustx"),
                                     &inner.data_map.get("delegate-to"),
                                     &inner.data_map.get("pox-addr"),
                                     &inner.data_map.get("unlock-burn-height"),
                                 ) {
-                                    (
-                                        Some(ClarityValue::Principal(stacking_address)),
-                                        Some(ClarityValue::UInt(amount_ustx)),
-                                        Some(ClarityValue::Principal(delegate)),
-                                        Some(ClarityValue::Optional(pox_addr)),
-                                        Some(ClarityValue::Optional(unlock_burn_height)),
-                                    ) => {
-                                        let description = format!(
-                                        "stacked: {} µSTX delegated to {} through Bitcoin transaction",
-                                        amount_ustx, delegate.to_string(),
+                                    let description = format!(
+                                    "stacked: {} µSTX delegated to {} through Bitcoin transaction",
+                                    amount_ustx, delegate,
+                                );
+                                    let tx_type = StacksTransactionKind::BitcoinOp(
+                                        BitcoinOpData::DelegateStackSTX(DelegateStackSTXData {
+                                            stacking_address: stacking_address.to_string(),
+                                            amount: amount_ustx.to_string(),
+                                            delegate: delegate.to_string(),
+                                            pox_address: match &pox_addr.data {
+                                                Some(value) => match &**value {
+                                                    ClarityValue::Tuple(address_comps) => {
+                                                        match (
+                                                            &address_comps
+                                                                .data_map
+                                                                .get("version"),
+                                                            &address_comps
+                                                                .data_map
+                                                                .get("hashbytes"),
+                                                        ) {
+                                                            (
+                                                                Some(ClarityValue::UInt(
+                                                                    _version,
+                                                                )),
+                                                                Some(ClarityValue::Sequence(
+                                                                    SequenceData::Buffer(
+                                                                        _hashbytes,
+                                                                    ),
+                                                                )),
+                                                            ) => None,
+                                                            _ => None,
+                                                        }
+                                                    }
+                                                    _ => None,
+                                                },
+                                                _ => None,
+                                            },
+                                            unlock_height: match &unlock_burn_height.data {
+                                                Some(value) => match &**value {
+                                                    ClarityValue::UInt(value) => {
+                                                        Some(value.to_string())
+                                                    }
+                                                    _ => None,
+                                                },
+                                                _ => None,
+                                            },
+                                        }),
                                     );
-                                        let tx_type = StacksTransactionKind::BitcoinOp(
-                                            BitcoinOpData::DelegateStackSTX(DelegateStackSTXData {
-                                                stacking_address: stacking_address.to_string(),
-                                                amount: amount_ustx.to_string(),
-                                                delegate: delegate.to_string(),
-                                                pox_address: match &pox_addr.data {
-                                                    Some(value) => match &**value {
-                                                        ClarityValue::Tuple(address_comps) => {
-                                                            match (
-                                                                &address_comps
-                                                                    .data_map
-                                                                    .get("version"),
-                                                                &address_comps
-                                                                    .data_map
-                                                                    .get("hashbytes"),
-                                                            ) {
-                                                                (
-                                                                    Some(ClarityValue::UInt(
-                                                                        _version,
-                                                                    )),
-                                                                    Some(ClarityValue::Sequence(
-                                                                        SequenceData::Buffer(
-                                                                            _hashbytes,
-                                                                        ),
-                                                                    )),
-                                                                ) => None,
-                                                                _ => None,
-                                                            }
-                                                        }
-                                                        _ => None,
-                                                    },
-                                                    _ => None,
-                                                },
-                                                unlock_height: match &*(&unlock_burn_height.data) {
-                                                    Some(value) => match &**value {
-                                                        ClarityValue::UInt(value) => {
-                                                            Some(value.to_string())
-                                                        }
-                                                        _ => None,
-                                                    },
-                                                    _ => None,
-                                                },
-                                            }),
-                                        );
-                                        return Ok((
-                                            description,
-                                            tx_type,
-                                            0,
-                                            0,
-                                            "".to_string(),
-                                            None,
-                                        ));
-                                    }
-                                    _ => {}
+                                    return Ok((
+                                        description,
+                                        tx_type,
+                                        0,
+                                        0,
+                                        "".to_string(),
+                                        None,
+                                    ));
                                 }
                             }
                         }
@@ -742,7 +737,7 @@ pub fn get_tx_description(
     }
 
     let tx = StacksTransaction::consensus_deserialize(&mut Cursor::new(&tx_bytes))
-        .map_err(|e| format!("unable to consensus decode transaction {}", e.to_string()))?;
+        .map_err(|e| format!("unable to consensus decode transaction {}", e))?;
 
     let (fee, nonce, sender, sponsor) = match tx.auth {
         TransactionAuth::Standard(ref conditions) => (
@@ -817,14 +812,14 @@ pub fn get_tx_description(
             )
         }
         TransactionPayload::Coinbase(_, _, _) => {
-            (format!("coinbase"), StacksTransactionKind::Coinbase)
+            ("coinbase".to_string(), StacksTransactionKind::Coinbase)
         }
         TransactionPayload::TenureChange(_) => (
-            format!("tenure change"),
+            "tenure change".to_string(),
             StacksTransactionKind::TenureChange,
         ),
         TransactionPayload::PoisonMicroblock(_, _) => {
-            (format!("other"), StacksTransactionKind::Unsupported)
+            ("other".to_string(), StacksTransactionKind::Unsupported)
         }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))

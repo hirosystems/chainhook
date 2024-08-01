@@ -118,7 +118,7 @@ pub async fn handle_new_bitcoin_block(
     };
 
     let chain_update = match indexer_rw_lock.inner().write() {
-        Ok(mut indexer) => indexer.handle_bitcoin_header(header, &ctx),
+        Ok(mut indexer) => indexer.handle_bitcoin_header(header, ctx),
         Err(e) => {
             ctx.try_log(|logger| {
                 slog::warn!(
@@ -199,7 +199,7 @@ pub fn handle_new_stacks_block(
             };
             let new_tip = block.block_identifier.index;
             prometheus_monitoring.stx_metrics_block_received(new_tip);
-            let chain_event = indexer.process_stacks_block(block, &ctx);
+            let chain_event = indexer.process_stacks_block(block, ctx);
             (pox_config, chain_event, new_tip)
         }
         Err(e) => {
@@ -268,11 +268,11 @@ pub fn handle_new_microblocks(
     // kind of update that this new microblock would imply
     let chain_event = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => {
-            let chain_event = indexer.handle_stacks_marshalled_microblock_trail(
+            
+            indexer.handle_stacks_marshalled_microblock_trail(
                 marshalled_microblock.into_inner(),
-                &ctx,
-            );
-            chain_event
+                ctx,
+            )
         }
         Err(e) => {
             ctx.try_log(|logger| {
@@ -335,7 +335,7 @@ pub fn handle_new_mempool_tx(
     let transactions = raw_txs
         .iter()
         .map(|tx_data| {
-            let (tx_description, ..) = indexer::stacks::get_tx_description(&tx_data, &vec![])
+            let (tx_description, ..) = indexer::stacks::get_tx_description(tx_data, &vec![])
                 .expect("unable to parse transaction");
             MempoolAdmissionData {
                 tx_data: tx_data.clone(),
@@ -345,13 +345,10 @@ pub fn handle_new_mempool_tx(
         .collect::<Vec<_>>();
 
     let background_job_tx = background_job_tx.inner();
-    match background_job_tx.lock() {
-        Ok(tx) => {
-            let _ = tx.send(ObserverCommand::PropagateStacksMempoolEvent(
-                StacksChainMempoolEvent::TransactionsAdmitted(transactions),
-            ));
-        }
-        _ => {}
+    if let Ok(tx) = background_job_tx.lock() {
+        let _ = tx.send(ObserverCommand::PropagateStacksMempoolEvent(
+            StacksChainMempoolEvent::TransactionsAdmitted(transactions),
+        ));
     };
 
     Json(json!({
@@ -411,14 +408,14 @@ pub async fn handle_bitcoin_wallet_rpc_call(
 
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
 
-    let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
+    let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or_default();
 
     let token = BASE64.encode(format!(
         "{}:{}",
         bitcoin_config.username, bitcoin_config.password
     ));
 
-    let url = format!("{}", bitcoin_config.rpc_url);
+    let url = bitcoin_config.rpc_url.to_string();
     let client = Client::new();
     let builder = client
         .post(&url)
@@ -450,7 +447,7 @@ pub async fn handle_bitcoin_rpc_call(
     let bitcoin_rpc_call = bitcoin_rpc_call.into_inner().clone();
     let method = bitcoin_rpc_call.method.clone();
 
-    let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or(vec![]);
+    let body = rocket::serde::json::serde_json::to_vec(&bitcoin_rpc_call).unwrap_or_default();
 
     let token = BASE64.encode(format!(
         "{}:{}",
@@ -481,11 +478,8 @@ pub async fn handle_bitcoin_rpc_call(
 
     if method == "sendrawtransaction" {
         let background_job_tx = background_job_tx.inner();
-        match background_job_tx.lock() {
-            Ok(tx) => {
-                let _ = tx.send(ObserverCommand::NotifyBitcoinTransactionProxied);
-            }
-            _ => {}
+        if let Ok(tx) = background_job_tx.lock() {
+            let _ = tx.send(ObserverCommand::NotifyBitcoinTransactionProxied);
         };
     }
 

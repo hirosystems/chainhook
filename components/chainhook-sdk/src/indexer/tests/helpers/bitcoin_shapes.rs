@@ -8,10 +8,7 @@ use hiro_system_kit::slog;
 pub fn expect_no_chain_update() -> BlockchainEventExpectation {
     Box::new(move |chain_event_to_check: Option<BlockchainEvent>| {
         assert!(
-            match chain_event_to_check {
-                None => true,
-                _ => false,
-            },
+            chain_event_to_check.is_none(),
             "expected no Chain update, got {:?}",
             chain_event_to_check
         );
