@@ -100,7 +100,7 @@ impl Config {
         let config_file: ConfigFile = match toml::from_slice(&file_buffer) {
             Ok(s) => s,
             Err(e) => {
-                return Err(format!("Config file malformatted {}", e.to_string()));
+                return Err(format!("Config file malformatted {}", e));
             }
         };
         Config::from_config_file(config_file)
@@ -137,7 +137,7 @@ impl Config {
         };
 
         let mut event_sources = vec![];
-        for source in config_file.event_source.unwrap_or(vec![]).iter_mut() {
+        for source in config_file.event_source.unwrap_or_default().iter_mut() {
             if let Some(dst) = source.tsv_file_path.take() {
                 let mut file_path = PathBuf::new();
                 file_path.push(dst);
@@ -168,20 +168,16 @@ impl Config {
                 Some(pox_config) => PoxConfig {
                     first_burnchain_block_height: pox_config
                         .first_burnchain_block_height
-                        .unwrap_or(default_pox_config.first_burnchain_block_height)
-                        .into(),
+                        .unwrap_or(default_pox_config.first_burnchain_block_height),
                     prepare_phase_len: pox_config
                         .prepare_phase_len
-                        .unwrap_or(default_pox_config.prepare_phase_len)
-                        .into(),
+                        .unwrap_or(default_pox_config.prepare_phase_len),
                     reward_phase_len: pox_config
                         .reward_phase_len
-                        .unwrap_or(default_pox_config.reward_phase_len)
-                        .into(),
+                        .unwrap_or(default_pox_config.reward_phase_len),
                     rewarded_addresses_per_block: pox_config
                         .rewarded_addresses_per_block
-                        .unwrap_or(default_pox_config.rewarded_addresses_per_block)
-                        .into(),
+                        .unwrap_or(default_pox_config.rewarded_addresses_per_block),
                 },
             },
             http_api: match config_file.http_api {
@@ -260,7 +256,7 @@ impl Config {
                 _ => {}
             }
         }
-        return false;
+        false
     }
 
     pub fn add_local_stacks_tsv_source(&mut self, file_path: &PathBuf) {
@@ -335,7 +331,7 @@ impl Config {
                 remote_tsv_present_locally = true;
             }
         }
-        rely_on_remote_tsv == true && remote_tsv_present_locally == false
+        rely_on_remote_tsv && !remote_tsv_present_locally
     }
 
     pub fn default(
@@ -348,7 +344,7 @@ impl Config {
             (true, false, false, _) => Config::devnet_default(),
             (false, true, false, _) => Config::testnet_default(),
             (false, false, true, _) => Config::mainnet_default(),
-            (false, false, false, Some(config_path)) => Config::from_file_path(&config_path)?,
+            (false, false, false, Some(config_path)) => Config::from_file_path(config_path)?,
             _ => Err("Invalid combination of arguments".to_string())?,
         };
         Ok(config)

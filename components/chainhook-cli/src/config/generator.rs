@@ -54,5 +54,5 @@ tsv_file_url = "https://archive.hiro.so/{network}/stacks-blockchain-api/{network
         mode = mode.as_str(),
         network = network.to_lowercase(),
     );
-    return conf;
+    conf
 }

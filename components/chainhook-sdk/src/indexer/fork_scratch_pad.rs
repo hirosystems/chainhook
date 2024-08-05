@@ -16,6 +16,12 @@ pub struct ForkScratchPad {
     headers_store: BTreeMap<BlockIdentifier, BlockHeader>,
 }
 pub const CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 7;
+impl Default for ForkScratchPad {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ForkScratchPad {
     pub fn new() -> ForkScratchPad {
         let mut forks = BTreeMap::new();
@@ -222,7 +228,7 @@ impl ForkScratchPad {
         // [1] ... [6] [7]
         let canonical_segment = {
             let mut segment = vec![];
-            while let Some(ancestor) = self.headers_store.get(&ancestor_identifier) {
+            while let Some(ancestor) = self.headers_store.get(ancestor_identifier) {
                 ancestor_identifier = &ancestor.parent_block_identifier;
                 segment.push(ancestor.block_identifier.clone());
             }
@@ -237,7 +243,7 @@ impl ForkScratchPad {
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
         for (fork_id, fork) in self.forks.iter_mut() {
-            let mut res = fork.prune_confirmed_blocks(&cut_off);
+            let mut res = fork.prune_confirmed_blocks(cut_off);
             blocks_to_prune.append(&mut res);
             if fork.block_ids.is_empty() {
                 forks_to_prune.push(*fork_id);
@@ -260,7 +266,7 @@ impl ForkScratchPad {
                 canonical_segment[6..].len()
             )
         });
-        for confirmed_block in canonical_segment[6..].into_iter() {
+        for confirmed_block in canonical_segment[6..].iter() {
             let block = match self.headers_store.remove(confirmed_block) {
                 None => {
                     ctx.try_log(|logger| {

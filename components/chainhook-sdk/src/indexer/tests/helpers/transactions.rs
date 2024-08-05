@@ -43,9 +43,9 @@ pub fn generate_test_tx_stacks_contract_call(
         operations: vec![],
         metadata: StacksTransactionMetadata {
             success: true,
-            raw_tx: format!("__raw_tx__"),
-            result: format!("(ok true)"),
-            sender: format!("{}", sender),
+            raw_tx: "__raw_tx__".to_string(),
+            result: "(ok true)".to_string(),
+            sender: sender.to_string(),
             fee: 0,
             nonce: 0,
             kind: StacksTransactionKind::ContractCall(StacksContractCallData {
@@ -109,7 +109,7 @@ pub fn generate_test_tx_bitcoin_p2pkh_transfer(
     let script = BitcoinScriptBuilder::new()
         .push_opcode(opcodes::all::OP_DUP)
         .push_opcode(opcodes::all::OP_HASH160)
-        .push_slice(&slice)
+        .push_slice(slice)
         .push_opcode(opcodes::all::OP_EQUALVERIFY)
         .push_opcode(opcodes::all::OP_CHECKSIG)
         .into_script();

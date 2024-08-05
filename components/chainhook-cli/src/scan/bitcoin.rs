@@ -6,11 +6,11 @@ use crate::service::{
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
+use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 use chainhook_sdk::chainhooks::bitcoin::{
     evaluate_bitcoin_chainhooks_on_chain_event, handle_bitcoin_hook_action,
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
-use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
@@ -42,17 +42,14 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let bitcoin_rpc = match Client::new(&config.network.bitcoind_rpc_url, auth) {
         Ok(con) => con,
         Err(message) => {
-            return Err(format!("Bitcoin RPC error: {}", message.to_string()));
+            return Err(format!("Bitcoin RPC error: {}", message));
         }
     };
 
     let mut chain_tip = match bitcoin_rpc.get_blockchain_info() {
         Ok(result) => result.blocks,
         Err(e) => {
-            return Err(format!(
-                "unable to retrieve Bitcoin chain tip ({})",
-                e.to_string()
-            ));
+            return Err(format!("unable to retrieve Bitcoin chain tip ({})", e));
         }
     };
 
@@ -105,14 +102,11 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         if let Some(kill_signal) = kill_signal.clone() {
-            match kill_signal.read() {
-                Ok(kill_signal) => {
-                    // if true, we're received the kill signal, so break out of the loop
-                    if *kill_signal {
-                        return Ok(PredicateScanResult::Deregistered);
-                    }
+            if let Ok(kill_signal) = kill_signal.read() {
+                // if true, we're received the kill signal, so break out of the loop
+                if *kill_signal {
+                    return Ok(PredicateScanResult::Deregistered);
                 }
-                Err(_) => {}
             }
         }
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -141,10 +135,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             chain_tip = match bitcoin_rpc.get_blockchain_info() {
                 Ok(result) => result.blocks,
                 Err(e) => {
-                    return Err(format!(
-                        "unable to retrieve Bitcoin chain tip ({})",
-                        e.to_string()
-                    ));
+                    return Err(format!("unable to retrieve Bitcoin chain tip ({})", e));
                 }
             };
             // if the chain hasn't progressed, break out so we can enter streaming mode
@@ -216,7 +207,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
                     res.unwrap_err()
                 ));
             } else {
-                return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+                return Err("Scan aborted (consecutive action errors >= 3)".to_string());
             }
         }
     }
@@ -260,7 +251,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
         return Ok(PredicateScanResult::Expired);
     }
 
-    return Ok(PredicateScanResult::ChainTipReached);
+    Ok(PredicateScanResult::ChainTipReached)
 }
 
 pub async fn process_block_with_predicates(
@@ -278,7 +269,7 @@ pub async fn process_block_with_predicates(
     let (predicates_triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_bitcoin_chainhooks_on_chain_event(&chain_event, predicates, ctx);
 
-    execute_predicates_action(predicates_triggered, &event_observer_config, &ctx).await
+    execute_predicates_action(predicates_triggered, event_observer_config, ctx).await
 }
 
 pub async fn execute_predicates_action<'a>(
@@ -290,7 +281,7 @@ pub async fn execute_predicates_action<'a>(
     let mut proofs = HashMap::new();
     for trigger in hits.into_iter() {
         if trigger.chainhook.include_proof {
-            gather_proofs(&trigger, &mut proofs, &config, &ctx);
+            gather_proofs(&trigger, &mut proofs, config, ctx);
         }
         let predicate_uuid = &trigger.chainhook.uuid;
         match handle_bitcoin_hook_action(trigger, &proofs) {
@@ -304,11 +295,9 @@ pub async fn execute_predicates_action<'a>(
                 actions_triggered += 1;
                 match action {
                     BitcoinChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 10, 3, &ctx).await?
+                        send_request(request, 10, 3, ctx).await?
                     }
-                    BitcoinChainhookOccurrence::File(path, bytes) => {
-                        file_append(path, bytes, &ctx)?
-                    }
+                    BitcoinChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx)?,
                     BitcoinChainhookOccurrence::Data(_payload) => {}
                 };
             }

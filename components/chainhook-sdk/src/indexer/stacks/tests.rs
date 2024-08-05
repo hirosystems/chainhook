@@ -287,81 +287,81 @@ fn test_stacks_vector_055() {
 }
 
 #[test_case(StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
-    sender: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    sender: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "stx_transfer")]
 #[test_case(StacksTransactionEventPayload::STXMintEvent(STXMintEventData {
-    recipient: format!(""),
-    amount: format!("1"),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "stx_mint")]
 #[test_case(StacksTransactionEventPayload::STXBurnEvent(STXBurnEventData {
-    sender: format!(""),
-    amount: format!("1"),
+    sender: String::new(),
+    amount: "1".to_string(),
 }); "stx_burn")]
 #[test_case(StacksTransactionEventPayload::STXLockEvent(STXLockEventData {
-    locked_amount: format!("1"),
-    unlock_height: format!(""),
-    locked_address: format!(""),
+    locked_amount: "1".to_string(),
+    unlock_height: String::new(),
+    locked_address: String::new(),
 }); "stx_lock")]
 #[test_case(StacksTransactionEventPayload::NFTTransferEvent(NFTTransferEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    sender: format!(""),
-    recipient: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    sender: String::new(),
+    recipient: String::new(),
 }); "nft_transfer")]
 #[test_case(StacksTransactionEventPayload::NFTMintEvent(NFTMintEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    recipient: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    recipient: String::new(),
 }); "nft_mint")]
 #[test_case(StacksTransactionEventPayload::NFTBurnEvent(NFTBurnEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    sender: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    sender: String::new(),
 }); "nft_burn")]
 #[test_case(StacksTransactionEventPayload::FTTransferEvent(FTTransferEventData {
-    asset_class_identifier: format!(""),
-    sender: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    sender: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "ft_transfer")]
 #[test_case(StacksTransactionEventPayload::FTMintEvent(FTMintEventData {
-    asset_class_identifier: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "ft_mint")]
 #[test_case(StacksTransactionEventPayload::FTBurnEvent(FTBurnEventData {
-    asset_class_identifier: format!(""),
-    sender: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    sender: String::new(),
+    amount: "1".to_string(),
 }); "ft_burn")]
 #[test_case(StacksTransactionEventPayload::DataVarSetEvent(DataVarSetEventData {
-    contract_identifier: format!(""),
-    var: format!(""),
-    hex_new_value: format!(""),
+    contract_identifier: String::new(),
+    var: String::new(),
+    hex_new_value: String::new(),
 }); "data_var_set")]
 #[test_case(StacksTransactionEventPayload::DataMapInsertEvent(DataMapInsertEventData {
-    contract_identifier: format!(""),
-    hex_inserted_key: format!(""),
-    hex_inserted_value: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_inserted_key: String::new(),
+    hex_inserted_value: String::new(),
+    map: String::new()
 }); "data_map_insert")]
 #[test_case(StacksTransactionEventPayload::DataMapUpdateEvent(DataMapUpdateEventData {
-    contract_identifier: format!(""),
-    hex_new_value: format!(""),
-    hex_key: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_new_value: String::new(),
+    hex_key: String::new(),
+    map: String::new()
 }); "data_map_update")]
 #[test_case(StacksTransactionEventPayload::DataMapDeleteEvent(DataMapDeleteEventData {
-    contract_identifier: format!(""),
-    hex_deleted_key: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_deleted_key: String::new(),
+    map: String::new()
 }); "data_map_delete")]
 #[test_case(StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
-    contract_identifier: format!(""),
-    topic: format!("print"),
-    hex_value: format!(""),
+    contract_identifier: String::new(),
+    topic: "print".to_string(),
+    hex_value: String::new(),
 }); "smart_contract_print_event")]
 fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEventPayload) {
     let new_event = create_new_event_from_stacks_event(original_event.clone());
@@ -374,10 +374,10 @@ fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransa
 #[test]
 fn into_chainhook_event_rejects_invalid_missing_event() {
     let new_event = NewEvent {
-        txid: format!(""),
+        txid: String::new(),
         committed: false,
         event_index: 0,
-        event_type: format!(""),
+        event_type: String::new(),
         stx_transfer_event: None,
         stx_mint_event: None,
         stx_burn_event: None,
