@@ -11,7 +11,7 @@ Start with the prerequisite section and configure your files to start the chainh
 ### Configure Your Stacks Node
 
 - Configure your Stacks node using the [Stacks node configuration](https://docs.stacks.co/docs/nodes-and-miners/stacks-node-configuration) documentation.
-- We Recommend using the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
+- We recommend using the latest version of Stacks. You can check the latest version by following [this](https://github.com/stacks-network/stacks-blockchain/releases) link.
 - Set up your Bitcoin node by following [this](how-to-run-chainhook-as-a-service-using-bitcoind.md#setting-up-a-bitcoin-node) article, then get the `rpcuser`, `rpcpassword`, and `rpc_port` values defined in the `bitcoin.conf` file.
 
 A `Stacks.toml` file is generated when configuring your Stacks node. Below is the sample `Stacks.toml` file.
