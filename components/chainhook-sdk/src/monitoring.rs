@@ -405,7 +405,7 @@ async fn serve_req(
             ctx.try_log(|logger| {
                 slog::debug!(
                     logger,
-                    "Prometheus monitoring: respsonding to metrics request"
+                    "Prometheus monitoring: responding to metrics request"
                 )
             });
 

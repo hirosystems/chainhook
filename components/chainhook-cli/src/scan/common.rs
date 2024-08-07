@@ -65,3 +65,9 @@ pub fn get_block_heights_to_scan(
     };
     Ok(block_heights_to_scan)
 }
+
+pub enum PredicateScanResult {
+    ChainTipReached,
+    Expired,
+    Deregistered,
+}

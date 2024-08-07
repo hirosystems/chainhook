@@ -16,6 +16,9 @@ pub use ordinals::*;
 pub use processors::*;
 pub use rosetta::*;
 
+pub const DEFAULT_STACKS_NODE_RPC: &str = "http://localhost:20443";
+
+#[derive(Clone, Debug)]
 pub enum Chain {
     Bitcoin,
     Stacks,

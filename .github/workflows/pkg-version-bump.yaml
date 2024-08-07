@@ -1,5 +1,5 @@
 ##
-## Bumps the Clarinet version listed on various package managers.
+## Bumps the Chainhook version listed on various package managers.
 ##
 
 name: Package Version Bump
@@ -18,24 +18,6 @@ env:
   GIT_USER_EMAIL: 45208873+blockstack-devops@users.noreply.github.com
 
 jobs:
-  homebrew:
-    name: Homebrew
-    runs-on: macos-latest
-    steps:
-      - name: Homebrew version bump
-        env:
-          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
-          TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
-        run: |
-          git config --global user.name "${GIT_USER_NAME}"
-          git config --global user.email "${GIT_USER_EMAIL}"
-
-          brew update
-          brew bump-formula-pr \
-            --no-browse \
-            --no-audit \
-            --tag "${TAG}" \
-            ${{ github.event.repository.name }}
 
   winget:
     name: Winget
@@ -45,7 +27,7 @@ jobs:
         env:
           TAG: ${{ github.event.client_payload.tag || github.event.inputs.tag }}
         run: |
-          # Get version infoq
+          # Get version info
           $VERSION=${env:TAG}.substring(1)
 
           # Configure git configs
@@ -57,8 +39,9 @@ jobs:
   
           # Update manifest and submit PR
           ./wingetcreate.exe update `
-            --urls https://github.com/${{ github.repository }}/releases/download/${env:TAG}/clarinet-windows-x64.msi `
+            --urls https://github.com/${{ github.repository }}/releases/download/${env:TAG}/chainhook-windows-x64.msi `
             --version ${VERSION} `
             --token ${{ secrets.GH_TOKEN }} `
             --submit `
-            HiroSystems.Clarinet
+            HiroSystems.Chainhook
+

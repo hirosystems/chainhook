@@ -2,7 +2,10 @@ pub mod bitcoin;
 pub mod fork_scratch_pad;
 pub mod stacks;
 
-use crate::utils::{AbstractBlock, Context};
+use crate::{
+    chainhooks::types::PoxConfig,
+    utils::{AbstractBlock, Context},
+};
 
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinNetwork, BlockHeader, BlockIdentifier, BlockchainEvent,
@@ -20,45 +23,6 @@ use self::fork_scratch_pad::ForkScratchPad;
 pub struct AssetClassCache {
     pub symbol: String,
     pub decimals: u8,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct PoxConfig {
-    pub first_burnchain_block_height: u32,
-    pub prepare_phase_block_length: u32,
-    pub reward_phase_block_length: u32,
-}
-
-impl PoxConfig {
-    pub fn mainnet_default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 666050,
-            prepare_phase_block_length: 100,
-            reward_phase_block_length: 2000,
-        }
-    }
-
-    pub fn testnet_default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 2000000,
-            prepare_phase_block_length: 50,
-            reward_phase_block_length: 1000,
-        }
-    }
-
-    pub fn devnet_default() -> PoxConfig {
-        Self::default()
-    }
-}
-
-impl Default for PoxConfig {
-    fn default() -> PoxConfig {
-        PoxConfig {
-            first_burnchain_block_height: 100,
-            prepare_phase_block_length: 5,
-            reward_phase_block_length: 15,
-        }
-    }
 }
 
 pub struct StacksChainContext {

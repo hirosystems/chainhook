@@ -5,20 +5,18 @@ use self::fixtures::get_all_event_payload_types;
 use super::{
     stacks::{
         evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action,
-        StacksChainhookOccurrence, StacksTriggerChainhook,
+        StacksChainhookInstance, StacksChainhookOccurrence, StacksContractCallBasedPredicate,
+        StacksContractDeploymentPredicate, StacksFtEventBasedPredicate,
+        StacksNftEventBasedPredicate, StacksPredicate, StacksPrintEventBasedPredicate,
+        StacksStxEventBasedPredicate, StacksTrait, StacksTriggerChainhook,
     },
-    types::{
-        ExactMatchingRule, FileHook, StacksChainhookSpecification,
-        StacksContractCallBasedPredicate, StacksContractDeploymentPredicate,
-        StacksFtEventBasedPredicate, StacksNftEventBasedPredicate, StacksPrintEventBasedPredicate,
-        StacksTrait,
-    },
+    types::{ExactMatchingRule, FileHook},
 };
 use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
-        types::{HookAction, StacksPredicate, StacksStxEventBasedPredicate},
+        types::HookAction,
     },
     utils::AbstractStacksBlock,
 };
@@ -389,7 +387,7 @@ fn test_stacks_predicates(
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let chainhook = StacksChainhookSpecification {
+    let chainhook = StacksChainhookInstance {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -469,7 +467,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let chainhook = StacksChainhookSpecification {
+    let chainhook = StacksChainhookInstance {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -524,7 +522,7 @@ fn verify_optional_addition_of_contract_abi() {
             new_blocks,
             confirmed_blocks: vec![],
         });
-    let mut contract_deploy_chainhook = StacksChainhookSpecification {
+    let mut contract_deploy_chainhook = StacksChainhookInstance {
         uuid: "contract-deploy".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -544,7 +542,7 @@ fn verify_optional_addition_of_contract_abi() {
         enabled: true,
         expired_at: None,
     };
-    let contract_call_chainhook = StacksChainhookSpecification {
+    let contract_call_chainhook = StacksChainhookInstance {
         uuid: "contract-call".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -663,7 +661,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         confirmed_blocks: vec![],
     });
     // Prepare predicate
-    let chainhook = StacksChainhookSpecification {
+    let chainhook = StacksChainhookInstance {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -698,7 +696,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
 
 #[test]
 fn test_stacks_hook_action_noop() {
-    let chainhook = StacksChainhookSpecification {
+    let chainhook = StacksChainhookInstance {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -756,7 +754,7 @@ fn test_stacks_hook_action_noop() {
 
 #[test]
 fn test_stacks_hook_action_file_append() {
-    let chainhook = StacksChainhookSpecification {
+    let chainhook = StacksChainhookInstance {
         uuid: "".to_string(),
         owner_uuid: None,
         name: "".to_string(),

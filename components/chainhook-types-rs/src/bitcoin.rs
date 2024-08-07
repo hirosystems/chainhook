@@ -63,7 +63,7 @@ impl TxOut {
 ///
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
 pub struct Witness {
-    /// contains the witness Vec<Vec<u8>> serialization without the initial varint indicating the
+    /// contains the witness `Vec<Vec<u8>>` serialization without the initial varint indicating the
     /// number of elements (which is stored in `witness_elements`)
     content: Vec<u8>,
 
