@@ -1,4 +1,4 @@
-use chainhook_sdk::chainhooks::types::ChainhookFullSpecification;
+use chainhook_sdk::chainhooks::types::ChainhookSpecificationNetworkMap;
 use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
@@ -34,6 +34,7 @@ use super::http_api::document_predicate_api_server;
 
 pub mod helpers;
 mod observer_tests;
+mod runloop_tests;
 
 async fn test_register_predicate(predicate: JsonValue) -> Result<(), (String, Shutdown)> {
     // perhaps a little janky, we bind to the port 0 to find an open one, then
@@ -121,7 +122,7 @@ async fn it_handles_bitcoin_predicates_with_network(network: &str) {
 #[test_case(json!({ "scope": "outputs","p2sh": {"equals": "2MxDJ723HBJtEMa2a9vcsns4qztxBuC8Zb2"}}) ; "with scope outputs type p2sh")]
 #[test_case(json!({"scope": "outputs","p2wpkh": {"equals": "bcrt1qnxknq3wqtphv7sfwy07m7e4sr6ut9yt6ed99jg"}}) ; "with scope outputs type p2wpkh")]
 #[test_case(json!({"scope": "outputs","p2wsh": {"equals": "bc1qklpmx03a8qkv263gy8te36w0z9yafxplc5kwzc"}}) ; "with scope outputs type p2wsh")]
-#[test_case(json!({"scope": "outputs","descriptor": {"expression": "a descriptor", "range": [0,3]}}) ; "with scope outputs type descriptor")]
+#[test_case(json!({"scope": "outputs","descriptor": {"expression": "wpkh(02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9)", "range": [0,3]}}) ; "with scope outputs type descriptor")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "stacker_rewarded"}) ; "with scope stacks_protocol operation stacker_rewarded")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "block_committed"}) ; "with scope stacks_protocol operation block_committed")]
 #[test_case(json!({"scope": "stacks_protocol","operation": "leader_registered"}) ; "with scope stacks_protocol operation leader_registered")]
@@ -778,7 +779,7 @@ async fn it_allows_specifying_startup_predicate() -> Result<(), String> {
     );
     let predicate =
         serde_json::from_value(predicate).expect("failed to set up stacks chanhook spec for test");
-    let startup_predicate = ChainhookFullSpecification::Stacks(predicate);
+    let startup_predicate = ChainhookSpecificationNetworkMap::Stacks(predicate);
     let TestSetupResult {
         mut redis_process,
         working_dir,
@@ -818,7 +819,7 @@ async fn register_predicate_responds_409_if_uuid_in_use() -> Result<(), String> 
     );
     let stacks_spec = serde_json::from_value(predicate.clone())
         .expect("failed to set up stacks chanhook spec for test");
-    let startup_predicate = ChainhookFullSpecification::Stacks(stacks_spec);
+    let startup_predicate = ChainhookSpecificationNetworkMap::Stacks(stacks_spec);
 
     let TestSetupResult {
         mut redis_process,
@@ -997,7 +998,7 @@ async fn it_seeds_block_pool_on_startup() -> Result<(), String> {
     Ok(())
 }
 
-fn cleanup_err(
+pub fn cleanup_err(
     error: String,
     working_dir: &str,
     redis_port: u16,
@@ -1007,8 +1008,8 @@ fn cleanup_err(
     format!("test failed with error: {error}")
 }
 
-fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
-    std::fs::remove_dir_all(&working_dir).unwrap();
+pub fn cleanup(working_dir: &str, redis_port: u16, redis_process: &mut Child) {
+    let _ = std::fs::remove_dir_all(&working_dir);
     flush_redis(redis_port);
     redis_process.kill().unwrap();
 }

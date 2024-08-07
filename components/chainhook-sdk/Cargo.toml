@@ -12,19 +12,22 @@ serde = { version = "1", features = ["rc"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde-hex = "0.1.0"
 serde_derive = "1"
-# stacks-codec = "2.5"
-stacks-codec = { git = "https://github.com/hirosystems/clarinet.git" }
+stacks-codec = "2.4.1"
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", package = "clarity", default-features = false, features = [
+    "canonical",
+    "log",
+] }
 hiro-system-kit = { version = "0.3.4", optional = true }
 rocket = { version = "=0.5.0", features = ["json"] }
 bitcoincore-rpc = "0.18.0"
 bitcoincore-rpc-json = "0.18.0"
 base64 = "0.21.5"
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "blocking",
     "json",
     "rustls-tls",
 ] }
-tokio = { version = "1.35.1", features = ["full"] }
+tokio = { version = "1.38.1", features = ["full"] }
 base58 = "0.2.0"
 schemars = { version = "0.8.16", git = "https://github.com/hirosystems/schemars.git", branch = "feat-chainhook-fixes" }
 crossbeam-channel = "0.5.6"

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "chainhook",
-    "version": "1.6.0"
+    "version": "1.7.0"
   },
   "paths": {
     "/ping": {
@@ -49,7 +49,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChainhookFullSpecification"
+                "$ref": "#/components/schemas/ChainhookSpecificationNetworkMap"
               }
             }
           },
@@ -154,9 +154,10 @@
   },
   "components": {
     "schemas": {
-      "ChainhookFullSpecification": {
+      "ChainhookSpecificationNetworkMap": {
         "oneOf": [
           {
+            "description": "Maps some [BitcoinChainhookSpecification] to a corresponding [BitcoinNetwork]. This allows maintaining one serialized predicate file for a given predicate on each network.\n\n### Examples Given some file `predicate.json`: ```json { \"uuid\": \"my-id\", \"name\": \"My Predicate\", \"chain\": \"bitcoin\", \"version\": 1, \"networks\": { \"regtest\": { // ... }, \"testnet\": { // ... }, \"mainnet\": { // ... } } } ``` You can deserialize the file to this type and create a [BitcoinChainhookInstance] for the desired network: ``` use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap; use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance; use chainhook_types::BitcoinNetwork;\n\nfn get_predicate(network: &BitcoinNetwork) -> Result<BitcoinChainhookInstance, String> { let json_predicate = std::fs::read_to_string(\"./predicate.json\").expect(\"Unable to read file\"); let hook_map: BitcoinChainhookSpecificationNetworkMap = serde_json::from_str(&json_predicate).expect(\"Unable to parse Chainhook map\"); hook_map.into_specification_for_network(network) }\n\n```",
             "type": "object",
             "required": [
               "chain",
@@ -196,7 +197,7 @@
                     ],
                     "properties": {
                       "regtest": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -207,7 +208,7 @@
                     ],
                     "properties": {
                       "testnet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -218,7 +219,7 @@
                     ],
                     "properties": {
                       "signet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   },
@@ -229,7 +230,7 @@
                     ],
                     "properties": {
                       "mainnet": {
-                        "$ref": "#/components/schemas/BitcoinChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/BitcoinChainhookSpecification"
                       }
                     }
                   }
@@ -238,6 +239,7 @@
             }
           },
           {
+            "description": "Maps some [StacksChainhookSpecification] to a corresponding [StacksNetwork]. This allows maintaining one serialized predicate file for a given predicate on each network.\n\n### Examples Given some file `predicate.json`: ```json { \"uuid\": \"my-id\", \"name\": \"My Predicate\", \"chain\": \"stacks\", \"version\": 1, \"networks\": { \"devnet\": { // ... }, \"testnet\": { // ... }, \"mainnet\": { // ... } } } ``` You can deserialize the file to this type and create a [StacksChainhookInstance] for the desired network: ``` use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecificationNetworkMap; use chainhook_sdk::chainhooks::stacks::StacksChainhookInstance; use chainhook_types::StacksNetwork;\n\nfn get_predicate(network: &StacksNetwork) -> Result<StacksChainhookInstance, String> { let json_predicate = std::fs::read_to_string(\"./predicate.json\").expect(\"Unable to read file\"); let hook_map: StacksChainhookSpecificationNetworkMap = serde_json::from_str(&json_predicate).expect(\"Unable to parse Chainhook map\"); hook_map.into_specification_for_network(network) }\n\n```",
             "type": "object",
             "required": [
               "chain",
@@ -277,7 +279,7 @@
                     ],
                     "properties": {
                       "simnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -288,7 +290,7 @@
                     ],
                     "properties": {
                       "devnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -299,7 +301,7 @@
                     ],
                     "properties": {
                       "testnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   },
@@ -310,7 +312,7 @@
                     ],
                     "properties": {
                       "mainnet": {
-                        "$ref": "#/components/schemas/StacksChainhookNetworkSpecification"
+                        "$ref": "#/components/schemas/StacksChainhookSpecification"
                       }
                     }
                   }
@@ -329,7 +331,7 @@
           "mainnet"
         ]
       },
-      "BitcoinChainhookNetworkSpecification": {
+      "BitcoinChainhookSpecification": {
         "type": "object",
         "required": [
           "if_this",
@@ -857,7 +859,7 @@
           "mainnet"
         ]
       },
-      "StacksChainhookNetworkSpecification": {
+      "StacksChainhookSpecification": {
         "type": "object",
         "required": [
           "if_this",

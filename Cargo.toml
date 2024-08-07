@@ -9,4 +9,3 @@ resolver = "2"
 
 [patch.crates-io]
 stacks-codec = { git = "https://github.com/hirosystems/clarinet.git" }
-# stacks-codec = { path = "../clarinet/components/stacks-codec" }

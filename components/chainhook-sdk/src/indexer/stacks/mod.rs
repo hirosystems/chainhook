@@ -1,18 +1,18 @@
 mod blocks_pool;
 
 pub use blocks_pool::StacksBlockPool;
-use stacks_codec::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
 
 use crate::chainhooks::stacks::try_decode_clarity_value;
 use crate::indexer::AssetClassCache;
 use crate::indexer::{IndexerConfig, StacksChainContext};
 use crate::utils::Context;
 use chainhook_types::*;
+use clarity::codec::StacksMessageCodec;
+use clarity::vm::types::{SequenceData, Value as ClarityValue};
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 use rocket::serde::Deserialize;
-use stacks_codec::clarity::codec::StacksMessageCodec;
-use stacks_codec::clarity::vm::types::{SequenceData, Value as ClarityValue};
+use stacks_codec::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -327,9 +327,7 @@ pub fn standardize_stacks_block(
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
-    let pox_cycle_length: u64 = (chain_ctx.pox_config.prepare_phase_block_length
-        + chain_ctx.pox_config.reward_phase_block_length)
-        .into();
+    let pox_cycle_length: u64 = (chain_ctx.pox_config.get_pox_cycle_len()).into();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
         1 + (chain_ctx.pox_config.first_burnchain_block_height as u64),

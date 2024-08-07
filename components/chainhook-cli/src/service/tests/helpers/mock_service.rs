@@ -7,10 +7,10 @@ use crate::service::{
     http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
     PredicateStatus, Service,
 };
+use chainhook_sdk::chainhooks::types::PoxConfig;
 use chainhook_sdk::{
-    chainhooks::types::{
-        ChainhookFullSpecification, ChainhookSpecification, StacksChainhookFullSpecification,
-    },
+    chainhooks::stacks::StacksChainhookSpecificationNetworkMap,
+    chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap},
     indexer::IndexerConfig,
     observer::ObserverCommand,
     types::{BitcoinBlockSignaling, BitcoinNetwork, Chain, StacksNetwork, StacksNodeConfig},
@@ -298,6 +298,7 @@ pub fn get_chainhook_config(
     };
     Config {
         http_api: PredicatesApi::On(api_config),
+        pox_config: PoxConfig::devnet_default(),
         storage: StorageConfig {
             working_dir: working_dir.into(),
         },
@@ -333,7 +334,7 @@ pub fn get_chainhook_config(
 pub async fn start_chainhook_service(
     config: Config,
     ping_startup_port: u16,
-    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
+    startup_predicates: Option<Vec<ChainhookSpecificationNetworkMap>>,
     ctx: &Context,
 ) -> Result<Sender<ObserverCommand>, String> {
     let mut service = Service::new(config, ctx.clone());
@@ -389,8 +390,8 @@ pub struct TestSetupResult {
 
 pub async fn setup_stacks_chainhook_test(
     starting_chain_tip: u64,
-    redis_seed: Option<(StacksChainhookFullSpecification, PredicateStatus)>,
-    startup_predicates: Option<Vec<ChainhookFullSpecification>>,
+    redis_seed: Option<(StacksChainhookSpecificationNetworkMap, PredicateStatus)>,
+    startup_predicates: Option<Vec<ChainhookSpecificationNetworkMap>>,
 ) -> TestSetupResult {
     let (
         redis_port,
@@ -426,14 +427,14 @@ pub async fn setup_stacks_chainhook_test(
             panic!("test failed with error: {e}");
         });
         let stacks_spec = predicate
-            .into_selected_network_specification(&StacksNetwork::Devnet)
+            .into_specification_for_network(&StacksNetwork::Devnet)
             .unwrap_or_else(|e| {
                 flush_redis(redis_port);
                 redis_process.kill().unwrap();
                 panic!("test failed with error: {e}");
             });
 
-        let spec = ChainhookSpecification::Stacks(stacks_spec);
+        let spec = ChainhookInstance::Stacks(stacks_spec);
         update_predicate_spec(&spec.key(), &spec, &mut connection, &ctx);
         update_predicate_status(&spec.key(), status, &mut connection, &ctx);
     }

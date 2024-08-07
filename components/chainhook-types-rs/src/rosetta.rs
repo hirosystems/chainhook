@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation};
+use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -456,9 +456,9 @@ pub struct PublicKey {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CurveType {
-    /// `y (255-bits) || x-sign-bit (1-bit)` - `32 bytes` (https://ed25519.cr.yp.to/ed25519-20110926.pdf)
+    /// `y (255-bits) || x-sign-bit (1-bit)` - `32 bytes` (<https://ed25519.cr.yp.to/ed25519-20110926.pdf>)
     Edwards25519,
-    /// SEC compressed - `33 bytes` (https://secg.org/sec1-v2.pdf#subsubsection.2.3.3)
+    /// SEC compressed - `33 bytes` (<https://secg.org/sec1-v2.pdf#subsubsection.2.3.3>)
     Secp256k1,
 }
 
@@ -759,12 +759,18 @@ pub enum StacksNetwork {
     Mainnet,
 }
 
+impl std::fmt::Display for StacksNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 impl StacksNetwork {
     pub fn from_str(network: &str) -> Result<StacksNetwork, String> {
         let value = match network {
             "devnet" => StacksNetwork::Devnet,
             "testnet" => StacksNetwork::Testnet,
             "mainnet" => StacksNetwork::Mainnet,
+            "simnet" => StacksNetwork::Simnet,
             _ => {
                 return Err(format!(
                     "network '{}' unsupported (mainnet, testnet, devnet, simnet)",
@@ -773,6 +779,15 @@ impl StacksNetwork {
             }
         };
         Ok(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            StacksNetwork::Devnet => "devnet",
+            StacksNetwork::Testnet => "testnet",
+            StacksNetwork::Mainnet => "mainnet",
+            StacksNetwork::Simnet => "simnet",
+        }
     }
 
     pub fn is_simnet(&self) -> bool {
@@ -839,6 +854,11 @@ pub enum BitcoinNetwork {
     Mainnet,
 }
 
+impl std::fmt::Display for BitcoinNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 impl BitcoinNetwork {
     pub fn from_str(network: &str) -> Result<BitcoinNetwork, String> {
         let value = match network {
@@ -855,6 +875,15 @@ impl BitcoinNetwork {
         };
         Ok(value)
     }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            BitcoinNetwork::Regtest => "regtest",
+            BitcoinNetwork::Testnet => "testnet",
+            BitcoinNetwork::Mainnet => "mainnet",
+            BitcoinNetwork::Signet => "signet",
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
@@ -870,9 +899,16 @@ pub struct StacksNodeConfig {
 }
 
 impl StacksNodeConfig {
+    pub fn new(rpc_url: String, ingestion_port: u16) -> StacksNodeConfig {
+        StacksNodeConfig {
+            rpc_url,
+            ingestion_port,
+        }
+    }
+
     pub fn default_localhost(ingestion_port: u16) -> StacksNodeConfig {
         StacksNodeConfig {
-            rpc_url: "http://localhost:20443".to_string(),
+            rpc_url: DEFAULT_STACKS_NODE_RPC.to_string(),
             ingestion_port,
         }
     }
