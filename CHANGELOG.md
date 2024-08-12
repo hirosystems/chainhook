@@ -1,3 +1,12 @@
+## [1.8.0](https://github.com/hirosystems/chainhook/compare/v1.7.0...v1.8.0) (2024-08-12)
+
+### New Features
+* PoxConfig improvements (#616)
+
+### Bug Fixes
+
+* optimize memory for stacks tsv import into rocksdb (#634)
+
 ## [1.7.0](https://github.com/hirosystems/chainhook/compare/v1.6.2...v1.7.0) (2024-07-05)
 
 ### New Features
