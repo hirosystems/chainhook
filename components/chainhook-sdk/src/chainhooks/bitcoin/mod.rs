@@ -795,7 +795,7 @@ pub fn handle_bitcoin_hook_action<'a>(
     }
 }
 
-struct OpReturn(String);
+struct OpReturn(());
 impl OpReturn {
     fn from_string(hex: &String) -> Result<String, String> {
         // Remove the `0x` prefix if present so that we can call from_hex without errors.

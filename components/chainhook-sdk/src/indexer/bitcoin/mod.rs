@@ -136,7 +136,7 @@ pub fn build_http_client() -> HttpClient {
     HttpClient::builder()
         .timeout(Duration::from_secs(15))
         .http1_only()
-        .no_trust_dns()
+        .no_hickory_dns()
         .connect_timeout(Duration::from_secs(15))
         .tcp_keepalive(Some(Duration::from_secs(15)))
         .no_proxy()
