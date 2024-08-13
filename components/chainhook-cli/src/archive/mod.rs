@@ -18,7 +18,7 @@ pub fn default_tsv_sha_file_path(network: &StacksNetwork) -> String {
 pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
     let mut destination_path = config.expected_cache_path();
     std::fs::create_dir_all(&destination_path).unwrap_or_else(|e| {
-        println!("{}", e.to_string());
+        println!("{}", e);
     });
 
     let remote_sha_url = config.expected_remote_stacks_tsv_sha256()?;
@@ -32,7 +32,7 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
     let mut local_sha_file_path = destination_path.clone();
     local_sha_file_path.push(default_tsv_sha_file_path(&config.network.stacks_network));
 
-    write_file_content_at_path(&local_sha_file_path, &res.to_vec())?;
+    write_file_content_at_path(&local_sha_file_path, &res)?;
 
     let file_url = config.expected_remote_stacks_tsv_url()?;
     let res = reqwest::get(&file_url)
@@ -57,14 +57,14 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
                         if let Err(e) = file.write_all(&buffer[..n]) {
                             return Err(format!(
                                 "unable to update compressed archive: {}",
-                                e.to_string()
+                                e
                             ));
                         }
                     }
                     Err(e) => {
                         return Err(format!(
                             "unable to write compressed archive: {}",
-                            e.to_string()
+                            e
                         ));
                     }
                 }
@@ -76,14 +76,14 @@ pub async fn download_tsv_file(config: &Config) -> Result<(), String> {
         while let Some(item) = stream.next().await {
             let chunk = match item {
                 Ok(i) => Ok(i),
-                Err(e) => Err(format!("Error while downloading file {}", e.to_string())),
+                Err(e) => Err(format!("Error while downloading file {}", e)),
             }?;
             if chunk.is_empty() {
                 continue;
             }
             tx.send_async(chunk.to_vec())
                 .await
-                .map_err(|e| format!("unable to download stacks archive: {}", e.to_string()))?;
+                .map_err(|e| format!("unable to download stacks archive: {}", e))?;
         }
         drop(tx);
         tokio::task::spawn_blocking(|| decoder_thread.join())
@@ -153,7 +153,7 @@ pub async fn download_stacks_dataset_if_required(
                     let local_version_is_latest = remote_response
                         .to_ascii_lowercase()
                         .starts_with(&local[0..32]);
-                    local_version_is_latest == false
+                    !local_version_is_latest
                 }
                 (_, _) => {
                     info!(
@@ -173,7 +173,7 @@ pub async fn download_stacks_dataset_if_required(
             }
 
             info!(ctx.expect_logger(), "Downloading {}", url);
-            match download_tsv_file(&config).await {
+            match download_tsv_file(config).await {
                 Ok(_) => {}
                 Err(e) => return Err(e),
             }

@@ -80,14 +80,14 @@ fn stacks_chainhook_contract_call(
         },
     );
 
-    let spec = StacksChainhookSpecificationNetworkMap {
+    
+    StacksChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         networks,
         version: 1,
-    };
-    spec
+    }
 }
 
 fn bitcoin_chainhook_p2pkh(
@@ -114,14 +114,14 @@ fn bitcoin_chainhook_p2pkh(
         },
     );
 
-    let spec = BitcoinChainhookSpecificationNetworkMap {
+    
+    BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         version: 1,
         networks,
-    };
-    spec
+    }
 }
 
 fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap {
@@ -146,14 +146,14 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap
         },
     );
 
-    let spec = BitcoinChainhookSpecificationNetworkMap {
+    
+    BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         version: 1,
         networks,
-    };
-    spec
+    }
 }
 
 fn generate_and_register_new_stacks_chainhook(
@@ -208,7 +208,7 @@ fn generate_and_register_new_bitcoin_chainhook(
     p2pkh_address: &str,
     expire_after_occurrence: Option<u64>,
 ) -> BitcoinChainhookInstance {
-    let chainhook = bitcoin_chainhook_p2pkh(id, &p2pkh_address, expire_after_occurrence);
+    let chainhook = bitcoin_chainhook_p2pkh(id, p2pkh_address, expire_after_occurrence);
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookSpecificationNetworkMap::Bitcoin(chainhook.clone()),
     ));

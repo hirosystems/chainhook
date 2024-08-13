@@ -184,13 +184,11 @@ fn it_validates_stacks_predicates(predicate: &StacksPredicate, expected_err: Opt
         } else {
             panic!("Unexpected error in predicate validation: {:?}", predicate);
         }
-    } else {
-        if let Some(_) = expected_err {
-            panic!(
-                "Missing expected error for predicate validation: {:?}",
-                predicate
-            );
-        }
+    } else if expected_err.is_some() {
+        panic!(
+            "Missing expected error for predicate validation: {:?}",
+            predicate
+        );
     }
 }
 

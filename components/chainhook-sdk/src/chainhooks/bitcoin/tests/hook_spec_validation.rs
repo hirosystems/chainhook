@@ -148,13 +148,11 @@ fn it_validates_bitcoin_predicates(predicate: &BitcoinPredicateType, expected_er
                 predicate
             );
         }
-    } else {
-        if let Some(_) = expected_err {
-            panic!(
-                "Missing expected error for predicate validation: {:?}",
-                predicate
-            );
-        }
+    } else if expected_err.is_some() {
+        panic!(
+            "Missing expected error for predicate validation: {:?}",
+            predicate
+        );
     }
 }
 
@@ -172,13 +170,11 @@ fn it_validates_hook_actions(action: &HookAction, expected_err: Option<Vec<Strin
                 action
             );
         }
-    } else {
-        if let Some(_) = expected_err {
-            panic!(
-                "Missing expected error for predicate validation: {:?}",
-                action
-            );
-        }
+    } else if expected_err.is_some() {
+        panic!(
+            "Missing expected error for predicate validation: {:?}",
+            action
+        );
     }
 }
 

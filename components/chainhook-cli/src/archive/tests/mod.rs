@@ -23,7 +23,7 @@ const SHA256_HASH: &str = "49ca5f80b2a1303e7f7e98a4f9d39efeb35fd9f3696c4cd9615e0
 
 #[get("/stacks_blocks.tsv.sha256")]
 fn get_sha256() -> String {
-    format!("{SHA256_HASH}")
+    SHA256_HASH.to_string()
 }
 
 #[get("/stacks_blocks.tsv.gz")]
@@ -60,7 +60,7 @@ async fn it_downloads_stacks_dataset_if_required() {
     let _ = hiro_system_kit::thread_named("Start tsv service")
         .spawn(move || {
             let future = start_service(port);
-            let _ = hiro_system_kit::nestable_block_on(future);
+            hiro_system_kit::nestable_block_on(future);
         })
         .expect("unable to spawn thread");
 

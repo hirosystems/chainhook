@@ -114,19 +114,16 @@ impl Service {
             if let PredicatesApi::On(api_config) = &self.config.http_api {
                 if let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn(api_config) {
                     let uuid = predicate.get_uuid();
-                    match get_entry_from_predicates_db(
-                        &ChainhookInstance::either_stx_or_btc_key(&uuid),
+                    if let Ok(Some(_)) = get_entry_from_predicates_db(
+                        &ChainhookInstance::either_stx_or_btc_key(uuid),
                         &mut predicates_db_conn,
                         &self.ctx,
                     ) {
-                        Ok(Some(_)) => {
-                            warn!(
-                                self.ctx.expect_logger(),
-                                "Predicate uuid already in use: {uuid}",
-                            );
-                            continue;
-                        }
-                        _ => {}
+                        warn!(
+                            self.ctx.expect_logger(),
+                            "Predicate uuid already in use: {uuid}",
+                        );
+                        continue;
                     }
                 };
             }
@@ -165,8 +162,7 @@ impl Service {
 
         // Download and ingest a Stacks dump
         if self.config.rely_on_remote_stacks_tsv() {
-            let _ =
-                consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await?;
+            consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await?;
         }
 
         // Stacks scan operation threadpool
@@ -343,7 +339,7 @@ impl Service {
                     // - contract-id
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -378,7 +374,7 @@ impl Service {
                 ObserverEvent::PredicateEnabled(spec) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -402,7 +398,7 @@ impl Service {
                 }) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -435,7 +431,7 @@ impl Service {
                     debug!(self.ctx.expect_logger(), "Bitcoin update not stored");
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -445,27 +441,24 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    match expire_predicates_for_block(
+                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
                                         &Chain::Bitcoin,
                                         confirmed_block.block_identifier.index,
                                         &mut predicates_db_conn,
                                         &ctx,
                                     ) {
-                                        Some(expired_predicate_uuids) => {
-                                            for uuid in expired_predicate_uuids.into_iter() {
-                                                let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireBitcoinPredicate(
-                                                        HookExpirationData {
-                                                            hook_uuid: uuid,
-                                                            block_height: confirmed_block
-                                                                .block_identifier
-                                                                .index,
-                                                        },
-                                                    ),
-                                                );
-                                            }
+                                        for uuid in expired_predicate_uuids.into_iter() {
+                                            let _ = observer_command_tx.send(
+                                                ObserverCommand::ExpireBitcoinPredicate(
+                                                    HookExpirationData {
+                                                        hook_uuid: uuid,
+                                                        block_height: confirmed_block
+                                                            .block_identifier
+                                                            .index,
+                                                    },
+                                                ),
+                                            );
                                         }
-                                        None => {}
                                     }
                                 }
                             }
@@ -473,27 +466,24 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    match expire_predicates_for_block(
+                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
                                         &Chain::Bitcoin,
                                         confirmed_block.block_identifier.index,
                                         &mut predicates_db_conn,
                                         &ctx,
                                     ) {
-                                        Some(expired_predicate_uuids) => {
-                                            for uuid in expired_predicate_uuids.into_iter() {
-                                                let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireBitcoinPredicate(
-                                                        HookExpirationData {
-                                                            hook_uuid: uuid,
-                                                            block_height: confirmed_block
-                                                                .block_identifier
-                                                                .index,
-                                                        },
-                                                    ),
-                                                );
-                                            }
+                                        for uuid in expired_predicate_uuids.into_iter() {
+                                            let _ = observer_command_tx.send(
+                                                ObserverCommand::ExpireBitcoinPredicate(
+                                                    HookExpirationData {
+                                                        hook_uuid: uuid,
+                                                        block_height: confirmed_block
+                                                            .block_identifier
+                                                            .index,
+                                                    },
+                                                ),
+                                            );
                                         }
-                                        None => {}
                                     }
                                 }
                             }
@@ -571,7 +561,7 @@ impl Service {
 
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -580,53 +570,47 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithBlocks(data) => {
                                 stacks_event += 1;
                                 for confirmed_block in &data.confirmed_blocks {
-                                    match expire_predicates_for_block(
+                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
                                         &Chain::Stacks,
                                         confirmed_block.block_identifier.index,
                                         &mut predicates_db_conn,
                                         &ctx,
                                     ) {
-                                        Some(expired_predicate_uuids) => {
-                                            for uuid in expired_predicate_uuids.into_iter() {
-                                                let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireStacksPredicate(
-                                                        HookExpirationData {
-                                                            hook_uuid: uuid,
-                                                            block_height: confirmed_block
-                                                                .block_identifier
-                                                                .index,
-                                                        },
-                                                    ),
-                                                );
-                                            }
+                                        for uuid in expired_predicate_uuids.into_iter() {
+                                            let _ = observer_command_tx.send(
+                                                ObserverCommand::ExpireStacksPredicate(
+                                                    HookExpirationData {
+                                                        hook_uuid: uuid,
+                                                        block_height: confirmed_block
+                                                            .block_identifier
+                                                            .index,
+                                                    },
+                                                ),
+                                            );
                                         }
-                                        None => {}
                                     }
                                 }
                             }
                             StacksChainEvent::ChainUpdatedWithReorg(data) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    match expire_predicates_for_block(
+                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
                                         &Chain::Stacks,
                                         confirmed_block.block_identifier.index,
                                         &mut predicates_db_conn,
                                         &ctx,
                                     ) {
-                                        Some(expired_predicate_uuids) => {
-                                            for uuid in expired_predicate_uuids.into_iter() {
-                                                let _ = observer_command_tx.send(
-                                                    ObserverCommand::ExpireStacksPredicate(
-                                                        HookExpirationData {
-                                                            hook_uuid: uuid,
-                                                            block_height: confirmed_block
-                                                                .block_identifier
-                                                                .index,
-                                                        },
-                                                    ),
-                                                );
-                                            }
+                                        for uuid in expired_predicate_uuids.into_iter() {
+                                            let _ = observer_command_tx.send(
+                                                ObserverCommand::ExpireStacksPredicate(
+                                                    HookExpirationData {
+                                                        hook_uuid: uuid,
+                                                        block_height: confirmed_block
+                                                            .block_identifier
+                                                            .index,
+                                                    },
+                                                ),
+                                            );
                                         }
-                                        None => {}
                                     }
                                 }
                             }
@@ -645,19 +629,15 @@ impl Service {
                     if stacks_event > 32 {
                         stacks_event = 0;
                         if self.config.rely_on_remote_stacks_tsv() {
-                            match consolidate_local_stacks_chainstate_using_csv(
+                            if let Err(e) = consolidate_local_stacks_chainstate_using_csv(
                                 &mut self.config,
                                 &self.ctx,
                             )
-                            .await
-                            {
-                                Err(e) => {
-                                    error!(
-                                        self.ctx.expect_logger(),
-                                        "Failed to update database from archive: {e}"
-                                    )
-                                }
-                                Ok(()) => {}
+                            .await {
+                                error!(
+                                    self.ctx.expect_logger(),
+                                    "Failed to update database from archive: {e}"
+                                )
                             };
                         }
                     }
@@ -668,7 +648,7 @@ impl Service {
                 }) => {
                     if let PredicatesApi::On(ref config) = self.config.http_api {
                         let Ok(mut predicates_db_conn) =
-                            open_readwrite_predicates_db_conn_verbose(&config, &ctx)
+                            open_readwrite_predicates_db_conn_verbose(config, &ctx)
                         else {
                             continue;
                         };
@@ -748,7 +728,7 @@ fn update_status_from_report(
     ctx: &Context,
 ) {
     for (predicate_uuid, blocks_ids) in report.predicates_triggered.iter() {
-        if let Some(last_triggered_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
+        if let Some(last_triggered_height) = blocks_ids.last().map(|b| b.index) {
             let triggered_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Occurrence {
@@ -757,7 +737,7 @@ fn update_status_from_report(
                 },
                 &(ChainhookInstance::either_stx_or_btc_key(predicate_uuid)),
                 predicates_db_conn,
-                &ctx,
+                ctx,
             );
         }
     }
@@ -777,7 +757,7 @@ fn update_status_from_report(
                 blocks_ids.remove(expired_id);
             }
         }
-        if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
+        if let Some(last_evaluated_height) = blocks_ids.last().map(|b| b.index) {
             let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_predicate_streaming_status(
                 StreamingDataType::Evaluation {
@@ -786,12 +766,12 @@ fn update_status_from_report(
                 },
                 &(ChainhookInstance::either_stx_or_btc_key(predicate_uuid)),
                 predicates_db_conn,
-                &ctx,
+                ctx,
             );
         }
     }
     for (predicate_uuid, blocks_ids) in report.predicates_expired.iter() {
-        if let Some(last_evaluated_height) = blocks_ids.last().and_then(|b| Some(b.index)) {
+        if let Some(last_evaluated_height) = blocks_ids.last().map(|b| b.index) {
             let evaluated_count = blocks_ids.len().try_into().unwrap_or(0);
             set_unconfirmed_expiration_status(
                 &chain,
@@ -799,7 +779,7 @@ fn update_status_from_report(
                 last_evaluated_height,
                 &(ChainhookInstance::either_stx_or_btc_key(predicate_uuid)),
                 predicates_db_conn,
-                &ctx,
+                ctx,
             );
         }
     }
@@ -849,7 +829,7 @@ fn set_predicate_streaming_status(
         number_of_times_triggered,
         last_evaluated_block_height,
     ) = {
-        let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+        let current_status = retrieve_predicate_status(predicate_key, predicates_db_conn);
         match current_status {
             Some(status) => match status {
                 PredicateStatus::Streaming(StreamingData {
@@ -907,7 +887,7 @@ fn set_predicate_streaming_status(
             last_triggered_height,
             triggered_count,
         } => (
-            Some(now_secs.clone()),
+            Some(now_secs),
             number_of_times_triggered + triggered_count,
             number_of_blocks_evaluated + triggered_count,
             last_triggered_height,
@@ -939,7 +919,7 @@ fn set_predicate_streaming_status(
             number_of_blocks_evaluated,
         }),
         predicates_db_conn,
-        &ctx,
+        ctx,
     );
 }
 
@@ -959,7 +939,7 @@ pub fn set_predicate_scanning_status(
         .duration_since(UNIX_EPOCH)
         .expect("Could not get current time in ms")
         .as_secs();
-    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let current_status = retrieve_predicate_status(predicate_key, predicates_db_conn);
     let last_occurrence = match current_status {
         Some(status) => match status {
             PredicateStatus::Scanning(scanning_data) => {
@@ -1008,7 +988,7 @@ pub fn set_predicate_scanning_status(
             last_evaluated_block_height: current_block_height,
         }),
         predicates_db_conn,
-        &ctx,
+        ctx,
     );
 }
 
@@ -1021,7 +1001,7 @@ pub fn set_unconfirmed_expiration_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let current_status = retrieve_predicate_status(predicate_key, predicates_db_conn);
     let mut previously_was_unconfirmed = false;
     let (
         number_of_blocks_evaluated,
@@ -1087,7 +1067,7 @@ pub fn set_unconfirmed_expiration_status(
             expired_at_block_height,
         }),
         predicates_db_conn,
-        &ctx,
+        ctx,
     );
     // don't insert this entry more than once
     if !previously_was_unconfirmed {
@@ -1096,7 +1076,7 @@ pub fn set_unconfirmed_expiration_status(
             expired_at_block_height,
             predicate_key,
             predicates_db_conn,
-            &ctx,
+            ctx,
         );
     }
 }
@@ -1106,7 +1086,7 @@ pub fn set_confirmed_expiration_status(
     predicates_db_conn: &mut Connection,
     ctx: &Context,
 ) {
-    let current_status = retrieve_predicate_status(&predicate_key, predicates_db_conn);
+    let current_status = retrieve_predicate_status(predicate_key, predicates_db_conn);
     let expired_data = match current_status {
         Some(status) => match status {
             PredicateStatus::UnconfirmedExpiration(expired_data) => expired_data,
@@ -1128,7 +1108,7 @@ pub fn set_confirmed_expiration_status(
         predicate_key,
         PredicateStatus::ConfirmedExpiration(expired_data),
         predicates_db_conn,
-        &ctx,
+        ctx,
     );
 }
 
@@ -1164,8 +1144,8 @@ fn insert_predicate_expiration(
 ) {
     let key = get_predicate_expiration_key(chain, expired_at_block_height);
     let mut predicates_expiring_at_block =
-        get_predicates_expiring_at_block(chain, expired_at_block_height, predicates_db_conn, &ctx)
-            .unwrap_or(vec![]);
+        get_predicates_expiring_at_block(chain, expired_at_block_height, predicates_db_conn, ctx)
+            .unwrap_or_default();
     predicates_expiring_at_block.push(predicate_key.to_owned());
     let serialized_expiring_predicates = json!(predicates_expiring_at_block).to_string();
     if let Err(e) =
@@ -1278,7 +1258,7 @@ pub fn open_readwrite_predicates_db_conn(
     let client = redis::Client::open(redis_uri.clone()).unwrap();
     client
         .get_connection()
-        .map_err(|e| format!("unable to connect to db: {}", e.to_string()))
+        .map_err(|e| format!("unable to connect to db: {}", e))
 }
 
 pub fn open_readwrite_predicates_db_conn_verbose(

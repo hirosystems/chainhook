@@ -45,6 +45,12 @@ impl StacksChainContext {
 
 pub struct BitcoinChainContext {}
 
+impl Default for BitcoinChainContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BitcoinChainContext {
     pub fn new() -> BitcoinChainContext {
         BitcoinChainContext {}
@@ -103,8 +109,8 @@ impl Indexer {
         header: BlockHeader,
         ctx: &Context,
     ) -> Result<Option<BlockchainEvent>, String> {
-        let event = self.bitcoin_blocks_pool.process_header(header, ctx);
-        event
+        
+        self.bitcoin_blocks_pool.process_header(header, ctx)
     }
 
     pub fn standardize_stacks_marshalled_block(
@@ -185,6 +191,12 @@ pub struct ChainSegmentDivergence {
     block_ids_to_rollback: Vec<BlockIdentifier>,
 }
 
+impl Default for ChainSegment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChainSegment {
     pub fn new() -> ChainSegment {
         let block_ids = VecDeque::new();
@@ -199,7 +211,7 @@ impl ChainSegment {
         if let Some(tip) = self.block_ids.front() {
             return block_identifier.index > (tip.index + 1);
         }
-        return false;
+        false
     }
 
     fn get_relative_index(&self, block_identifier: &BlockIdentifier) -> usize {
@@ -207,7 +219,7 @@ impl ChainSegment {
             let segment_index = tip.index.saturating_sub(block_identifier.index);
             return segment_index.try_into().unwrap();
         }
-        return 0;
+        0
     }
 
     fn can_append_block(
@@ -215,7 +227,7 @@ impl ChainSegment {
         block: &dyn AbstractBlock,
         ctx: &Context,
     ) -> Result<(), ChainSegmentIncompatibility> {
-        if self.is_block_id_newer_than_segment(&block.get_identifier()) {
+        if self.is_block_id_newer_than_segment(block.get_identifier()) {
             // Chain segment looks outdated, we should just prune it?
             return Err(ChainSegmentIncompatibility::OutdatedSegment);
         }
@@ -232,8 +244,8 @@ impl ChainSegment {
                 false => return Err(ChainSegmentIncompatibility::ParentBlockUnknown),
             }
         }
-        if let Some(colliding_block) = self.get_block_id(&block.get_identifier(), ctx) {
-            match colliding_block.eq(&block.get_identifier()) {
+        if let Some(colliding_block) = self.get_block_id(block.get_identifier(), ctx) {
+            match colliding_block.eq(block.get_identifier()) {
                 true => return Err(ChainSegmentIncompatibility::AlreadyPresent),
                 false => return Err(ChainSegmentIncompatibility::BlockCollision),
             }
@@ -285,7 +297,7 @@ impl ChainSegment {
         loop {
             match self.block_ids.pop_front() {
                 Some(tip) => {
-                    if tip.eq(&block_identifier) {
+                    if tip.eq(block_identifier) {
                         self.block_ids.push_front(tip);
                         break (true, mutated);
                     }
@@ -354,7 +366,7 @@ impl ChainSegment {
         });
         match self.can_append_block(block, ctx) {
             Ok(()) => {
-                self.append_block_identifier(&block.get_identifier());
+                self.append_block_identifier(block.get_identifier());
                 block_appended = true;
             }
             Err(incompatibility) => {
@@ -366,11 +378,11 @@ impl ChainSegment {
                         let mut new_fork = self.clone();
                         let (parent_found, _) = new_fork
                             .keep_blocks_from_oldest_to_block_identifier(
-                                &block.get_parent_identifier(),
+                                block.get_parent_identifier(),
                             );
                         if parent_found {
                             ctx.try_log(|logger| slog::info!(logger, "Success"));
-                            new_fork.append_block_identifier(&block.get_identifier());
+                            new_fork.append_block_identifier(block.get_identifier());
                             fork = Some(new_fork);
                             block_appended = true;
                         }

@@ -109,6 +109,12 @@ pub struct EventObserverConfigBuilder {
     pub prometheus_monitoring_port: Option<u16>,
 }
 
+impl Default for EventObserverConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventObserverConfigBuilder {
     pub fn new() -> Self {
         EventObserverConfigBuilder {
@@ -218,6 +224,12 @@ pub struct BitcoinEventObserverConfigBuilder {
     pub bitcoind_zmq_url: Option<String>,
     pub prometheus_monitoring_port: Option<u16>,
 }
+impl Default for BitcoinEventObserverConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BitcoinEventObserverConfigBuilder {
     pub fn new() -> Self {
         BitcoinEventObserverConfigBuilder {
@@ -272,7 +284,7 @@ impl BitcoinEventObserverConfigBuilder {
     /// This function will return an error if the `bitcoin_network` string is set and is not a valid [BitcoinNetwork].
     pub fn finish(&self) -> Result<EventObserverConfig, String> {
         let bitcoin_network = if let Some(network) = self.bitcoin_network.as_ref() {
-            BitcoinNetwork::from_str(&network)?
+            BitcoinNetwork::from_str(network)?
         } else {
             BitcoinNetwork::Regtest
         };
@@ -297,7 +309,7 @@ impl BitcoinEventObserverConfigBuilder {
                     .unwrap_or_else(|| "tcp://0.0.0.0:18543".into()),
             ),
             display_stacks_ingestion_logs: false,
-            bitcoin_network: bitcoin_network,
+            bitcoin_network,
             stacks_network: StacksNetwork::Devnet,
             prometheus_monitoring_port: self.prometheus_monitoring_port,
         })
@@ -351,14 +363,14 @@ impl EventObserverConfig {
     }
 
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
-        let bitcoin_config = BitcoinConfig {
+        
+        BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
             password: self.bitcoind_rpc_password.clone(),
             rpc_url: self.bitcoind_rpc_url.clone(),
             network: self.bitcoin_network.clone(),
             bitcoin_block_signaling: self.bitcoin_block_signaling.clone(),
-        };
-        bitcoin_config
+        }
     }
 
     pub fn get_stacks_node_config(&self) -> &StacksNodeConfig {
@@ -410,12 +422,12 @@ impl EventObserverConfig {
                             .unwrap_or_else(|| DEFAULT_STACKS_NODE_RPC.to_string()),
                         overrides
                             .and_then(|c| c.chainhook_stacks_block_ingestion_port)
-                            .unwrap_or_else(|| DEFAULT_INGESTION_PORT),
+                            .unwrap_or(DEFAULT_INGESTION_PORT),
                     ))
                 }),
             display_stacks_ingestion_logs: overrides
                 .and_then(|c| c.display_stacks_ingestion_logs)
-                .unwrap_or_else(|| false),
+                .unwrap_or(false),
             bitcoin_network,
             stacks_network,
             prometheus_monitoring_port: overrides.and_then(|c| c.prometheus_monitoring_port),
@@ -472,6 +484,12 @@ pub struct PredicateEvaluationReport {
     pub predicates_expired: BTreeMap<String, BTreeSet<BlockIdentifier>>,
 }
 
+impl Default for PredicateEvaluationReport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PredicateEvaluationReport {
     pub fn new() -> PredicateEvaluationReport {
         PredicateEvaluationReport {
@@ -495,7 +513,7 @@ impl PredicateEvaluationReport {
     }
 
     pub fn track_trigger(&mut self, uuid: &str, blocks: &Vec<&BlockIdentifier>) {
-        for block_id in blocks.into_iter() {
+        for block_id in blocks.iter() {
             self.predicates_triggered
                 .entry(uuid.to_string())
                 .and_modify(|e| {
@@ -695,9 +713,9 @@ impl EventObserverBuilder {
         ctx: &Context,
     ) -> Self {
         EventObserverBuilder {
-            config: config,
+            config,
             observer_commands_tx: observer_commands_tx.clone(),
-            observer_commands_rx: observer_commands_rx,
+            observer_commands_rx,
             ctx: ctx.clone(),
             observer_events_tx: None,
             observer_sidecar: None,
@@ -852,7 +870,7 @@ pub async fn start_bitcoin_event_observer(
         let config_moved = config.clone();
         let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
             let future = zmq::start_zeromq_runloop(&config_moved, observer_commands_tx, &ctx_moved);
-            let _ = hiro_system_kit::nestable_block_on(future);
+            hiro_system_kit::nestable_block_on(future);
         });
     }
 
@@ -867,7 +885,7 @@ pub async fn start_bitcoin_event_observer(
         let registry_moved = prometheus_monitoring.registry.clone();
         let ctx_cloned = ctx.clone();
         let _ = std::thread::spawn(move || {
-            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+            hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
                 port,
                 registry_moved,
                 ctx_cloned,
@@ -942,7 +960,7 @@ pub async fn start_stacks_event_observer(
         let registry_moved = prometheus_monitoring.registry.clone();
         let ctx_cloned = ctx.clone();
         let _ = std::thread::spawn(move || {
-            let _ = hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
+            hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
                 port,
                 registry_moved,
                 ctx_cloned,
@@ -962,7 +980,7 @@ pub async fn start_stacks_event_observer(
         address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         keep_alive: 5,
         temp_dir: std::env::temp_dir().into(),
-        log_level: log_level.clone(),
+        log_level,
         cli_colors: false,
         limits,
         shutdown: shutdown_config,
@@ -1022,17 +1040,17 @@ pub fn get_bitcoin_proof(
     block_identifier: &BlockIdentifier,
 ) -> Result<String, String> {
     let txid =
-        Txid::from_str(&transaction_identifier.get_hash_bytes_str()).expect("unable to build txid");
+        Txid::from_str(transaction_identifier.get_hash_bytes_str()).expect("unable to build txid");
     let block_hash =
         BlockHash::from_str(&block_identifier.hash[2..]).expect("unable to build block_hash");
 
-    let res = bitcoin_client_rpc.get_tx_out_proof(&vec![txid], Some(&block_hash));
+    let res = bitcoin_client_rpc.get_tx_out_proof(&[txid], Some(&block_hash));
     match res {
         Ok(proof) => Ok(format!("0x{}", hex::encode(&proof))),
         Err(e) => Err(format!(
             "failed collecting proof for transaction {}: {}",
             transaction_identifier.hash,
-            e.to_string()
+            e
         )),
     }
 }
@@ -1341,18 +1359,14 @@ pub async fn start_observer_commands_handler(
                             }
                         }
 
-                        match blocks_to_apply
+                        if let Some(highest_tip_block) = blocks_to_apply
                             .iter()
-                            .max_by_key(|b| b.block_identifier.index)
-                        {
-                            Some(highest_tip_block) => {
-                                prometheus_monitoring.btc_metrics_set_reorg(
-                                    highest_tip_block.timestamp.into(),
-                                    blocks_to_apply.len() as u64,
-                                    blocks_to_rollback.len() as u64,
-                                );
-                            }
-                            None => {}
+                            .max_by_key(|b| b.block_identifier.index) {
+                            prometheus_monitoring.btc_metrics_set_reorg(
+                                highest_tip_block.timestamp.into(),
+                                blocks_to_apply.len() as u64,
+                                blocks_to_rollback.len() as u64,
+                            );
                         }
 
                         (
@@ -1446,7 +1460,7 @@ pub async fn start_observer_commands_handler(
                 let mut proofs = HashMap::new();
                 for trigger in chainhooks_to_trigger.iter() {
                     if trigger.chainhook.include_proof {
-                        gather_proofs(&trigger, &mut proofs, &config, &ctx);
+                        gather_proofs(trigger, &mut proofs, &config, &ctx);
                     }
                 }
 
