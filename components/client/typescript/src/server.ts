@@ -171,7 +171,7 @@ export async function buildServer(
             continue;
           case false:
             logger.info(
-              `ChainhookEventObserver predicate ${predicate.uuid} was being used but is now inactive, updating`
+              `ChainhookEventObserver predicate ${predicate.uuid} was being used but is now inactive, removing for re-regristration`
             );
             await removePredicate(predicate);
         }
