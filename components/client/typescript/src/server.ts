@@ -11,7 +11,13 @@ import { request } from 'undici';
 import { logger, PINO_CONFIG } from './util/logger';
 import { timeout } from './util/helpers';
 import { Payload, PayloadSchema } from './schemas/payload';
-import { Predicate, PredicateHeaderSchema, ThenThatHttpPost } from './schemas/predicate';
+import {
+  Predicate,
+  PredicateHeaderSchema,
+  SerializedPredicate,
+  SerializedPredicateResponse,
+  ThenThatHttpPost,
+} from './schemas/predicate';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
 
@@ -104,9 +110,7 @@ export async function buildServer(
   callback: OnEventCallback
 ) {
   async function waitForNode(this: FastifyInstance) {
-    logger.info(
-      `ChainhookEventObserver connecting to chainhook node at ${chainhookOpts.base_url}...`
-    );
+    logger.info(`ChainhookEventObserver looking for chainhook node at ${chainhookOpts.base_url}`);
     while (true) {
       try {
         await request(`${chainhookOpts.base_url}/ping`, { method: 'GET', throwOnError: true });
@@ -118,7 +122,35 @@ export async function buildServer(
     }
   }
 
-  async function registerPredicates(this: FastifyInstance) {
+  async function isPredicateActive(predicate: ServerPredicate): Promise<boolean | undefined> {
+    try {
+      const result = await request(`${chainhookOpts.base_url}/v1/chainhooks/${predicate.uuid}`, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        throwOnError: true,
+      });
+      const response = (await result.body.json()) as SerializedPredicateResponse;
+      if (response.status == 404) return undefined;
+      if (
+        response.result.enabled == false ||
+        response.result.status.type == 'interrupted' ||
+        response.result.status.type == 'unconfirmed_expiration' ||
+        response.result.status.type == 'confirmed_expiration'
+      ) {
+        return false;
+      }
+      return true;
+    } catch (error) {
+      logger.error(
+        error,
+        `ChainhookEventObserver unable to check if predicate ${predicate.uuid} is active`
+      );
+      return false;
+    }
+  }
+
+  async function registerAllPredicates(this: FastifyInstance) {
+    logger.info(predicates, `ChainhookEventObserver connected to ${chainhookOpts.base_url}`);
     if (predicates.length === 0) {
       logger.info(`ChainhookEventObserver does not have predicates to register`);
       return;
@@ -126,8 +158,25 @@ export async function buildServer(
     const nodeType = serverOpts.node_type ?? 'chainhook';
     const path = nodeType === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
     const registerUrl = `${chainhookOpts.base_url}${path}`;
-    logger.info(predicates, `ChainhookEventObserver registering predicates at ${registerUrl}`);
     for (const predicate of predicates) {
+      if (nodeType === 'chainhook') {
+        switch (await isPredicateActive(predicate)) {
+          case undefined:
+            // Predicate doesn't exist.
+            break;
+          case true:
+            logger.info(
+              `ChainhookEventObserver predicate ${predicate.uuid} is already active, skipping registration`
+            );
+            continue;
+          case false:
+            logger.info(
+              `ChainhookEventObserver predicate ${predicate.uuid} was being used but is now inactive, removing for re-regristration`
+            );
+            await removePredicate(predicate);
+        }
+      }
+      logger.info(`ChainhookEventObserver registering predicate ${predicate.uuid}`);
       const thenThat: ThenThatHttpPost = {
         http_post: {
           url: `${serverOpts.external_base_url}/payload`,
@@ -144,46 +193,37 @@ export async function buildServer(
           headers: { 'content-type': 'application/json' },
           throwOnError: true,
         });
-        logger.info(
-          `ChainhookEventObserver registered '${predicate.name}' predicate (${predicate.uuid})`
-        );
       } catch (error) {
         logger.error(error, `ChainhookEventObserver unable to register predicate`);
       }
     }
   }
 
-  async function removePredicates(this: FastifyInstance) {
+  async function removePredicate(predicate: ServerPredicate): Promise<void> {
+    const nodeType = serverOpts.node_type ?? 'chainhook';
+    const path =
+      nodeType === 'chainhook'
+        ? `/v1/chainhooks/${predicate.chain}/${encodeURIComponent(predicate.uuid)}`
+        : `/v1/observers/${encodeURIComponent(predicate.uuid)}`;
+    try {
+      await request(`${chainhookOpts.base_url}${path}`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        throwOnError: true,
+      });
+      logger.info(`ChainhookEventObserver removed predicate ${predicate.uuid}`);
+    } catch (error) {
+      logger.error(error, `ChainhookEventObserver unable to deregister predicate`);
+    }
+  }
+
+  async function removeAllPredicates(this: FastifyInstance) {
     if (predicates.length === 0) {
       logger.info(`ChainhookEventObserver does not have predicates to close`);
       return;
     }
     logger.info(`ChainhookEventObserver closing predicates at ${chainhookOpts.base_url}`);
-    const nodeType = serverOpts.node_type ?? 'chainhook';
-    const removals = predicates.map(
-      predicate =>
-        new Promise<void>((resolve, reject) => {
-          const path =
-            nodeType === 'chainhook'
-              ? `/v1/chainhooks/${predicate.chain}/${encodeURIComponent(predicate.uuid)}`
-              : `/v1/observers/${encodeURIComponent(predicate.uuid)}`;
-          request(`${chainhookOpts.base_url}${path}`, {
-            method: 'DELETE',
-            headers: { 'content-type': 'application/json' },
-            throwOnError: true,
-          })
-            .then(() => {
-              logger.info(
-                `ChainhookEventObserver removed '${predicate.name}' predicate (${predicate.uuid})`
-              );
-              resolve();
-            })
-            .catch(error => {
-              logger.error(error, `ChainhookEventObserver unable to deregister predicate`);
-              reject(error);
-            });
-        })
-    );
+    const removals = predicates.map(predicate => removePredicate(predicate));
     await Promise.allSettled(removals);
   }
 
@@ -242,8 +282,8 @@ export async function buildServer(
   if (serverOpts.wait_for_chainhook_node ?? true) {
     fastify.addHook('onReady', waitForNode);
   }
-  fastify.addHook('onReady', registerPredicates);
-  fastify.addHook('onClose', removePredicates);
+  fastify.addHook('onReady', registerAllPredicates);
+  fastify.addHook('onClose', removeAllPredicates);
 
   await fastify.register(ChainhookEventObserver);
   return fastify;

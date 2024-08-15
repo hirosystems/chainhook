@@ -42,3 +42,72 @@ export const PredicateSchema = Type.Composite([
   }),
 ]);
 export type Predicate = Static<typeof PredicateSchema>;
+
+export const PredicateExpiredDataSchema = Type.Object({
+  expired_at_block_height: Type.Integer(),
+  last_evaluated_block_height: Type.Integer(),
+  last_occurrence: Type.Optional(Type.Integer()),
+  number_of_blocks_evaluated: Type.Integer(),
+  number_of_times_triggered: Type.Integer(),
+});
+export type PredicateExpiredData = Static<typeof PredicateExpiredDataSchema>;
+
+export const PredicateStatusSchema = Type.Union([
+  Type.Object({
+    info: Type.Object({
+      number_of_blocks_to_scan: Type.Integer(),
+      number_of_blocks_evaluated: Type.Integer(),
+      number_of_times_triggered: Type.Integer(),
+      last_occurrence: Type.Optional(Type.Integer()),
+      last_evaluated_block_height: Type.Integer(),
+    }),
+    type: Type.Literal('scanning'),
+  }),
+  Type.Object({
+    info: Type.Object({
+      last_occurrence: Type.Optional(Type.Integer()),
+      last_evaluation: Type.Integer(),
+      number_of_times_triggered: Type.Integer(),
+      number_of_blocks_evaluated: Type.Integer(),
+      last_evaluated_block_height: Type.Integer(),
+    }),
+    type: Type.Literal('streaming'),
+  }),
+  Type.Object({
+    info: PredicateExpiredDataSchema,
+    type: Type.Literal('unconfirmed_expiration'),
+  }),
+  Type.Object({
+    info: PredicateExpiredDataSchema,
+    type: Type.Literal('confirmed_expiration'),
+  }),
+  Type.Object({
+    info: Type.String(),
+    type: Type.Literal('interrupted'),
+  }),
+  Type.Object({
+    type: Type.Literal('new'),
+  }),
+]);
+export type PredicateStatus = Static<typeof PredicateStatusSchema>;
+
+export const SerializedPredicateSchema = Type.Object({
+  chain: Type.Union([Type.Literal('stacks'), Type.Literal('bitcoin')]),
+  uuid: Type.String(),
+  network: Type.Union([Type.Literal('mainnet'), Type.Literal('testnet')]),
+  predicate: Type.Any(),
+  status: PredicateStatusSchema,
+  enabled: Type.Boolean(),
+});
+export type SerializedPredicate = Static<typeof SerializedPredicateSchema>;
+
+export const SerializedPredicateResponseSchema = Type.Union([
+  Type.Object({
+    status: Type.Literal(404),
+  }),
+  Type.Object({
+    result: SerializedPredicateSchema,
+    status: Type.Literal(200),
+  }),
+]);
+export type SerializedPredicateResponse = Static<typeof SerializedPredicateResponseSchema>;
