@@ -22,6 +22,7 @@ use schemars::JsonSchema;
 use serde_json::Value as JsonValue;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
+use std::time::Duration;
 
 use reqwest::RequestBuilder;
 
@@ -1337,6 +1338,7 @@ pub fn handle_stacks_hook_action<'a>(
     match &trigger.chainhook.action {
         HookAction::HttpPost(http) => {
             let client = Client::builder()
+                .timeout(Duration::from_secs(30))
                 .build()
                 .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
             let host = format!("{}", http.url);
