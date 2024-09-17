@@ -8,10 +8,7 @@ use hiro_system_kit::slog;
 pub fn expect_no_chain_update() -> StacksChainEventExpectation {
     Box::new(move |chain_event_to_check: Option<StacksChainEvent>| {
         assert!(
-            match chain_event_to_check {
-                None => true,
-                _ => false,
-            },
+            chain_event_to_check.is_none(),
             "expected no Chain update, got {:?}",
             chain_event_to_check
         );
@@ -190,7 +187,7 @@ pub fn expect_chain_updated_with_block_and_microblock_updates(
                         .as_ref()
                         .unwrap();
                     assert!(
-                        &expected_microblock_id.eq(&microblock_id),
+                        &expected_microblock_id.eq(microblock_id),
                         "{} ≠ {}",
                         expected_microblock_id,
                         microblock_id
@@ -298,7 +295,7 @@ pub fn expect_chain_updated_with_block_reorg_and_microblock_updates(
                         .as_ref()
                         .unwrap();
                     assert!(
-                        &expected_microblock_id.eq(&microblock_id),
+                        &expected_microblock_id.eq(microblock_id),
                         "{} ≠ {}",
                         expected_microblock_id,
                         microblock_id
@@ -316,7 +313,7 @@ pub fn expect_chain_updated_with_block_reorg_and_microblock_updates(
                         .as_ref()
                         .unwrap();
                     assert!(
-                        &expected_microblock_id.eq(&microblock_id),
+                        &expected_microblock_id.eq(microblock_id),
                         "{} ≠ {}",
                         expected_microblock_id,
                         microblock_id

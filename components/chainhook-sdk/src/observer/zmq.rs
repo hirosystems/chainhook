@@ -87,7 +87,7 @@ pub async fn start_zeromq_runloop(
                 &http_client,
                 &block_hash,
                 &bitcoin_config,
-                &ctx,
+                ctx,
             )
             .await
             {
@@ -116,7 +116,7 @@ pub async fn start_zeromq_runloop(
             let _ = observer_commands_tx.send(ObserverCommand::ProcessBitcoinBlock(block));
 
             if bitcoin_blocks_pool.can_process_header(&header) {
-                match bitcoin_blocks_pool.process_header(header, &ctx) {
+                match bitcoin_blocks_pool.process_header(header, ctx) {
                     Ok(Some(event)) => {
                         let _ = observer_commands_tx
                             .send(ObserverCommand::PropagateBitcoinChainEvent(event));

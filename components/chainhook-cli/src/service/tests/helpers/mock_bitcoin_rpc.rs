@@ -136,7 +136,7 @@ fn handle_rpc(
                     value: Amount::ZERO,
                     n: 0,
                     script_pub_key: GetRawTransactionResultVoutScriptPubKey {
-                        asm: format!(""),
+                        asm: String::new(),
                         hex: vec![],
                         req_sigs: None,
                         type_: None,
@@ -151,10 +151,10 @@ fn handle_rpc(
                     sequence: 0,
                     txid: Some(branch_and_height_to_hash_str(Some(branch), height + 1)),
                     vout: Some(1),
-                    script_sig: Some(GetRawTransactionResultVinScriptSig { hex: format!("") }),
+                    script_sig: Some(GetRawTransactionResultVinScriptSig { hex: String::new() }),
                     txinwitness: Some(vec![format!("")]),
                     prevout: Some(BitcoinTransactionInputPrevoutFullBreakdown {
-                        height: height,
+                        height,
                         value: Amount::ZERO,
                     }),
                 }],
@@ -162,7 +162,7 @@ fn handle_rpc(
                     value: Amount::ZERO,
                     n: 0,
                     script_pub_key: GetRawTransactionResultVoutScriptPubKey {
-                        asm: format!(""),
+                        asm: String::new(),
                         hex: vec![],
                         req_sigs: None,
                         type_: None,
@@ -189,8 +189,7 @@ fn handle_rpc(
         "getblockchaininfo" => {
             let (branch, (chain_tip, _)) = fork_tracker
                 .iter()
-                .max_by(|a, b| a.1.cmp(&b.1))
-                .map(|kv| kv)
+                .max_by(|a, b| a.1.cmp(b.1))
                 .unwrap();
 
             let hash = branch_and_height_to_hash(Some(*branch), *chain_tip);
@@ -246,8 +245,7 @@ fn handle_rpc(
         "getblockhash" => {
             let (branch, _) = fork_tracker
                 .iter()
-                .max_by(|a, b| a.1.cmp(&b.1))
-                .map(|kv| kv)
+                .max_by(|a, b| a.1.cmp(b.1))
                 .unwrap();
 
             let height = rpc.params[0].as_u64().unwrap();

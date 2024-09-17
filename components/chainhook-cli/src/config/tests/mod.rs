@@ -37,7 +37,7 @@ fn config_from_file_allows_setting_disabled_fields() {
     // http_api and monitoring are optional, so they are disabled in generated config file
     generated_config_file.http_api = Some(PredicatesApiConfigFile {
         http_port: Some(0),
-        database_uri: Some(format!("")),
+        database_uri: Some(String::new()),
         display_logs: Some(false),
         disabled: Some(false),
     });
@@ -78,7 +78,7 @@ fn is_http_api_enabled_handles_both_modes() {
     assert!(!config.is_http_api_enabled());
     config.http_api = PredicatesApi::On(PredicatesApiConfig {
         http_port: 0,
-        database_uri: format!(""),
+        database_uri: String::new(),
         display_logs: false,
     });
     assert!(config.is_http_api_enabled());
@@ -95,22 +95,22 @@ fn should_download_remote_stacks_tsv_handles_both_modes() {
     let mut config = Config::default(true, false, false, &None).unwrap();
 
     config.event_sources = vec![url_src.clone(), path_src.clone()];
-    assert_eq!(config.should_download_remote_stacks_tsv(), false);
+    assert!(!config.should_download_remote_stacks_tsv());
 
     config.event_sources = vec![path_src.clone()];
-    assert_eq!(config.should_download_remote_stacks_tsv(), false);
+    assert!(!config.should_download_remote_stacks_tsv());
 
     config.event_sources = vec![];
-    assert_eq!(config.should_download_remote_stacks_tsv(), false);
+    assert!(!config.should_download_remote_stacks_tsv());
 
     config.event_sources = vec![url_src.clone()];
-    assert_eq!(config.should_download_remote_stacks_tsv(), true);
+    assert!(config.should_download_remote_stacks_tsv());
 }
 
 #[test]
 fn expected_remote_stacks_tsv_base_url_panics_if_missing() {
     let url_src = EventSourceConfig::StacksTsvUrl(super::UrlConfig {
-        file_url: format!("test"),
+        file_url: "test".to_string(),
     });
     let mut config = Config::default(true, false, false, &None).unwrap();
 

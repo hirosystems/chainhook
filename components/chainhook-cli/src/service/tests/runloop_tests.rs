@@ -109,7 +109,7 @@ async fn test_stacks_bitcoin_kill_scan() {
     let _ = hiro_system_kit::thread_named("Bitcoin rpc service")
         .spawn(move || {
             let future = mock_bitcoin_rpc(bitcoin_rpc_port, 1_000);
-            let _ = hiro_system_kit::nestable_block_on(future);
+            hiro_system_kit::nestable_block_on(future);
         })
         .expect("unable to spawn thread");
 
