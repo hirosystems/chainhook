@@ -57,8 +57,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           codecov_yml_path: .github/codecov.yml
 
-  dist_chainhook:
-    name: Build Chainhook Distributions
+  distributions:
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -256,13 +255,16 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - test
-      - dist_chainhook
+      - distributions
     outputs:
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Download pre-built dists
+        uses: actions/download-artifact@v4
 
       - name: Semantic Release
         uses: cycjimmy/semantic-release-action@v4
@@ -281,35 +283,13 @@ jobs:
             @semantic-release/exec@6.0.3
             conventional-changelog-conventionalcommits@6.1.0
 
-  release:
-    runs-on: ubuntu-latest
-    if: needs.semantic-release.outputs.new_release_version != ''
-    needs: semantic-release
-    permissions:
-      actions: write
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Download pre-built dists
-        uses: actions/download-artifact@v3
-
-      - name: Tag and Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "**/*.tar.gz,**/*.msi"
-          tag: ${{ needs.semantic-release.outputs.new_release_version }}
-          commit: ${{ env.GITHUB_SHA }}
-
       - name: Trigger pkg-version-bump workflow
         uses: peter-evans/repository-dispatch@v1
+        if: steps.semantic.outputs.new_release_version != ''
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: released
-          client-payload: '{"tag": "${{ needs.semantic-release.outputs.new_release_version }}"}'
+          client-payload: '{"tag": "${{ steps.semantic.outputs.new_release_version }}"}'
 
   build-publish:
     runs-on: ubuntu-latest
