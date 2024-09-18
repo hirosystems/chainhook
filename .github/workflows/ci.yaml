@@ -300,9 +300,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Chainhook
-            description: Chainhook is a reorg-aware indexing engine for the Stacks & Bitcoin blockchains.
-            image: ${{ github.repository }}
+          - image: ${{ github.repository }}
             artifact: chainhook-linux-x64-glibc
             dockerfile: dockerfiles/components/chainhook-node.dockerfile
     steps:
