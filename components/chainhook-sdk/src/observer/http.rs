@@ -255,14 +255,7 @@ pub fn handle_new_stacks_block(
             };
         }
         Ok(None) => {
-            try_error!(ctx, "Unable to infer chain progress");
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Unable to infer chain progress",
-                })),
-            ));
+            try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
             try_error!(ctx, "Chain event error: {e}");
@@ -349,14 +342,7 @@ pub fn handle_new_microblocks(
             };
         }
         Ok(None) => {
-            try_error!(ctx, "Unable to infer chain progress");
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Unable to infer chain progress",
-                })),
-            ));
+            try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
             try_error!(ctx, "Chain event error: {e}");
