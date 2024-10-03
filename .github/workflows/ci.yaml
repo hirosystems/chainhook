@@ -114,8 +114,8 @@ jobs:
         with:
           path: |
             ~/.cargo/
-            ./target/${{ matrix.target }}/release/
-          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+            ./target/
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.target }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Install wix (Windows)
         if: matrix.os == 'windows-latest' && steps.cache-cargo.outputs.cache-hit != 'true'
