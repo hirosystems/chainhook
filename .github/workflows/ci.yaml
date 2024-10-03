@@ -48,8 +48,7 @@ jobs:
       - name: Install and run cargo-tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo --version
-          cargo tarpaulin --out lcov --features redis_tests -- --test-threads=1
+          cargo tarpaulin --skip-clean --out lcov --features redis_tests -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
@@ -115,8 +114,8 @@ jobs:
         with:
           path: |
             ~/.cargo/
-            ./target/${{ matrix.target }}/release/
-          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+            ./target/
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.target }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Install wix (Windows)
         if: matrix.os == 'windows-latest' && steps.cache-cargo.outputs.cache-hit != 'true'
