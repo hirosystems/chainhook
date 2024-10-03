@@ -4,7 +4,10 @@ use crate::indexer::bitcoin::{
 use crate::indexer::{self, Indexer};
 use crate::monitoring::PrometheusMonitoring;
 use crate::utils::Context;
+use crate::{try_error, try_info};
 use hiro_system_kit::slog;
+use rocket::http::Status;
+use rocket::response::status::Custom;
 use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::State;
 use std::sync::mpsc::Sender;
@@ -177,8 +180,8 @@ pub fn handle_new_stacks_block(
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::info!(logger, "POST /new_block"));
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    try_info!(ctx, "POST /new_block");
     // Standardize the structure of the block, and identify the
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
@@ -191,10 +194,13 @@ pub fn handle_new_stacks_block(
             {
                 Ok(block) => block,
                 Err(e) => {
-                    return Json(json!({
-                        "status": 500,
-                        "result": format!("Unable to standardize stacks block {}", e),
-                    }));
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        Json(json!({
+                            "status": 500,
+                            "result": format!("Unable to standardize stacks block {}", e),
+                        })),
+                    ));
                 }
             };
             let new_tip = block.block_identifier.index;
@@ -203,17 +209,14 @@ pub fn handle_new_stacks_block(
             (pox_config, chain_event, new_tip)
         }
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable to acquire indexer_rw_lock: {}",
-                    e.to_string()
-                )
-            });
-            return Json(json!({
-                "status": 500,
-                "result": "Unable to acquire lock",
-            }));
+            try_error!(ctx, "Unable to acquire indexer_rw_lock: {}", e.to_string());
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Unable to acquire lock",
+                })),
+            ));
         }
     };
 
@@ -222,34 +225,61 @@ pub fn handle_new_stacks_block(
             prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
             let background_job_tx = background_job_tx.inner();
             match background_job_tx.lock() {
-                Ok(tx) => {
-                    let _ = tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
-                }
+                Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
+                        return Err(Custom(
+                            Status::InternalServerError,
+                            Json(json!({
+                                "status": 500,
+                                "result": "Unable to send stacks chain event",
+                            })),
+                        ));
+                    }
+                },
                 Err(e) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "unable to acquire background_job_tx: {}",
-                            e.to_string()
-                        )
-                    });
-                    return Json(json!({
-                        "status": 500,
-                        "result": "Unable to acquire lock",
-                    }));
+                    try_error!(
+                        ctx,
+                        "Unable to acquire background_job_tx: {}",
+                        e.to_string()
+                    );
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        Json(json!({
+                            "status": 500,
+                            "result": "Unable to acquire lock",
+                        })),
+                    ));
                 }
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
+            try_error!(ctx, "Unable to infer chain progress");
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Unable to infer chain progress",
+                })),
+            ));
         }
-        Err(e) => ctx.try_log(|logger| slog::error!(logger, "{}", e)),
+        Err(e) => {
+            try_error!(ctx, "Chain event error: {e}");
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Chain event error",
+                })),
+            ));
+        }
     }
 
-    Json(json!({
+    Ok(Json(json!({
         "status": 200,
         "result": "Ok",
-    }))
+    })))
 }
 
 #[post(
@@ -262,30 +292,26 @@ pub fn handle_new_microblocks(
     marshalled_microblock: Json<JsonValue>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::debug!(logger, "POST /new_microblocks"));
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    try_info!(ctx, "POST /new_microblocks");
     // Standardize the structure of the microblock, and identify the
     // kind of update that this new microblock would imply
     let chain_event = match indexer_rw_lock.inner().write() {
-        Ok(mut indexer) => {
-            
-            indexer.handle_stacks_marshalled_microblock_trail(
-                marshalled_microblock.into_inner(),
-                ctx,
-            )
-        }
+        Ok(mut indexer) => indexer
+            .handle_stacks_marshalled_microblock_trail(marshalled_microblock.into_inner(), ctx),
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable to acquire background_job_tx: {}",
-                    e.to_string()
-                )
-            });
-            return Json(json!({
-                "status": 500,
-                "result": "Unable to acquire lock",
-            }));
+            try_error!(
+                ctx,
+                "Unable to acquire background_job_tx: {}",
+                e.to_string()
+            );
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Unable to acquire background_job_tx",
+                })),
+            ));
         }
     };
 
@@ -293,36 +319,61 @@ pub fn handle_new_microblocks(
         Ok(Some(chain_event)) => {
             let background_job_tx = background_job_tx.inner();
             match background_job_tx.lock() {
-                Ok(tx) => {
-                    let _ = tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event));
-                }
+                Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
+                        return Err(Custom(
+                            Status::InternalServerError,
+                            Json(json!({
+                                "status": 500,
+                                "result": "Unable to send stacks chain event",
+                            })),
+                        ));
+                    }
+                },
                 Err(e) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "unable to acquire background_job_tx: {}",
-                            e.to_string()
-                        )
-                    });
-                    return Json(json!({
-                        "status": 500,
-                        "result": "Unable to acquire lock",
-                    }));
+                    try_error!(
+                        ctx,
+                        "Unable to acquire background_job_tx: {}",
+                        e.to_string()
+                    );
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        Json(json!({
+                            "status": 500,
+                            "result": "Unable to acquire background_job_tx",
+                        })),
+                    ));
                 }
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
+            try_error!(ctx, "Unable to infer chain progress");
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Unable to infer chain progress",
+                })),
+            ));
         }
         Err(e) => {
-            ctx.try_log(|logger| slog::error!(logger, "unable to handle stacks microblock: {}", e));
+            try_error!(ctx, "Chain event error: {e}");
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Chain event error",
+                })),
+            ));
         }
     }
 
-    Json(json!({
+    Ok(Json(json!({
         "status": 200,
         "result": "Ok",
-    }))
+    })))
 }
 
 #[post("/new_mempool_tx", format = "application/json", data = "<raw_txs>")]
@@ -330,31 +381,72 @@ pub fn handle_new_mempool_tx(
     raw_txs: Json<Vec<String>>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::debug!(logger, "POST /new_mempool_tx"));
-    let transactions = raw_txs
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    try_info!(ctx, "POST /new_mempool_tx");
+    let transactions = match raw_txs
         .iter()
         .map(|tx_data| {
-            let (tx_description, ..) = indexer::stacks::get_tx_description(tx_data, &vec![])
-                .expect("unable to parse transaction");
-            MempoolAdmissionData {
-                tx_data: tx_data.clone(),
-                tx_description,
-            }
+            indexer::stacks::get_tx_description(tx_data, &vec![])
+                .map(|(tx_description, ..)| MempoolAdmissionData {
+                    tx_data: tx_data.clone(),
+                    tx_description,
+                })
+                .map_err(|e| e)
         })
-        .collect::<Vec<_>>();
-
-    let background_job_tx = background_job_tx.inner();
-    if let Ok(tx) = background_job_tx.lock() {
-        let _ = tx.send(ObserverCommand::PropagateStacksMempoolEvent(
-            StacksChainMempoolEvent::TransactionsAdmitted(transactions),
-        ));
+        .collect::<Result<Vec<MempoolAdmissionData>, _>>()
+    {
+        Ok(transactions) => transactions,
+        Err(e) => {
+            try_error!(ctx, "Failed to parse mempool transactions: {e}");
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Failed to parse mempool transactions",
+                })),
+            ));
+        }
     };
 
-    Json(json!({
+    let background_job_tx = background_job_tx.inner();
+    match background_job_tx.lock() {
+        Ok(tx) => {
+            match tx.send(ObserverCommand::PropagateStacksMempoolEvent(
+                StacksChainMempoolEvent::TransactionsAdmitted(transactions),
+            )) {
+                Ok(_) => {}
+                Err(e) => {
+                    try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        Json(json!({
+                            "status": 500,
+                            "result": "Unable to send stacks chain event",
+                        })),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            try_error!(
+                ctx,
+                "Unable to acquire background_job_tx: {}",
+                e.to_string()
+            );
+            return Err(Custom(
+                Status::InternalServerError,
+                Json(json!({
+                    "status": 500,
+                    "result": "Unable to acquire background_job_tx",
+                })),
+            ));
+        }
+    }
+
+    Ok(Json(json!({
         "status": 200,
         "result": "Ok",
-    }))
+    })))
 }
 
 #[post("/drop_mempool_tx", format = "application/json")]

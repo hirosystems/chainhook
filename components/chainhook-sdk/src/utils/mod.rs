@@ -403,3 +403,43 @@ pub fn write_file_content_at_path(file_path: &PathBuf, content: &[u8]) -> Result
         .map_err(|e| format!("unable to write file {}\n{}", file_path.display(), e))?;
     Ok(())
 }
+
+#[macro_export]
+macro_rules! try_info {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::info!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::info!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_debug {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::debug!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::debug!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_warn {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::warn!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::warn!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_error {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::error!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::error!(l, $tag));
+    };
+}
