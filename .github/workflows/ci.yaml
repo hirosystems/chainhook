@@ -48,7 +48,7 @@ jobs:
       - name: Install and run cargo-tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --no-clean --out lcov --features redis_tests -- --test-threads=1
+          cargo tarpaulin --skip-clean --out lcov --features redis_tests -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
