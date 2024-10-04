@@ -18,6 +18,27 @@ use super::{
     StacksChainMempoolEvent,
 };
 
+fn success_response() -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    Ok(Json(json!({
+        "status": 200,
+        "result": "Ok",
+    })))
+}
+
+fn error_response(
+    message: String,
+    ctx: &State<Context>,
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    try_error!(ctx, "{message}");
+    Err(Custom(
+        Status::InternalServerError,
+        Json(json!({
+            "status": 500,
+            "result": message,
+        })),
+    ))
+}
+
 #[rocket::get("/ping", format = "application/json")]
 pub fn handle_ping(
     ctx: &State<Context>,
@@ -39,18 +60,15 @@ pub async fn handle_new_bitcoin_block(
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     prometheus_monitoring: &State<PrometheusMonitoring>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     if bitcoin_config
         .bitcoin_block_signaling
         .should_ignore_bitcoin_block_signaling_through_stacks()
     {
-        return Json(json!({
-            "status": 200,
-            "result": "Ok",
-        }));
+        return success_response();
     }
 
-    ctx.try_log(|logger| slog::info!(logger, "POST /new_burn_block"));
+    try_info!(ctx, "POST /new_burn_block");
     // Standardize the structure of the block, and identify the
     // kind of update that this new block would imply, taking
     // into account the last 7 blocks.
@@ -61,79 +79,43 @@ pub async fn handle_new_bitcoin_block(
         match download_and_parse_block_with_retry(&http_client, block_hash, bitcoin_config, ctx)
             .await
         {
-            Ok(block) => Some(block),
+            Ok(block) => block,
             Err(e) => {
-                ctx.try_log(|logger| {
-                    slog::warn!(
-                        logger,
-                        "unable to download_and_parse_block: {}",
-                        e.to_string()
-                    )
-                });
-                None
+                return error_response(
+                    format!("unable to download_and_parse_block: {}", e.to_string()),
+                    ctx,
+                )
             }
         };
-    let Some(block) = block else {
-        ctx.try_log(|logger| {
-            slog::crit!(
-                logger,
-                "Could not download bitcoin block after receiving new_burn_block. Exiting Chainhook observer."
-            )
-        });
-        match background_job_tx.lock() {
-            Ok(tx) => {
-                let _ = tx.send(ObserverCommand::Terminate);
-            }
-            Err(e) => {
-                ctx.try_log(|logger| {
-                    slog::crit!(logger, "Could not shut down event observer: {e}")
-                });
-                std::process::exit(1)
-            }
-        }
-
-        return Json(json!({
-            "status": 500,
-            "result": "unable to retrieve_full_block",
-        }));
-    };
 
     let header = block.get_block_header();
     let block_height = header.block_identifier.index;
     prometheus_monitoring.btc_metrics_block_received(block_height);
     match background_job_tx.lock() {
-        Ok(tx) => {
-            let _ = tx.send(ObserverCommand::ProcessBitcoinBlock(block));
-        }
+        Ok(tx) => match tx.send(ObserverCommand::ProcessBitcoinBlock(block)) {
+            Ok(_) => {}
+            Err(e) => {
+                return error_response(
+                    format!("Unable to send stacks chain event: {}", e.to_string()),
+                    ctx,
+                );
+            }
+        },
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable to acquire background_job_tx: {}",
-                    e.to_string()
-                )
-            });
-            return Json(json!({
-                "status": 500,
-                "result": "Unable to acquire lock",
-            }));
+            return error_response(
+                format!("unable to acquire background_job_tx: {}", e.to_string()),
+                ctx,
+            );
         }
     };
 
     let chain_update = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer.handle_bitcoin_header(header, ctx),
         Err(e) => {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "unable to acquire indexer_rw_lock: {}",
-                    e.to_string()
-                )
-            });
-            return Json(json!({
-                "status": 500,
-                "result": "Unable to acquire lock",
-            }));
+            return error_response(
+                format!("Unable to acquire indexer_rw_lock: {}", e.to_string()),
+                ctx,
+            );
         }
     };
 
@@ -141,36 +123,32 @@ pub async fn handle_new_bitcoin_block(
         Ok(Some(chain_event)) => {
             prometheus_monitoring.btc_metrics_block_appended(block_height);
             match background_job_tx.lock() {
-                Ok(tx) => {
-                    let _ = tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event));
-                }
+                Ok(tx) => match tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event)) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        return error_response(
+                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            ctx,
+                        );
+                    }
+                },
                 Err(e) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "unable to acquire background_job_tx: {}",
-                            e.to_string()
-                        )
-                    });
-                    return Json(json!({
-                        "status": 500,
-                        "result": "Unable to acquire lock",
-                    }));
+                    return error_response(
+                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
+                        ctx,
+                    );
                 }
             };
         }
         Ok(None) => {
-            ctx.try_log(|logger| slog::warn!(logger, "unable to infer chain progress"));
+            try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
-            ctx.try_log(|logger| slog::error!(logger, "unable to handle bitcoin block: {}", e))
+            return error_response(format!("Unable to handle bitcoin block: {}", e), ctx);
         }
     }
 
-    Json(json!({
-        "status": 200,
-        "result": "Ok",
-    }))
+    success_response()
 }
 
 #[post("/new_block", format = "application/json", data = "<marshalled_block>")]
@@ -194,13 +172,10 @@ pub fn handle_new_stacks_block(
             {
                 Ok(block) => block,
                 Err(e) => {
-                    return Err(Custom(
-                        Status::InternalServerError,
-                        Json(json!({
-                            "status": 500,
-                            "result": format!("Unable to standardize stacks block {}", e),
-                        })),
-                    ));
+                    return error_response(
+                        format!("Unable to standardize stacks block {}", e),
+                        ctx,
+                    );
                 }
             };
             let new_tip = block.block_identifier.index;
@@ -209,14 +184,10 @@ pub fn handle_new_stacks_block(
             (pox_config, chain_event, new_tip)
         }
         Err(e) => {
-            try_error!(ctx, "Unable to acquire indexer_rw_lock: {}", e.to_string());
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Unable to acquire lock",
-                })),
-            ));
+            return error_response(
+                format!("Unable to acquire indexer_rw_lock: {}", e.to_string()),
+                ctx,
+            );
         }
     };
 
@@ -228,29 +199,17 @@ pub fn handle_new_stacks_block(
                 Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
                     Ok(_) => {}
                     Err(e) => {
-                        try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
-                        return Err(Custom(
-                            Status::InternalServerError,
-                            Json(json!({
-                                "status": 500,
-                                "result": "Unable to send stacks chain event",
-                            })),
-                        ));
+                        return error_response(
+                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            ctx,
+                        );
                     }
                 },
                 Err(e) => {
-                    try_error!(
+                    return error_response(
+                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
                         ctx,
-                        "Unable to acquire background_job_tx: {}",
-                        e.to_string()
                     );
-                    return Err(Custom(
-                        Status::InternalServerError,
-                        Json(json!({
-                            "status": 500,
-                            "result": "Unable to acquire lock",
-                        })),
-                    ));
                 }
             };
         }
@@ -258,21 +217,11 @@ pub fn handle_new_stacks_block(
             try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
-            try_error!(ctx, "Chain event error: {e}");
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Chain event error",
-                })),
-            ));
+            return error_response(format!("Chain event error: {e}"), ctx);
         }
     }
 
-    Ok(Json(json!({
-        "status": 200,
-        "result": "Ok",
-    })))
+    success_response()
 }
 
 #[post(
@@ -293,18 +242,10 @@ pub fn handle_new_microblocks(
         Ok(mut indexer) => indexer
             .handle_stacks_marshalled_microblock_trail(marshalled_microblock.into_inner(), ctx),
         Err(e) => {
-            try_error!(
+            return error_response(
+                format!("Unable to acquire background_job_tx: {}", e.to_string()),
                 ctx,
-                "Unable to acquire background_job_tx: {}",
-                e.to_string()
             );
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Unable to acquire background_job_tx",
-                })),
-            ));
         }
     };
 
@@ -315,29 +256,17 @@ pub fn handle_new_microblocks(
                 Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
                     Ok(_) => {}
                     Err(e) => {
-                        try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
-                        return Err(Custom(
-                            Status::InternalServerError,
-                            Json(json!({
-                                "status": 500,
-                                "result": "Unable to send stacks chain event",
-                            })),
-                        ));
+                        return error_response(
+                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            ctx,
+                        );
                     }
                 },
                 Err(e) => {
-                    try_error!(
+                    return error_response(
+                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
                         ctx,
-                        "Unable to acquire background_job_tx: {}",
-                        e.to_string()
                     );
-                    return Err(Custom(
-                        Status::InternalServerError,
-                        Json(json!({
-                            "status": 500,
-                            "result": "Unable to acquire background_job_tx",
-                        })),
-                    ));
                 }
             };
         }
@@ -345,21 +274,11 @@ pub fn handle_new_microblocks(
             try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
-            try_error!(ctx, "Chain event error: {e}");
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Chain event error",
-                })),
-            ));
+            return error_response(format!("Chain event error: {e}"), ctx);
         }
     }
 
-    Ok(Json(json!({
-        "status": 200,
-        "result": "Ok",
-    })))
+    success_response()
 }
 
 #[post("/new_mempool_tx", format = "application/json", data = "<raw_txs>")]
@@ -383,14 +302,7 @@ pub fn handle_new_mempool_tx(
     {
         Ok(transactions) => transactions,
         Err(e) => {
-            try_error!(ctx, "Failed to parse mempool transactions: {e}");
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Failed to parse mempool transactions",
-                })),
-            ));
+            return error_response(format!("Failed to parse mempool transactions: {e}"), ctx);
         }
     };
 
@@ -402,37 +314,22 @@ pub fn handle_new_mempool_tx(
             )) {
                 Ok(_) => {}
                 Err(e) => {
-                    try_error!(ctx, "Unable to send stacks chain event: {}", e.to_string());
-                    return Err(Custom(
-                        Status::InternalServerError,
-                        Json(json!({
-                            "status": 500,
-                            "result": "Unable to send stacks chain event",
-                        })),
-                    ));
+                    return error_response(
+                        format!("Unable to send stacks chain event: {}", e.to_string()),
+                        ctx,
+                    );
                 }
             }
         }
         Err(e) => {
-            try_error!(
+            return error_response(
+                format!("Unable to acquire background_job_tx: {}", e.to_string()),
                 ctx,
-                "Unable to acquire background_job_tx: {}",
-                e.to_string()
             );
-            return Err(Custom(
-                Status::InternalServerError,
-                Json(json!({
-                    "status": 500,
-                    "result": "Unable to acquire background_job_tx",
-                })),
-            ));
         }
     }
 
-    Ok(Json(json!({
-        "status": 200,
-        "result": "Ok",
-    })))
+    success_response()
 }
 
 #[post("/drop_mempool_tx", format = "application/json")]
