@@ -17,6 +17,13 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [cli, sdk]
+    defaults:
+      run:
+        working-directory: ./components/chainhook-${{ matrix.suite }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,7 +36,10 @@ jobs:
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Install redis
-        run: sudo apt-get install -y redis-server
+        if: matrix.suite == 'cli'
+        run: |
+          sudo apt-get install -y redis-server
+          echo "TARPAULIN_FLAGS=--features redis_tests" >> $GITHUB_ENV
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -43,12 +53,15 @@ jobs:
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.suite }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install and run cargo-tarpaulin
+      - name: Install cargo-tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --skip-clean --out lcov --features redis_tests -- --test-threads=1
+
+      - name: Run tests
+        run: |
+          cargo tarpaulin --skip-clean --out lcov ${{ env.TARPAULIN_FLAGS }} -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
