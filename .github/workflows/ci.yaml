@@ -39,7 +39,7 @@ jobs:
         if: matrix.suite == 'cli'
         run: |
           sudo apt-get install -y redis-server
-          echo "TARPAULIN_FLAGS='--features redis_tests'" >> $GITHUB_ENV
+          echo "TARPAULIN_FLAGS=--features redis_tests" >> $GITHUB_ENV
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -53,7 +53,7 @@ jobs:
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.suite }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-tarpaulin
         run: |
