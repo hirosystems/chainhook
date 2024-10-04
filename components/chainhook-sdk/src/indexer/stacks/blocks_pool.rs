@@ -110,7 +110,7 @@ impl StacksBlockPool {
                 ctx.try_log(|logger| {
                     slog::error!(logger, "unable to retrieve previous stacks fork")
                 });
-                return Ok(None);
+                return Err("unable to retrieve previous stacks fork".to_string());
             }
         };
 
