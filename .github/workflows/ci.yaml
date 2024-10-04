@@ -20,7 +20,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [cli, sdk]
+        include:
+          - suite: cli
+            flags: --features redis_tests
+          - suite: sdk
+            flags:
     defaults:
       run:
         working-directory: ./components/chainhook-${{ matrix.suite }}
@@ -59,7 +63,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo tarpaulin --skip-clean --out lcov --features redis_tests -- --test-threads=1
+          cargo tarpaulin --skip-clean --out lcov ${{ matrix.flags }} -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
