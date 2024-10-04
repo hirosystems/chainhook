@@ -20,11 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - suite: cli
-            flags: --features redis_tests
-          - suite: sdk
-            flags:
+        suite: [cli, sdk]
     defaults:
       run:
         working-directory: ./components/chainhook-${{ matrix.suite }}
@@ -41,7 +37,9 @@ jobs:
 
       - name: Install redis
         if: matrix.suite == 'cli'
-        run: sudo apt-get install -y redis-server
+        run: |
+          sudo apt-get install -y redis-server
+          echo "TARPAULIN_FLAGS='--features redis_tests'" >> $GITHUB_ENV
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -63,7 +61,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cargo tarpaulin --skip-clean --out lcov ${{ matrix.flags }} -- --test-threads=1
+          cargo tarpaulin --skip-clean --out lcov ${{ env.TARPAULIN_FLAGS }} -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
