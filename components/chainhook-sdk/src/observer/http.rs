@@ -88,17 +88,12 @@ pub async fn handle_new_bitcoin_block(
     let header = block.get_block_header();
     let block_height = header.block_identifier.index;
     prometheus_monitoring.btc_metrics_block_received(block_height);
-    match background_job_tx.lock() {
-        Ok(tx) => match tx.send(ObserverCommand::ProcessBitcoinBlock(block)) {
-            Ok(_) => {}
-            Err(e) => {
-                return error_response(format!("Unable to send stacks chain event: {e}"), ctx);
-            }
-        },
-        Err(e) => {
-            return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
-        }
-    };
+    if let Err(e) = background_job_tx.lock().map(|tx| {
+        tx.send(ObserverCommand::ProcessBitcoinBlock(block))
+            .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+    }) {
+        return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
+    }
 
     let chain_update = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer.handle_bitcoin_header(header, ctx),
@@ -110,23 +105,12 @@ pub async fn handle_new_bitcoin_block(
     match chain_update {
         Ok(Some(chain_event)) => {
             prometheus_monitoring.btc_metrics_block_appended(block_height);
-            match background_job_tx.lock() {
-                Ok(tx) => match tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event)) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return error_response(
-                            format!("Unable to send stacks chain event: {e}"),
-                            ctx,
-                        );
-                    }
-                },
-                Err(e) => {
-                    return error_response(
-                        format!("Unable to acquire background_job_tx: {e}"),
-                        ctx,
-                    );
-                }
-            };
+            if let Err(e) = background_job_tx.lock().map(|tx| {
+                tx.send(ObserverCommand::PropagateBitcoinChainEvent(chain_event))
+                    .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+            }) {
+                return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
+            }
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");
@@ -176,24 +160,12 @@ pub fn handle_new_stacks_block(
     match chain_event {
         Ok(Some(chain_event)) => {
             prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
-            let background_job_tx = background_job_tx.inner();
-            match background_job_tx.lock() {
-                Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return error_response(
-                            format!("Unable to send stacks chain event: {e}"),
-                            ctx,
-                        );
-                    }
-                },
-                Err(e) => {
-                    return error_response(
-                        format!("Unable to acquire background_job_tx: {e}"),
-                        ctx,
-                    );
-                }
-            };
+            if let Err(e) = background_job_tx.lock().map(|tx| {
+                tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
+                    .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+            }) {
+                return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
+            }
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");
@@ -230,24 +202,12 @@ pub fn handle_new_microblocks(
 
     match chain_event {
         Ok(Some(chain_event)) => {
-            let background_job_tx = background_job_tx.inner();
-            match background_job_tx.lock() {
-                Ok(tx) => match tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event)) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return error_response(
-                            format!("Unable to send stacks chain event: {e}"),
-                            ctx,
-                        );
-                    }
-                },
-                Err(e) => {
-                    return error_response(
-                        format!("Unable to acquire background_job_tx: {e}"),
-                        ctx,
-                    );
-                }
-            };
+            if let Err(e) = background_job_tx.lock().map(|tx| {
+                tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
+                    .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+            }) {
+                return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
+            }
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");
@@ -285,21 +245,13 @@ pub fn handle_new_mempool_tx(
         }
     };
 
-    let background_job_tx = background_job_tx.inner();
-    match background_job_tx.lock() {
-        Ok(tx) => {
-            match tx.send(ObserverCommand::PropagateStacksMempoolEvent(
-                StacksChainMempoolEvent::TransactionsAdmitted(transactions),
-            )) {
-                Ok(_) => {}
-                Err(e) => {
-                    return error_response(format!("Unable to send stacks chain event: {e}"), ctx);
-                }
-            }
-        }
-        Err(e) => {
-            return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
-        }
+    if let Err(e) = background_job_tx.lock().map(|tx| {
+        tx.send(ObserverCommand::PropagateStacksMempoolEvent(
+            StacksChainMempoolEvent::TransactionsAdmitted(transactions),
+        ))
+            .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+    }) {
+        return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
     }
 
     success_response()
