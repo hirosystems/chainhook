@@ -81,10 +81,7 @@ pub async fn handle_new_bitcoin_block(
         {
             Ok(block) => block,
             Err(e) => {
-                return error_response(
-                    format!("unable to download_and_parse_block: {}", e.to_string()),
-                    ctx,
-                )
+                return error_response(format!("unable to download_and_parse_block: {e}"), ctx)
             }
         };
 
@@ -95,27 +92,18 @@ pub async fn handle_new_bitcoin_block(
         Ok(tx) => match tx.send(ObserverCommand::ProcessBitcoinBlock(block)) {
             Ok(_) => {}
             Err(e) => {
-                return error_response(
-                    format!("Unable to send stacks chain event: {}", e.to_string()),
-                    ctx,
-                );
+                return error_response(format!("Unable to send stacks chain event: {e}"), ctx);
             }
         },
         Err(e) => {
-            return error_response(
-                format!("unable to acquire background_job_tx: {}", e.to_string()),
-                ctx,
-            );
+            return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
         }
     };
 
     let chain_update = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer.handle_bitcoin_header(header, ctx),
         Err(e) => {
-            return error_response(
-                format!("Unable to acquire indexer_rw_lock: {}", e.to_string()),
-                ctx,
-            );
+            return error_response(format!("Unable to acquire indexer_rw_lock: {e}"), ctx);
         }
     };
 
@@ -127,14 +115,14 @@ pub async fn handle_new_bitcoin_block(
                     Ok(_) => {}
                     Err(e) => {
                         return error_response(
-                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            format!("Unable to send stacks chain event: {e}"),
                             ctx,
                         );
                     }
                 },
                 Err(e) => {
                     return error_response(
-                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
+                        format!("Unable to acquire background_job_tx: {e}"),
                         ctx,
                     );
                 }
@@ -144,7 +132,7 @@ pub async fn handle_new_bitcoin_block(
             try_info!(ctx, "No chain event was generated");
         }
         Err(e) => {
-            return error_response(format!("Unable to handle bitcoin block: {}", e), ctx);
+            return error_response(format!("Unable to handle bitcoin block: {e}"), ctx);
         }
     }
 
@@ -172,10 +160,7 @@ pub fn handle_new_stacks_block(
             {
                 Ok(block) => block,
                 Err(e) => {
-                    return error_response(
-                        format!("Unable to standardize stacks block {}", e),
-                        ctx,
-                    );
+                    return error_response(format!("Unable to standardize stacks block {e}"), ctx);
                 }
             };
             let new_tip = block.block_identifier.index;
@@ -184,10 +169,7 @@ pub fn handle_new_stacks_block(
             (pox_config, chain_event, new_tip)
         }
         Err(e) => {
-            return error_response(
-                format!("Unable to acquire indexer_rw_lock: {}", e.to_string()),
-                ctx,
-            );
+            return error_response(format!("Unable to acquire indexer_rw_lock: {e}"), ctx);
         }
     };
 
@@ -200,14 +182,14 @@ pub fn handle_new_stacks_block(
                     Ok(_) => {}
                     Err(e) => {
                         return error_response(
-                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            format!("Unable to send stacks chain event: {e}"),
                             ctx,
                         );
                     }
                 },
                 Err(e) => {
                     return error_response(
-                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
+                        format!("Unable to acquire background_job_tx: {e}"),
                         ctx,
                     );
                 }
@@ -242,10 +224,7 @@ pub fn handle_new_microblocks(
         Ok(mut indexer) => indexer
             .handle_stacks_marshalled_microblock_trail(marshalled_microblock.into_inner(), ctx),
         Err(e) => {
-            return error_response(
-                format!("Unable to acquire background_job_tx: {}", e.to_string()),
-                ctx,
-            );
+            return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
         }
     };
 
@@ -257,14 +236,14 @@ pub fn handle_new_microblocks(
                     Ok(_) => {}
                     Err(e) => {
                         return error_response(
-                            format!("Unable to send stacks chain event: {}", e.to_string()),
+                            format!("Unable to send stacks chain event: {e}"),
                             ctx,
                         );
                     }
                 },
                 Err(e) => {
                     return error_response(
-                        format!("Unable to acquire background_job_tx: {}", e.to_string()),
+                        format!("Unable to acquire background_job_tx: {e}"),
                         ctx,
                     );
                 }
@@ -314,18 +293,12 @@ pub fn handle_new_mempool_tx(
             )) {
                 Ok(_) => {}
                 Err(e) => {
-                    return error_response(
-                        format!("Unable to send stacks chain event: {}", e.to_string()),
-                        ctx,
-                    );
+                    return error_response(format!("Unable to send stacks chain event: {e}"), ctx);
                 }
             }
         }
         Err(e) => {
-            return error_response(
-                format!("Unable to acquire background_job_tx: {}", e.to_string()),
-                ctx,
-            );
+            return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
         }
     }
 
