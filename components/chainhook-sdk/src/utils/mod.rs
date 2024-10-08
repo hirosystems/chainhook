@@ -404,6 +404,7 @@ pub fn write_file_content_at_path(file_path: &PathBuf, content: &[u8]) -> Result
     Ok(())
 }
 
+// TODO: Fold these macros into one generic macro with configurable log levels.
 #[macro_export]
 macro_rules! try_info {
     ($a:expr, $tag:expr, $($args:tt)*) => {
