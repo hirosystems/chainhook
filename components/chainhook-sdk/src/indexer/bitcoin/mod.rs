@@ -38,15 +38,15 @@ pub struct BitcoinBlockFullBreakdown {
 impl BitcoinBlockFullBreakdown {
     pub fn get_block_header(&self) -> BlockHeader {
         // Block id
-        let hash = format!("0x{}", self.hash.to_string());
+        let hash = format!("0x{}", self.hash);
         let block_identifier = BlockIdentifier {
             index: self.height as u64,
-            hash: hash,
+            hash,
         };
         // Parent block id
         let parent_block_hash = match self.previousblockhash {
             Some(ref value) => format!("0x{}", value),
-            None => format!("0x{}", BlockHash::all_zeros().to_string()),
+            None => format!("0x{}", BlockHash::all_zeros()),
         };
         let parent_block_identifier = BlockIdentifier {
             index: (self.height - 1) as u64,
@@ -349,8 +349,8 @@ pub fn standardize_bitcoin_block(
 ) -> Result<BitcoinBlockData, (String, bool)> {
     let mut transactions = vec![];
     let block_height = block.height as u64;
-    let expected_magic_bytes = get_stacks_canonical_magic_bytes(&network);
-    let pox_config = get_canonical_pox_config(&network);
+    let expected_magic_bytes = get_stacks_canonical_magic_bytes(network);
+    let pox_config = get_canonical_pox_config(network);
 
     ctx.try_log(|logger| slog::debug!(logger, "Standardizing Bitcoin block {}", block.hash,));
 
@@ -525,7 +525,7 @@ fn try_parse_stacks_operation(
             StacksBaseChainOperation::LeaderRegistered(res)
         }
         StacksOpcodes::PreStx => {
-            let _ = try_parse_pre_stx_op(&op_return_output[6..])?;
+            try_parse_pre_stx_op(&op_return_output[6..])?;
             return None;
         }
         StacksOpcodes::TransferStx => {
@@ -543,28 +543,28 @@ fn try_parse_stacks_operation(
 
             let output_1 = outputs
                 .get(1)
-                .ok_or(format!("expected output 1 not found"))
+                .ok_or("expected output 1 not found".to_string())
                 .ok()?;
             let script_1 = output_1
                 .script_pub_key
                 .script()
-                .map_err(|_e| format!("expected output 1 corrupted"))
+                .map_err(|_e| "expected output 1 corrupted".to_string())
                 .ok()?;
             let address_1 = Address::from_script(&script_1, bitcoin::Network::Bitcoin)
-                .map_err(|_e| format!("expected output 1 corrupted"))
+                .map_err(|_e| "expected output 1 corrupted".to_string())
                 .ok()?;
 
             let output_2 = outputs
                 .get(2)
-                .ok_or(format!("expected output 2 not found"))
+                .ok_or("expected output 2 not found".to_string())
                 .ok()?;
             let script_2 = output_2
                 .script_pub_key
                 .script()
-                .map_err(|_e| format!("expected output 2 corrupted"))
+                .map_err(|_e| "expected output 2 corrupted".to_string())
                 .ok()?;
             let address_2 = Address::from_script(&script_2, bitcoin::Network::Bitcoin)
-                .map_err(|_e| format!("expected output 2 corrupted"))
+                .map_err(|_e| "expected output 2 corrupted".to_string())
                 .ok()?;
 
             let output_1_is_burn = address_1.to_string().eq(pox_config.get_burn_address());
@@ -627,8 +627,7 @@ fn try_parse_stacks_operation(
             if let Some(mining_post_commit) = outputs.get(mining_output_index) {
                 mining_sats_left = mining_post_commit.value.to_sat();
                 mining_address_post_commit = match mining_post_commit.script_pub_key.script() {
-                    Ok(script) => Address::from_script(&script, bitcoin::Network::Bitcoin)
-                        .and_then(|a| Ok(a.to_string()))
+                    Ok(script) => Address::from_script(&script, bitcoin::Network::Bitcoin).map(|a| a.to_string())
                         .ok(),
                     Err(_) => None,
                 };

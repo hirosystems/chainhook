@@ -17,6 +17,12 @@ pub struct ChainhookStore {
     pub bitcoin_chainhooks: Vec<BitcoinChainhookInstance>,
 }
 
+impl Default for ChainhookStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChainhookStore {
     pub fn new() -> ChainhookStore {
         ChainhookStore {
@@ -183,7 +189,7 @@ impl ChainhookInstance {
 
     pub fn deserialize_specification(spec: &str) -> Result<ChainhookInstance, String> {
         let spec: ChainhookInstance = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e))?;
         Ok(spec)
     }
 
@@ -255,7 +261,7 @@ impl ChainhookSpecificationNetworkMap {
         _key: &str,
     ) -> Result<ChainhookSpecificationNetworkMap, String> {
         let spec: ChainhookSpecificationNetworkMap = serde_json::from_str(spec)
-            .map_err(|e| format!("unable to deserialize predicate {}", e.to_string()))?;
+            .map_err(|e| format!("unable to deserialize predicate {}", e))?;
         Ok(spec)
     }
 }
@@ -294,12 +300,12 @@ impl HttpHook {
     pub fn validate(&self) -> Result<(), Vec<String>> {
         let mut errors = vec![];
         if let Err(e) = reqwest::Url::from_str(&self.url) {
-            errors.push(format!("url string must be a valid Url: {}", e.to_string()));
+            errors.push(format!("url string must be a valid Url: {}", e));
         }
         if let Err(e) = reqwest::header::HeaderValue::from_str(&self.authorization_header) {
             errors.push(format!(
                 "auth header must be a valid header value: {}",
-                e.to_string()
+                e
             ));
         };
 
@@ -436,11 +442,11 @@ pub fn get_canonical_pox_config(network: &BitcoinNetwork) -> PoxConfig {
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum StacksOpcodes {
-    BlockCommit = '[' as u8,
-    KeyRegister = '^' as u8,
-    StackStx = 'x' as u8,
-    PreStx = 'p' as u8,
-    TransferStx = '$' as u8,
+    BlockCommit = b'[',
+    KeyRegister = b'^',
+    StackStx = b'x',
+    PreStx = b'p',
+    TransferStx = b'$',
 }
 
 impl TryFrom<u8> for StacksOpcodes {
@@ -1061,7 +1067,7 @@ pub fn append_error_context(context: &str, errors: Vec<String>) -> Vec<String> {
 }
 
 pub fn is_hex(s: &str) -> bool {
-    s.chars().all(|c| c.is_digit(16))
+    s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 pub fn validate_txid(txid: &String) -> Result<(), String> {

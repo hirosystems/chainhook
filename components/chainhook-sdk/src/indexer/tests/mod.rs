@@ -7,7 +7,7 @@ use self::helpers::BlockEvent;
 use super::{fork_scratch_pad::ForkScratchPad, StacksBlockPool};
 use chainhook_types::{BitcoinBlockData, BlockchainEvent, StacksBlockData, StacksChainEvent};
 
-pub type StacksChainEventExpectation = Box<dyn Fn(Option<StacksChainEvent>) -> ()>;
+pub type StacksChainEventExpectation = Box<dyn Fn(Option<StacksChainEvent>)>;
 
 pub fn process_stacks_blocks_and_check_expectations(
     (steps, block_pool_seed): (
@@ -41,7 +41,7 @@ pub fn process_stacks_blocks_and_check_expectations(
     }
 }
 
-pub type BlockchainEventExpectation = Box<dyn Fn(Option<BlockchainEvent>) -> ()>;
+pub type BlockchainEventExpectation = Box<dyn Fn(Option<BlockchainEvent>)>;
 
 pub fn process_bitcoin_blocks_and_check_expectations(
     steps: Vec<(BitcoinBlockData, BlockchainEventExpectation)>,

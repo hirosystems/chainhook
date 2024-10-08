@@ -330,12 +330,9 @@ pub fn main() {
         }
     };
 
-    match hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
-        Err(e) => {
-            crit!(ctx.expect_logger(), "{e}");
-            process::exit(1);
-        }
-        Ok(_) => {}
+    if let Err(e) = hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
+        crit!(ctx.expect_logger(), "{e}");
+        process::exit(1);
     }
 }
 
@@ -481,7 +478,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             // need to create
                             if let Some(dirp) = PathBuf::from(&path).parent() {
                                 std::fs::create_dir_all(dirp).unwrap_or_else(|e| {
-                                    println!("{}", e.to_string());
+                                    println!("{}", e);
                                 });
                             }
                             let mut f = std::fs::OpenOptions::new()
@@ -489,7 +486,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 .create(true)
                                 .truncate(true)
                                 .open(&path)
-                                .map_err(|e| format!("{}", e.to_string()))?;
+                                .map_err(|e| format!("{}", e))?;
                             use std::io::Write;
                             let _ = f.write_all(content.as_bytes());
                         } else {
@@ -882,7 +879,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 pub fn load_predicate_from_path(
     predicate_path: &str,
 ) -> Result<ChainhookSpecificationNetworkMap, String> {
-    let file = std::fs::File::open(&predicate_path)
+    let file = std::fs::File::open(predicate_path)
         .map_err(|e| format!("unable to read file {}\n{:?}", predicate_path, e))?;
     let mut file_reader = BufReader::new(file);
     let mut file_buffer = vec![];

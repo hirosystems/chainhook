@@ -456,8 +456,8 @@ impl DescriptorMatchingRule {
         let DescriptorMatchingRule { expression, range } = self;
         // To derive from descriptors, we need to provide a secp context.
         let (sig, ver) = (&Secp256k1::signing_only(), &Secp256k1::verification_only());
-        let (desc, _) = Descriptor::parse_descriptor(&sig, expression)
-            .map_err(|e| format!("invalid descriptor: {}", e.to_string()))?;
+        let (desc, _) = Descriptor::parse_descriptor(sig, expression)
+            .map_err(|e| format!("invalid descriptor: {}", e))?;
 
         // If the descriptor is derivable (`has_wildcard()`), we rely on the `range` field
         // defined by the predicate OR fallback to a default range of [0,5] when not set.
@@ -473,7 +473,7 @@ impl DescriptorMatchingRule {
         // Derive the addresses and try to match them against the outputs.
         for i in range[0]..range[1] {
             let derived = desc
-                .derived_descriptor(&ver, i)
+                .derived_descriptor(ver, i)
                 .map_err(|e| format!("error deriving descriptor: {}", e))?;
 
             // Extract and encode the derived pubkey.
@@ -489,7 +489,7 @@ where
     D: Deserializer<'de>,
 {
     let range: [u32; 2] = Deserialize::deserialize(deserializer)?;
-    if !(range[0] < range[1]) {
+    if range[0] >= range[1] {
         Err(de::Error::custom(
             "First element of 'range' must be lower than the second element",
         ))
@@ -506,8 +506,8 @@ pub struct BitcoinChainhookOccurrencePayload {
 }
 
 impl BitcoinChainhookOccurrencePayload {
-    pub fn from_trigger<'a>(
-        trigger: BitcoinTriggerChainhook<'a>,
+    pub fn from_trigger(
+        trigger: BitcoinTriggerChainhook<'_>,
     ) -> BitcoinChainhookOccurrencePayload {
         BitcoinChainhookOccurrencePayload {
             apply: trigger
@@ -516,8 +516,7 @@ impl BitcoinChainhookOccurrencePayload {
                 .map(|(transactions, block)| {
                     let mut block = block.clone();
                     block.transactions = transactions
-                        .into_iter()
-                        .map(|t| t.clone())
+                        .into_iter().cloned()
                         .collect::<Vec<_>>();
                     BitcoinTransactionPayload { block }
                 })
@@ -528,8 +527,7 @@ impl BitcoinChainhookOccurrencePayload {
                 .map(|(transactions, block)| {
                     let mut block = block.clone();
                     block.transactions = transactions
-                        .into_iter()
-                        .map(|t| t.clone())
+                        .into_iter().cloned()
                         .collect::<Vec<_>>();
                     BitcoinTransactionPayload { block }
                 })
@@ -572,11 +570,11 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
                     if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
-                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                            if chainhook.predicate.evaluate_transaction_predicate(tx, ctx) {
                                 hits.push(tx);
                             }
                         }
-                        if hits.len() > 0 {
+                        if !hits.is_empty() {
                             apply.push((hits, block));
                         }
                     } else {
@@ -603,11 +601,11 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
                     if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
-                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                            if chainhook.predicate.evaluate_transaction_predicate(tx, ctx) {
                                 hits.push(tx);
                             }
                         }
-                        if hits.len() > 0 {
+                        if !hits.is_empty() {
                             rollback.push((hits, block));
                         }
                     } else {
@@ -619,11 +617,11 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
                     if end_block >= block.block_identifier.index {
                         let mut hits = vec![];
                         for tx in block.transactions.iter() {
-                            if chainhook.predicate.evaluate_transaction_predicate(&tx, ctx) {
+                            if chainhook.predicate.evaluate_transaction_predicate(tx, ctx) {
                                 hits.push(tx);
                             }
                         }
-                        if hits.len() > 0 {
+                        if !hits.is_empty() {
                             apply.push((hits, block));
                         }
                     } else {
@@ -658,7 +656,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
                 "timestamp": block.timestamp,
-                "transactions": serialize_bitcoin_transactions_to_json(&predicate_spec, &transactions, proofs),
+                "transactions": serialize_bitcoin_transactions_to_json(predicate_spec, transactions, proofs),
                 "metadata": block.metadata,
             })
         }).collect::<Vec<_>>(),
@@ -667,7 +665,7 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
                 "block_identifier": block.block_identifier,
                 "parent_block_identifier": block.parent_block_identifier,
                 "timestamp": block.timestamp,
-                "transactions": serialize_bitcoin_transactions_to_json(&predicate_spec, &transactions, proofs),
+                "transactions": serialize_bitcoin_transactions_to_json(predicate_spec, transactions, proofs),
                 "metadata": block.metadata,
             })
         }).collect::<Vec<_>>(),
@@ -679,13 +677,13 @@ pub fn serialize_bitcoin_payload_to_json<'a>(
     })
 }
 
-pub fn serialize_bitcoin_transactions_to_json<'a>(
+pub fn serialize_bitcoin_transactions_to_json(
     predicate_spec: &BitcoinChainhookInstance,
     transactions: &Vec<&BitcoinTransactionData>,
-    proofs: &HashMap<&'a TransactionIdentifier, String>,
+    proofs: &HashMap<&TransactionIdentifier, String>,
 ) -> Vec<JsonValue> {
     transactions
-        .into_iter()
+        .iter()
         .map(|transaction| {
             let mut metadata = serde_json::Map::new();
 
@@ -768,11 +766,11 @@ pub fn handle_bitcoin_hook_action<'a>(
             let client = Client::builder()
                 .timeout(Duration::from_secs(30))
                 .build()
-                .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
-            let host = format!("{}", http.url);
+                .map_err(|e| format!("unable to build http client: {}", e))?;
+            let host = http.url.to_string();
             let method = Method::POST;
             let body = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
-                .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
+                .map_err(|e| format!("unable to serialize payload {}", e))?;
             let request = client
                 .request(method, &host)
                 .header("Content-Type", "application/json")
@@ -784,7 +782,7 @@ pub fn handle_bitcoin_hook_action<'a>(
         }
         HookAction::FileAppend(disk) => {
             let bytes = serde_json::to_vec(&serialize_bitcoin_payload_to_json(&trigger, proofs))
-                .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
+                .map_err(|e| format!("unable to serialize payload {}", e))?;
             Ok(BitcoinChainhookOccurrence::File(
                 disk.path.to_string(),
                 bytes,
@@ -1004,7 +1002,7 @@ impl BitcoinPredicateType {
                                 return !tx.metadata.ordinal_operations.is_empty()
                             }
                             OrdinalsMetaProtocol::Brc20 => {
-                                return !tx.metadata.brc20_operation.is_none()
+                                return tx.metadata.brc20_operation.is_some()
                             }
                         }
                     }
