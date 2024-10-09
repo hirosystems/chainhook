@@ -1,5 +1,6 @@
 use crate::config::{
-    Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi, PredicatesApiConfig, PredicatesConfig, StorageConfig, DEFAULT_REDIS_URI
+    Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi,
+    PredicatesApiConfig, StorageConfig, DEFAULT_REDIS_URI,
 };
 use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::{
@@ -7,6 +8,7 @@ use crate::service::{
     PredicateStatus, Service,
 };
 use chainhook_sdk::chainhooks::types::PoxConfig;
+use chainhook_sdk::observer::PredicatesConfig;
 use chainhook_sdk::{
     chainhooks::stacks::StacksChainhookSpecificationNetworkMap,
     chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap},
@@ -81,12 +83,12 @@ pub async fn filter_predicate_status_from_all_predicates(
                         match matching_predicate {
                             Some(predicate) => match predicate.get("status") {
                                 Some(status) => {
-                                    return serde_json::from_value(status.clone()).map_err(|e| {
-                                        format!("failed to parse status {}", e)
-                                    });
+                                    return serde_json::from_value(status.clone())
+                                        .map_err(|e| format!("failed to parse status {}", e));
                                 }
                                 None => {
-                                    return Err("no status field on matching get predicates result".to_string())
+                                    return Err("no status field on matching get predicates result"
+                                        .to_string())
                                 }
                             },
                             None => {
@@ -97,7 +99,9 @@ pub async fn filter_predicate_status_from_all_predicates(
                         }
                     }
                     None => {
-                        return Err("failed to parse get predicate response's result field".to_string())
+                        return Err(
+                            "failed to parse get predicate response's result field".to_string()
+                        )
                     }
                 },
                 None => {
@@ -266,10 +270,7 @@ pub fn flush_redis(port: u16) {
     let client = redis::Client::open(format!("redis://localhost:{port}/"))
         .expect("unable to connect to redis");
     let mut predicate_db_conn = client.get_connection().expect("unable to connect to redis");
-    let db_keys: Vec<String> = predicate_db_conn
-        .scan_match("*")
-        .unwrap()
-        .collect();
+    let db_keys: Vec<String> = predicate_db_conn.scan_match("*").unwrap().collect();
     for k in db_keys {
         predicate_db_conn.del::<_, ()>(&k).unwrap();
     }
@@ -292,7 +293,7 @@ pub fn get_chainhook_config(
     };
     Config {
         http_api: PredicatesApi::On(api_config),
-        predicates: PredicatesConfig { payload_http_request_timeout_ms: None },
+        predicates: PredicatesConfig::default(),
         pox_config: PoxConfig::devnet_default(),
         storage: StorageConfig {
             working_dir: working_dir.into(),
@@ -343,12 +344,7 @@ pub async fn start_chainhook_service(
             );
             let _ = hiro_system_kit::nestable_block_on(future);
         })
-        .map_err(|e| {
-            format!(
-                "failed to start chainhook service thread, {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to start chainhook service thread, {}", e))?;
 
     // Loop to check if the server is ready
     let mut attempts = 0;

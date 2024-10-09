@@ -12,7 +12,10 @@ use super::{
     },
     types::{ExactMatchingRule, FileHook},
 };
-use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
+use crate::{
+    chainhooks::stacks::serialize_stacks_payload_to_json, observer::PredicatesConfig,
+    utils::Context,
+};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
@@ -735,7 +738,8 @@ fn test_stacks_hook_action_noop() {
         logger: None,
         tracer: false,
     };
-    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    let occurrence =
+        handle_stacks_hook_action(trigger, &proofs, &PredicatesConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::Data(data) = occurrence {
         assert_eq!(data.apply.len(), 1);
         assert_eq!(
@@ -812,7 +816,8 @@ fn test_stacks_hook_action_file_append() {
         logger: None,
         tracer: false,
     };
-    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    let occurrence =
+        handle_stacks_hook_action(trigger, &proofs, &PredicatesConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::File(path, bytes) = occurrence {
         assert_eq!(path, "./".to_string());
         let json: JsonValue = serde_json::from_slice(&bytes).unwrap();

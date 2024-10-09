@@ -1,4 +1,4 @@
-use crate::observer::EventObserverConfig;
+use crate::observer::PredicatesConfig;
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use super::types::{
@@ -1327,13 +1327,13 @@ pub fn serialize_stacks_payload_to_json<'a>(
 pub fn handle_stacks_hook_action<'a>(
     trigger: StacksTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
-    config: &EventObserverConfig,
+    config: &PredicatesConfig,
     ctx: &Context,
 ) -> Result<StacksChainhookOccurrence, String> {
     match &trigger.chainhook.action {
         HookAction::HttpPost(http) => {
             let mut client_builder = Client::builder();
-            if let Some(timeout) = config.predicate_payload_http_request_timeout_ms {
+            if let Some(timeout) = config.payload_http_request_timeout_ms {
                 client_builder = client_builder.timeout(Duration::from_millis(timeout));
             }
             let client = client_builder

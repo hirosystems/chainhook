@@ -290,7 +290,7 @@ pub async fn execute_predicates_action<'a>(
             gather_proofs(&trigger, &mut proofs, config, ctx);
         }
         let predicate_uuid = &trigger.chainhook.uuid;
-        match handle_bitcoin_hook_action(trigger, &proofs, &config) {
+        match handle_bitcoin_hook_action(trigger, &proofs, &config.predicates_config) {
             Err(e) => {
                 warn!(
                     ctx.expect_logger(),

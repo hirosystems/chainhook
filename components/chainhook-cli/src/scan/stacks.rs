@@ -97,9 +97,11 @@ pub async fn get_canonical_fork_from_tsv(
             for result in reader_builder.deserialize() {
                 line += 1;
                 let record: Record = result.unwrap();
-                if let RecordKind::StacksBlockReceived = &record.kind { if let Err(_e) = record_tx.send(Some((record, line))) {
-                    break;
-                } };
+                if let RecordKind::StacksBlockReceived = &record.kind {
+                    if let Err(_e) = record_tx.send(Some((record, line))) {
+                        break;
+                    }
+                };
             }
             let _ = record_tx.send(None);
         })
@@ -338,7 +340,12 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        let res = match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx) {
+        let res = match handle_stacks_hook_action(
+            trigger,
+            &proofs,
+            &config.get_event_observer_config().predicates_config,
+            ctx,
+        ) {
             Err(e) => {
                 warn!(
                     ctx.expect_logger(),
@@ -487,7 +494,9 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         let mut tsv_line = String::new();
         while tsv_current_line < tsv_line_number {
             tsv_line.clear();
-            let bytes_read = tsv_reader.read_line(&mut tsv_line).map_err(|e| e.to_string())?;
+            let bytes_read = tsv_reader
+                .read_line(&mut tsv_line)
+                .map_err(|e| e.to_string())?;
             if bytes_read == 0 {
                 return Err("Unexpected EOF when reading TSV".to_string());
             }
@@ -525,7 +534,12 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx) {
+        match handle_stacks_hook_action(
+            trigger,
+            &proofs,
+            &config.get_event_observer_config().predicates_config,
+            ctx,
+        ) {
             Err(e) => {
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
             }
@@ -604,7 +618,9 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
             let mut tsv_line = String::new();
             while tsv_current_line < tsv_line_number {
                 tsv_line.clear();
-                let bytes_read = tsv_reader.read_line(&mut tsv_line).map_err(|e| e.to_string())?;
+                let bytes_read = tsv_reader
+                    .read_line(&mut tsv_line)
+                    .map_err(|e| e.to_string())?;
                 if bytes_read == 0 {
                     return Err("Unexpected EOF when reading TSV".to_string());
                 }
