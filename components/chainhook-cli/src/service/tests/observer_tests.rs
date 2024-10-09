@@ -190,6 +190,7 @@ async fn it_responds_200_for_unimplemented_endpoints(
     });
     let config = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicate_payload_http_request_timeout_ms: None,
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: String::new(),
         bitcoind_rpc_password: String::new(),

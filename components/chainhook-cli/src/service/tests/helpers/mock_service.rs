@@ -1,6 +1,5 @@
 use crate::config::{
-    Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi,
-    PredicatesApiConfig, StorageConfig, DEFAULT_REDIS_URI,
+    Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi, PredicatesApiConfig, PredicatesConfig, StorageConfig, DEFAULT_REDIS_URI
 };
 use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::{
@@ -293,6 +292,7 @@ pub fn get_chainhook_config(
     };
     Config {
         http_api: PredicatesApi::On(api_config),
+        predicates: PredicatesConfig { payload_http_request_timeout_ms: None },
         pox_config: PoxConfig::devnet_default(),
         storage: StorageConfig {
             working_dir: working_dir.into(),

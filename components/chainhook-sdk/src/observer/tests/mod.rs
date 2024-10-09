@@ -40,6 +40,7 @@ use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
 fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicate_payload_http_request_timeout_ms: None,
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: "user".into(),
         bitcoind_rpc_password: "user".into(),

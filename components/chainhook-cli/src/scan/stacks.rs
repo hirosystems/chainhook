@@ -338,7 +338,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        let res = match handle_stacks_hook_action(trigger, &proofs, ctx) {
+        let res = match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx) {
             Err(e) => {
                 warn!(
                     ctx.expect_logger(),
@@ -525,7 +525,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        match handle_stacks_hook_action(trigger, &proofs, ctx) {
+        match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx) {
             Err(e) => {
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
             }

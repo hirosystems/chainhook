@@ -5,6 +5,7 @@ pub struct ConfigFile {
     pub storage: StorageConfigFile,
     pub pox_config: Option<PoxConfigFile>,
     pub http_api: Option<PredicatesApiConfigFile>,
+    pub predicates: Option<PredicatesConfigFile>,
     pub event_source: Option<Vec<EventSourceConfigFile>>,
     pub limits: LimitsConfigFile,
     pub network: NetworkConfigFile,
@@ -62,6 +63,11 @@ pub struct NetworkConfigFile {
     pub bitcoind_zmq_url: Option<String>,
     pub stacks_node_rpc_url: Option<String>,
     pub stacks_events_ingestion_port: Option<u16>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PredicatesConfigFile {
+    pub payload_http_request_timeout_ms: Option<u64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
