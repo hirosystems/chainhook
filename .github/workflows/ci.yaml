@@ -459,7 +459,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        k8s-env: [mainnet,testnet]
+        include:
+          - k8s-env: mainnet
+            k8s-subenv: blue
+          - k8s-env: mainnet
+            k8s-subenv: green
+          - k8s-env: testnet
+            k8s-subenv: blue
     needs:
       - build-publish
       - deploy-staging
@@ -467,7 +473,7 @@ jobs:
     env:
       DEPLOY_ENV: prd
     environment:
-      name: Production-${{ matrix.k8s-env }}
+      name: Production-${{ matrix.k8s-env }}-${{ matrix.k8s-subenv }}
       url: https://platform.hiro.so/
     steps:
       - name: Checkout actions repo
@@ -477,9 +483,10 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           repository: ${{ secrets.DEVOPS_ACTIONS_REPO }}
 
-      - name: Deploy Chainhook build to Prd ${{ matrix.k8s-env }}
+      - name: Deploy Chainhook build to Prd ${{ matrix.k8s-env }}-${{ matrix.k8s-subenv }}
         uses: ./actions/deploy
         with:
           docker_image_tag_or_digest: ${{ needs.build-publish.outputs.docker_image_digest }}
           file_pattern: manifests/chainhooks/${{ matrix.k8s-env }}/chainhook-node/${{ env.DEPLOY_ENV }}/base/kustomization.yaml
+          subenv: ${{ matrix.k8s-subenv }}
           gh_token: ${{ secrets.GH_TOKEN }}

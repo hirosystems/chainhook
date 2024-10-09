@@ -463,7 +463,7 @@ checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chainhook"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "ansi_term",
  "atty",
