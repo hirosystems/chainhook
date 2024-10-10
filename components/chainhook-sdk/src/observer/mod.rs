@@ -1507,11 +1507,7 @@ pub async fn start_observer_commands_handler(
                 }
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
-                    match handle_bitcoin_hook_action(
-                        chainhook_to_trigger,
-                        &proofs,
-                        &config.predicates_config,
-                    ) {
+                    match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs, &config) {
                         Err(e) => {
                             // todo: we may want to set predicates that reach this branch as interrupted,
                             // but for now we will error to see if this problem occurs.
@@ -1700,12 +1696,7 @@ pub async fn start_observer_commands_handler(
                 let proofs = HashMap::new();
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
-                    match handle_stacks_hook_action(
-                        chainhook_to_trigger,
-                        &proofs,
-                        &config.predicates_config,
-                        &ctx,
-                    ) {
+                    match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &config, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
                                 // todo: we may want to set predicates that reach this branch as interrupted,

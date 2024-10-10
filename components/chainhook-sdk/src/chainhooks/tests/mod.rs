@@ -13,7 +13,8 @@ use super::{
     types::{ExactMatchingRule, FileHook},
 };
 use crate::{
-    chainhooks::stacks::serialize_stacks_payload_to_json, observer::PredicatesConfig,
+    chainhooks::stacks::serialize_stacks_payload_to_json,
+    observer::EventObserverConfig,
     utils::Context,
 };
 use crate::{
@@ -739,7 +740,7 @@ fn test_stacks_hook_action_noop() {
         tracer: false,
     };
     let occurrence =
-        handle_stacks_hook_action(trigger, &proofs, &PredicatesConfig::default(), &ctx).unwrap();
+        handle_stacks_hook_action(trigger, &proofs, &EventObserverConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::Data(data) = occurrence {
         assert_eq!(data.apply.len(), 1);
         assert_eq!(
@@ -817,7 +818,7 @@ fn test_stacks_hook_action_file_append() {
         tracer: false,
     };
     let occurrence =
-        handle_stacks_hook_action(trigger, &proofs, &PredicatesConfig::default(), &ctx).unwrap();
+        handle_stacks_hook_action(trigger, &proofs, &EventObserverConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::File(path, bytes) = occurrence {
         assert_eq!(path, "./".to_string());
         let json: JsonValue = serde_json::from_slice(&bytes).unwrap();

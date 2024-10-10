@@ -343,7 +343,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         let res = match handle_stacks_hook_action(
             trigger,
             &proofs,
-            &config.get_event_observer_config().predicates_config,
+            &config.get_event_observer_config(),
             ctx,
         ) {
             Err(e) => {
@@ -534,12 +534,8 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
         };
-        match handle_stacks_hook_action(
-            trigger,
-            &proofs,
-            &config.get_event_observer_config().predicates_config,
-            ctx,
-        ) {
+        match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx)
+        {
             Err(e) => {
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
             }
