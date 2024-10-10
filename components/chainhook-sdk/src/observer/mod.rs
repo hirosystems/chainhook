@@ -66,9 +66,29 @@ pub enum DataHandlerEvent {
     Terminate,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct PredicatesConfig {
+    pub payload_http_request_timeout_ms: Option<u64>,
+}
+
+impl PredicatesConfig {
+    pub fn new() -> Self {
+        PredicatesConfig {
+            payload_http_request_timeout_ms: None,
+        }
+    }
+}
+
+impl Default for PredicatesConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
     pub registered_chainhooks: ChainhookStore,
+    pub predicates_config: PredicatesConfig,
     pub bitcoin_rpc_proxy_enabled: bool,
     pub bitcoind_rpc_username: String,
     pub bitcoind_rpc_password: String,
@@ -290,6 +310,9 @@ impl BitcoinEventObserverConfigBuilder {
         };
         Ok(EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
+            predicates_config: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: self
                 .bitcoind_rpc_username
@@ -320,6 +343,9 @@ impl EventObserverConfig {
     pub fn default() -> Self {
         EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
+            predicates_config: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: "devnet".into(),
             bitcoind_rpc_password: "devnet".into(),
@@ -363,7 +389,6 @@ impl EventObserverConfig {
     }
 
     pub fn get_bitcoin_config(&self) -> BitcoinConfig {
-        
         BitcoinConfig {
             username: self.bitcoind_rpc_username.clone(),
             password: self.bitcoind_rpc_password.clone(),
@@ -403,6 +428,9 @@ impl EventObserverConfig {
         let config = EventObserverConfig {
             bitcoin_rpc_proxy_enabled: false,
             registered_chainhooks: ChainhookStore::new(),
+            predicates_config: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
                 .unwrap_or_else(|| "devnet".to_string()),
@@ -1049,8 +1077,7 @@ pub fn get_bitcoin_proof(
         Ok(proof) => Ok(format!("0x{}", hex::encode(&proof))),
         Err(e) => Err(format!(
             "failed collecting proof for transaction {}: {}",
-            transaction_identifier.hash,
-            e
+            transaction_identifier.hash, e
         )),
     }
 }
@@ -1361,7 +1388,8 @@ pub async fn start_observer_commands_handler(
 
                         if let Some(highest_tip_block) = blocks_to_apply
                             .iter()
-                            .max_by_key(|b| b.block_identifier.index) {
+                            .max_by_key(|b| b.block_identifier.index)
+                        {
                             prometheus_monitoring.btc_metrics_set_reorg(
                                 highest_tip_block.timestamp.into(),
                                 blocks_to_apply.len() as u64,
@@ -1479,7 +1507,7 @@ pub async fn start_observer_commands_handler(
                 }
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
-                    match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs) {
+                    match handle_bitcoin_hook_action(chainhook_to_trigger, &proofs, &config) {
                         Err(e) => {
                             // todo: we may want to set predicates that reach this branch as interrupted,
                             // but for now we will error to see if this problem occurs.
@@ -1668,7 +1696,7 @@ pub async fn start_observer_commands_handler(
                 let proofs = HashMap::new();
                 for chainhook_to_trigger in chainhooks_to_trigger.into_iter() {
                     let predicate_uuid = &chainhook_to_trigger.chainhook.uuid;
-                    match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &ctx) {
+                    match handle_stacks_hook_action(chainhook_to_trigger, &proofs, &config, &ctx) {
                         Err(e) => {
                             ctx.try_log(|logger| {
                                 // todo: we may want to set predicates that reach this branch as interrupted,

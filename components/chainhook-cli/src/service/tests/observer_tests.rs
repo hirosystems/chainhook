@@ -2,7 +2,7 @@ use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
     chainhooks::types::ChainhookStore,
-    observer::{start_event_observer, EventObserverConfig},
+    observer::{start_event_observer, EventObserverConfig, PredicatesConfig},
     types::{BitcoinNetwork, StacksNodeConfig},
     utils::Context,
 };
@@ -190,6 +190,7 @@ async fn it_responds_200_for_unimplemented_endpoints(
     });
     let config = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicates_config: PredicatesConfig::default(),
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: String::new(),
         bitcoind_rpc_password: String::new(),

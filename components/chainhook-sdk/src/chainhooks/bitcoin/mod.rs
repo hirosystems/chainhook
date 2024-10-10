@@ -2,7 +2,7 @@ use super::types::{
     append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
     MatchingRule, PoxConfig, TxinPredicate,
 };
-use crate::utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES};
+use crate::{observer::EventObserverConfig, utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES}};
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
@@ -21,7 +21,7 @@ use serde::{de, Deserialize, Deserializer};
 use serde_json::Value as JsonValue;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    str::FromStr,
+    str::FromStr, time::Duration,
 };
 
 use reqwest::RequestBuilder;
@@ -760,10 +760,15 @@ pub fn serialize_bitcoin_transactions_to_json(
 pub fn handle_bitcoin_hook_action<'a>(
     trigger: BitcoinTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
+    config: &EventObserverConfig,
 ) -> Result<BitcoinChainhookOccurrence, String> {
     match &trigger.chainhook.action {
         HookAction::HttpPost(http) => {
-            let client = Client::builder()
+            let mut client_builder = Client::builder();
+            if let Some(timeout) = config.predicates_config.payload_http_request_timeout_ms {
+                client_builder = client_builder.timeout(Duration::from_millis(timeout));
+            }
+            let client = client_builder
                 .build()
                 .map_err(|e| format!("unable to build http client: {}", e))?;
             let host = http.url.to_string();

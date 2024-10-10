@@ -1,3 +1,4 @@
+use crate::observer::EventObserverConfig;
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use super::types::{
@@ -22,6 +23,7 @@ use schemars::JsonSchema;
 use serde_json::Value as JsonValue;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
+use std::time::Duration;
 
 use reqwest::RequestBuilder;
 
@@ -1325,11 +1327,16 @@ pub fn serialize_stacks_payload_to_json<'a>(
 pub fn handle_stacks_hook_action<'a>(
     trigger: StacksTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
+    config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<StacksChainhookOccurrence, String> {
     match &trigger.chainhook.action {
         HookAction::HttpPost(http) => {
-            let client = Client::builder()
+            let mut client_builder = Client::builder();
+            if let Some(timeout) = config.predicates_config.payload_http_request_timeout_ms {
+                client_builder = client_builder.timeout(Duration::from_millis(timeout));
+            }
+            let client = client_builder
                 .build()
                 .map_err(|e| format!("unable to build http client: {}", e))?;
             let host = http.url.to_string();

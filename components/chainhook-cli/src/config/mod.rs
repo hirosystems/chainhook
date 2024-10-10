@@ -3,7 +3,7 @@ pub mod generator;
 
 use chainhook_sdk::chainhooks::types::{ChainhookStore, PoxConfig};
 pub use chainhook_sdk::indexer::IndexerConfig;
-use chainhook_sdk::observer::EventObserverConfig;
+use chainhook_sdk::observer::{EventObserverConfig, PredicatesConfig};
 use chainhook_sdk::types::{
     BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig,
 };
@@ -30,6 +30,7 @@ pub struct Config {
     pub storage: StorageConfig,
     pub pox_config: PoxConfig,
     pub http_api: PredicatesApi,
+    pub predicates: PredicatesConfig,
     pub event_sources: Vec<EventSourceConfig>,
     pub limits: LimitsConfig,
     pub network: IndexerConfig,
@@ -117,6 +118,9 @@ impl Config {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
             registered_chainhooks: ChainhookStore::new(),
+            predicates_config: PredicatesConfig {
+                payload_http_request_timeout_ms: self.predicates.payload_http_request_timeout_ms,
+            },
             bitcoind_rpc_username: self.network.bitcoind_rpc_username.clone(),
             bitcoind_rpc_password: self.network.bitcoind_rpc_password.clone(),
             bitcoind_rpc_url: self.network.bitcoind_rpc_url.clone(),
@@ -191,6 +195,14 @@ impl Config {
                             .database_uri
                             .unwrap_or(DEFAULT_REDIS_URI.to_string()),
                     }),
+                },
+            },
+            predicates: match config_file.predicates {
+                None => PredicatesConfig {
+                    payload_http_request_timeout_ms: None,
+                },
+                Some(predicates) => PredicatesConfig {
+                    payload_http_request_timeout_ms: predicates.payload_http_request_timeout_ms,
                 },
             },
             event_sources,
@@ -357,6 +369,9 @@ impl Config {
             },
             pox_config: PoxConfig::devnet_default(),
             http_api: PredicatesApi::Off,
+            predicates: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             event_sources: vec![],
             limits: LimitsConfig {
                 max_number_of_bitcoin_predicates: BITCOIN_MAX_PREDICATE_REGISTRATION,
@@ -390,6 +405,9 @@ impl Config {
             },
             pox_config: PoxConfig::testnet_default(),
             http_api: PredicatesApi::Off,
+            predicates: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_TESTNET_STACKS_TSV_ARCHIVE.into(),
             })],
@@ -425,6 +443,9 @@ impl Config {
             },
             pox_config: PoxConfig::mainnet_default(),
             http_api: PredicatesApi::Off,
+            predicates: PredicatesConfig {
+                payload_http_request_timeout_ms: None,
+            },
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),
             })],
