@@ -109,7 +109,6 @@ impl Indexer {
         header: BlockHeader,
         ctx: &Context,
     ) -> Result<Option<BlockchainEvent>, String> {
-        
         self.bitcoin_blocks_pool.process_header(header, ctx)
     }
 
@@ -166,6 +165,20 @@ impl Indexer {
 
     pub fn get_pox_config(&mut self) -> PoxConfig {
         self.stacks_context.pox_config.clone()
+    }
+
+    #[cfg(feature = "stacks-signers")]
+    pub fn handle_stacks_marshalled_stackerdb_chunk(
+        &mut self,
+        marshalled_stackerdb_chunks: JsonValue,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
+        let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
+            &self.config,
+            marshalled_stackerdb_chunks,
+            &mut self.stacks_context,
+            ctx,
+        )?;
     }
 }
 

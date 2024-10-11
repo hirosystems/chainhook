@@ -178,6 +178,25 @@ pub fn handle_new_stacks_block(
     success_response()
 }
 
+#[cfg(feature = "stacks-signers")]
+#[post("/stackerdb_chunks", format = "application/json", data = "<payload>")]
+pub fn handle_stackerdb_chunks(
+    indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
+    payload: Json<JsonValue>,
+    ctx: &State<Context>,
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    try_info!(ctx, "POST /stackerdb_chunks");
+    // Standardize the structure of the StackerDB chunk, and identify the kind of update that this new message would imply.
+    let chain_event = match indexer_rw_lock.inner().write() {
+        Ok(mut indexer) => indexer
+            .handle_stacks_marshalled_microblock_trail(payload.into_inner(), ctx),
+        Err(e) => {
+            return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
+        }
+    };
+    success_response()
+}
+
 #[post(
     "/new_microblocks",
     format = "application/json",
@@ -249,7 +268,7 @@ pub fn handle_new_mempool_tx(
         tx.send(ObserverCommand::PropagateStacksMempoolEvent(
             StacksChainMempoolEvent::TransactionsAdmitted(transactions),
         ))
-            .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+        .map_err(|e| format!("Unable to send stacks chain event: {}", e))
     }) {
         return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
     }
