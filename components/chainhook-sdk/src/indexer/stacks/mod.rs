@@ -703,11 +703,9 @@ pub fn standardize_stacks_stackerdb_chunks(
         };
         parsed_chunks.push(StacksStackerDbChunk {
             contract: contract_id.clone(),
+            sig: slot.sig.clone(),
+            pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
             message,
-            raw_data: slot.data.clone(),
-            raw_sig: slot.sig.clone(),
-            slot_id: slot.slot_id,
-            slot_version: slot.version,
         });
     }
 
@@ -745,6 +743,44 @@ pub fn standardize_stacks_nakamoto_block(block: &NakamotoBlock) -> NakamotoBlock
         // FIXME: Should we parse these?
         transactions: vec![],
     }
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
+    slot: &NewSignerModifiedSlot,
+    data_bytes: &Vec<u8>,
+) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+    use miniscript::bitcoin::{
+        key::Secp256k1, secp256k1::{
+            ecdsa::{RecoverableSignature, RecoveryId},
+            Message,
+        }
+    };
+
+    let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
+    digest_bytes.extend(slot.version.to_be_bytes().to_vec());
+    digest_bytes.extend(data_bytes.clone());
+    let digest = Sha512Trunc256Sum::from_data(&digest_bytes).to_bytes();
+
+    let sig_bytes =
+        hex::decode(&slot.sig).map_err(|e| format!("unable to decode signer slot sig: {e}"))?;
+    let (first, sig) = sig_bytes.split_at(1);
+    let rec_id = first[0];
+
+    let secp = Secp256k1::new();
+    let recovery_id =
+        RecoveryId::from_i32(rec_id as i32).map_err(|e| format!("invalid recovery id: {e}"))?;
+    let signature = RecoverableSignature::from_compact(&sig, recovery_id)
+        .map_err(|e| format!("invalid signature: {e}"))?;
+    let message =
+        Message::from_digest_slice(&digest).map_err(|e| format!("invalid digest message: {e}"))?;
+
+    let pubkey = secp
+        .recover_ecdsa(&message, &signature)
+        .map_err(|e| format!("unable to recover signer pubkey: {e}"))?;
+
+    Ok(hex::encode(pubkey.serialize()))
 }
 
 pub fn get_value_description(raw_value: &str, ctx: &Context) -> String {

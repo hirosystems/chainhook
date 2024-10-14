@@ -173,12 +173,21 @@ impl Indexer {
         marshalled_stackerdb_chunks: JsonValue,
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
+        use chainhook_types::StacksChainUpdatedWithStackerDbChunksData;
+
         let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
             &self.config,
             marshalled_stackerdb_chunks,
             &mut self.stacks_context,
             ctx,
         )?;
+        if chunks.len() > 0 {
+            Ok(Some(StacksChainEvent::ChainUpdatedWithStackerDbChunks(
+                StacksChainUpdatedWithStackerDbChunksData { chunks },
+            )))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -88,9 +88,7 @@ pub enum StacksSignerMessage {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StacksStackerDbChunk {
     pub contract: String,
+    pub sig: String,
+    pub pubkey: String,
     pub message: StacksSignerMessage,
-    pub raw_data: String,
-    pub raw_sig: String,
-    pub slot_id: u64,
-    pub slot_version: u64,
 }

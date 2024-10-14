@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
+use crate::{events::*, Brc20Operation, StacksSignerMessage, StacksStackerDbChunk, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -667,6 +667,11 @@ pub struct BitcoinChainUpdatedWithReorgData {
     pub confirmed_blocks: Vec<BitcoinBlockData>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StacksChainUpdatedWithStackerDbChunksData {
+    pub chunks: Vec<StacksStackerDbChunk>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum StacksChainEvent {
@@ -674,6 +679,7 @@ pub enum StacksChainEvent {
     ChainUpdatedWithReorg(StacksChainUpdatedWithReorgData),
     ChainUpdatedWithMicroblocks(StacksChainUpdatedWithMicroblocksData),
     ChainUpdatedWithMicroblocksReorg(StacksChainUpdatedWithMicroblocksReorgData),
+    ChainUpdatedWithStackerDbChunks(StacksChainUpdatedWithStackerDbChunksData),
 }
 
 impl StacksChainEvent {
@@ -703,6 +709,7 @@ impl StacksChainEvent {
                 .microblocks_to_apply
                 .first()
                 .and_then(|b| Some(&b.metadata.anchor_block_identifier)),
+            StacksChainEvent::ChainUpdatedWithStackerDbChunks(_) => None,
         }
     }
 }

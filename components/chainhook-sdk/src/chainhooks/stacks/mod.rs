@@ -719,7 +719,10 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                     })
                 }
             }
-        }
+        },
+        StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+            // TODO: Support predicates to send this data
+        },
     }
     (
         triggered_predicates,
