@@ -547,7 +547,10 @@ impl Service {
                                 };
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
-                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
+                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
+                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+                                // TODO: Store data
+                            }
                         },
                         Err(e) => {
                             error!(
@@ -615,7 +618,10 @@ impl Service {
                                 }
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
-                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
+                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
+                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+                                // TODO: Send via HTTP payload
+                            },
                         };
                         update_status_from_report(
                             Chain::Stacks,

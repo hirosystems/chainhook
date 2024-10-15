@@ -91,4 +91,5 @@ pub struct StacksStackerDbChunk {
     pub sig: String,
     pub pubkey: String,
     pub message: StacksSignerMessage,
+    pub receipt_time: u64,
 }

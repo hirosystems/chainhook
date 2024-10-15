@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation, StacksSignerMessage, StacksStackerDbChunk, DEFAULT_STACKS_NODE_RPC};
+use crate::{events::*, Brc20Operation, StacksStackerDbChunk, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;

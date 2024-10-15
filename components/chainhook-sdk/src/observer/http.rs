@@ -183,17 +183,42 @@ pub fn handle_new_stacks_block(
 pub fn handle_stackerdb_chunks(
     indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
     payload: Json<JsonValue>,
+    background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
 ) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     try_info!(ctx, "POST /stackerdb_chunks");
+
     // Standardize the structure of the StackerDB chunk, and identify the kind of update that this new message would imply.
+    let Ok(epoch) = SystemTime::now().duration_since(UNIX_EPOCH) else {
+        return error_response("Unable to get system receipt_time".to_string(), ctx);
+    };
     let chain_event = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer
-            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), ctx),
+            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), epoch.as_secs(), ctx),
         Err(e) => {
             return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
         }
     };
+
+    match chain_event {
+        Ok(Some(chain_event)) => {
+            if let Err(e) = background_job_tx.lock().map(|tx| {
+                tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
+                    .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+            }) {
+                return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
+            }
+        }
+        Ok(None) => {
+            try_info!(ctx, "No chain event was generated");
+        }
+        Err(e) => {
+            return error_response(format!("Chain event error: {e}"), ctx);
+        }
+    }
+
     success_response()
 }
 

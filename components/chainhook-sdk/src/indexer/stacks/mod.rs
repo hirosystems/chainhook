@@ -595,19 +595,21 @@ pub fn standardize_stacks_microblock_trail(
 pub fn standardize_stacks_marshalled_stackerdb_chunks(
     indexer_config: &IndexerConfig,
     marshalled_stackerdb_chunks: JsonValue,
+    receipt_time: u64,
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     let mut stackerdb_chunks: NewStackerDbChunks =
         serde_json::from_value(marshalled_stackerdb_chunks)
             .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
-    standardize_stacks_stackerdb_chunks(indexer_config, &mut stackerdb_chunks, chain_ctx, ctx)
+    standardize_stacks_stackerdb_chunks(indexer_config, &mut stackerdb_chunks, receipt_time, chain_ctx, ctx)
 }
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
     indexer_config: &IndexerConfig,
     stackerdb_chunks: &mut NewStackerDbChunks,
+    receipt_time: u64,
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
@@ -706,6 +708,7 @@ pub fn standardize_stacks_stackerdb_chunks(
             sig: slot.sig.clone(),
             pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
             message,
+            receipt_time,
         });
     }
 
@@ -740,7 +743,7 @@ pub fn standardize_stacks_nakamoto_block(block: &NakamotoBlock) -> NakamotoBlock
                 .serialize_to_vec()
                 .to_hex_string(Case::Lower),
         },
-        // FIXME: Should we parse these?
+        // TODO(rafaelcr): Parse and return transactions.
         transactions: vec![],
     }
 }

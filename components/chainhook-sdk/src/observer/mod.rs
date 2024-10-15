@@ -997,6 +997,7 @@ pub async fn start_stacks_event_observer(
         http::handle_new_attachement,
         http::handle_mined_block,
         http::handle_mined_microblock,
+        http::handle_stackerdb_chunks,
     ];
 
     if bitcoin_rpc_proxy_enabled {

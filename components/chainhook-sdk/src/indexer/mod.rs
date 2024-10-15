@@ -171,6 +171,7 @@ impl Indexer {
     pub fn handle_stacks_marshalled_stackerdb_chunk(
         &mut self,
         marshalled_stackerdb_chunks: JsonValue,
+        receipt_time: u64,
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
         use chainhook_types::StacksChainUpdatedWithStackerDbChunksData;
@@ -178,6 +179,7 @@ impl Indexer {
         let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
             &self.config,
             marshalled_stackerdb_chunks,
+            receipt_time,
             &mut self.stacks_context,
             ctx,
         )?;
