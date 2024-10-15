@@ -593,25 +593,22 @@ pub fn standardize_stacks_microblock_trail(
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_marshalled_stackerdb_chunks(
-    indexer_config: &IndexerConfig,
+    _indexer_config: &IndexerConfig,
     marshalled_stackerdb_chunks: JsonValue,
     receipt_time: u64,
-    chain_ctx: &mut StacksChainContext,
-    ctx: &Context,
+    _chain_ctx: &mut StacksChainContext,
+    _ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     let mut stackerdb_chunks: NewStackerDbChunks =
         serde_json::from_value(marshalled_stackerdb_chunks)
             .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
-    standardize_stacks_stackerdb_chunks(indexer_config, &mut stackerdb_chunks, receipt_time, chain_ctx, ctx)
+    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks, receipt_time)
 }
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
-    indexer_config: &IndexerConfig,
-    stackerdb_chunks: &mut NewStackerDbChunks,
+    stackerdb_chunks: &NewStackerDbChunks,
     receipt_time: u64,
-    chain_ctx: &mut StacksChainContext,
-    ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     use stacks_codec::codec::BlockResponse;
     use stacks_codec::codec::RejectCode;
@@ -755,10 +752,11 @@ pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
 ) -> Result<String, String> {
     use clarity::util::hash::Sha512Trunc256Sum;
     use miniscript::bitcoin::{
-        key::Secp256k1, secp256k1::{
+        key::Secp256k1,
+        secp256k1::{
             ecdsa::{RecoverableSignature, RecoveryId},
             Message,
-        }
+        },
     };
 
     let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
