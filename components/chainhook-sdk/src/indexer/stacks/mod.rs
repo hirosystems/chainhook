@@ -641,7 +641,7 @@ pub fn standardize_stacks_stackerdb_chunks(
             SignerMessage::BlockResponse(block_response) => match block_response {
                 BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        block_hash: block_hash.to_hex(),
+                        signer_signature_hash: block_hash.to_hex(),
                         sig: sig.to_hex(),
                     }),
                 ),
@@ -763,7 +763,8 @@ pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
 
     let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
     digest_bytes.extend(slot.version.to_be_bytes().to_vec());
-    digest_bytes.extend(data_bytes.clone());
+    let data_bytes_hashed = Sha512Trunc256Sum::from_data(&data_bytes).to_bytes();
+    digest_bytes.extend(data_bytes_hashed);
     let digest = Sha512Trunc256Sum::from_data(&digest_bytes).to_bytes();
 
     let sig_bytes =

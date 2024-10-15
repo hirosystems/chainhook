@@ -23,6 +23,7 @@ pub struct NakamotoBlockData {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BlockProposalData {
+    // TODO(rafaelcr): Include `block_hash` and `index_block_hash`.
     pub block: NakamotoBlockData,
     pub burn_height: u64,
     pub reward_cycle: u64,
@@ -30,7 +31,7 @@ pub struct BlockProposalData {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BlockAcceptedResponse {
-    pub block_hash: String,
+    pub signer_signature_hash: String,
     pub sig: String,
 }
 
