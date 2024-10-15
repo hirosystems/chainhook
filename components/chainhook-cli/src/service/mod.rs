@@ -549,7 +549,7 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
                             StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
-                                // TODO: Store data
+                                // TODO(rafaelcr): Store signer data.
                             }
                         },
                         Err(e) => {
@@ -620,7 +620,7 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
                             StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
-                                // TODO: Send via HTTP payload
+                                // TODO(rafaelcr): Send via HTTP payload.
                             },
                         };
                         update_status_from_report(
