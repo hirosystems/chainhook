@@ -2,7 +2,7 @@ use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
     chainhooks::types::ChainhookStore,
-    observer::{start_event_observer, EventObserverConfig},
+    observer::{start_event_observer, EventObserverConfig, PredicatesConfig},
     types::{BitcoinNetwork, StacksNodeConfig},
     utils::Context,
 };
@@ -30,7 +30,6 @@ use super::helpers::{
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn ping_endpoint_returns_metrics() -> Result<(), String> {
     let TestSetupResult {
-        mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
@@ -45,12 +44,12 @@ async fn ping_endpoint_returns_metrics() -> Result<(), String> {
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
     let _ = call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port))?;
 
     sleep(Duration::new(1, 0));
     let metrics = call_ping(stacks_ingestion_port)
         .await
-        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port))?;
     let result = metrics
         .get("stacks")
         .unwrap()
@@ -59,7 +58,7 @@ async fn ping_endpoint_returns_metrics() -> Result<(), String> {
     assert_eq!(result, 1);
 
     sleep(Duration::new(1, 0));
-    cleanup(&working_dir, redis_port, &mut redis_process);
+    cleanup(&working_dir, redis_port);
     Ok(())
 }
 
@@ -67,7 +66,6 @@ async fn ping_endpoint_returns_metrics() -> Result<(), String> {
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
     let TestSetupResult {
-        mut redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
@@ -82,18 +80,18 @@ async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
     let predicate = build_stacks_payload(Some("devnet"), None, None, None, Some(uuid));
     call_register_predicate(&predicate, chainhook_service_port)
         .await
-        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port))?;
 
     sleep(Duration::new(1, 0));
     let metrics = call_prometheus(prometheus_port)
         .await
-        .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
+        .map_err(|e| cleanup_err(e, &working_dir, redis_port))?;
 
     const EXPECTED: &str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
     assert!(metrics.contains(EXPECTED));
 
     sleep(Duration::new(1, 0));
-    cleanup(&working_dir, redis_port, &mut redis_process);
+    cleanup(&working_dir, redis_port);
     Ok(())
 }
 
@@ -130,7 +128,6 @@ async fn await_observer_started(port: u16) {
 #[cfg_attr(not(feature = "redis_tests"), ignore)]
 async fn bitcoin_rpc_requests_are_forwarded(endpoint: &str, body: Value) {
     let TestSetupResult {
-        mut redis_process,
         working_dir,
         chainhook_service_port: _,
         redis_port,
@@ -151,7 +148,6 @@ async fn bitcoin_rpc_requests_are_forwarded(endpoint: &str, body: Value) {
     assert!(response.get("error").is_none());
     std::fs::remove_dir_all(&working_dir).unwrap();
     flush_redis(redis_port);
-    redis_process.kill().unwrap();
 }
 
 async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_port: u16) {
@@ -190,6 +186,7 @@ async fn it_responds_200_for_unimplemented_endpoints(
     });
     let config = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicates_config: PredicatesConfig::default(),
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: String::new(),
         bitcoind_rpc_password: String::new(),
