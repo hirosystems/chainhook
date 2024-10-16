@@ -1026,7 +1026,10 @@ pub async fn start_stacks_event_observer(
         http::handle_mined_block,
         http::handle_mined_microblock,
     ];
-
+    #[cfg(feature = "stacks-signers")]
+    {
+        routes.append(&mut routes![http::handle_stackerdb_chunks]);
+    }
     if bitcoin_rpc_proxy_enabled {
         routes.append(&mut routes![http::handle_bitcoin_rpc_call]);
         routes.append(&mut routes![http::handle_bitcoin_wallet_rpc_call]);
