@@ -1,0 +1,50 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "test: chainhook-sdk",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--package=chainhook-sdk"],
+        "filter": {
+          "name": "chainhook_sdk",
+          "kind": "lib"
+        }
+      },
+      "args": [],
+      "env": {
+        "RUST_TEST_THREADS": "1"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "test: chainhook-cli",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=chainhook",
+          "--package=chainhook",
+          "--features=redis_tests"
+        ],
+        "filter": {
+          "name": "chainhook",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "env": {
+        "RUST_TEST_THREADS": "1"
+      },
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "redis:start",
+      "postDebugTask": "redis:stop"
+    }
+  ]
+}

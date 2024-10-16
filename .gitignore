@@ -19,6 +19,5 @@ components/chainhook-types-js/dist
 *.redb
 cache/
 Chainhook.toml
-
-components/chainhook-cli/src/service/tests/fixtures/tmp
-components/chainhook-cli/src/archive/tests/fixtures/tmp
+**/src/service/tests/fixtures/tmp
+**/src/archive/tests/fixtures/tmp

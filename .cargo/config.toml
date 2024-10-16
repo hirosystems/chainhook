@@ -1,2 +1,5 @@
 [alias]
 chainhook-install = "install --path components/chainhook-cli --locked --force --features cli --features debug --no-default-features"
+
+[env]
+RUST_TEST_THREADS = "1"
