@@ -56,8 +56,8 @@ jobs:
       - name: Setup integration environment
         run: |
           sudo ufw disable
-          docker-compose -f ../dockerfiles/docker-compose.dev.yml up -d
-          docker-compose -f ../dockerfiles/docker-compose.dev.yml logs -t -f --no-color &> docker-compose-logs.txt &
+          docker compose -f ../dockerfiles/docker-compose.dev.yml up -d
+          docker compose -f ../dockerfiles/docker-compose.dev.yml logs -t -f --no-color &> docker-compose-logs.txt &
         if: matrix.suite == 'cli'
   
       - name: Run tests
@@ -75,7 +75,7 @@ jobs:
         if: matrix.suite == 'cli' && failure()
 
       - name: Teardown integration environment
-        run: docker-compose -f ../dockerfiles/docker-compose.dev.yml down -v -t 0
+        run: docker compose -f ../dockerfiles/docker-compose.dev.yml down -v -t 0
         if: matrix.suite == 'cli' && always()
 
   distributions:
