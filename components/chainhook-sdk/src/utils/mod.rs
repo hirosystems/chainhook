@@ -6,8 +6,7 @@ use std::{
 };
 
 use chainhook_types::{
-    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData,
-    StacksTransactionData,
+    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData, StacksStackerDbChunk, StacksTransactionData
 };
 use hiro_system_kit::slog::{self, Logger};
 use reqwest::RequestBuilder;
@@ -90,6 +89,18 @@ impl AbstractStacksBlock for StacksMicroblockData {
 
     fn get_serialized_metadata(&self) -> JsonValue {
         json!(self.metadata)
+    }
+}
+
+/// Trait for Stacks events that are not part of the blockchain consensus but are otherwise broadcasted by Stacks nodes to event
+/// listeners.
+pub trait AbstractStacksNonConsensusEvent {
+    fn get_timestamp(&self) -> i64;
+}
+
+impl AbstractStacksNonConsensusEvent for StacksStackerDbChunk {
+    fn get_timestamp(&self) -> i64 {
+        self.received_at as i64
     }
 }
 

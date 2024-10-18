@@ -1,13 +1,15 @@
 use crate::observer::EventObserverConfig;
-use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
+use crate::utils::{
+    AbstractStacksBlock, AbstractStacksNonConsensusEvent, Context, MAX_BLOCK_HEIGHTS_ENTRIES,
+};
 
+use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
-use super::types::validate_txid;
 use chainhook_types::{
-    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
+    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksStackerDbChunk, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
     TransactionIdentifier,
 };
@@ -259,6 +261,8 @@ pub enum StacksPredicate {
     NftEvent(StacksNftEventBasedPredicate),
     StxEvent(StacksStxEventBasedPredicate),
     Txid(ExactMatchingRule),
+    #[cfg(feature = "stacks-signers")]
+    SignerMessage(StacksSignerMessagePredicate),
 }
 
 impl StacksPredicate {
@@ -307,9 +311,26 @@ impl StacksPredicate {
                     ));
                 }
             }
+            #[cfg(feature = "stacks-signers")]
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
+                // TODO(rafaelcr): Validate pubkey format
+            }
+            #[cfg(feature = "stacks-signers")]
+            StacksPredicate::SignerMessage(_) => {}
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksSignerMessagePredicate {
+    AfterTimestamp(u64),
+    FromSignerPubKey(String),
+}
+
+impl StacksSignerMessagePredicate {
+    // TODO(rafaelcr): Write validators
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -457,6 +478,7 @@ pub struct StacksTriggerChainhook<'a> {
     pub chainhook: &'a StacksChainhookInstance,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
     pub rollback: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
+    pub events: Vec<&'a dyn AbstractStacksNonConsensusEvent>,
 }
 
 #[derive(Clone, Debug)]
@@ -484,17 +506,13 @@ pub struct StacksChainhookOccurrencePayload {
 }
 
 impl StacksChainhookOccurrencePayload {
-    pub fn from_trigger(
-        trigger: StacksTriggerChainhook<'_>,
-    ) -> StacksChainhookOccurrencePayload {
+    pub fn from_trigger(trigger: StacksTriggerChainhook<'_>) -> StacksChainhookOccurrencePayload {
         StacksChainhookOccurrencePayload {
             apply: trigger
                 .apply
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksApplyTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -505,9 +523,7 @@ impl StacksChainhookOccurrencePayload {
                 .rollback
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksRollbackTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -593,6 +609,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -621,6 +638,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -657,6 +675,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -718,13 +737,35 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
-        },
+        }
         StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
-            // TODO: Support predicates to send this data
-        },
+            for chainhook in active_chainhooks.iter() {
+                let mut events = vec![];
+
+                evaluated_predicates.insert(chainhook.uuid.as_str(), &data.received_at_block);
+                let mut chunks: Vec<&dyn AbstractStacksNonConsensusEvent> = vec![];
+                for chunk in data.chunks.iter() {
+                    chunks.push(chunk);
+                }
+                let (mut occurrences, mut expirations) =
+                    evaluate_stacks_predicate_on_stackerdb_chunks(chunks, chainhook, ctx);
+                events.append(&mut occurrences);
+                expired_predicates.append(&mut expirations);
+
+                if events.len() > 0 {
+                    triggered_predicates.push(StacksTriggerChainhook {
+                        chainhook,
+                        apply: vec![],
+                        rollback: vec![],
+                        events,
+                    });
+                }
+            }
+        }
     }
     (
         triggered_predicates,
@@ -795,7 +836,45 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
         | StacksPredicate::StxEvent(_)
         | StacksPredicate::PrintEvent(_)
         | StacksPredicate::Txid(_) => unreachable!(),
+        #[cfg(feature = "stacks-signers")]
+        StacksPredicate::SignerMessage(_) => unreachable!(),
     }
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn evaluate_stacks_predicate_on_stackerdb_chunks<'a>(
+    chunks: Vec<&'a dyn AbstractStacksNonConsensusEvent>,
+    chainhook: &'a StacksChainhookInstance,
+    _ctx: &Context,
+) -> (
+    Vec<&'a dyn AbstractStacksNonConsensusEvent>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
+) {
+    let mut occurrences = vec![];
+    let expired_predicates = BTreeMap::new();
+    for chunk in chunks {
+        match &chainhook.predicate {
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(
+                timestamp,
+            )) => {
+                if chunk.get_timestamp() >= *timestamp as i64 {
+                    occurrences.push(chunk);
+                }
+            }
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
+                todo!()
+            }
+            StacksPredicate::BlockHeight(_)
+            | StacksPredicate::ContractDeployment(_)
+            | StacksPredicate::ContractCall(_)
+            | StacksPredicate::FtEvent(_)
+            | StacksPredicate::NftEvent(_)
+            | StacksPredicate::StxEvent(_)
+            | StacksPredicate::PrintEvent(_)
+            | StacksPredicate::Txid(_) => unreachable!(),
+        };
+    }
+    (occurrences, expired_predicates)
 }
 
 pub fn evaluate_stacks_predicate_on_transaction<'a>(
@@ -952,7 +1031,9 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
         }
         StacksPredicate::PrintEvent(expected_event) => {
             for event in transaction.metadata.receipt.events.iter() {
-                if let StacksTransactionEventPayload::SmartContractEvent(actual) = &event.event_payload {
+                if let StacksTransactionEventPayload::SmartContractEvent(actual) =
+                    &event.event_payload
+                {
                     if actual.topic == "print" {
                         match expected_event {
                             StacksPrintEventBasedPredicate::Contains {
@@ -1006,6 +1087,8 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             txid.eq(&transaction.transaction_identifier.hash)
         }
         StacksPredicate::BlockHeight(_) => unreachable!(),
+        #[cfg(feature = "stacks-signers")]
+        StacksPredicate::SignerMessage(_) => unreachable!(),
     }
 }
 
@@ -1238,7 +1321,7 @@ pub fn serialized_decoded_clarity_value(hex_value: &str, ctx: &Context) -> serde
         Ok(bytes) => bytes,
         _ => return json!(hex_value.to_string()),
     };
-    
+
     match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => serialize_to_json(&value),
         Err(e) => {

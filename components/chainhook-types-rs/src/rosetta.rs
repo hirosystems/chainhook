@@ -670,6 +670,8 @@ pub struct BitcoinChainUpdatedWithReorgData {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StacksChainUpdatedWithStackerDbChunksData {
     pub chunks: Vec<StacksStackerDbChunk>,
+    pub received_at: u64,
+    pub received_at_block: BlockIdentifier,
 }
 
 #[allow(dead_code)]
