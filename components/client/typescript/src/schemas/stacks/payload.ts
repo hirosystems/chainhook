@@ -67,8 +67,8 @@ export const StacksEventMetadataSchema = Type.Object({
   pox_cycle_length: Type.Integer(),
   pox_cycle_position: Type.Integer(),
   stacks_block_hash: Type.String(),
-  signer_bitvec: Type.String(),
-  signer_signatures: Type.Array(Type.String()),
+  signer_bitvec: Nullable(Type.String()),
+  signer_signatures: Nullable(Type.Array(Type.String())),
 });
 export type StacksEventMetadata = Static<typeof StacksEventMetadataSchema>;
 
