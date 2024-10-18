@@ -619,7 +619,7 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
-                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(_) => {
                                 // TODO(rafaelcr): Send via HTTP payload.
                             },
                         };

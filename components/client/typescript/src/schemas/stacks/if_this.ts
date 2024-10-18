@@ -74,6 +74,27 @@ export type StacksIfThisContractDeploymentTrait = Static<
   typeof StacksIfThisContractDeploymentTraitSchema
 >;
 
+export const StacksIfThisSignerMessageAfterTimestampSchema = Type.Object({
+  scope: Type.Literal('signer_message'),
+  after_timestamp: Type.Integer(),
+});
+export type StacksIfThisSignerMessageAfterTimestamp = Static<
+  typeof StacksIfThisSignerMessageAfterTimestampSchema
+>;
+
+export const StacksIfThisSignerMessageSignerPubKeySchema = Type.Object({
+  scope: Type.Literal('signer_message'),
+  signer_pubkey: Type.String(),
+});
+export type StacksIfThisSignerMessageSignerPubKey = Static<
+  typeof StacksIfThisSignerMessageSignerPubKeySchema
+>;
+
+export const StacksIfThisSignerMessageSchema = Type.Union([
+  StacksIfThisSignerMessageAfterTimestampSchema,
+]);
+export type StacksIfThisSignerMessage = Static<typeof StacksIfThisSignerMessageSchema>;
+
 export const StacksIfThisOptionsSchema = Type.Object({
   start_block: Type.Optional(Type.Integer()),
   end_block: Type.Optional(Type.Integer()),
@@ -93,6 +114,7 @@ export const StacksIfThisSchema = Type.Union([
   StacksIfThisContractCallSchema,
   StacksIfThisContractDeploymentSchema,
   StacksIfThisContractDeploymentTraitSchema,
+  StacksIfThisSignerMessageSchema,
 ]);
 export type StacksIfThis = Static<typeof StacksIfThisSchema>;
 

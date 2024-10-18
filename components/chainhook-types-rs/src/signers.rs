@@ -1,4 +1,4 @@
-use crate::StacksTransactionData;
+use crate::{BlockIdentifier, StacksTransactionData};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NakamotoBlockHeaderData {
@@ -92,5 +92,6 @@ pub struct StacksStackerDbChunk {
     pub sig: String,
     pub pubkey: String,
     pub message: StacksSignerMessage,
-    pub receipt_time: u64,
+    pub received_at: u64,
+    pub received_at_block: BlockIdentifier,
 }

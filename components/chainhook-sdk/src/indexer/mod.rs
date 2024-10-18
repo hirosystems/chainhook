@@ -175,17 +175,22 @@ impl Indexer {
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
         use chainhook_types::StacksChainUpdatedWithStackerDbChunksData;
-
+        let Some(chain_tip) = self.stacks_blocks_pool.get_canonical_fork_chain_tip() else {
+            return Err("StackerDB chunk received with no canonical chain tip".to_string());
+        };
         let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
-            &self.config,
             marshalled_stackerdb_chunks,
             receipt_time,
-            &mut self.stacks_context,
+            chain_tip,
             ctx,
         )?;
         if chunks.len() > 0 {
             Ok(Some(StacksChainEvent::ChainUpdatedWithStackerDbChunks(
-                StacksChainUpdatedWithStackerDbChunksData { chunks },
+                StacksChainUpdatedWithStackerDbChunksData {
+                    chunks,
+                    received_at: receipt_time,
+                    received_at_block: chain_tip.clone(),
+                },
             )))
         } else {
             Ok(None)

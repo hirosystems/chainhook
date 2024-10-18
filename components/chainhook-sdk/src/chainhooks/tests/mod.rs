@@ -732,6 +732,7 @@ fn test_stacks_hook_action_noop() {
         chainhook: &chainhook,
         apply: vec![(apply_transactions, apply_blocks)],
         rollback: vec![(rollback_transactions, rollback_blocks)],
+        events: vec![]
     };
 
     let proofs = HashMap::new();
@@ -810,6 +811,7 @@ fn test_stacks_hook_action_file_append() {
         chainhook: &chainhook,
         apply,
         rollback: vec![(rollback_transactions, rollback_block)],
+        events: vec![]
     };
 
     let proofs = HashMap::new();
