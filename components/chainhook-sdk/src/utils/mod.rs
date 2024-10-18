@@ -96,11 +96,16 @@ impl AbstractStacksBlock for StacksMicroblockData {
 /// listeners.
 pub trait AbstractStacksNonConsensusEvent {
     fn get_timestamp(&self) -> i64;
+    fn get_received_at_block(&self) -> BlockIdentifier;
 }
 
 impl AbstractStacksNonConsensusEvent for StacksStackerDbChunk {
     fn get_timestamp(&self) -> i64 {
         self.received_at as i64
+    }
+
+    fn get_received_at_block(&self) -> BlockIdentifier {
+        self.received_at_block.clone()
     }
 }
 

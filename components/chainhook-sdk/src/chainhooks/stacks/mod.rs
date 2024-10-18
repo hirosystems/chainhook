@@ -494,6 +494,12 @@ pub struct StacksRollbackTransactionPayload {
 }
 
 #[derive(Clone, Debug)]
+pub struct StacksNonConsensusEventPayload {
+    pub block_identifier: BlockIdentifier,
+    pub transactions: Vec<StacksTransactionData>,
+}
+
+#[derive(Clone, Debug)]
 pub struct StacksChainhookPayload {
     pub uuid: String,
 }
@@ -502,6 +508,7 @@ pub struct StacksChainhookPayload {
 pub struct StacksChainhookOccurrencePayload {
     pub apply: Vec<StacksApplyTransactionPayload>,
     pub rollback: Vec<StacksRollbackTransactionPayload>,
+    pub events: Vec<StacksNonConsensusEventPayload>,
     pub chainhook: StacksChainhookPayload,
 }
 
