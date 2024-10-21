@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { Static, Type, TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import Fastify, {
@@ -13,9 +11,10 @@ import { request } from 'undici';
 import { logger, PINO_CONFIG } from './util/logger';
 import { timeout } from './util/helpers';
 import { Payload, PayloadSchema } from './schemas/payload';
-import { Predicate, PredicateHeaderSchema, ThenThatHttpPost } from './schemas/predicate';
+import { PredicateHeaderSchema } from './schemas/predicate';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
+import { registerPredicates, removePredicates } from './predicates';
 
 /** Function type for a Chainhook event callback */
 export type OnEventCallback = (uuid: string, payload: Payload) => Promise<void>;
@@ -42,9 +41,15 @@ const ServerOptionsSchema = Type.Object({
   ),
   /**
    * Directory where registered predicates will be persisted to disk so they can be recalled on
-   * restarts. Predicates will not be persisted if left undefined.
+   * restarts. Predicates will not be persisted if this option is left undefined.
    */
   predicates_disk_file_path: Type.Optional(Type.String()),
+  /**
+   * How often we should check with the Chainhook server to make sure our predicates are active and
+   * up to date. If they become obsolete, we will attempt to re-register them. Interval will be
+   * turned off if this option is left undefined.
+   */
+  predicate_health_check_interval_ms: Type.Optional(Type.Integer()),
 });
 /** Local event server connection and authentication options */
 export type ServerOptions = Static<typeof ServerOptionsSchema>;
@@ -97,41 +102,7 @@ const ServerPredicateSchema = Type.Composite([
 export type ServerPredicate = Static<typeof ServerPredicateSchema>;
 
 const CompiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
-const CompiledServerPredicateSchema = TypeCompiler.Compile(ServerPredicateSchema);
-
-function recallPersistedPredicatesFromDisk(basePath: string): ServerPredicate[] {
-  const predicates: ServerPredicate[] = [];
-  try {
-    if (!fs.existsSync(basePath)) return [];
-    for (const file of fs.readdirSync(basePath)) {
-      if (file.endsWith('.json')) {
-        const predicate = fs.readFileSync(path.join(basePath, file), 'utf-8');
-        if (CompiledServerPredicateSchema.Check(predicate)) {
-          logger.info(`ChainhookEventObserver recalled predicate ${predicate.uuid} from disk`);
-          predicates.push(predicate as ServerPredicate);
-        }
-      }
-    }
-  } catch (error) {
-    logger.error(error, `ChainhookEventObserver unable to retrieve persisted predicates from disk`);
-    return [];
-  }
-  return predicates;
-}
-
-function persistPredicateToDisk(basePath: string, predicate: ServerPredicate) {
-  const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.uuid)}.json`;
-  try {
-    fs.mkdirSync(basePath, { recursive: true });
-    fs.writeFileSync(predicatePath, JSON.stringify(predicate, null, 2));
-    logger.info(`ChainhookEventObserver persisted predicate ${predicate.uuid} to disk`);
-  } catch (error) {
-    logger.error(
-      error,
-      `ChainhookEventObserver unable to persist predicate ${predicate.uuid} to disk`
-    );
-  }
-}
+export const CompiledServerPredicateSchema = TypeCompiler.Compile(ServerPredicateSchema);
 
 /**
  * Build the Chainhook Fastify event server.
@@ -156,91 +127,10 @@ export async function buildServer(
         await request(`${chainhookOpts.base_url}/ping`, { method: 'GET', throwOnError: true });
         break;
       } catch (error) {
-        logger.error(error, 'Chainhook node not available, retrying...');
+        logger.error(error, 'ChainhookEventObserver chainhook node not available, retrying...');
         await timeout(1000);
       }
     }
-  }
-
-  async function registerPredicates(this: FastifyInstance) {
-    let predicatesToRegister = predicates;
-    if (serverOpts.predicates_disk_file_path) {
-      logger.info(`ChainhookEventObserver recalling predicates from disk`);
-      predicatesToRegister = recallPersistedPredicatesFromDisk(
-        serverOpts.predicates_disk_file_path
-      );
-    }
-    if (predicatesToRegister.length === 0) {
-      logger.info(`ChainhookEventObserver does not have predicates to register`);
-      return;
-    }
-    const nodeType = serverOpts.node_type ?? 'chainhook';
-    const path = nodeType === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
-    const registerUrl = `${chainhookOpts.base_url}${path}`;
-    logger.info(
-      predicatesToRegister,
-      `ChainhookEventObserver registering predicates at ${registerUrl}`
-    );
-    for (const predicate of predicatesToRegister) {
-      const thenThat: ThenThatHttpPost = {
-        http_post: {
-          url: `${serverOpts.external_base_url}/payload`,
-          authorization_header: `Bearer ${serverOpts.auth_token}`,
-        },
-      };
-      try {
-        const body = predicate as Predicate;
-        if ('mainnet' in body.networks) body.networks.mainnet.then_that = thenThat;
-        if ('testnet' in body.networks) body.networks.testnet.then_that = thenThat;
-        await request(registerUrl, {
-          method: 'POST',
-          body: JSON.stringify(body),
-          headers: { 'content-type': 'application/json' },
-          throwOnError: true,
-        });
-        logger.info(
-          `ChainhookEventObserver registered '${predicate.name}' predicate (${predicate.uuid})`
-        );
-        if (serverOpts.predicates_disk_file_path)
-          persistPredicateToDisk(serverOpts.predicates_disk_file_path, predicate);
-      } catch (error) {
-        logger.error(error, `ChainhookEventObserver unable to register predicate`);
-      }
-    }
-  }
-
-  async function removePredicates(this: FastifyInstance) {
-    if (predicates.length === 0) {
-      logger.info(`ChainhookEventObserver does not have predicates to close`);
-      return;
-    }
-    logger.info(`ChainhookEventObserver closing predicates at ${chainhookOpts.base_url}`);
-    const nodeType = serverOpts.node_type ?? 'chainhook';
-    const removals = predicates.map(
-      predicate =>
-        new Promise<void>((resolve, reject) => {
-          const path =
-            nodeType === 'chainhook'
-              ? `/v1/chainhooks/${predicate.chain}/${encodeURIComponent(predicate.uuid)}`
-              : `/v1/observers/${encodeURIComponent(predicate.uuid)}`;
-          request(`${chainhookOpts.base_url}${path}`, {
-            method: 'DELETE',
-            headers: { 'content-type': 'application/json' },
-            throwOnError: true,
-          })
-            .then(() => {
-              logger.info(
-                `ChainhookEventObserver removed '${predicate.name}' predicate (${predicate.uuid})`
-              );
-              resolve();
-            })
-            .catch(error => {
-              logger.error(error, `ChainhookEventObserver unable to deregister predicate`);
-              reject(error);
-            });
-        })
-    );
-    await Promise.allSettled(removals);
   }
 
   async function isEventAuthorized(request: FastifyRequest, reply: FastifyReply) {
@@ -294,11 +184,9 @@ export async function buildServer(
     bodyLimit: serverOpts.body_limit ?? 41943040, // 40MB default
   }).withTypeProvider<TypeBoxTypeProvider>();
 
-  if (serverOpts.wait_for_chainhook_node ?? true) {
-    fastify.addHook('onReady', waitForNode);
-  }
-  fastify.addHook('onReady', registerPredicates);
-  fastify.addHook('onClose', removePredicates);
+  if (serverOpts.wait_for_chainhook_node ?? true) fastify.addHook('onReady', waitForNode);
+  fastify.addHook('onReady', async () => registerPredicates(predicates, serverOpts, chainhookOpts));
+  fastify.addHook('onClose', async () => removePredicates(predicates, serverOpts, chainhookOpts));
 
   await fastify.register(ChainhookEventObserver);
   return fastify;

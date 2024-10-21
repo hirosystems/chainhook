@@ -6,6 +6,7 @@ import {
   OnEventCallback,
   buildServer,
 } from './server';
+import { predicateHealthCheck } from './predicates';
 
 /**
  * Local web server that registers predicates and receives events from a Chainhook node. It handles
@@ -22,6 +23,7 @@ export class ChainhookEventObserver {
   private fastify?: FastifyInstance;
   private serverOpts: ServerOptions;
   private chainhookOpts: ChainhookNodeOptions;
+  private healthCheckTimer?: NodeJS.Timer;
 
   constructor(serverOpts: ServerOptions, chainhookOpts: ChainhookNodeOptions) {
     this.serverOpts = serverOpts;
@@ -37,12 +39,19 @@ export class ChainhookEventObserver {
     if (this.fastify) return;
     this.fastify = await buildServer(this.serverOpts, this.chainhookOpts, predicates, callback);
     await this.fastify.listen({ host: this.serverOpts.hostname, port: this.serverOpts.port });
+    if (this.serverOpts.predicate_health_check_interval_ms && this.healthCheckTimer === undefined) {
+      this.healthCheckTimer = setInterval(() => {
+        void predicateHealthCheck(predicates, this.serverOpts, this.chainhookOpts);
+      }, this.serverOpts.predicate_health_check_interval_ms);
+    }
   }
 
   /**
    * Stop the Chainhook event server gracefully.
    */
   async close(): Promise<void> {
+    if (this.healthCheckTimer) clearInterval(this.healthCheckTimer);
+    this.healthCheckTimer = undefined;
     await this.fastify?.close();
     this.fastify = undefined;
   }
