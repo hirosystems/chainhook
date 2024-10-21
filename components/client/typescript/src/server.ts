@@ -14,12 +14,15 @@ import { Payload, PayloadSchema } from './schemas/payload';
 import { PredicateHeaderSchema } from './schemas/predicate';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
-import { registerAllPredicates, removeAllPredicates } from './predicates';
+import {
+  registerAllPredicatesOnObserverReady,
+  removeAllPredicatesOnObserverClose,
+} from './predicates';
 
 /** Function type for a Chainhook event callback */
 export type OnEventCallback = (uuid: string, payload: Payload) => Promise<void>;
 
-const ServerOptionsSchema = Type.Object({
+const EventObserverOptionsSchema = Type.Object({
   hostname: Type.String(),
   port: Type.Integer(),
   auth_token: Type.String(),
@@ -52,7 +55,7 @@ const ServerOptionsSchema = Type.Object({
   predicate_health_check_interval_ms: Type.Optional(Type.Integer()),
 });
 /** Local event server connection and authentication options */
-export type ServerOptions = Static<typeof ServerOptionsSchema>;
+export type EventObserverOptions = Static<typeof EventObserverOptionsSchema>;
 
 const ChainhookNodeOptionsSchema = Type.Object({
   base_url: Type.String(),
@@ -106,23 +109,23 @@ export const CompiledServerPredicateSchema = TypeCompiler.Compile(ServerPredicat
 
 /**
  * Build the Chainhook Fastify event server.
- * @param serverOpts - Server options
- * @param chainhookOpts - Chainhook node options
+ * @param observer - Event observer options
+ * @param chainhook - Chainhook node options
  * @param predicates - Predicates to register
  * @param callback - Event callback function
  * @returns Fastify instance
  */
 export async function buildServer(
-  serverOpts: ServerOptions,
-  chainhookOpts: ChainhookNodeOptions,
+  observer: EventObserverOptions,
+  chainhook: ChainhookNodeOptions,
   predicates: ServerPredicate[],
   callback: OnEventCallback
 ) {
   async function waitForNode(this: FastifyInstance) {
-    logger.info(`ChainhookEventObserver looking for chainhook node at ${chainhookOpts.base_url}`);
+    logger.info(`ChainhookEventObserver looking for chainhook node at ${chainhook.base_url}`);
     while (true) {
       try {
-        await request(`${chainhookOpts.base_url}/ping`, { method: 'GET', throwOnError: true });
+        await request(`${chainhook.base_url}/ping`, { method: 'GET', throwOnError: true });
         break;
       } catch (error) {
         logger.error(error, 'ChainhookEventObserver chainhook node not available, retrying...');
@@ -132,9 +135,9 @@ export async function buildServer(
   }
 
   async function isEventAuthorized(request: FastifyRequest, reply: FastifyReply) {
-    if (!(serverOpts.validate_token_authorization ?? true)) return;
+    if (!(observer.validate_token_authorization ?? true)) return;
     const authHeader = request.headers.authorization;
-    if (authHeader && authHeader === `Bearer ${serverOpts.auth_token}`) {
+    if (authHeader && authHeader === `Bearer ${observer.auth_token}`) {
       return;
     }
     await reply.code(403).send();
@@ -148,7 +151,7 @@ export async function buildServer(
     fastify.addHook('preHandler', isEventAuthorized);
     fastify.post('/payload', async (request, reply) => {
       if (
-        (serverOpts.validate_chainhook_payloads ?? false) &&
+        (observer.validate_chainhook_payloads ?? false) &&
         !CompiledPayloadSchema.Check(request.body)
       ) {
         logger.error(
@@ -179,15 +182,15 @@ export async function buildServer(
     trustProxy: true,
     logger: PINO_CONFIG,
     pluginTimeout: 0, // Disable so ping can retry indefinitely
-    bodyLimit: serverOpts.body_limit ?? 41943040, // 40MB default
+    bodyLimit: observer.body_limit ?? 41943040, // 40MB default
   }).withTypeProvider<TypeBoxTypeProvider>();
 
-  if (serverOpts.wait_for_chainhook_node ?? true) fastify.addHook('onReady', waitForNode);
+  if (observer.wait_for_chainhook_node ?? true) fastify.addHook('onReady', waitForNode);
   fastify.addHook('onReady', async () =>
-    registerAllPredicates(predicates, serverOpts, chainhookOpts)
+    registerAllPredicatesOnObserverReady(predicates, observer, chainhook)
   );
   fastify.addHook('onClose', async () =>
-    removeAllPredicates(predicates, serverOpts, chainhookOpts)
+    removeAllPredicatesOnObserverClose(predicates, observer, chainhook)
   );
 
   await fastify.register(ChainhookEventObserver);

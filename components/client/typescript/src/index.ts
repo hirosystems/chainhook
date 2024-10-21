@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import {
-  ServerOptions,
+  EventObserverOptions,
   ChainhookNodeOptions,
   ServerPredicate,
   OnEventCallback,
@@ -21,18 +21,19 @@ import { predicateHealthCheck } from './predicates';
  */
 export class ChainhookEventObserver {
   private fastify?: FastifyInstance;
-  private serverOpts: ServerOptions;
+  private serverOpts: EventObserverOptions;
   private chainhookOpts: ChainhookNodeOptions;
   private healthCheckTimer?: NodeJS.Timer;
 
-  constructor(serverOpts: ServerOptions, chainhookOpts: ChainhookNodeOptions) {
+  constructor(serverOpts: EventObserverOptions, chainhookOpts: ChainhookNodeOptions) {
     this.serverOpts = serverOpts;
     this.chainhookOpts = chainhookOpts;
   }
 
   /**
-   * Start the Chainhook event server.
-   * @param predicates - Predicates to register
+   * Starts the Chainhook event observer.
+   * @param predicates - Predicates to register. If `predicates_disk_file_path` is enabled in the
+   * observer, predicates stored on disk will take precedent over those specified here.
    * @param callback - Function to handle every Chainhook event payload sent by the node
    */
   async start(predicates: ServerPredicate[], callback: OnEventCallback): Promise<void> {
