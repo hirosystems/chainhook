@@ -26,6 +26,12 @@ pub struct StacksBlockPool {
     canonical_micro_fork_id: HashMap<BlockIdentifier, usize>,
 }
 
+impl Default for StacksBlockPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StacksBlockPool {
     pub fn new() -> StacksBlockPool {
         let mut forks = BTreeMap::new();
@@ -104,7 +110,7 @@ impl StacksBlockPool {
                 ctx.try_log(|logger| {
                     slog::error!(logger, "unable to retrieve previous stacks fork")
                 });
-                return Ok(None);
+                return Err("unable to retrieve previous stacks fork".to_string());
             }
         };
 
@@ -317,7 +323,7 @@ impl StacksBlockPool {
         // [7] ... [2] [1]
         let canonical_segment = {
             let mut segment = vec![];
-            while let Some(ancestor) = self.block_store.get(&ancestor_identifier) {
+            while let Some(ancestor) = self.block_store.get(ancestor_identifier) {
                 ancestor_identifier = &ancestor.parent_block_identifier;
                 segment.push(ancestor.block_identifier.clone());
             }
@@ -334,7 +340,7 @@ impl StacksBlockPool {
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
         for (fork_id, fork) in self.forks.iter_mut() {
-            let mut res = fork.prune_confirmed_blocks(&cut_off);
+            let mut res = fork.prune_confirmed_blocks(cut_off);
             blocks_to_prune.append(&mut res);
             if fork.block_ids.is_empty() {
                 forks_to_prune.push(*fork_id);
@@ -478,7 +484,7 @@ impl StacksBlockPool {
                     )
                 });
                 let mut microfork = ChainSegment::new();
-                microfork.append_block_identifier(&&microblock.block_identifier);
+                microfork.append_block_identifier(&microblock.block_identifier);
 
                 match self
                     .micro_forks
@@ -493,42 +499,40 @@ impl StacksBlockPool {
                     .micro_forks
                     .get_mut(&microblock.metadata.anchor_block_identifier)
                     .and_then(|microfork| microfork.last_mut())
-            } else {
-                if let Some(microforks) = self
-                    .micro_forks
-                    .get_mut(&microblock.metadata.anchor_block_identifier)
-                {
-                    for micro_fork in microforks.iter_mut() {
-                        let (block_appended, mut new_micro_fork) =
-                            micro_fork.try_append_block(&microblock, ctx);
-                        if block_appended {
-                            ctx.try_log(|logger| {
-                                slog::info!(logger,
-                                "Attempt to append micro fork {} with {} (parent = {}) succeeded",
+            } else if let Some(microforks) = self
+                .micro_forks
+                .get_mut(&microblock.metadata.anchor_block_identifier)
+            {
+                for micro_fork in microforks.iter_mut() {
+                    let (block_appended, mut new_micro_fork) =
+                        micro_fork.try_append_block(&microblock, ctx);
+                    if block_appended {
+                        ctx.try_log(|logger| {
+                            slog::info!(logger,
+                            "Attempt to append micro fork {} with {} (parent = {}) succeeded",
+                            micro_fork,
+                            microblock.block_identifier,
+                            microblock.parent_block_identifier
+                        )
+                        });
+                        if let Some(new_micro_fork) = new_micro_fork.take() {
+                            microforks.push(new_micro_fork);
+                            micro_fork_updated = microforks.last_mut();
+                        } else {
+                            micro_fork_updated = Some(micro_fork);
+                        }
+                        // A block can only be added to one segment
+                        break;
+                    } else {
+                        ctx.try_log(|logger| {
+                            slog::error!(
+                                logger,
+                                "Attempt to append micro fork {} with {} (parent = {}) failed",
                                 micro_fork,
                                 microblock.block_identifier,
                                 microblock.parent_block_identifier
                             )
-                            });
-                            if let Some(new_micro_fork) = new_micro_fork.take() {
-                                microforks.push(new_micro_fork);
-                                micro_fork_updated = microforks.last_mut();
-                            } else {
-                                micro_fork_updated = Some(micro_fork);
-                            }
-                            // A block can only be added to one segment
-                            break;
-                        } else {
-                            ctx.try_log(|logger| {
-                                slog::error!(
-                                    logger,
-                                    "Attempt to append micro fork {} with {} (parent = {}) failed",
-                                    micro_fork,
-                                    microblock.block_identifier,
-                                    microblock.parent_block_identifier
-                                )
-                            });
-                        }
+                        });
                     }
                 }
             }
@@ -690,22 +694,18 @@ impl StacksBlockPool {
             self.micro_forks.get(&block.parent_block_identifier),
         ) {
             (Some(last_microblock), Some(microforks)) => {
-                let previous_canonical_segment = match self
+                let previous_canonical_segment = self
                     .canonical_micro_fork_id
-                    .get(&block.parent_block_identifier)
-                {
-                    Some(id) => Some(microforks[*id].clone()),
-                    None => None,
-                };
+                    .get(&block.parent_block_identifier).map(|id| microforks[*id].clone());
 
                 let mut new_canonical_segment = None;
                 for (microfork_id, microfork) in microforks.iter().enumerate() {
                     self.canonical_micro_fork_id
                         .insert(block.parent_block_identifier.clone(), microfork_id);
-                    if microfork.block_ids.contains(&last_microblock) {
+                    if microfork.block_ids.contains(last_microblock) {
                         let mut confirmed_microblocks = microfork.clone();
                         let (_, mutated) = confirmed_microblocks
-                            .keep_blocks_from_oldest_to_block_identifier(&last_microblock);
+                            .keep_blocks_from_oldest_to_block_identifier(last_microblock);
                         new_canonical_segment = Some((
                             confirmed_microblocks,
                             if mutated {
@@ -1035,7 +1035,7 @@ impl StacksBlockPool {
             }
         };
 
-        if new_canonical_segment.eq(&previous_canonical_segment) {
+        if new_canonical_segment.eq(previous_canonical_segment) {
             return Ok(None);
         }
 

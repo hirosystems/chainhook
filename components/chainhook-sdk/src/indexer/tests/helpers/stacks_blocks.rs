@@ -65,13 +65,13 @@ pub fn generate_test_stacks_block(
         metadata: StacksBlockMetadata {
             bitcoin_anchor_block_identifier: BlockIdentifier {
                 index: parent_height,
-                hash: format!(""),
+                hash: String::new(),
             },
             pox_cycle_index: 1,
             pox_cycle_position: block_height.try_into().unwrap(),
             pox_cycle_length: 100,
             confirm_microblock_identifier,
-            stacks_block_hash: format!(""),
+            stacks_block_hash: String::new(),
         },
     })
 }

@@ -2,7 +2,7 @@ use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
     chainhooks::types::ChainhookStore,
-    observer::{start_event_observer, EventObserverConfig},
+    observer::{start_event_observer, EventObserverConfig, PredicatesConfig},
     types::{BitcoinNetwork, StacksNodeConfig},
     utils::Context,
 };
@@ -89,7 +89,7 @@ async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port, &mut redis_process))?;
 
-    const EXPECTED: &'static str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
+    const EXPECTED: &str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
     assert!(metrics.contains(EXPECTED));
 
     sleep(Duration::new(1, 0));
@@ -190,14 +190,15 @@ async fn it_responds_200_for_unimplemented_endpoints(
     });
     let config = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicates_config: PredicatesConfig::default(),
         bitcoin_rpc_proxy_enabled: false,
-        bitcoind_rpc_username: format!(""),
-        bitcoind_rpc_password: format!(""),
-        bitcoind_rpc_url: format!(""),
+        bitcoind_rpc_username: String::new(),
+        bitcoind_rpc_password: String::new(),
+        bitcoind_rpc_url: String::new(),
         bitcoin_block_signaling: chainhook_sdk::types::BitcoinBlockSignaling::Stacks(
             StacksNodeConfig {
-                rpc_url: format!(""),
-                ingestion_port: ingestion_port,
+                rpc_url: String::new(),
+                ingestion_port,
             },
         ),
         display_stacks_ingestion_logs: false,

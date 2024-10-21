@@ -12,7 +12,11 @@ use super::{
     },
     types::{ExactMatchingRule, FileHook},
 };
-use crate::{chainhooks::stacks::serialize_stacks_payload_to_json, utils::Context};
+use crate::{
+    chainhooks::stacks::serialize_stacks_payload_to_json,
+    observer::EventObserverConfig,
+    utils::Context,
+};
 use crate::{
     chainhooks::{
         tests::fixtures::{get_expected_occurrence, get_test_event_payload_by_type},
@@ -400,7 +404,7 @@ fn test_stacks_predicates(
         capture_all_events: None,
         decode_clarity_values: None,
         include_contract_abi: None,
-        predicate: predicate,
+        predicate,
         action: HookAction::Noop,
         enabled: true,
         expired_at: None,
@@ -480,7 +484,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         capture_all_events: None,
         decode_clarity_values: None,
         include_contract_abi: None,
-        predicate: predicate,
+        predicate,
         action: HookAction::Noop,
         enabled: true,
         expired_at: None,
@@ -492,7 +496,7 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
 
     if expected_applies == 0 {
         assert_eq!(triggered.len(), 0)
-    } else if triggered.len() == 0 {
+    } else if triggered.is_empty() {
         panic!("expected more than one block to be applied, but no predicates were triggered")
     } else {
         let actual_applies: u64 = triggered[0].apply.len().try_into().unwrap();
@@ -674,7 +678,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         capture_all_events: None,
         decode_clarity_values: None,
         include_contract_abi: None,
-        predicate: predicate,
+        predicate,
         action: HookAction::Noop,
         enabled: true,
         expired_at: None,
@@ -686,7 +690,7 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
 
     if expected_applies == 0 {
         assert_eq!(triggered.len(), 0)
-    } else if triggered.len() == 0 {
+    } else if triggered.is_empty() {
         panic!("expected more than one block to be applied, but no predicates were triggered")
     } else {
         let actual_applies: u64 = triggered[0].apply.len().try_into().unwrap();
@@ -718,11 +722,11 @@ fn test_stacks_hook_action_noop() {
     };
 
     let apply_block_data = fixtures::build_stacks_testnet_block_with_contract_call();
-    let apply_transactions = apply_block_data.transactions.iter().map(|t| t).collect();
+    let apply_transactions = apply_block_data.transactions.iter().collect();
     let apply_blocks: &dyn AbstractStacksBlock = &apply_block_data;
 
     let rollback_block_data = fixtures::build_stacks_testnet_block_with_contract_deployment();
-    let rollback_transactions = rollback_block_data.transactions.iter().map(|t| t).collect();
+    let rollback_transactions = rollback_block_data.transactions.iter().collect();
     let rollback_blocks: &dyn AbstractStacksBlock = &apply_block_data;
     let trigger = StacksTriggerChainhook {
         chainhook: &chainhook,
@@ -735,7 +739,8 @@ fn test_stacks_hook_action_noop() {
         logger: None,
         tracer: false,
     };
-    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    let occurrence =
+        handle_stacks_hook_action(trigger, &proofs, &EventObserverConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::Data(data) = occurrence {
         assert_eq!(data.apply.len(), 1);
         assert_eq!(
@@ -792,18 +797,18 @@ fn test_stacks_hook_action_file_append() {
         .iter()
         .map(|b| {
             (
-                b.transactions.iter().map(|t| t).collect(),
+                b.transactions.iter().collect(),
                 b as &dyn AbstractStacksBlock,
             )
         })
         .collect();
 
     let rollback_block_data = fixtures::build_stacks_testnet_block_with_contract_deployment();
-    let rollback_transactions = rollback_block_data.transactions.iter().map(|t| t).collect();
+    let rollback_transactions = rollback_block_data.transactions.iter().collect();
     let rollback_block: &dyn AbstractStacksBlock = &rollback_block_data;
     let trigger = StacksTriggerChainhook {
         chainhook: &chainhook,
-        apply: apply,
+        apply,
         rollback: vec![(rollback_transactions, rollback_block)],
     };
 
@@ -812,7 +817,8 @@ fn test_stacks_hook_action_file_append() {
         logger: None,
         tracer: false,
     };
-    let occurrence = handle_stacks_hook_action(trigger, &proofs, &ctx).unwrap();
+    let occurrence =
+        handle_stacks_hook_action(trigger, &proofs, &EventObserverConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::File(path, bytes) = occurrence {
         assert_eq!(path, "./".to_string());
         let json: JsonValue = serde_json::from_slice(&bytes).unwrap();

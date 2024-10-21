@@ -156,9 +156,7 @@ pub async fn send_request(
             Some(rb) => rb,
             None => {
                 ctx.try_log(|logger| slog::warn!(logger, "unable to clone request builder"));
-                return Err(format!(
-                    "internal server error: unable to clone request builder"
-                ));
+                return Err("internal server error: unable to clone request builder".to_string());
             }
         };
         let err_msg = match request_builder.send().await {
@@ -176,7 +174,7 @@ pub async fn send_request(
             }
             Err(e) => {
                 retry += 1;
-                let err_msg = format!("unable to send request {}", e.to_string());
+                let err_msg = format!("unable to send request {}", e);
                 ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
                 err_msg
             }
@@ -196,7 +194,7 @@ pub async fn send_request(
 pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), String> {
     let mut file_path = match std::env::current_dir() {
         Err(e) => {
-            let msg = format!("unable to retrieve current_dir {}", e.to_string());
+            let msg = format!("unable to retrieve current_dir {}", e);
             ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
             return Err(msg);
         }
@@ -212,7 +210,7 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
                 let msg = format!(
                     "unable to create file {}: {}",
                     file_path.display(),
-                    e.to_string()
+                    e
                 );
                 ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
                 return Err(msg);
@@ -222,12 +220,12 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
 
     let mut file = match OpenOptions::new()
         .create(false)
-        .write(true)
+        
         .append(true)
         .open(file_path)
     {
         Err(e) => {
-            let msg = format!("unable to open file {}", e.to_string());
+            let msg = format!("unable to open file {}", e);
             ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
             return Err(msg);
         }
@@ -237,14 +235,14 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
     let utf8 = match String::from_utf8(bytes) {
         Ok(string) => string,
         Err(e) => {
-            let msg = format!("unable serialize bytes as utf8 string {}", e.to_string());
+            let msg = format!("unable serialize bytes as utf8 string {}", e);
             ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
             return Err(msg);
         }
     };
 
     if let Err(e) = writeln!(file, "{}", utf8) {
-        let msg = format!("unable to open file {}", e.to_string());
+        let msg = format!("unable to open file {}", e);
         ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
         eprintln!("Couldn't write to file: {}", e);
         return Err(msg);
@@ -399,9 +397,50 @@ pub fn write_file_content_at_path(file_path: &PathBuf, content: &[u8]) -> Result
             e
         )
     })?;
-    let mut file = File::create(&file_path)
+    let mut file = File::create(file_path)
         .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
     file.write_all(content)
         .map_err(|e| format!("unable to write file {}\n{}", file_path.display(), e))?;
     Ok(())
+}
+
+// TODO: Fold these macros into one generic macro with configurable log levels.
+#[macro_export]
+macro_rules! try_info {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::info!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::info!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_debug {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::debug!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::debug!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_warn {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::warn!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::warn!(l, $tag));
+    };
+}
+
+#[macro_export]
+macro_rules! try_error {
+    ($a:expr, $tag:expr, $($args:tt)*) => {
+        $a.try_log(|l| slog::error!(l, $tag, $($args)*));
+    };
+    ($a:expr, $tag:expr) => {
+        $a.try_log(|l| slog::error!(l, $tag));
+    };
 }

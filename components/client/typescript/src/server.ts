@@ -14,7 +14,7 @@ import { Payload, PayloadSchema } from './schemas/payload';
 import { PredicateHeaderSchema } from './schemas/predicate';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
-import { registerPredicates, removePredicates } from './predicates';
+import { registerAllPredicates, removeAllPredicates } from './predicates';
 
 /** Function type for a Chainhook event callback */
 export type OnEventCallback = (uuid: string, payload: Payload) => Promise<void>;
@@ -119,9 +119,7 @@ export async function buildServer(
   callback: OnEventCallback
 ) {
   async function waitForNode(this: FastifyInstance) {
-    logger.info(
-      `ChainhookEventObserver connecting to chainhook node at ${chainhookOpts.base_url}...`
-    );
+    logger.info(`ChainhookEventObserver looking for chainhook node at ${chainhookOpts.base_url}`);
     while (true) {
       try {
         await request(`${chainhookOpts.base_url}/ping`, { method: 'GET', throwOnError: true });
@@ -185,8 +183,12 @@ export async function buildServer(
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   if (serverOpts.wait_for_chainhook_node ?? true) fastify.addHook('onReady', waitForNode);
-  fastify.addHook('onReady', async () => registerPredicates(predicates, serverOpts, chainhookOpts));
-  fastify.addHook('onClose', async () => removePredicates(predicates, serverOpts, chainhookOpts));
+  fastify.addHook('onReady', async () =>
+    registerAllPredicates(predicates, serverOpts, chainhookOpts)
+  );
+  fastify.addHook('onClose', async () =>
+    removeAllPredicates(predicates, serverOpts, chainhookOpts)
+  );
 
   await fastify.register(ChainhookEventObserver);
   return fastify;
