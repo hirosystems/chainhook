@@ -664,6 +664,12 @@ pub struct BlockchainUpdatedWithReorg {
     pub confirmed_headers: Vec<BlockHeader>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "type", content = "data")]
+pub enum StacksNonConsensusEventData {
+    SignerMessage(StacksStackerDbChunk),
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BlockHeader {
     pub block_identifier: BlockIdentifier,
@@ -691,8 +697,8 @@ pub struct BitcoinChainUpdatedWithReorgData {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct StacksChainUpdatedWithStackerDbChunksData {
-    pub chunks: Vec<StacksStackerDbChunk>,
+pub struct StacksChainUpdatedWithNonConsensusEventsData {
+    pub events: Vec<StacksNonConsensusEventData>,
     pub received_at: u64,
     pub received_at_block: BlockIdentifier,
 }
@@ -704,7 +710,7 @@ pub enum StacksChainEvent {
     ChainUpdatedWithReorg(StacksChainUpdatedWithReorgData),
     ChainUpdatedWithMicroblocks(StacksChainUpdatedWithMicroblocksData),
     ChainUpdatedWithMicroblocksReorg(StacksChainUpdatedWithMicroblocksReorgData),
-    ChainUpdatedWithStackerDbChunks(StacksChainUpdatedWithStackerDbChunksData),
+    ChainUpdatedWithNonConsensusEvents(StacksChainUpdatedWithNonConsensusEventsData),
 }
 
 impl StacksChainEvent {
@@ -734,7 +740,7 @@ impl StacksChainEvent {
                 .microblocks_to_apply
                 .first()
                 .and_then(|b| Some(&b.metadata.anchor_block_identifier)),
-            StacksChainEvent::ChainUpdatedWithStackerDbChunks(_) => None,
+            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => None,
         }
     }
 }

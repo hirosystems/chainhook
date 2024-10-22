@@ -548,7 +548,7 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
-                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+                            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_data) => {
                                 // TODO(rafaelcr): Store signer data.
                             }
                         },
@@ -619,7 +619,7 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
-                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(_) => {
+                            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => {
                                 // TODO(rafaelcr): Send via HTTP payload.
                             },
                         };

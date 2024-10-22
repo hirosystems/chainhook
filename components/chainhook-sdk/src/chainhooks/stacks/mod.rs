@@ -9,9 +9,9 @@ use super::types::{
     HookAction,
 };
 use chainhook_types::{
-    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksStackerDbChunk, StacksTransactionData,
-    StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
-    TransactionIdentifier,
+    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksNonConsensusEventData,
+    StacksTransactionData, StacksTransactionEvent, StacksTransactionEventPayload,
+    StacksTransactionKind, TransactionIdentifier,
 };
 use clarity::codec::StacksMessageCodec;
 use clarity::vm::types::{
@@ -478,7 +478,7 @@ pub struct StacksTriggerChainhook<'a> {
     pub chainhook: &'a StacksChainhookInstance,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
     pub rollback: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
-    pub events: Vec<&'a dyn AbstractStacksNonConsensusEvent>,
+    pub events: Vec<&'a StacksNonConsensusEventData>,
 }
 
 #[derive(Clone, Debug)]
@@ -494,12 +494,6 @@ pub struct StacksRollbackTransactionPayload {
 }
 
 #[derive(Clone, Debug)]
-pub struct StacksNonConsensusEventPayload {
-    pub block_identifier: BlockIdentifier,
-    pub transactions: Vec<StacksTransactionData>,
-}
-
-#[derive(Clone, Debug)]
 pub struct StacksChainhookPayload {
     pub uuid: String,
 }
@@ -508,7 +502,7 @@ pub struct StacksChainhookPayload {
 pub struct StacksChainhookOccurrencePayload {
     pub apply: Vec<StacksApplyTransactionPayload>,
     pub rollback: Vec<StacksRollbackTransactionPayload>,
-    pub events: Vec<StacksNonConsensusEventPayload>,
+    pub events: Vec<StacksNonConsensusEventData>,
     pub chainhook: StacksChainhookPayload,
 }
 
@@ -540,6 +534,7 @@ impl StacksChainhookOccurrencePayload {
             chainhook: StacksChainhookPayload {
                 uuid: trigger.chainhook.uuid.clone(),
             },
+            events: trigger.events.into_iter().cloned().collect::<Vec<_>>(),
         }
     }
 }
@@ -749,17 +744,14 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                 }
             }
         }
-        StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+        StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
+            #[cfg(feature = "stacks-signers")]
             for chainhook in active_chainhooks.iter() {
                 let mut events = vec![];
 
                 evaluated_predicates.insert(chainhook.uuid.as_str(), &data.received_at_block);
-                let mut chunks: Vec<&dyn AbstractStacksNonConsensusEvent> = vec![];
-                for chunk in data.chunks.iter() {
-                    chunks.push(chunk);
-                }
                 let (mut occurrences, mut expirations) =
-                    evaluate_stacks_predicate_on_stackerdb_chunks(chunks, chainhook, ctx);
+                    evaluate_stacks_predicate_on_stackerdb_chunks(&data.events, chainhook, ctx);
                 events.append(&mut occurrences);
                 expired_predicates.append(&mut expirations);
 
@@ -850,22 +842,23 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 
 #[cfg(feature = "stacks-signers")]
 pub fn evaluate_stacks_predicate_on_stackerdb_chunks<'a>(
-    chunks: Vec<&'a dyn AbstractStacksNonConsensusEvent>,
+    events: &'a Vec<StacksNonConsensusEventData>,
     chainhook: &'a StacksChainhookInstance,
     _ctx: &Context,
 ) -> (
-    Vec<&'a dyn AbstractStacksNonConsensusEvent>,
+    Vec<&'a StacksNonConsensusEventData>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
     let mut occurrences = vec![];
     let expired_predicates = BTreeMap::new();
-    for chunk in chunks {
+    for event in events {
         match &chainhook.predicate {
             StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(
                 timestamp,
             )) => {
+                let StacksNonConsensusEventData::SignerMessage(chunk) = event;
                 if chunk.get_timestamp() >= *timestamp as i64 {
-                    occurrences.push(chunk);
+                    occurrences.push(event);
                 }
             }
             StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
@@ -905,7 +898,7 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             _ => false,
         },
         StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(
-            stacks_trait,
+            _stacks_trait,
         )) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractDeployment(_actual_deployment) => {
                 ctx.try_log(|logger| {
