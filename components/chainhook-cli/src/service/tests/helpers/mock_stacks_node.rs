@@ -1,7 +1,7 @@
 use crate::scan::stacks::{Record, RecordKind};
 use crate::service::tests::helpers::mock_bitcoin_rpc::TipData;
 use chainhook_sdk::indexer::bitcoin::NewBitcoinBlock;
-use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction};
+use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction, RewardSet, RewardSetSigner};
 use chainhook_sdk::types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
@@ -260,6 +260,26 @@ pub fn create_stacks_new_block(
         transactions: (0..4).map(create_stacks_new_transaction).collect(),
         events,
         matured_miner_rewards: vec![],
+        block_time: Some(12345),
+        signer_bitvec: Some("000800000001ff".to_owned()),
+        signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
+        cycle_number: Some(1),
+        reward_set: Some(RewardSet {
+            pox_ustx_threshold: "50000".to_owned(),
+            rewarded_addresses: vec![],
+            signers: Some(vec![
+                RewardSetSigner {
+                    signing_key: "0123".to_owned(),
+                    weight: 123,
+                    stacked_amt: "555555".to_owned(),
+                },
+                RewardSetSigner {
+                    signing_key: "2345".to_owned(),
+                    weight: 234,
+                    stacked_amt: "6677777".to_owned(),
+                },
+            ]),
+        }),
     }
 }
 
