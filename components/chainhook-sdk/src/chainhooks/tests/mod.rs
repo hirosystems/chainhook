@@ -24,6 +24,7 @@ use crate::{
     },
     utils::AbstractStacksBlock,
 };
+use assert_json_diff::assert_json_eq;
 use chainhook_types::{
     StacksBlockUpdate, StacksChainEvent, StacksChainUpdatedWithBlocksData, StacksNetwork,
     StacksTransactionData, StacksTransactionEvent, StacksTransactionEventPayload,
@@ -821,11 +822,9 @@ fn test_stacks_hook_action_file_append() {
         handle_stacks_hook_action(trigger, &proofs, &EventObserverConfig::default(), &ctx).unwrap();
     if let StacksChainhookOccurrence::File(path, bytes) = occurrence {
         assert_eq!(path, "./".to_string());
-        let json: JsonValue = serde_json::from_slice(&bytes).unwrap();
-        let obj = json.as_object().unwrap();
-        let actual = serde_json::to_string_pretty(obj).unwrap();
-        let expected = get_expected_occurrence();
-        assert_eq!(expected, actual);
+        let actual: JsonValue = serde_json::from_slice(&bytes).unwrap();
+        let expected: JsonValue = serde_json::from_str(&get_expected_occurrence()).unwrap();
+        assert_json_eq!(expected, actual);
     } else {
         panic!("wrong occurrence type");
     }
