@@ -749,9 +749,11 @@ pub fn standardize_stacks_stackerdb_chunks(
                     block: standardize_stacks_nakamoto_block(&nakamoto_block),
                 })
             }
-            SignerMessage::MockSignature(_) => StacksSignerMessage::MockSignature,
-            SignerMessage::MockProposal(_) => StacksSignerMessage::MockProposal,
-            SignerMessage::MockBlock(_) => StacksSignerMessage::MockBlock,
+            SignerMessage::MockSignature(_)
+            | SignerMessage::MockProposal(_)
+            | SignerMessage::MockBlock(_) => {
+                continue;
+            }
         };
         parsed_chunks.push(StacksStackerDbChunk {
             contract: contract_id.clone(),

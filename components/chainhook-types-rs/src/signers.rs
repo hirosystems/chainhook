@@ -37,16 +37,17 @@ pub struct BlockAcceptedResponse {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum BlockValidationFailedCode {
-    BadBlockHash = 0,
-    BadTransaction = 1,
-    InvalidBlock = 2,
-    ChainstateError = 3,
-    UnknownParent = 4,
-    NonCanonicalTenure = 5,
-    NoSuchTenure = 6,
+    BadBlockHash,
+    BadTransaction,
+    InvalidBlock,
+    ChainstateError,
+    UnknownParent,
+    NonCanonicalTenure,
+    NoSuchTenure,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockRejectReasonCode {
     ValidationFailed(BlockValidationFailedCode),
     ConnectivityIssues,
@@ -66,6 +67,7 @@ pub struct BlockRejectedResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "data")]
 pub enum BlockResponseData {
     Accepted(BlockAcceptedResponse),
     Rejected(BlockRejectedResponse),
@@ -77,13 +79,12 @@ pub struct BlockPushedData {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "data")]
 pub enum StacksSignerMessage {
     BlockProposal(BlockProposalData),
     BlockResponse(BlockResponseData),
     BlockPushed(BlockPushedData),
-    MockProposal,
-    MockSignature,
-    MockBlock,
+    // TODO(rafaelcr): Add mock messages
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

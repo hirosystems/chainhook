@@ -8,6 +8,7 @@ import {
 import { StacksTransactionEventSchema } from './tx_events';
 import { StacksTransactionKindSchema } from './tx_kind';
 import { StacksIfThisSchema } from './if_this';
+import { StacksSignerMessageEventSchema } from './signers';
 
 export const StacksExecutionCostSchema = Type.Optional(
   Type.Object({
@@ -52,7 +53,7 @@ export const StacksTransactionMetadataSchema = Type.Object({
 });
 export type StacksTransactionMetadata = Static<typeof StacksTransactionMetadataSchema>;
 
-const StacksTransactionSchema = Type.Object({
+export const StacksTransactionSchema = Type.Object({
   transaction_identifier: TransactionIdentifierSchema,
   operations: Type.Array(RosettaOperationSchema),
   metadata: StacksTransactionMetadataSchema,
@@ -101,9 +102,13 @@ export const StacksEventSchema = Type.Object({
 });
 export type StacksEvent = Static<typeof StacksEventSchema>;
 
+export const StacksNonConsensusEventSchema = Type.Union([StacksSignerMessageEventSchema]);
+export type StacksNonConsensusEvent = Static<typeof StacksNonConsensusEventSchema>;
+
 export const StacksPayloadSchema = Type.Object({
   apply: Type.Array(StacksEventSchema),
   rollback: Type.Array(StacksEventSchema),
+  events: Type.Array(StacksNonConsensusEventSchema),
   chainhook: Type.Object({
     uuid: Type.String(),
     predicate: StacksIfThisSchema,
