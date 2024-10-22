@@ -11,16 +11,11 @@ import { request } from 'undici';
 import { logger, PINO_CONFIG } from './util/logger';
 import { timeout } from './util/helpers';
 import { Payload, PayloadSchema } from './schemas/payload';
-import { PredicateHeaderSchema } from './schemas/predicate';
-import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
-import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
 import {
   registerAllPredicatesOnObserverReady,
   removeAllPredicatesOnObserverClose,
 } from './predicates';
-
-/** Function type for a Chainhook event callback */
-export type OnEventCallback = (uuid: string, payload: Payload) => Promise<void>;
+import { EventObserverPredicate, OnPredicatePayloadCallback } from '.';
 
 const EventObserverOptionsSchema = Type.Object({
   hostname: Type.String(),
@@ -44,15 +39,14 @@ const EventObserverOptionsSchema = Type.Object({
   ),
   /**
    * Directory where registered predicates will be persisted to disk so they can be recalled on
-   * restarts. Predicates will not be persisted if this option is left undefined.
+   * restarts.
    */
-  predicates_disk_file_path: Type.Optional(Type.String()),
+  predicate_disk_file_path: Type.String(),
   /**
    * How often we should check with the Chainhook server to make sure our predicates are active and
-   * up to date. If they become obsolete, we will attempt to re-register them. Interval will be
-   * turned off if this option is left undefined.
+   * up to date. If they become obsolete, we will attempt to re-register them.
    */
-  predicate_health_check_interval_ms: Type.Optional(Type.Integer()),
+  predicate_health_check_interval_ms: Type.Optional(Type.Integer({ default: 5000 })),
 });
 /** Local event server connection and authentication options */
 export type EventObserverOptions = Static<typeof EventObserverOptionsSchema>;
@@ -74,39 +68,6 @@ export class BadPayloadRequestError extends Error {
   }
 }
 
-const IfThisThenNothingSchema = Type.Union([
-  Type.Composite([
-    BitcoinIfThisOptionsSchema,
-    Type.Object({
-      if_this: BitcoinIfThisSchema,
-    }),
-  ]),
-  Type.Composite([
-    StacksIfThisOptionsSchema,
-    Type.Object({
-      if_this: StacksIfThisSchema,
-    }),
-  ]),
-]);
-const ServerPredicateSchema = Type.Composite([
-  PredicateHeaderSchema,
-  Type.Object({
-    networks: Type.Union([
-      Type.Object({
-        mainnet: IfThisThenNothingSchema,
-      }),
-      Type.Object({
-        testnet: IfThisThenNothingSchema,
-      }),
-    ]),
-  }),
-]);
-/** Chainhook predicates registerable by the local event server */
-export type ServerPredicate = Static<typeof ServerPredicateSchema>;
-
-const CompiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
-export const CompiledServerPredicateSchema = TypeCompiler.Compile(ServerPredicateSchema);
-
 /**
  * Build the Chainhook Fastify event server.
  * @param observer - Event observer options
@@ -118,8 +79,8 @@ export const CompiledServerPredicateSchema = TypeCompiler.Compile(ServerPredicat
 export async function buildServer(
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions,
-  predicates: ServerPredicate[],
-  callback: OnEventCallback
+  predicates: EventObserverPredicate[],
+  callback: OnPredicatePayloadCallback
 ) {
   async function waitForNode(this: FastifyInstance) {
     logger.info(`ChainhookEventObserver looking for chainhook node at ${chainhook.base_url}`);
@@ -148,6 +109,7 @@ export async function buildServer(
     Server,
     TypeBoxTypeProvider
   > = (fastify, options, done) => {
+    const CompiledPayloadSchema = TypeCompiler.Compile(PayloadSchema);
     fastify.addHook('preHandler', isEventAuthorized);
     fastify.post('/payload', async (request, reply) => {
       if (
@@ -189,9 +151,7 @@ export async function buildServer(
   fastify.addHook('onReady', async () =>
     registerAllPredicatesOnObserverReady(predicates, observer, chainhook)
   );
-  fastify.addHook('onClose', async () =>
-    removeAllPredicatesOnObserverClose(predicates, observer, chainhook)
-  );
+  fastify.addHook('onClose', async () => removeAllPredicatesOnObserverClose(observer, chainhook));
 
   await fastify.register(ChainhookEventObserver);
   return fastify;

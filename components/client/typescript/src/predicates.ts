@@ -1,57 +1,111 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  ChainhookNodeOptions,
-  CompiledServerPredicateSchema,
-  EventObserverOptions,
-  ServerPredicate,
-} from './server';
+import { ChainhookNodeOptions, EventObserverOptions } from './server';
 import { logger } from './util/logger';
-import { Predicate, SerializedPredicateResponse, ThenThatHttpPost } from './schemas/predicate';
+import {
+  Predicate,
+  PredicateSchema,
+  SerializedPredicateResponse,
+  ThenThatHttpPost,
+} from './schemas/predicate';
 import { request } from 'undici';
+import { Type } from '@fastify/type-provider-typebox';
+import { TypeCompiler } from '@sinclair/typebox/compiler';
+import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
+import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
+import { EventObserverPredicate } from '.';
+import { randomUUID } from 'crypto';
 
-function recallPersistedPredicatesFromDisk(basePath: string): ServerPredicate[] {
-  const predicates: ServerPredicate[] = [];
+const registeredPredicates = new Map<string, Predicate>();
+
+const IfThisThenNothingSchema = Type.Union([
+  Type.Composite([
+    BitcoinIfThisOptionsSchema,
+    Type.Object({
+      if_this: BitcoinIfThisSchema,
+    }),
+  ]),
+  Type.Composite([
+    StacksIfThisOptionsSchema,
+    Type.Object({
+      if_this: StacksIfThisSchema,
+    }),
+  ]),
+]);
+export const EventObserverPredicateSchema = Type.Composite([
+  Type.Object({
+    name: Type.String(),
+    version: Type.Integer(),
+    chain: Type.String(),
+  }),
+  Type.Object({
+    networks: Type.Union([
+      Type.Object({
+        mainnet: IfThisThenNothingSchema,
+      }),
+      Type.Object({
+        testnet: IfThisThenNothingSchema,
+      }),
+    ]),
+  }),
+]);
+const CompiledPredicateSchema = TypeCompiler.Compile(PredicateSchema);
+
+/**
+ * Looks on disk and returns a map of registered Predicates, where the key is the predicate `name`
+ * as defined by the user.
+ */
+function recallPersistedPredicatesFromDisk(basePath: string) {
+  registeredPredicates.clear();
   try {
-    if (!fs.existsSync(basePath)) return [];
+    if (!fs.existsSync(basePath)) return registeredPredicates;
     for (const file of fs.readdirSync(basePath)) {
       if (file.endsWith('.json')) {
         const predicate = fs.readFileSync(path.join(basePath, file), 'utf-8');
-        if (CompiledServerPredicateSchema.Check(predicate)) {
-          logger.info(`ChainhookEventObserver recalled predicate ${predicate.uuid} from disk`);
-          predicates.push(predicate as ServerPredicate);
+        if (CompiledPredicateSchema.Check(predicate)) {
+          logger.info(
+            `ChainhookEventObserver recalled predicate '${predicate.name}' (${predicate.uuid}) from disk`
+          );
+          registeredPredicates.set(predicate.name, predicate);
         }
       }
     }
   } catch (error) {
     logger.error(error, `ChainhookEventObserver unable to retrieve persisted predicates from disk`);
-    return [];
+    registeredPredicates.clear();
   }
-  return predicates;
+  return registeredPredicates;
 }
 
-function persistPredicateToDisk(basePath: string, predicate: ServerPredicate) {
-  const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.uuid)}.json`;
+function savePredicateToDisk(basePath: string, predicate: Predicate) {
+  const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.name)}.json`;
   try {
     fs.mkdirSync(basePath, { recursive: true });
     fs.writeFileSync(predicatePath, JSON.stringify(predicate, null, 2));
-    logger.info(`ChainhookEventObserver persisted predicate ${predicate.uuid} to disk`);
+    logger.info(
+      `ChainhookEventObserver persisted predicate '${predicate.name}' (${predicate.uuid}) to disk`
+    );
   } catch (error) {
     logger.error(
       error,
-      `ChainhookEventObserver unable to persist predicate ${predicate.uuid} to disk`
+      `ChainhookEventObserver unable to persist predicate '${predicate.name}' (${predicate.uuid}) to disk`
     );
   }
 }
 
-function removePredicateFromDisk(basePath: string, predicate: ServerPredicate) {
-  const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.uuid)}.json`;
-  if (fs.existsSync(predicatePath)) fs.rmSync(predicatePath);
+function deletePredicateFromDisk(basePath: string, predicate: Predicate) {
+  const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.name)}.json`;
+  if (fs.existsSync(predicatePath)) {
+    fs.rmSync(predicatePath);
+    logger.info(
+      `ChainhookEventObserver deleted predicate '${predicate.name}' (${predicate.uuid}) from disk`
+    );
+  }
 }
 
 /** Checks the Chainhook node to see if a predicate is still valid and active */
 async function isPredicateActive(
-  predicate: ServerPredicate,
+  predicate: Predicate,
   chainhook: ChainhookNodeOptions
 ): Promise<boolean | undefined> {
   try {
@@ -74,86 +128,82 @@ async function isPredicateActive(
   } catch (error) {
     logger.error(
       error,
-      `ChainhookEventObserver unable to check if predicate ${predicate.uuid} is active`
+      `ChainhookEventObserver unable to check if predicate '${predicate.name}' (${predicate.uuid}) is active`
     );
     return false;
   }
 }
 
-/** Registers a predicate in the Chainhook server */
+/**
+ * Registers a predicate in the Chainhook server. Automatically handles pre-existing predicates
+ * found on disk.
+ */
 async function registerPredicate(
-  predicate: ServerPredicate,
+  pendingPredicate: EventObserverPredicate,
+  diskPredicates: Map<string, Predicate>,
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions
 ) {
-  const path = observer.node_type === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
-  const registerUrl = `${chainhook.base_url}${path}`;
+  // First check if we've already registered this predicate in the past, and if so, make sure it's
+  // still active on the Chainhook server.
   if (observer.node_type === 'chainhook') {
-    switch (await isPredicateActive(predicate, chainhook)) {
-      case true:
-        logger.debug(`ChainhookEventObserver predicate ${predicate.uuid} is active`);
-        return;
-      case undefined:
-        // Predicate doesn't exist.
-        break;
-      case false:
-        logger.info(
-          `ChainhookEventObserver predicate ${predicate.uuid} was being used but is now inactive, removing for re-regristration`
-        );
-        await removePredicate(predicate, observer, chainhook);
+    const diskPredicate = diskPredicates.get(pendingPredicate.name);
+    if (diskPredicate) {
+      switch (await isPredicateActive(diskPredicate, chainhook)) {
+        case true:
+          logger.debug(
+            `ChainhookEventObserver predicate '${diskPredicate.name}' (${diskPredicate.uuid}) is active`
+          );
+          return;
+        case undefined:
+          logger.info(
+            `ChainhookEventObserver predicate '${diskPredicate.name}' (${diskPredicate.uuid}) found on disk but not on the Chainhook server`
+          );
+          break;
+        case false:
+          logger.info(
+            `ChainhookEventObserver predicate '${diskPredicate.name}' (${diskPredicate.uuid}) was being used but is now inactive, removing for re-regristration`
+          );
+          await removePredicate(diskPredicate, observer, chainhook);
+          break;
+      }
     }
   }
-  logger.info(`ChainhookEventObserver registering predicate ${predicate.uuid}`);
-  const thenThat: ThenThatHttpPost = {
-    http_post: {
-      url: `${observer.external_base_url}/payload`,
-      authorization_header: `Bearer ${observer.auth_token}`,
-    },
-  };
+
+  logger.info(`ChainhookEventObserver registering predicate '${pendingPredicate.name}'`);
   try {
-    const body = predicate as Predicate;
-    if ('mainnet' in body.networks) body.networks.mainnet.then_that = thenThat;
-    if ('testnet' in body.networks) body.networks.testnet.then_that = thenThat;
-    await request(registerUrl, {
+    // Add the `uuid` and `then_that` portions to the predicate.
+    const thenThat: ThenThatHttpPost = {
+      http_post: {
+        url: `${observer.external_base_url}/payload`,
+        authorization_header: `Bearer ${observer.auth_token}`,
+      },
+    };
+    const newPredicate = pendingPredicate as Predicate;
+    newPredicate.uuid = randomUUID();
+    if ('mainnet' in newPredicate.networks) newPredicate.networks.mainnet.then_that = thenThat;
+    if ('testnet' in newPredicate.networks) newPredicate.networks.testnet.then_that = thenThat;
+
+    const path = observer.node_type === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
+    await request(`${chainhook.base_url}${path}`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify(newPredicate),
       headers: { 'content-type': 'application/json' },
       throwOnError: true,
     });
     logger.info(
-      `ChainhookEventObserver registered '${predicate.name}' predicate (${predicate.uuid})`
+      `ChainhookEventObserver registered '${newPredicate.name}' predicate (${newPredicate.uuid})`
     );
-    if (observer.predicates_disk_file_path)
-      persistPredicateToDisk(observer.predicates_disk_file_path, predicate);
+    savePredicateToDisk(observer.predicate_disk_file_path, newPredicate);
+    registeredPredicates.set(newPredicate.name, newPredicate);
   } catch (error) {
     logger.error(error, `ChainhookEventObserver unable to register predicate`);
   }
 }
 
-/** Registers predicates with the Chainhook server when our event observer is booting up */
-export async function registerAllPredicatesOnObserverReady(
-  predicates: ServerPredicate[],
-  observer: EventObserverOptions,
-  chainhook: ChainhookNodeOptions
-) {
-  logger.info(predicates, `ChainhookEventObserver connected to ${chainhook.base_url}`);
-  let predicatesToRegister = predicates;
-  if (observer.predicates_disk_file_path) {
-    logger.info(`ChainhookEventObserver recalling predicates from disk`);
-    predicatesToRegister = recallPersistedPredicatesFromDisk(observer.predicates_disk_file_path);
-  }
-  if (predicatesToRegister.length === 0) {
-    logger.info(`ChainhookEventObserver does not have predicates to register`);
-    return;
-  }
-  for (const predicate of predicatesToRegister) {
-    await registerPredicate(predicate, observer, chainhook);
-  }
-}
-
 /** Removes a predicate from the Chainhook server */
 async function removePredicate(
-  predicate: ServerPredicate,
+  predicate: Predicate,
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions
 ): Promise<void> {
@@ -168,37 +218,55 @@ async function removePredicate(
       headers: { 'content-type': 'application/json' },
       throwOnError: true,
     });
-    logger.info(`ChainhookEventObserver removed predicate ${predicate.uuid}`);
-    if (observer.predicates_disk_file_path)
-      removePredicateFromDisk(observer.predicates_disk_file_path, predicate);
+    logger.info(`ChainhookEventObserver removed predicate '${predicate.name}' (${predicate.uuid})`);
+    deletePredicateFromDisk(observer.predicate_disk_file_path, predicate);
   } catch (error) {
     logger.error(error, `ChainhookEventObserver unable to deregister predicate`);
   }
 }
 
-/** Removes predicates from the Chainhook server when our event observer is being closed */
-export async function removeAllPredicatesOnObserverClose(
-  predicates: ServerPredicate[],
+/** Registers predicates with the Chainhook server when our event observer is booting up */
+export async function registerAllPredicatesOnObserverReady(
+  predicates: EventObserverPredicate[],
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions
 ) {
+  logger.info(predicates, `ChainhookEventObserver connected to ${chainhook.base_url}`);
   if (predicates.length === 0) {
+    logger.info(`ChainhookEventObserver does not have predicates to register`);
+    return;
+  }
+  const diskPredicates = recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
+  for (const predicate of predicates)
+    await registerPredicate(predicate, diskPredicates, observer, chainhook);
+}
+
+/** Removes predicates from the Chainhook server when our event observer is being closed */
+export async function removeAllPredicatesOnObserverClose(
+  observer: EventObserverOptions,
+  chainhook: ChainhookNodeOptions
+) {
+  const diskPredicates = recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
+  if (diskPredicates.size === 0) {
     logger.info(`ChainhookEventObserver does not have predicates to close`);
     return;
   }
   logger.info(`ChainhookEventObserver closing predicates at ${chainhook.base_url}`);
-  const removals = predicates.map(predicate => removePredicate(predicate, observer, chainhook));
+  const removals = [...registeredPredicates.values()].map(predicate =>
+    removePredicate(predicate, observer, chainhook)
+  );
   await Promise.allSettled(removals);
+  registeredPredicates.clear();
 }
 
 export async function predicateHealthCheck(
-  predicates: ServerPredicate[],
+  predicates: EventObserverPredicate[],
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions
 ): Promise<void> {
   logger.debug(`ChainhookEventObserver performing predicate health check`);
-  for (const predicate of predicates) {
+  for (const predicate of registeredPredicates.values()) {
     // This will be a no-op if the predicate is already active.
-    await registerPredicate(predicate, observer, chainhook);
+    await registerPredicate(predicate, registeredPredicates, observer, chainhook);
   }
 }

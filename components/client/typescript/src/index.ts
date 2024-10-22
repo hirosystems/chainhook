@@ -1,12 +1,14 @@
 import { FastifyInstance } from 'fastify';
-import {
-  EventObserverOptions,
-  ChainhookNodeOptions,
-  ServerPredicate,
-  OnEventCallback,
-  buildServer,
-} from './server';
-import { predicateHealthCheck } from './predicates';
+import { EventObserverOptions, ChainhookNodeOptions, buildServer } from './server';
+import { EventObserverPredicateSchema, predicateHealthCheck } from './predicates';
+import { Payload } from './schemas/payload';
+import { Static } from '@fastify/type-provider-typebox';
+
+/** Function type for a Chainhook event callback */
+export type OnPredicatePayloadCallback = (name: string, payload: Payload) => Promise<void>;
+
+/** Predicate for the Chainhook Event Observer to configure */
+export type EventObserverPredicate = Static<typeof EventObserverPredicateSchema>;
 
 /**
  * Local web server that registers predicates and receives events from a Chainhook node. It handles
@@ -36,7 +38,10 @@ export class ChainhookEventObserver {
    * observer, predicates stored on disk will take precedent over those specified here.
    * @param callback - Function to handle every Chainhook event payload sent by the node
    */
-  async start(predicates: ServerPredicate[], callback: OnEventCallback): Promise<void> {
+  async start(
+    predicates: EventObserverPredicate[],
+    callback: OnPredicatePayloadCallback
+  ): Promise<void> {
     if (this.fastify) return;
     this.fastify = await buildServer(this.serverOpts, this.chainhookOpts, predicates, callback);
     await this.fastify.listen({ host: this.serverOpts.hostname, port: this.serverOpts.port });
