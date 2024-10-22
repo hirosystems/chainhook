@@ -114,6 +114,29 @@ pub struct StacksBlockMetadata {
     pub pox_cycle_length: u32,
     pub confirm_microblock_identifier: Option<BlockIdentifier>,
     pub stacks_block_hash: String,
+
+    // Fields included in Nakamoto block headers
+    pub block_time: Option<u64>,
+    pub signer_bitvec: Option<String>,
+    pub signer_signature: Option<Vec<String>>,
+
+    // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
+    pub cycle_number: Option<u64>,
+    pub reward_set: Option<StacksBlockMetadataRewardSet>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksBlockMetadataRewardSet {
+    pub pox_ustx_threshold: String,
+    pub rewarded_addresses: Vec<String>,
+    pub signers: Option<Vec<StacksBlockMetadataRewardSetSigner>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksBlockMetadataRewardSetSigner {
+    pub signing_key: String,
+    pub weight: u32,
+    pub stacked_amt: String,
 }
 
 /// BitcoinBlock contain an array of Transactions that occurred at a particular

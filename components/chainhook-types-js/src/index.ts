@@ -694,6 +694,23 @@ export interface StacksBlockMetadata {
    * @memberof StacksBlockMetadata
    */
   pox_cycle_length: number;
+
+  block_time?: number | null;
+  signer_bitvec?: string | null;
+  signer_signature?: string[] | null;
+  cycle_number?: number | null;
+  reward_set?: {
+    pox_ustx_threshold: string;
+    rewarded_addresses: string[];
+    signers?: {
+      signing_key: string;
+      weight: number;
+      stacked_amt: string;
+    }[] | null;
+    start_cycle_state: {
+      missed_reward_slots: [];
+    };
+  } | null;
 }
 
 /**

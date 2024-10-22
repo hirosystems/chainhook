@@ -1,6 +1,6 @@
 use super::BlockEvent;
 use chainhook_types::{
-    BlockIdentifier, StacksBlockData, StacksBlockMetadata, StacksTransactionData,
+    BlockIdentifier, StacksBlockData, StacksBlockMetadata, StacksBlockMetadataRewardSet, StacksBlockMetadataRewardSetSigner, StacksTransactionData
 };
 
 pub fn generate_test_stacks_block(
@@ -72,6 +72,26 @@ pub fn generate_test_stacks_block(
             pox_cycle_length: 100,
             confirm_microblock_identifier,
             stacks_block_hash: String::new(),
+            block_time: Some(12345),
+            signer_bitvec: Some("1010101010101".to_owned()),
+            signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
+            cycle_number: Some(1),
+            reward_set: Some(StacksBlockMetadataRewardSet {
+                pox_ustx_threshold: "50000".to_owned(),
+                rewarded_addresses: vec![],
+                signers: Some(vec![
+                    StacksBlockMetadataRewardSetSigner {
+                        signing_key: "0123".to_owned(),
+                        weight: 123,
+                        stacked_amt: "555555".to_owned(),
+                    },
+                    StacksBlockMetadataRewardSetSigner {
+                        signing_key: "2345".to_owned(),
+                        weight: 234,
+                        stacked_amt: "6677777".to_owned(),
+                    },
+                ]),
+            }),
         },
     })
 }
