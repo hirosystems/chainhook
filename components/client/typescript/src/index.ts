@@ -5,6 +5,7 @@ import { Payload } from './schemas/payload';
 import { Static, Type } from '@fastify/type-provider-typebox';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
+import { logger } from './util/logger';
 
 const EventObserverOptionsSchema = Type.Object({
   /** Event observer host name (usually '0.0.0.0') */
@@ -126,7 +127,9 @@ export class ChainhookEventObserver {
     await this.fastify.listen({ host: this.observer.hostname, port: this.observer.port });
     if (this.observer.predicate_health_check_interval_ms && this.healthCheckTimer === undefined) {
       this.healthCheckTimer = setInterval(() => {
-        void predicateHealthCheck(this.observer, this.chainhook);
+        predicateHealthCheck(this.observer, this.chainhook).catch(err =>
+          logger.error(err, `ChainhookEventObserver predicate health check error`)
+        );
       }, this.observer.predicate_health_check_interval_ms);
     }
   }
