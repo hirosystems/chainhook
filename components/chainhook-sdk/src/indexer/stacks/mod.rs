@@ -12,7 +12,7 @@ use clarity::vm::types::{SequenceData, Value as ClarityValue};
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 use rocket::serde::Deserialize;
-use stacks_codec::codec::{NakamotoBlock, StacksTransaction, TransactionAuth, TransactionPayload};
+use stacks_codec::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -38,10 +38,10 @@ pub struct NewBlock {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_time: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_bitvec: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_signature: Option<Vec<String>>,
 
@@ -761,7 +761,7 @@ pub fn standardize_stacks_stackerdb_chunks(
             pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
             message,
             received_at: receipt_time,
-            received_at_block: chain_tip.clone()
+            received_at_block: chain_tip.clone(),
         });
     }
 
@@ -769,7 +769,7 @@ pub fn standardize_stacks_stackerdb_chunks(
 }
 
 #[cfg(feature = "stacks-signers")]
-pub fn standardize_stacks_nakamoto_block(block: &NakamotoBlock) -> NakamotoBlockData {
+pub fn standardize_stacks_nakamoto_block(block: &stacks_codec::codec::NakamotoBlock) -> NakamotoBlockData {
     use miniscript::bitcoin::hex::Case;
     use miniscript::bitcoin::hex::DisplayHex;
 

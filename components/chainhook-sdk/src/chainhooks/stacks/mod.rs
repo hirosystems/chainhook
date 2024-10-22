@@ -1,7 +1,5 @@
 use crate::observer::EventObserverConfig;
-use crate::utils::{
-    AbstractStacksBlock, AbstractStacksNonConsensusEvent, Context, MAX_BLOCK_HEIGHTS_ENTRIES,
-};
+use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use super::types::validate_txid;
 use super::types::{
@@ -316,7 +314,7 @@ impl StacksPredicate {
                 // TODO(rafaelcr): Validate pubkey format
             }
             #[cfg(feature = "stacks-signers")]
-            StacksPredicate::SignerMessage(_) => {}
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(_)) => {}
         }
         Ok(())
     }
@@ -744,27 +742,25 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                 }
             }
         }
+        #[cfg(feature = "stacks-signers")]
         StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
-            #[cfg(feature = "stacks-signers")]
             for chainhook in active_chainhooks.iter() {
-                let mut events = vec![];
-
                 evaluated_predicates.insert(chainhook.uuid.as_str(), &data.received_at_block);
-                let (mut occurrences, mut expirations) =
-                    evaluate_stacks_predicate_on_stackerdb_chunks(&data.events, chainhook, ctx);
-                events.append(&mut occurrences);
+                let (occurrences, mut expirations) =
+                    evaluate_stacks_predicate_on_non_consensus_events(&data.events, chainhook, ctx);
                 expired_predicates.append(&mut expirations);
-
-                if events.len() > 0 {
+                if occurrences.len() > 0 {
                     triggered_predicates.push(StacksTriggerChainhook {
                         chainhook,
                         apply: vec![],
                         rollback: vec![],
-                        events,
+                        events: occurrences,
                     });
                 }
             }
         }
+        #[cfg(not(feature = "stacks-signers"))]
+        StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => {}
     }
     (
         triggered_predicates,
@@ -841,7 +837,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 }
 
 #[cfg(feature = "stacks-signers")]
-pub fn evaluate_stacks_predicate_on_stackerdb_chunks<'a>(
+pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
     events: &'a Vec<StacksNonConsensusEventData>,
     chainhook: &'a StacksChainhookInstance,
     _ctx: &Context,
@@ -849,6 +845,8 @@ pub fn evaluate_stacks_predicate_on_stackerdb_chunks<'a>(
     Vec<&'a StacksNonConsensusEventData>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
 ) {
+    use crate::utils::AbstractStacksNonConsensusEvent;
+
     let mut occurrences = vec![];
     let expired_predicates = BTreeMap::new();
     for event in events {
@@ -862,7 +860,7 @@ pub fn evaluate_stacks_predicate_on_stackerdb_chunks<'a>(
                 }
             }
             StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
-                todo!()
+                // TODO(rafaelcr): Evaluate on pubkey
             }
             StacksPredicate::BlockHeight(_)
             | StacksPredicate::ContractDeployment(_)
