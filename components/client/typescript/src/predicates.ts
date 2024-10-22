@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChainhookNodeOptions, EventObserverOptions } from './server';
 import { logger } from './util/logger';
 import {
   Predicate,
@@ -9,42 +8,13 @@ import {
   ThenThatHttpPost,
 } from './schemas/predicate';
 import { request } from 'undici';
-import { Type } from '@fastify/type-provider-typebox';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
-import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
-import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
-import { EventObserverPredicate } from '.';
+import { ChainhookNodeOptions, EventObserverOptions, EventObserverPredicate } from '.';
 import { randomUUID } from 'crypto';
 
-const registeredPredicates = new Map<string, Predicate>();
+/** Keeps the on-disk predicates in memory for faster access. */
+const RegisteredPredicates = new Map<string, Predicate>();
 
-const IfThisThenNothingSchema = Type.Union([
-  Type.Composite([
-    BitcoinIfThisOptionsSchema,
-    Type.Object({
-      if_this: BitcoinIfThisSchema,
-    }),
-  ]),
-  Type.Composite([
-    StacksIfThisOptionsSchema,
-    Type.Object({
-      if_this: StacksIfThisSchema,
-    }),
-  ]),
-]);
-export const EventObserverPredicateSchema = Type.Composite([
-  Type.Object({
-    name: Type.String(),
-    version: Type.Integer(),
-    chain: Type.String(),
-  }),
-  Type.Object({
-    networks: Type.Object({
-      mainnet: Type.Optional(IfThisThenNothingSchema),
-      testnet: Type.Optional(IfThisThenNothingSchema),
-    }),
-  }),
-]);
 const CompiledPredicateSchema = TypeCompiler.Compile(PredicateSchema);
 
 /**
@@ -52,9 +22,9 @@ const CompiledPredicateSchema = TypeCompiler.Compile(PredicateSchema);
  * as defined by the user.
  */
 export function recallPersistedPredicatesFromDisk(basePath: string): Map<string, Predicate> {
-  registeredPredicates.clear();
+  RegisteredPredicates.clear();
   try {
-    if (!fs.existsSync(basePath)) return registeredPredicates;
+    if (!fs.existsSync(basePath)) return RegisteredPredicates;
     for (const file of fs.readdirSync(basePath)) {
       if (file.endsWith('.json')) {
         const text = fs.readFileSync(path.join(basePath, file), 'utf-8');
@@ -63,15 +33,15 @@ export function recallPersistedPredicatesFromDisk(basePath: string): Map<string,
           logger.info(
             `ChainhookEventObserver recalled predicate '${predicate.name}' (${predicate.uuid}) from disk`
           );
-          registeredPredicates.set(predicate.name, predicate);
+          RegisteredPredicates.set(predicate.name, predicate);
         }
       }
     }
   } catch (error) {
     logger.error(error, `ChainhookEventObserver unable to retrieve persisted predicates from disk`);
-    registeredPredicates.clear();
+    RegisteredPredicates.clear();
   }
-  return registeredPredicates;
+  return RegisteredPredicates;
 }
 
 export function savePredicateToDisk(basePath: string, predicate: Predicate) {
@@ -192,7 +162,7 @@ async function registerPredicate(
       `ChainhookEventObserver registered '${newPredicate.name}' predicate (${newPredicate.uuid})`
     );
     savePredicateToDisk(observer.predicate_disk_file_path, newPredicate);
-    registeredPredicates.set(newPredicate.name, newPredicate);
+    RegisteredPredicates.set(newPredicate.name, newPredicate);
   } catch (error) {
     logger.error(error, `ChainhookEventObserver unable to register predicate`);
   }
@@ -249,11 +219,11 @@ export async function removeAllPredicatesOnObserverClose(
     return;
   }
   logger.info(`ChainhookEventObserver closing predicates at ${chainhook.base_url}`);
-  const removals = [...registeredPredicates.values()].map(predicate =>
+  const removals = [...RegisteredPredicates.values()].map(predicate =>
     removePredicate(predicate, observer, chainhook)
   );
   await Promise.allSettled(removals);
-  registeredPredicates.clear();
+  RegisteredPredicates.clear();
 }
 
 export async function predicateHealthCheck(
@@ -261,8 +231,8 @@ export async function predicateHealthCheck(
   chainhook: ChainhookNodeOptions
 ): Promise<void> {
   logger.debug(`ChainhookEventObserver performing predicate health check`);
-  for (const predicate of registeredPredicates.values()) {
+  for (const predicate of RegisteredPredicates.values()) {
     // This will be a no-op if the predicate is already active.
-    await registerPredicate(predicate, registeredPredicates, observer, chainhook);
+    await registerPredicate(predicate, RegisteredPredicates, observer, chainhook);
   }
 }

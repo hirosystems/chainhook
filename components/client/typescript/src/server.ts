@@ -15,47 +15,12 @@ import {
   registerAllPredicatesOnObserverReady,
   removeAllPredicatesOnObserverClose,
 } from './predicates';
-import { EventObserverPredicate, OnPredicatePayloadCallback } from '.';
-
-const EventObserverOptionsSchema = Type.Object({
-  hostname: Type.String(),
-  port: Type.Integer(),
-  auth_token: Type.String(),
-  external_base_url: Type.String(),
-
-  /** Wait for the chainhook node to be available before submitting predicates */
-  wait_for_chainhook_node: Type.Optional(Type.Boolean({ default: true })),
-  /** Validate the JSON schema of received chainhook payloads and report errors when invalid */
-  validate_chainhook_payloads: Type.Optional(Type.Boolean({ default: false })),
-  /** Validate the authorization token sent by the server is correct. */
-  validate_token_authorization: Type.Optional(Type.Boolean({ default: true })),
-  /** Size limit for received chainhook payloads (default 40MB) */
-  body_limit: Type.Optional(Type.Number({ default: 41943040 })),
-  /** Node type: `chainhook` or `ordhook` */
-  node_type: Type.Optional(
-    Type.Union([Type.Literal('chainhook'), Type.Literal('ordhook')], {
-      default: 'chainhook',
-    })
-  ),
-  /**
-   * Directory where registered predicates will be persisted to disk so they can be recalled on
-   * restarts.
-   */
-  predicate_disk_file_path: Type.String(),
-  /**
-   * How often we should check with the Chainhook server to make sure our predicates are active and
-   * up to date. If they become obsolete, we will attempt to re-register them.
-   */
-  predicate_health_check_interval_ms: Type.Optional(Type.Integer({ default: 5000 })),
-});
-/** Local event server connection and authentication options */
-export type EventObserverOptions = Static<typeof EventObserverOptionsSchema>;
-
-const ChainhookNodeOptionsSchema = Type.Object({
-  base_url: Type.String(),
-});
-/** Chainhook node connection options */
-export type ChainhookNodeOptions = Static<typeof ChainhookNodeOptionsSchema>;
+import {
+  ChainhookNodeOptions,
+  EventObserverOptions,
+  EventObserverPredicate,
+  OnPredicatePayloadCallback,
+} from '.';
 
 /**
  * Throw this error when processing a Chainhook Payload if you believe it is a bad request. This
@@ -123,9 +88,8 @@ export async function buildServer(
         await reply.code(422).send();
         return;
       }
-      const body = request.body as Payload;
       try {
-        await callback(body.chainhook.uuid, body);
+        await callback(request.body as Payload);
         await reply.code(200).send();
       } catch (error) {
         if (error instanceof BadPayloadRequestError) {
