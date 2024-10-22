@@ -67,8 +67,29 @@ export const StacksEventMetadataSchema = Type.Object({
   pox_cycle_length: Type.Integer(),
   pox_cycle_position: Type.Integer(),
   stacks_block_hash: Type.String(),
+
+  // Fields included in Nakamoto block headers
+  block_time: Nullable(Type.Integer()),
   signer_bitvec: Nullable(Type.String()),
-  signer_signatures: Nullable(Type.Array(Type.String())),
+  signer_signature: Nullable(Type.Array(Type.String())),
+
+  // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
+  cycle_number: Nullable(Type.Integer()),
+  reward_set: Nullable(
+    Type.Object({
+      pox_ustx_threshold: Type.String(),
+      rewarded_addresses: Type.Array(Type.String()),
+      signers: Nullable(
+        Type.Array(
+          Type.Object({
+            signing_key: Type.String(),
+            weight: Type.Integer(),
+            stacked_amt: Type.String(),
+          })
+        )
+      ),
+    })
+  ),
 });
 export type StacksEventMetadata = Static<typeof StacksEventMetadataSchema>;
 

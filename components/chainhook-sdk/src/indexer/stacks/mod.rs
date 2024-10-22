@@ -35,6 +35,36 @@ pub struct NewBlock {
     pub transactions: Vec<NewTransaction>,
     pub events: Vec<NewEvent>,
     pub matured_miner_rewards: Vec<MaturedMinerReward>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_time: Option<u64>,
+    
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_bitvec: Option<String>,
+    
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_signature: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cycle_number: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward_set: Option<RewardSet>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RewardSet {
+    pub pox_ustx_threshold: String,
+    pub rewarded_addresses: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signers: Option<Vec<RewardSetSigner>>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RewardSetSigner {
+    pub signing_key: String,
+    pub weight: u32,
+    pub stacked_amt: String,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone)]
@@ -461,6 +491,29 @@ pub fn standardize_stacks_block(
             pox_cycle_length: pox_cycle_length.try_into().unwrap(),
             confirm_microblock_identifier,
             stacks_block_hash: block.block_hash.clone(),
+
+            block_time: block.block_time,
+            // TODO: decode `signer_bitvec` into an easy to use bit string representation (e.g. "01010101")
+            signer_bitvec: block.signer_bitvec.clone(),
+            signer_signature: block.signer_signature.clone(),
+
+            cycle_number: block.cycle_number,
+            reward_set: block.reward_set.as_ref().and_then(|r| {
+                Some(StacksBlockMetadataRewardSet {
+                    pox_ustx_threshold: r.pox_ustx_threshold.clone(),
+                    rewarded_addresses: r.rewarded_addresses.clone(),
+                    signers: r.signers.as_ref().map(|signers| {
+                        signers
+                            .into_iter()
+                            .map(|signer| StacksBlockMetadataRewardSetSigner {
+                                signing_key: signer.signing_key.clone(),
+                                weight: signer.weight,
+                                stacked_amt: signer.stacked_amt.clone(),
+                            })
+                            .collect()
+                    }),
+                })
+            }),
         },
         transactions,
     };

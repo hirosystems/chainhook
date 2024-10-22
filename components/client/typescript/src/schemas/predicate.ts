@@ -31,14 +31,10 @@ export type PredicateHeader = Static<typeof PredicateHeaderSchema>;
 export const PredicateSchema = Type.Composite([
   PredicateHeaderSchema,
   Type.Object({
-    networks: Type.Union([
-      Type.Object({
-        mainnet: Type.Union([BitcoinIfThisThenThatSchema, StacksIfThisThenThatSchema]),
-      }),
-      Type.Object({
-        testnet: Type.Union([BitcoinIfThisThenThatSchema, StacksIfThisThenThatSchema]),
-      }),
-    ]),
+    networks: Type.Object({
+      mainnet: Type.Optional(Type.Union([BitcoinIfThisThenThatSchema, StacksIfThisThenThatSchema])),
+      testnet: Type.Optional(Type.Union([BitcoinIfThisThenThatSchema, StacksIfThisThenThatSchema])),
+    }),
   }),
 ]);
 export type Predicate = Static<typeof PredicateSchema>;

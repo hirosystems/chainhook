@@ -42,6 +42,19 @@
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "redis:start",
       "postDebugTask": "redis:stop"
-    }
+    },
+    {
+        "type": "node",
+        "request": "launch",
+        "name": "test: typescript client",
+        "localRoot": "${workspaceFolder}/components/client/typescript",
+        "program": "${workspaceFolder}/components/client/typescript/node_modules/jest/bin/jest",
+        "args": [
+          "--runInBand",
+          "--no-cache",
+        ],
+        "outputCapture": "std",
+        "console": "integratedTerminal",
+      },
   ]
 }
