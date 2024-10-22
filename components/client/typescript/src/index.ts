@@ -47,7 +47,7 @@ export class ChainhookEventObserver {
     await this.fastify.listen({ host: this.serverOpts.hostname, port: this.serverOpts.port });
     if (this.serverOpts.predicate_health_check_interval_ms && this.healthCheckTimer === undefined) {
       this.healthCheckTimer = setInterval(() => {
-        void predicateHealthCheck(predicates, this.serverOpts, this.chainhookOpts);
+        void predicateHealthCheck(this.serverOpts, this.chainhookOpts);
       }, this.serverOpts.predicate_health_check_interval_ms);
     }
   }

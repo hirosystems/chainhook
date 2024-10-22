@@ -39,14 +39,10 @@ export const EventObserverPredicateSchema = Type.Composite([
     chain: Type.String(),
   }),
   Type.Object({
-    networks: Type.Union([
-      Type.Object({
-        mainnet: IfThisThenNothingSchema,
-      }),
-      Type.Object({
-        testnet: IfThisThenNothingSchema,
-      }),
-    ]),
+    networks: Type.Object({
+      mainnet: Type.Optional(IfThisThenNothingSchema),
+      testnet: Type.Optional(IfThisThenNothingSchema),
+    }),
   }),
 ]);
 const CompiledPredicateSchema = TypeCompiler.Compile(PredicateSchema);
@@ -55,13 +51,14 @@ const CompiledPredicateSchema = TypeCompiler.Compile(PredicateSchema);
  * Looks on disk and returns a map of registered Predicates, where the key is the predicate `name`
  * as defined by the user.
  */
-function recallPersistedPredicatesFromDisk(basePath: string) {
+export function recallPersistedPredicatesFromDisk(basePath: string): Map<string, Predicate> {
   registeredPredicates.clear();
   try {
     if (!fs.existsSync(basePath)) return registeredPredicates;
     for (const file of fs.readdirSync(basePath)) {
       if (file.endsWith('.json')) {
-        const predicate = fs.readFileSync(path.join(basePath, file), 'utf-8');
+        const text = fs.readFileSync(path.join(basePath, file), 'utf-8');
+        const predicate = JSON.parse(text) as JSON;
         if (CompiledPredicateSchema.Check(predicate)) {
           logger.info(
             `ChainhookEventObserver recalled predicate '${predicate.name}' (${predicate.uuid}) from disk`
@@ -77,7 +74,7 @@ function recallPersistedPredicatesFromDisk(basePath: string) {
   return registeredPredicates;
 }
 
-function savePredicateToDisk(basePath: string, predicate: Predicate) {
+export function savePredicateToDisk(basePath: string, predicate: Predicate) {
   const predicatePath = `${basePath}/predicate-${encodeURIComponent(predicate.name)}.json`;
   try {
     fs.mkdirSync(basePath, { recursive: true });
@@ -181,8 +178,8 @@ async function registerPredicate(
     };
     const newPredicate = pendingPredicate as Predicate;
     newPredicate.uuid = randomUUID();
-    if ('mainnet' in newPredicate.networks) newPredicate.networks.mainnet.then_that = thenThat;
-    if ('testnet' in newPredicate.networks) newPredicate.networks.testnet.then_that = thenThat;
+    if (newPredicate.networks.mainnet) newPredicate.networks.mainnet.then_that = thenThat;
+    if (newPredicate.networks.testnet) newPredicate.networks.testnet.then_that = thenThat;
 
     const path = observer.node_type === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
     await request(`${chainhook.base_url}${path}`, {
@@ -260,7 +257,6 @@ export async function removeAllPredicatesOnObserverClose(
 }
 
 export async function predicateHealthCheck(
-  predicates: EventObserverPredicate[],
   observer: EventObserverOptions,
   chainhook: ChainhookNodeOptions
 ): Promise<void> {
