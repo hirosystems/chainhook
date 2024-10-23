@@ -688,8 +688,8 @@ pub fn standardize_stacks_stackerdb_chunks(
             SignerMessage::BlockResponse(block_response) => match block_response {
                 BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        signer_signature_hash: block_hash.to_hex(),
-                        sig: sig.to_hex(),
+                        signer_signature_hash: format!("0x{}", block_hash.to_hex()),
+                        sig: format!("0x{}", sig.to_hex()),
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
@@ -735,9 +735,9 @@ pub fn standardize_stacks_stackerdb_chunks(
                             }
                             RejectCode::TestingDirective => BlockRejectReasonCode::TestingDirective,
                         },
-                        signer_signature_hash: block_rejection.signer_signature_hash.to_hex(),
+                        signer_signature_hash: format!("0x{}", block_rejection.signer_signature_hash.to_hex()),
                         chain_id: block_rejection.chain_id,
-                        signature: block_rejection.signature.to_hex(),
+                        signature: format!("0x{}", block_rejection.signature.to_hex()),
                     }),
                 ),
             },
@@ -754,8 +754,11 @@ pub fn standardize_stacks_stackerdb_chunks(
         };
         parsed_chunks.push(StacksStackerDbChunk {
             contract: contract_id.clone(),
-            sig: slot.sig.clone(),
-            pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
+            sig: format!("0x{}", slot.sig),
+            pubkey: format!(
+                "0x{}",
+                get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?
+            ),
             message,
         });
     }
@@ -775,23 +778,26 @@ pub fn standardize_stacks_nakamoto_block(
             version: block.header.version,
             chain_length: block.header.chain_length,
             burn_spent: block.header.burn_spent,
-            consensus_hash: block.header.consensus_hash.to_hex(),
-            parent_block_id: block.header.parent_block_id.to_hex(),
-            tx_merkle_root: block.header.tx_merkle_root.to_hex(),
-            state_index_root: block.header.state_index_root.to_hex(),
+            consensus_hash: format!("0x{}", block.header.consensus_hash.to_hex()),
+            parent_block_id: format!("0x{}", block.header.parent_block_id.to_hex()),
+            tx_merkle_root: format!("0x{}", block.header.tx_merkle_root.to_hex()),
+            state_index_root: format!("0x{}", block.header.state_index_root.to_hex()),
             timestamp: block.header.timestamp,
-            miner_signature: block.header.miner_signature.to_hex(),
+            miner_signature: format!("0x{}", block.header.miner_signature.to_hex()),
             signer_signature: block
                 .header
                 .signer_signature
                 .iter()
-                .map(|s| s.to_hex())
+                .map(|s| format!("0x{}", s.to_hex()))
                 .collect(),
-            pox_treatment: block
-                .header
-                .pox_treatment
-                .serialize_to_vec()
-                .to_hex_string(Case::Lower),
+            pox_treatment: format!(
+                "0x{}",
+                block
+                    .header
+                    .pox_treatment
+                    .serialize_to_vec()
+                    .to_hex_string(Case::Lower)
+            ),
         },
         // TODO(rafaelcr): Parse and return transactions.
         transactions: vec![],
