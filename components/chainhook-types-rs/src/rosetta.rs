@@ -123,6 +123,9 @@ pub struct StacksBlockMetadata {
     // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
     pub cycle_number: Option<u64>,
     pub reward_set: Option<StacksBlockMetadataRewardSet>,
+
+    // Available in /new_block messages sent from stacks-core v3.0 and newer
+    pub tenure_height: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

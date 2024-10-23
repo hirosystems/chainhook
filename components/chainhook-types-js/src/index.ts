@@ -696,6 +696,7 @@ export interface StacksBlockMetadata {
   pox_cycle_length: number;
 
   block_time?: number | null;
+  tenure_height?: number | null;
   signer_bitvec?: string | null;
   signer_signature?: string[] | null;
   cycle_number?: number | null;

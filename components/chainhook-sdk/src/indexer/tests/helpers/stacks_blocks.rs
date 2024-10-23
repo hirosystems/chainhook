@@ -73,6 +73,7 @@ pub fn generate_test_stacks_block(
             confirm_microblock_identifier,
             stacks_block_hash: String::new(),
             block_time: Some(12345),
+            tenure_height: Some(1122),
             signer_bitvec: Some("1010101010101".to_owned()),
             signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
             cycle_number: Some(1),
