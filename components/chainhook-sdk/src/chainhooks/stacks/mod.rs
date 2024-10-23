@@ -1102,7 +1102,9 @@ fn serialize_stacks_non_consensus_event(
     use chainhook_types::StacksNonConsensusEventPayloadData;
 
     let payload = match &event.payload {
-        StacksNonConsensusEventPayloadData::SignerMessage(chunk) => chunk,
+        StacksNonConsensusEventPayloadData::SignerMessage(chunk) => {
+            json!({"type": "SignerMessage", "data": chunk})
+        }
     };
     json!({
         "payload": payload,

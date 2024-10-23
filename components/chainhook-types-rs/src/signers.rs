@@ -1,4 +1,4 @@
-use crate::{BlockIdentifier, StacksTransactionData};
+use crate::StacksTransactionData;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NakamotoBlockHeaderData {

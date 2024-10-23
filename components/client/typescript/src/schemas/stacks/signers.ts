@@ -93,7 +93,7 @@ export const StacksSignerMessageSchema = Type.Union([
 export type StacksSignerMessage = Static<typeof StacksSignerMessageSchema>;
 
 export const StacksSignerMessageEventSchema = Type.Object({
-  type: Type.Literal('signer_message'),
+  type: Type.Literal('SignerMessage'),
   data: Type.Object({
     contract: Type.String(),
     sig: Type.String(),
