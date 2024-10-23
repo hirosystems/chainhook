@@ -648,21 +648,17 @@ pub fn standardize_stacks_microblock_trail(
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_marshalled_stackerdb_chunks(
     marshalled_stackerdb_chunks: JsonValue,
-    receipt_time: u64,
-    chain_tip: &BlockIdentifier,
     _ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     let mut stackerdb_chunks: NewStackerDbChunks =
         serde_json::from_value(marshalled_stackerdb_chunks)
             .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
-    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks, receipt_time, chain_tip)
+    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks)
 }
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
     stackerdb_chunks: &NewStackerDbChunks,
-    receipt_time: u64,
-    chain_tip: &BlockIdentifier,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     use stacks_codec::codec::BlockResponse;
     use stacks_codec::codec::RejectCode;
@@ -761,8 +757,6 @@ pub fn standardize_stacks_stackerdb_chunks(
             sig: slot.sig.clone(),
             pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
             message,
-            received_at: receipt_time,
-            received_at_block: chain_tip.clone(),
         });
     }
 
@@ -770,7 +764,9 @@ pub fn standardize_stacks_stackerdb_chunks(
 }
 
 #[cfg(feature = "stacks-signers")]
-pub fn standardize_stacks_nakamoto_block(block: &stacks_codec::codec::NakamotoBlock) -> NakamotoBlockData {
+pub fn standardize_stacks_nakamoto_block(
+    block: &stacks_codec::codec::NakamotoBlock,
+) -> NakamotoBlockData {
     use miniscript::bitcoin::hex::Case;
     use miniscript::bitcoin::hex::DisplayHex;
 

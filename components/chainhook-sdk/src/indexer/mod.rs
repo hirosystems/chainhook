@@ -176,14 +176,13 @@ impl Indexer {
     ) -> Result<Option<StacksChainEvent>, String> {
         use chainhook_types::{
             StacksChainUpdatedWithNonConsensusEventsData, StacksNonConsensusEventData,
+            StacksNonConsensusEventPayloadData,
         };
         let Some(chain_tip) = self.stacks_blocks_pool.get_canonical_fork_chain_tip() else {
             return Err("StackerDB chunk received with no canonical chain tip".to_string());
         };
         let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
             marshalled_stackerdb_chunks,
-            receipt_time,
-            chain_tip,
             ctx,
         )?;
         if chunks.len() > 0 {
@@ -191,10 +190,12 @@ impl Indexer {
                 StacksChainUpdatedWithNonConsensusEventsData {
                     events: chunks
                         .into_iter()
-                        .map(|chunk| StacksNonConsensusEventData::SignerMessage(chunk))
+                        .map(|chunk| StacksNonConsensusEventData {
+                            payload: StacksNonConsensusEventPayloadData::SignerMessage(chunk),
+                            received_at: receipt_time,
+                            received_at_block: chain_tip.clone(),
+                        })
                         .collect(),
-                    received_at: receipt_time,
-                    received_at_block: chain_tip.clone(),
                 },
             )))
         } else {

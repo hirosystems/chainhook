@@ -666,8 +666,15 @@ pub struct BlockchainUpdatedWithReorg {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "type", content = "data")]
-pub enum StacksNonConsensusEventData {
+pub enum StacksNonConsensusEventPayloadData {
     SignerMessage(StacksStackerDbChunk),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct StacksNonConsensusEventData {
+    pub payload: StacksNonConsensusEventPayloadData,
+    pub received_at: u64,
+    pub received_at_block: BlockIdentifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -699,8 +706,6 @@ pub struct BitcoinChainUpdatedWithReorgData {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StacksChainUpdatedWithNonConsensusEventsData {
     pub events: Vec<StacksNonConsensusEventData>,
-    pub received_at: u64,
-    pub received_at_block: BlockIdentifier,
 }
 
 #[allow(dead_code)]

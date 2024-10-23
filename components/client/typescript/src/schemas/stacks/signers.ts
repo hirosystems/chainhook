@@ -1,6 +1,4 @@
 import { Static, Type } from '@fastify/type-provider-typebox';
-import { BlockIdentifierSchema } from '../common';
-import { StacksTransactionSchema } from './payload';
 
 export const StacksNakamotoBlockHeaderSchema = Type.Object({
   version: Type.Integer(),
@@ -19,7 +17,8 @@ export type StacksNakamotoBlockHeader = Static<typeof StacksNakamotoBlockHeaderS
 
 export const StacksNakamotoBlockSchema = Type.Object({
   header: StacksNakamotoBlockHeaderSchema,
-  transactions: Type.Array(StacksTransactionSchema),
+  // TODO(rafaelcr): Add transactions
+  // transactions: Type.Array(StacksTransactionSchema),
 });
 export type StacksNakamotoBlock = Static<typeof StacksNakamotoBlockSchema>;
 
@@ -94,11 +93,12 @@ export const StacksSignerMessageSchema = Type.Union([
 export type StacksSignerMessage = Static<typeof StacksSignerMessageSchema>;
 
 export const StacksSignerMessageEventSchema = Type.Object({
-  contract: Type.String(),
-  sig: Type.String(),
-  pubkey: Type.String(),
-  message: StacksSignerMessageSchema,
-  received_at: Type.Integer(),
-  received_at_block: BlockIdentifierSchema,
+  type: Type.Literal('signer_message'),
+  data: Type.Object({
+    contract: Type.String(),
+    sig: Type.String(),
+    pubkey: Type.String(),
+    message: StacksSignerMessageSchema,
+  }),
 });
 export type StacksSignerMessageEvent = Static<typeof StacksSignerMessageEventSchema>;

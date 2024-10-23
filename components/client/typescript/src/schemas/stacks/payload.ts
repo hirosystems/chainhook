@@ -102,7 +102,11 @@ export const StacksEventSchema = Type.Object({
 });
 export type StacksEvent = Static<typeof StacksEventSchema>;
 
-export const StacksNonConsensusEventSchema = Type.Union([StacksSignerMessageEventSchema]);
+export const StacksNonConsensusEventSchema = Type.Object({
+  payload: Type.Union([StacksSignerMessageEventSchema]),
+  received_at: Type.Integer(),
+  received_at_block: BlockIdentifierSchema,
+});
 export type StacksNonConsensusEvent = Static<typeof StacksNonConsensusEventSchema>;
 
 export const StacksPayloadSchema = Type.Object({

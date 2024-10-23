@@ -1,5 +1,3 @@
-pub mod signers;
-
 use std::collections::VecDeque;
 use std::path::PathBuf;
 

@@ -897,7 +897,8 @@ pub async fn start_bitcoin_event_observer(
         let ctx_moved = ctx.clone();
         let config_moved = config.clone();
         let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
-            let future = zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
+            let future =
+                zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
             hiro_system_kit::nestable_block_on(future);
         });
     }
@@ -1658,12 +1659,20 @@ pub async fn start_observer_commands_handler(
                     report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
-                    let blocks_ids = entry
+                    let mut block_ids = entry
                         .apply
                         .iter()
                         .map(|e| e.1.get_identifier())
                         .collect::<Vec<&BlockIdentifier>>();
-                    report.track_trigger(&entry.chainhook.uuid, &blocks_ids);
+                    let mut event_block_ids = entry
+                        .events
+                        .iter()
+                        .map(|e| &e.received_at_block)
+                        .collect::<Vec<&BlockIdentifier>>();
+                    if event_block_ids.len() > 0 {
+                        block_ids.append(&mut event_block_ids);
+                    }
+                    report.track_trigger(&entry.chainhook.uuid, &block_ids);
                 }
                 ctx.try_log(|logger| {
                     slog::info!(

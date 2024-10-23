@@ -93,6 +93,4 @@ pub struct StacksStackerDbChunk {
     pub sig: String,
     pub pubkey: String,
     pub message: StacksSignerMessage,
-    pub received_at: u64,
-    pub received_at_block: BlockIdentifier,
 }
