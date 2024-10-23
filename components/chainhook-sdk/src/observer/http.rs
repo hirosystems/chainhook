@@ -178,8 +178,8 @@ pub fn handle_new_stacks_block(
     success_response()
 }
 
-#[cfg(feature = "stacks-signers")]
 #[post("/stackerdb_chunks", format = "application/json", data = "<payload>")]
+#[cfg(feature = "stacks-signers")]
 pub fn handle_stackerdb_chunks(
     indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
     payload: Json<JsonValue>,
@@ -196,7 +196,7 @@ pub fn handle_stackerdb_chunks(
     };
     let chain_event = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer
-            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), epoch.as_secs(), ctx),
+            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), epoch.as_millis(), ctx),
         Err(e) => {
             return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
         }

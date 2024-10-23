@@ -127,21 +127,24 @@ pub fn create_new_stackerdb_chunk(
     slot_data: String,
 ) -> crate::indexer::stacks::NewStackerDbChunks {
     use crate::indexer::stacks::{
-        NewSignerModifiedSlot, NewStackerDbChunkIssuer, NewStackerDbChunksContractId,
+        NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
+        NewStackerDbChunksContractId,
     };
     crate::indexer::stacks::NewStackerDbChunks {
         contract_id: NewStackerDbChunksContractId {
             name: contract_name,
-            issuer: vec![NewStackerDbChunkIssuer {
-                issuer_id: 26,
-                slots: vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            }],
+            issuer: (
+                NewStackerDbChunkIssuerId(26),
+                NewStackerDbChunkIssuerSlots(vec![
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ]),
+            ),
         },
         modified_slots: vec![NewSignerModifiedSlot {
             sig: slot_sig,
             data: slot_data,
             slot_id: 1,
-            version: 141,
+            slot_version: 141,
         }],
     }
 }

@@ -12,7 +12,7 @@ use clarity::vm::types::{SequenceData, Value as ClarityValue};
 use hiro_system_kit::slog;
 use rocket::serde::json::Value as JsonValue;
 use rocket::serde::Deserialize;
-use stacks_codec::codec::{NakamotoBlock, StacksTransaction, TransactionAuth, TransactionPayload};
+use stacks_codec::codec::{StacksTransaction, TransactionAuth, TransactionPayload};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -38,10 +38,10 @@ pub struct NewBlock {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_time: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_bitvec: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_signature: Option<Vec<String>>,
 
@@ -305,16 +305,17 @@ pub struct ContractReadonlyCall {
 
 #[cfg(feature = "stacks-signers")]
 #[derive(Deserialize, Debug)]
-pub struct NewStackerDbChunkIssuer {
-    pub issuer_id: u32,
-    pub slots: Vec<u32>,
-}
+pub struct NewStackerDbChunkIssuerId(pub u32);
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunkIssuerSlots(pub Vec<u32>);
 
 #[cfg(feature = "stacks-signers")]
 #[derive(Deserialize, Debug)]
 pub struct NewStackerDbChunksContractId {
     pub name: String,
-    pub issuer: Vec<NewStackerDbChunkIssuer>,
+    pub issuer: (NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots),
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -323,7 +324,7 @@ pub struct NewSignerModifiedSlot {
     pub sig: String,
     pub data: String,
     pub slot_id: u64,
-    pub version: u64,
+    pub slot_version: u64,
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -646,22 +647,18 @@ pub fn standardize_stacks_microblock_trail(
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_marshalled_stackerdb_chunks(
-    _indexer_config: &IndexerConfig,
     marshalled_stackerdb_chunks: JsonValue,
-    receipt_time: u64,
-    _chain_ctx: &mut StacksChainContext,
     _ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     let mut stackerdb_chunks: NewStackerDbChunks =
         serde_json::from_value(marshalled_stackerdb_chunks)
             .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
-    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks, receipt_time)
+    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks)
 }
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
     stackerdb_chunks: &NewStackerDbChunks,
-    receipt_time: u64,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     use stacks_codec::codec::BlockResponse;
     use stacks_codec::codec::RejectCode;
@@ -683,7 +680,7 @@ pub fn standardize_stacks_stackerdb_chunks(
         let message = match signer_message {
             SignerMessage::BlockProposal(block_proposal) => {
                 StacksSignerMessage::BlockProposal(BlockProposalData {
-                    block: standardize_stacks_nakamoto_block(&block_proposal.block),
+                    block: standardize_stacks_nakamoto_block(&block_proposal.block)?,
                     burn_height: block_proposal.burn_height,
                     reward_cycle: block_proposal.reward_cycle,
                 })
@@ -691,8 +688,8 @@ pub fn standardize_stacks_stackerdb_chunks(
             SignerMessage::BlockResponse(block_response) => match block_response {
                 BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        signer_signature_hash: block_hash.to_hex(),
-                        sig: sig.to_hex(),
+                        signer_signature_hash: format!("0x{}", block_hash.to_hex()),
+                        sig: format!("0x{}", sig.to_hex()),
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
@@ -738,15 +735,18 @@ pub fn standardize_stacks_stackerdb_chunks(
                             }
                             RejectCode::TestingDirective => BlockRejectReasonCode::TestingDirective,
                         },
-                        signer_signature_hash: block_rejection.signer_signature_hash.to_hex(),
+                        signer_signature_hash: format!(
+                            "0x{}",
+                            block_rejection.signer_signature_hash.to_hex()
+                        ),
                         chain_id: block_rejection.chain_id,
-                        signature: block_rejection.signature.to_hex(),
+                        signature: format!("0x{}", block_rejection.signature.to_hex()),
                     }),
                 ),
             },
             SignerMessage::BlockPushed(nakamoto_block) => {
                 StacksSignerMessage::BlockPushed(BlockPushedData {
-                    block: standardize_stacks_nakamoto_block(&nakamoto_block),
+                    block: standardize_stacks_nakamoto_block(&nakamoto_block)?,
                 })
             }
             SignerMessage::MockSignature(_)
@@ -757,10 +757,12 @@ pub fn standardize_stacks_stackerdb_chunks(
         };
         parsed_chunks.push(StacksStackerDbChunk {
             contract: contract_id.clone(),
-            sig: slot.sig.clone(),
-            pubkey: get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?,
+            sig: format!("0x{}", slot.sig),
+            pubkey: format!(
+                "0x{}",
+                get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?
+            ),
             message,
-            receipt_time,
         });
     }
 
@@ -768,36 +770,78 @@ pub fn standardize_stacks_stackerdb_chunks(
 }
 
 #[cfg(feature = "stacks-signers")]
-pub fn standardize_stacks_nakamoto_block(block: &NakamotoBlock) -> NakamotoBlockData {
+pub fn standardize_stacks_nakamoto_block(
+    block: &stacks_codec::codec::NakamotoBlock,
+) -> Result<NakamotoBlockData, String> {
     use miniscript::bitcoin::hex::Case;
     use miniscript::bitcoin::hex::DisplayHex;
 
-    NakamotoBlockData {
+    let block_hash = get_nakamoto_block_hash(block)?;
+    Ok(NakamotoBlockData {
         header: NakamotoBlockHeaderData {
             version: block.header.version,
             chain_length: block.header.chain_length,
             burn_spent: block.header.burn_spent,
-            consensus_hash: block.header.consensus_hash.to_hex(),
-            parent_block_id: block.header.parent_block_id.to_hex(),
-            tx_merkle_root: block.header.tx_merkle_root.to_hex(),
-            state_index_root: block.header.state_index_root.to_hex(),
+            consensus_hash: format!("0x{}", block.header.consensus_hash.to_hex()),
+            parent_block_id: format!("0x{}", block.header.parent_block_id.to_hex()),
+            tx_merkle_root: format!("0x{}", block.header.tx_merkle_root.to_hex()),
+            state_index_root: format!("0x{}", block.header.state_index_root.to_hex()),
             timestamp: block.header.timestamp,
-            miner_signature: block.header.miner_signature.to_hex(),
+            miner_signature: format!("0x{}", block.header.miner_signature.to_hex()),
             signer_signature: block
                 .header
                 .signer_signature
                 .iter()
-                .map(|s| s.to_hex())
+                .map(|s| format!("0x{}", s.to_hex()))
                 .collect(),
-            pox_treatment: block
-                .header
-                .pox_treatment
-                .serialize_to_vec()
-                .to_hex_string(Case::Lower),
+            pox_treatment: format!(
+                "0x{}",
+                block
+                    .header
+                    .pox_treatment
+                    .serialize_to_vec()
+                    .to_hex_string(Case::Lower)
+            ),
         },
+        block_hash: block_hash.clone(),
+        index_block_hash: get_nakamoto_index_block_hash(&block_hash, &block.header.consensus_hash)?,
         // TODO(rafaelcr): Parse and return transactions.
         transactions: vec![],
-    }
+    })
+}
+
+#[cfg(feature = "stacks-signers")]
+fn get_nakamoto_block_hash(block: &stacks_codec::codec::NakamotoBlock) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+
+    let mut block_header_bytes = vec![block.header.version];
+    block_header_bytes.extend(block.header.chain_length.to_be_bytes());
+    block_header_bytes.extend(block.header.burn_spent.to_be_bytes());
+    block_header_bytes.extend(block.header.consensus_hash.as_bytes());
+    block_header_bytes.extend(block.header.parent_block_id.as_bytes());
+    block_header_bytes.extend(block.header.tx_merkle_root.as_bytes());
+    block_header_bytes.extend(block.header.state_index_root.as_bytes());
+    block_header_bytes.extend(block.header.timestamp.to_be_bytes());
+    block_header_bytes.extend(block.header.miner_signature.as_bytes());
+    block_header_bytes.extend(block.header.pox_treatment.serialize_to_vec());
+
+    let hash = Sha512Trunc256Sum::from_data(&block_header_bytes).to_bytes();
+    Ok(format!("0x{}", hex::encode(hash)))
+}
+
+#[cfg(feature = "stacks-signers")]
+fn get_nakamoto_index_block_hash(
+    block_hash: &String,
+    consensus_hash: &clarity::types::chainstate::ConsensusHash,
+) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+
+    let mut bytes = hex::decode(block_hash[2..].to_string())
+        .map_err(|e| format!("unable to decode block hash: {e}"))?;
+    bytes.extend(consensus_hash.as_bytes());
+
+    let hash = Sha512Trunc256Sum::from_data(&bytes).to_bytes();
+    Ok(format!("0x{}", hex::encode(hash)))
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -815,7 +859,7 @@ pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
     };
 
     let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
-    digest_bytes.extend(slot.version.to_be_bytes().to_vec());
+    digest_bytes.extend(slot.slot_version.to_be_bytes());
     let data_bytes_hashed = Sha512Trunc256Sum::from_data(&data_bytes).to_bytes();
     digest_bytes.extend(data_bytes_hashed);
     let digest = Sha512Trunc256Sum::from_data(&digest_bytes).to_bytes();

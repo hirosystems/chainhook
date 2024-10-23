@@ -548,8 +548,9 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
-                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
+                            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
                                 // TODO(rafaelcr): Store signer data.
+                                println!("signer message: {:?}", data);
                             }
                         },
                         Err(e) => {
@@ -619,8 +620,8 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
                             | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
-                            StacksChainEvent::ChainUpdatedWithStackerDbChunks(data) => {
-                                // TODO(rafaelcr): Send via HTTP payload.
+                            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => {
+                                // TODO(rafaelcr): Expire signer message predicates when appropriate
                             },
                         };
                         update_status_from_report(
