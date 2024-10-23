@@ -420,17 +420,17 @@ fn stackerdb_chunks_covert_into_signer_messages() {
     assert_eq!(message.contract, "signers-1-1");
     assert_eq!(
         message.pubkey,
-        "03c76290f48909b4d49e111d69236a138ce96df3e05f709e425153d99f4fe671b4"
+        "0x03c76290f48909b4d49e111d69236a138ce96df3e05f709e425153d99f4fe671b4"
     );
-    assert_eq!(message.sig, "01fc3c06f6e0ae5b13c9bb53763661817e55c8e7f1ecab8b4d4b65b283d2dd39f0099e3ea1e25e765f4f0e1dfb0a432309a16a2ec10940e1a14cb9e9b1cbf27edc");
+    assert_eq!(message.sig, "0x01fc3c06f6e0ae5b13c9bb53763661817e55c8e7f1ecab8b4d4b65b283d2dd39f0099e3ea1e25e765f4f0e1dfb0a432309a16a2ec10940e1a14cb9e9b1cbf27edc");
 
     match &message.message {
         StacksSignerMessage::BlockResponse(block_response_data) => match block_response_data {
             BlockResponseData::Accepted(block_accepted_response) => {
-                assert_eq!(block_accepted_response.sig, "005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b");
+                assert_eq!(block_accepted_response.sig, "0x005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b");
                 assert_eq!(
                     block_accepted_response.signer_signature_hash,
-                    "74aff146904763a787aa14c614d0dd1fc63b537bdb2fd351cdf881f6db75f986"
+                    "0x74aff146904763a787aa14c614d0dd1fc63b537bdb2fd351cdf881f6db75f986"
                 );
             }
             _ => assert!(false),

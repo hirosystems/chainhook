@@ -1094,7 +1094,6 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
     }
 }
 
-#[cfg(feature = "stacks-signers")]
 fn serialize_stacks_non_consensus_event(
     event: &StacksNonConsensusEventData,
     _ctx: &Context,
