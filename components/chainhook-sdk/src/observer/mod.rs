@@ -996,7 +996,7 @@ pub async fn start_stacks_event_observer(
         });
     }
 
-    let limits = Limits::default().limit("json", 20.megabytes());
+    let limits = Limits::default().limit("json", 500.megabytes());
     let mut shutdown_config = config::Shutdown::default();
     shutdown_config.ctrlc = false;
     shutdown_config.grace = 0;
