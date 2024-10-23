@@ -67,6 +67,8 @@ export const StacksEventMetadataSchema = Type.Object({
   pox_cycle_position: Type.Integer(),
   stacks_block_hash: Type.String(),
 
+  tenure_height: Nullable(Type.Integer()),
+
   // Fields included in Nakamoto block headers
   block_time: Nullable(Type.Integer()),
   signer_bitvec: Nullable(Type.String()),

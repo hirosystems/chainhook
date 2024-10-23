@@ -37,6 +37,9 @@ pub struct NewBlock {
     pub matured_miner_rewards: Vec<MaturedMinerReward>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenure_height: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub block_time: Option<u64>,
     
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -464,6 +467,7 @@ pub fn standardize_stacks_block(
             stacks_block_hash: block.block_hash.clone(),
 
             block_time: block.block_time,
+            tenure_height: block.tenure_height,
             // TODO: decode `signer_bitvec` into an easy to use bit string representation (e.g. "01010101")
             signer_bitvec: block.signer_bitvec.clone(),
             signer_signature: block.signer_signature.clone(),
