@@ -261,6 +261,7 @@ pub fn create_stacks_new_block(
         events,
         matured_miner_rewards: vec![],
         block_time: Some(12345),
+        tenure_height: Some(1122),
         signer_bitvec: Some("000800000001ff".to_owned()),
         signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
         cycle_number: Some(1),
