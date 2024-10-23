@@ -18,12 +18,13 @@ pub struct NakamotoBlockHeaderData {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct NakamotoBlockData {
     pub header: NakamotoBlockHeaderData,
+    pub block_hash: String,
+    pub index_block_hash: String,
     pub transactions: Vec<StacksTransactionData>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BlockProposalData {
-    // TODO(rafaelcr): Include `block_hash` and `index_block_hash`.
     pub block: NakamotoBlockData,
     pub burn_height: u64,
     pub reward_cycle: u64,

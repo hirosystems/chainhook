@@ -17,6 +17,8 @@ export type StacksNakamotoBlockHeader = Static<typeof StacksNakamotoBlockHeaderS
 
 export const StacksNakamotoBlockSchema = Type.Object({
   header: StacksNakamotoBlockHeaderSchema,
+  block_hash: Type.String(),
+  index_block_hash: Type.String(),
   // TODO(rafaelcr): Add transactions
   // transactions: Type.Array(StacksTransactionSchema),
 });
