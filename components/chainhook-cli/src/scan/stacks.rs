@@ -339,6 +339,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
+            // TODO(rafaelcr): Query for non consensus events which fall between block timestamps to fill in here
             events: vec![]
         };
         let res = match handle_stacks_hook_action(

@@ -178,8 +178,8 @@ pub fn handle_new_stacks_block(
     success_response()
 }
 
-#[cfg(feature = "stacks-signers")]
 #[post("/stackerdb_chunks", format = "application/json", data = "<payload>")]
+#[cfg(feature = "stacks-signers")]
 pub fn handle_stackerdb_chunks(
     indexer_rw_lock: &State<Arc<RwLock<Indexer>>>,
     payload: Json<JsonValue>,

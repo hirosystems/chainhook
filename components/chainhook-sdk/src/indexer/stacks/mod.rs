@@ -305,16 +305,17 @@ pub struct ContractReadonlyCall {
 
 #[cfg(feature = "stacks-signers")]
 #[derive(Deserialize, Debug)]
-pub struct NewStackerDbChunkIssuer {
-    pub issuer_id: u32,
-    pub slots: Vec<u32>,
-}
+pub struct NewStackerDbChunkIssuerId(pub u32);
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunkIssuerSlots(pub Vec<u32>);
 
 #[cfg(feature = "stacks-signers")]
 #[derive(Deserialize, Debug)]
 pub struct NewStackerDbChunksContractId {
     pub name: String,
-    pub issuer: Vec<NewStackerDbChunkIssuer>,
+    pub issuer: (NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots),
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -323,7 +324,7 @@ pub struct NewSignerModifiedSlot {
     pub sig: String,
     pub data: String,
     pub slot_id: u64,
-    pub version: u64,
+    pub slot_version: u64,
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -816,7 +817,7 @@ pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
     };
 
     let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
-    digest_bytes.extend(slot.version.to_be_bytes().to_vec());
+    digest_bytes.extend(slot.slot_version.to_be_bytes().to_vec());
     let data_bytes_hashed = Sha512Trunc256Sum::from_data(&data_bytes).to_bytes();
     digest_bytes.extend(data_bytes_hashed);
     let digest = Sha512Trunc256Sum::from_data(&digest_bytes).to_bytes();
