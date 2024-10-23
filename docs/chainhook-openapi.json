@@ -1207,6 +1207,48 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "after_timestamp"
+                ],
+                "properties": {
+                  "after_timestamp": {
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "from_signer_pub_key"
+                ],
+                "properties": {
+                  "from_signer_pub_key": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ],
+            "required": [
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "signer_message"
+                ]
+              }
+            }
           }
         ]
       },
