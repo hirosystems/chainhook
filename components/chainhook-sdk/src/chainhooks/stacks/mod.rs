@@ -859,7 +859,7 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
             StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(
                 timestamp,
             )) => {
-                if event.received_at >= *timestamp {
+                if event.received_at_ms >= *timestamp {
                     occurrences.push(event);
                 }
             }
@@ -1107,7 +1107,7 @@ fn serialize_stacks_non_consensus_event(
     };
     json!({
         "payload": payload,
-        "received_at": event.received_at,
+        "received_at": event.received_at_ms,
         "received_at_block": event.received_at_block,
     })
 }

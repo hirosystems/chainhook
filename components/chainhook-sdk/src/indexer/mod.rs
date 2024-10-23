@@ -171,7 +171,7 @@ impl Indexer {
     pub fn handle_stacks_marshalled_stackerdb_chunk(
         &mut self,
         marshalled_stackerdb_chunks: JsonValue,
-        receipt_time: u64,
+        receipt_time_ms: u128,
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
         use chainhook_types::{
@@ -192,7 +192,7 @@ impl Indexer {
                         .into_iter()
                         .map(|chunk| StacksNonConsensusEventData {
                             payload: StacksNonConsensusEventPayloadData::SignerMessage(chunk),
-                            received_at: receipt_time,
+                            received_at_ms: receipt_time_ms as u64,
                             received_at_block: chain_tip.clone(),
                         })
                         .collect(),

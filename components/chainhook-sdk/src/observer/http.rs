@@ -196,7 +196,7 @@ pub fn handle_stackerdb_chunks(
     };
     let chain_event = match indexer_rw_lock.inner().write() {
         Ok(mut indexer) => indexer
-            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), epoch.as_secs(), ctx),
+            .handle_stacks_marshalled_stackerdb_chunk(payload.into_inner(), epoch.as_millis(), ctx),
         Err(e) => {
             return error_response(format!("Unable to acquire background_job_tx: {e}"), ctx);
         }

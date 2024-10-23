@@ -673,7 +673,7 @@ pub enum StacksNonConsensusEventPayloadData {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct StacksNonConsensusEventData {
     pub payload: StacksNonConsensusEventPayloadData,
-    pub received_at: u64,
+    pub received_at_ms: u64,
     pub received_at_block: BlockIdentifier,
 }
 
