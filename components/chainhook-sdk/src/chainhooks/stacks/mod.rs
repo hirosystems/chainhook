@@ -873,7 +873,10 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
             | StacksPredicate::NftEvent(_)
             | StacksPredicate::StxEvent(_)
             | StacksPredicate::PrintEvent(_)
-            | StacksPredicate::Txid(_) => unreachable!(),
+            | StacksPredicate::Txid(_) => {
+                // Ignore, possibly expected behavior?
+                // https://github.com/hirosystems/chainhook/pull/663#discussion_r1814995429
+            },
         };
     }
     (occurrences, expired_predicates)
@@ -1107,7 +1110,7 @@ fn serialize_stacks_non_consensus_event(
     };
     json!({
         "payload": payload,
-        "received_at": event.received_at_ms,
+        "received_at_ms": event.received_at_ms,
         "received_at_block": event.received_at_block,
     })
 }

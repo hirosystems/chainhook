@@ -714,10 +714,13 @@ pub fn standardize_stacks_stackerdb_chunks(
                 })
             }
             SignerMessage::BlockResponse(block_response) => match block_response {
-                BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
+                BlockResponse::Accepted(block_accepted) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        signer_signature_hash: format!("0x{}", block_hash.to_hex()),
-                        sig: format!("0x{}", sig.to_hex()),
+                        signer_signature_hash: format!("0x{}", block_accepted.signer_signature_hash.to_hex()),
+                        signature: format!("0x{}", block_accepted.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_accepted.metadata.server_version,
+                        }
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
@@ -725,8 +728,8 @@ pub fn standardize_stacks_stackerdb_chunks(
                         reason: block_rejection.reason,
                         reason_code: match block_rejection.reason_code {
                             RejectCode::ValidationFailed(validate_reject_code) => {
-                                BlockRejectReasonCode::ValidationFailed(
-                                    match validate_reject_code {
+                                BlockRejectReasonCode::ValidationFailed {
+                                    validation_failed: match validate_reject_code {
                                         ValidateRejectCode::BadBlockHash => {
                                             BlockValidationFailedCode::BadBlockHash
                                         }
@@ -749,7 +752,7 @@ pub fn standardize_stacks_stackerdb_chunks(
                                             BlockValidationFailedCode::NoSuchTenure
                                         }
                                     },
-                                )
+                                }
                             }
                             RejectCode::NoSortitionView => BlockRejectReasonCode::NoSortitionView,
                             RejectCode::ConnectivityIssues => {
@@ -769,6 +772,9 @@ pub fn standardize_stacks_stackerdb_chunks(
                         ),
                         chain_id: block_rejection.chain_id,
                         signature: format!("0x{}", block_rejection.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_rejection.metadata.server_version,
+                        },
                     }),
                 ),
             },
