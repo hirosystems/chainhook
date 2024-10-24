@@ -1107,7 +1107,7 @@ fn serialize_stacks_non_consensus_event(
     };
     json!({
         "payload": payload,
-        "received_at": event.received_at_ms,
+        "received_at_ms": event.received_at_ms,
         "received_at_block": event.received_at_block,
     })
 }
