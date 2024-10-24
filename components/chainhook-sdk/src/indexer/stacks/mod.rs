@@ -516,11 +516,12 @@ pub fn standardize_stacks_block(
                 (Some(signer_sig_hash), Some(signatures)) => {
                     Some(signatures.iter().map(|sig_hex| {
                         let sig_msg = clarity::util::secp256k1::MessageSignature::from_hex(sig_hex)
-                            .expect("unable to parse signer signature message");
+                            .map_err(|e| format!("unable to parse signer signature message: {}", e))?;
                         let pubkey = get_signer_pubkey_from_message_hash(&signer_sig_hash, &sig_msg)
-                            .expect("unable to recover signer sig pubkey");
-                        format!("0x{}", hex::encode(pubkey))
-                    }).collect())
+                            .map_err(|e| format!("unable to recover signer sig pubkey: {}", e))?;
+                        Ok(format!("0x{}", hex::encode(pubkey)))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?)
                 }
                 _ => None,
             },
