@@ -55,3 +55,125 @@ pub fn create_or_open_readwrite_db(db_path: Option<&PathBuf>, ctx: &Context) -> 
     };
     connection_with_defaults_pragma(conn)
 }
+
+// pub fn open_existing_readonly_db(db_path: &PathBuf, ctx: &Context) -> Connection {
+//     let open_flags = match std::fs::metadata(db_path) {
+//         Err(e) => {
+//             if e.kind() == std::io::ErrorKind::NotFound {
+//                 panic!("FATAL: could not find {}", db_path.display());
+//             } else {
+//                 panic!("FATAL: could not stat {}", db_path.display());
+//             }
+//         }
+//         Ok(_md) => {
+//             // can just open
+//             OpenFlags::SQLITE_OPEN_READ_ONLY
+//         }
+//     };
+
+//     let conn = loop {
+//         match Connection::open_with_flags(db_path, open_flags) {
+//             Ok(conn) => break conn,
+//             Err(e) => {
+//                 try_warn!(ctx, "unable to open hord.rocksdb: {}", e.to_string());
+//             }
+//         };
+//         std::thread::sleep(std::time::Duration::from_secs(1));
+//     };
+//     connection_with_defaults_pragma(conn)
+// }
+
+// pub fn perform_query_exists(
+//     query: &str,
+//     args: &[&dyn ToSql],
+//     db_conn: &Connection,
+//     ctx: &Context,
+// ) -> bool {
+//     let res = perform_query(query, args, db_conn, ctx, |_| true, true);
+//     !res.is_empty()
+// }
+
+// pub fn perform_query_one<F, T>(
+//     query: &str,
+//     args: &[&dyn ToSql],
+//     db_conn: &Connection,
+//     ctx: &Context,
+//     mapping_func: F,
+// ) -> Option<T>
+// where
+//     F: Fn(&rusqlite::Row<'_>) -> T,
+// {
+//     let mut res = perform_query(query, args, db_conn, ctx, mapping_func, true);
+//     match res.is_empty() {
+//         true => None,
+//         false => Some(res.remove(0)),
+//     }
+// }
+
+// pub fn perform_query_set<F, T>(
+//     query: &str,
+//     args: &[&dyn ToSql],
+//     db_conn: &Connection,
+//     ctx: &Context,
+//     mapping_func: F,
+// ) -> Vec<T>
+// where
+//     F: Fn(&rusqlite::Row<'_>) -> T,
+// {
+//     perform_query(query, args, db_conn, ctx, mapping_func, false)
+// }
+
+// fn perform_query<F, T>(
+//     query: &str,
+//     args: &[&dyn ToSql],
+//     db_conn: &Connection,
+//     ctx: &Context,
+//     mapping_func: F,
+//     stop_at_first: bool,
+// ) -> Vec<T>
+// where
+//     F: Fn(&rusqlite::Row<'_>) -> T,
+// {
+//     let mut results = vec![];
+//     loop {
+//         let mut stmt = match db_conn.prepare(query) {
+//             Ok(stmt) => stmt,
+//             Err(e) => {
+//                 try_warn!(ctx, "unable to prepare query {query}: {}", e.to_string());
+//                 std::thread::sleep(std::time::Duration::from_secs(5));
+//                 continue;
+//             }
+//         };
+
+//         match stmt.query(args) {
+//             Ok(mut rows) => loop {
+//                 match rows.next() {
+//                     Ok(Some(row)) => {
+//                         let r = mapping_func(row);
+//                         results.push(r);
+//                         if stop_at_first {
+//                             break;
+//                         }
+//                     }
+//                     Ok(None) => break,
+//                     Err(e) => {
+//                         try_warn!(
+//                             ctx,
+//                             "unable to iterate over results from {query}: {}",
+//                             e.to_string()
+//                         );
+//                         std::thread::sleep(std::time::Duration::from_secs(5));
+//                         continue;
+//                     }
+//                 }
+//             },
+//             Err(e) => {
+//                 try_warn!(ctx, "unable to execute query {query}: {}", e.to_string());
+//                 std::thread::sleep(std::time::Duration::from_secs(5));
+//                 continue;
+//             }
+//         };
+//         break;
+//     }
+//     results
+// }

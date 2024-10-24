@@ -64,7 +64,7 @@ cli = ["clap", "clap_generate", "toml", "ctrlc"]
 debug = ["chainhook-sdk/debug"]
 release = ["chainhook-sdk/release"]
 redis_tests = []
-stacks-signers = []
+# stacks-signers = []
 
 # [patch.crates-io]
 # raft-proto = { git = "https://github.com/tikv/raft-rs", rev="95c532612ee6a83591fce9a8b51d6afe87b58835"}

@@ -959,11 +959,7 @@ pub async fn start_stacks_event_observer(
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
     let log_level = if config.display_stacks_ingestion_logs {
-        if cfg!(feature = "cli") {
-            LogLevel::Critical
-        } else {
-            LogLevel::Debug
-        }
+        LogLevel::Debug
     } else {
         LogLevel::Off
     };
