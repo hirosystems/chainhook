@@ -76,6 +76,7 @@ pub fn generate_test_stacks_block(
             tenure_height: Some(1122),
             signer_bitvec: Some("1010101010101".to_owned()),
             signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
+            signer_public_keys: Some(vec!["12".to_owned(), "23".to_owned()]),
             cycle_number: Some(1),
             reward_set: Some(StacksBlockMetadataRewardSet {
                 pox_ustx_threshold: "50000".to_owned(),

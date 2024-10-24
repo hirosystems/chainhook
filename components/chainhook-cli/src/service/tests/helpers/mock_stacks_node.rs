@@ -264,6 +264,7 @@ pub fn create_stacks_new_block(
         tenure_height: Some(1122),
         signer_bitvec: Some("000800000001ff".to_owned()),
         signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
+        signer_signature_hash: None,
         cycle_number: Some(1),
         reward_set: Some(RewardSet {
             pox_ustx_threshold: "50000".to_owned(),

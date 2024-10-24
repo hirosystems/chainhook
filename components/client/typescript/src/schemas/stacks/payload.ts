@@ -74,6 +74,7 @@ export const StacksEventMetadataSchema = Type.Object({
   block_time: Nullable(Type.Integer()),
   signer_bitvec: Nullable(Type.String()),
   signer_signature: Nullable(Type.Array(Type.String())),
+  signer_public_keys: Nullable(Type.Array(Type.String())),
 
   // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
   cycle_number: Nullable(Type.Integer()),
