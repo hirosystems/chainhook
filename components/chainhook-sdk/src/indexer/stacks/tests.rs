@@ -401,36 +401,49 @@ fn into_chainhook_event_rejects_invalid_missing_event() {
 
 #[test]
 #[cfg(feature = "stacks-signers")]
-fn stackerdb_chunks_covert_into_signer_messages() {
+fn parses_block_response_signer_message() {
     use chainhook_types::{BlockResponseData, StacksSignerMessage};
 
-    use crate::indexer::tests::helpers::stacks_events::create_new_stackerdb_chunk;
+    use crate::indexer::stacks::{
+        NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
+        NewStackerDbChunks, NewStackerDbChunksContractId,
+    };
 
     use super::standardize_stacks_stackerdb_chunks;
 
-    let new_chunks = create_new_stackerdb_chunk(
-        "signers-1-1".to_string(),
-        "01fc3c06f6e0ae5b13c9bb53763661817e55c8e7f1ecab8b4d4b65b283d2dd39f0099e3ea1e25e765f4f0e1dfb0a432309a16a2ec10940e1a14cb9e9b1cbf27edc".to_string(),
-        "010074aff146904763a787aa14c614d0dd1fc63b537bdb2fd351cdf881f6db75f986005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b".to_string()
-    );
+    let new_chunks = NewStackerDbChunks {
+        contract_id: NewStackerDbChunksContractId {
+            name: "signers-0-1".to_string(),
+            issuer: (
+                NewStackerDbChunkIssuerId(26),
+                NewStackerDbChunkIssuerSlots(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            ),
+        },
+        modified_slots: vec![NewSignerModifiedSlot {
+            sig: "01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1".to_string(),
+            data: "01008f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f000a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b10000005d737461636b732d7369676e657220302e302e3120283a646431656265363436303366353464616534383535386135643832643962643838356539376130312c206465627567206275696c642c206c696e7578205b616172636836345d29".to_string(),
+            slot_id: 1,
+            slot_version: 11,
+        }],
+    };
     let parsed_chunk = standardize_stacks_stackerdb_chunks(&new_chunks).unwrap();
 
     assert_eq!(parsed_chunk.len(), 1);
     let message = &parsed_chunk[0];
-    assert_eq!(message.contract, "signers-1-1");
+    assert_eq!(message.contract, "signers-0-1");
     assert_eq!(
         message.pubkey,
-        "0x03c76290f48909b4d49e111d69236a138ce96df3e05f709e425153d99f4fe671b4"
+        "0x028efa20fa5706567008ebaf48f7ae891342eeb944d96392f719c505c89f84ed8d"
     );
-    assert_eq!(message.sig, "0x01fc3c06f6e0ae5b13c9bb53763661817e55c8e7f1ecab8b4d4b65b283d2dd39f0099e3ea1e25e765f4f0e1dfb0a432309a16a2ec10940e1a14cb9e9b1cbf27edc");
+    assert_eq!(message.sig, "0x01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1");
 
     match &message.message {
-        StacksSignerMessage::BlockResponse(block_response_data) => match block_response_data {
-            BlockResponseData::Accepted(block_accepted_response) => {
-                assert_eq!(block_accepted_response.sig, "0x005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b");
+        StacksSignerMessage::BlockResponse(response) => match response {
+            BlockResponseData::Accepted(accepted) => {
+                assert_eq!(accepted.sig, "0x00a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b1");
                 assert_eq!(
-                    block_accepted_response.signer_signature_hash,
-                    "0x74aff146904763a787aa14c614d0dd1fc63b537bdb2fd351cdf881f6db75f986"
+                    accepted.signer_signature_hash,
+                    "0x8f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f0"
                 );
             }
             _ => assert!(false),
