@@ -119,32 +119,3 @@ pub fn create_new_event_from_stacks_event(event: StacksTransactionEventPayload) 
         contract_event,
     }
 }
-
-#[cfg(feature = "stacks-signers")]
-pub fn create_new_stackerdb_chunk(
-    contract_name: String,
-    slot_sig: String,
-    slot_data: String,
-) -> crate::indexer::stacks::NewStackerDbChunks {
-    use crate::indexer::stacks::{
-        NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
-        NewStackerDbChunksContractId,
-    };
-    crate::indexer::stacks::NewStackerDbChunks {
-        contract_id: NewStackerDbChunksContractId {
-            name: contract_name,
-            issuer: (
-                NewStackerDbChunkIssuerId(26),
-                NewStackerDbChunkIssuerSlots(vec![
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                ]),
-            ),
-        },
-        modified_slots: vec![NewSignerModifiedSlot {
-            sig: slot_sig,
-            data: slot_data,
-            slot_id: 1,
-            slot_version: 141,
-        }],
-    }
-}
