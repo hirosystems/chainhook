@@ -727,8 +727,8 @@ pub fn standardize_stacks_stackerdb_chunks(
                         reason: block_rejection.reason,
                         reason_code: match block_rejection.reason_code {
                             RejectCode::ValidationFailed(validate_reject_code) => {
-                                BlockRejectReasonCode::ValidationFailed(
-                                    match validate_reject_code {
+                                BlockRejectReasonCode::ValidationFailed {
+                                    validation_failed: match validate_reject_code {
                                         ValidateRejectCode::BadBlockHash => {
                                             BlockValidationFailedCode::BadBlockHash
                                         }
@@ -751,7 +751,7 @@ pub fn standardize_stacks_stackerdb_chunks(
                                             BlockValidationFailedCode::NoSuchTenure
                                         }
                                     },
-                                )
+                                }
                             }
                             RejectCode::NoSortitionView => BlockRejectReasonCode::NoSortitionView,
                             RejectCode::ConnectivityIssues => {

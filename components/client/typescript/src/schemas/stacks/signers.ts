@@ -55,7 +55,17 @@ export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
   data: Type.Object({
     reason: Type.String(),
     reason_code: Type.Union([
-      Type.Literal('VALIDATION_FAILED'),
+      Type.Object({
+        VALIDATION_FAILED: Type.Union([
+          Type.Literal('BAD_BLOCK_HASH'),
+          Type.Literal('BAD_TRANSACTION'),
+          Type.Literal('INVALID_BLOCK'),
+          Type.Literal('CHAINSTATE_ERROR'),
+          Type.Literal('UNKNOWN_PARENT'),
+          Type.Literal('NON_CANONICAL_TENURE'),
+          Type.Literal('NO_SUCH_TENURE'),
+        ]),
+      }),
       Type.Literal('CONNECTIVITY_ISSUES'),
       Type.Literal('REJECTED_IN_PRIOR_ROUND'),
       Type.Literal('NO_SORTITION_VIEW'),

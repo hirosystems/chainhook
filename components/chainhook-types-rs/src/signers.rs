@@ -43,6 +43,7 @@ pub struct SignerMessageMetadata {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockValidationFailedCode {
     BadBlockHash,
     BadTransaction,
@@ -54,9 +55,11 @@ pub enum BlockValidationFailedCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockRejectReasonCode {
-    ValidationFailed(BlockValidationFailedCode),
+    #[serde(rename_all = "SCREAMING_SNAKE_CASE")] 
+    ValidationFailed { validation_failed: BlockValidationFailedCode },
     ConnectivityIssues,
     RejectedInPriorRound,
     NoSortitionView,
