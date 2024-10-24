@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use chainhook_sdk::{
-    try_warn,
     types::{BlockRejectReasonCode, BlockResponseData, BlockValidationFailedCode},
     utils::Context,
 };
@@ -15,10 +14,11 @@ fn get_default_signers_db_file_path(base_dir: &PathBuf) -> PathBuf {
     destination_path
 }
 
-pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Connection {
-    let db_path = get_default_signers_db_file_path(base_dir);
-    let conn = create_or_open_readwrite_db(Some(&db_path), ctx);
-    if let Err(e) = conn.execute(
+pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connection, String> {
+    let conn = create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx);
+
+    // Stores message headers
+    conn.execute(
         "CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pubkey TEXT NOT NULL,
@@ -29,24 +29,20 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Connection {
             type TEXT NOT NULL
         )",
         [],
-    ) {
-        try_warn!(ctx, "Unable to create table: {}", e.to_string());
-    } else {
-        if let Err(e) = conn.execute(
-            "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_ms, received_at_block_height);",
-            [],
-        ) {
-            try_warn!(ctx, "unable to create index: {}", e.to_string());
-        }
-        if let Err(e) = conn.execute(
-            "CREATE INDEX IF NOT EXISTS index_messages_on_pubkey ON messages(pubkey);",
-            [],
-        ) {
-            try_warn!(ctx, "unable to create index: {}", e.to_string());
-        }
-    }
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_ms, received_at_block_height)", 
+        []
+    ).map_err(|e| format!("unable to create index: {e}"))?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS index_messages_on_pubkey ON messages(pubkey)",
+        [],
+    )
+    .map_err(|e| format!("unable to create index: {e}"))?;
+
     // Stores both `BlockProposal` and `BlockPushed` messages.
-    if let Err(e) = conn.execute(
+    conn.execute(
         "CREATE TABLE IF NOT EXISTS blocks (
             message_id INTEGER NOT NULL,
             proposed BOOLEAN NOT NULL,
@@ -68,18 +64,11 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Connection {
             UNIQUE(message_id)
         )",
         [],
-    ) {
-        try_warn!(ctx, "Unable to create table: {}", e.to_string());
-    } else {
-        // if let Err(e) = conn.execute(
-        //     "CREATE INDEX IF NOT EXISTS index_blocks_on_message_id ON blocks(message_id);",
-        //     [],
-        // ) {
-        //     try_warn!(ctx, "unable to create index: {}", e.to_string());
-        // }
-    }
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+
     // Stores `BlockResponse` messages.
-    if let Err(e) = conn.execute(
+    conn.execute(
         "CREATE TABLE IF NOT EXISTS block_responses (
             message_id INTEGER NOT NULL,
             accepted BOOLEAN NOT NULL,
@@ -93,17 +82,10 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Connection {
             UNIQUE(message_id)
         )",
         [],
-    ) {
-        try_warn!(ctx, "Unable to create table messages: {}", e.to_string());
-    } else {
-        // if let Err(e) = conn.execute(
-        //     "CREATE INDEX IF NOT EXISTS index_block_responses_on_message_id ON block_responses(message_id);",
-        //     [],
-        // ) {
-        //     try_warn!(ctx, "unable to create index: {}", e.to_string());
-        // }
-    }
-    conn
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+
+    Ok(conn)
 }
 
 pub fn store_signer_db_messages(
@@ -116,7 +98,8 @@ pub fn store_signer_db_messages(
     if events.len() == 0 {
         return Ok(());
     }
-    let mut conn = create_or_open_readwrite_db(Some(base_dir), ctx);
+    let mut conn =
+        create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx);
     let db_tx = conn
         .transaction()
         .map_err(|e| format!("unable to open db transaction: {e}"))?;
@@ -138,8 +121,8 @@ pub fn store_signer_db_messages(
                         StacksSignerMessage::BlockResponse(_) => "block_response",
                         StacksSignerMessage::BlockPushed(_) => "block_pushed",
                     };
-                    message_stmt
-                        .execute(rusqlite::params![
+                    let message_id: u64 = message_stmt
+                        .query(rusqlite::params![
                             &chunk.pubkey,
                             &chunk.contract,
                             &chunk.sig,
@@ -147,7 +130,12 @@ pub fn store_signer_db_messages(
                             &event.received_at_block.index,
                             &type_str,
                         ])
-                        .map_err(|e| format!("unable to write message: {e}"))?;
+                        .map_err(|e| format!("unable to write message: {e}"))?
+                        .next()
+                        .map_err(|e| format!("unable to retrieve new message id: {e}"))?
+                        .ok_or("message id is empty")?
+                        .get(0)
+                        .map_err(|e| format!("unable to convert message id: {e}"))?;
 
                     // Write payload specifics.
                     match &chunk.message {
@@ -157,9 +145,10 @@ pub fn store_signer_db_messages(
                                 (message_id, proposed, version, chain_length, burn_spent, consensus_hash, parent_block_id,
                                     tx_merkle_root, state_index_root, timestamp, miner_signature, signer_signature, pox_treatment,
                                     block_hash, index_block_hash, proposal_burn_height, proposal_reward_cycle)
-                                VALUES ((SELECT last_insert_rowid()),TRUE,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                                VALUES (?,TRUE,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                             .map_err(|e| format!("unable to prepare statement: {e}"))?;
                             stmt.execute(rusqlite::params![
+                                &message_id,
                                 &data.block.header.version,
                                 &data.block.header.chain_length,
                                 &data.block.header.burn_spent,
@@ -184,9 +173,10 @@ pub fn store_signer_db_messages(
                                 (message_id, proposed, version, chain_length, burn_spent, consensus_hash, parent_block_id,
                                     tx_merkle_root, state_index_root, timestamp, miner_signature, signer_signature, pox_treatment,
                                     block_hash, index_block_hash)
-                                VALUES ((SELECT last_insert_rowid()),FALSE,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                                VALUES (?,FALSE,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                             .map_err(|e| format!("unable to prepare statement: {e}"))?;
                             stmt.execute(rusqlite::params![
+                                &message_id,
                                 &data.block.header.version,
                                 &data.block.header.chain_length,
                                 &data.block.header.burn_spent,
@@ -210,10 +200,11 @@ pub fn store_signer_db_messages(
                                         .prepare(
                                             "INSERT INTO block_responses
                                         (message_id, accepted, signer_signature_hash, accepted_sig)
-                                        VALUES ((SELECT last_insert_rowid()),TRUE,?,?)",
+                                        VALUES (?,TRUE,?,?)",
                                         )
                                         .map_err(|e| format!("unable to prepare statement: {e}"))?;
                                     stmt.execute(rusqlite::params![
+                                        &message_id,
                                         &response.signer_signature_hash,
                                         &response.sig,
                                     ])
@@ -269,9 +260,10 @@ pub fn store_signer_db_messages(
                                         (message_id, accepted, signer_signature_hash, rejected_reason,
                                             rejected_reason_code, rejected_validation_failed_code, rejected_chain_id,
                                             rejected_signature)
-                                        VALUES ((SELECT last_insert_rowid()),FALSE,?,?,?,?,?,?)")
+                                        VALUES (?,FALSE,?,?,?,?,?,?)")
                                     .map_err(|e| format!("unable to prepare statement: {e}"))?;
                                     stmt.execute(rusqlite::params![
+                                        &message_id,
                                         &response.signer_signature_hash,
                                         &response.reason,
                                         &reason_code,

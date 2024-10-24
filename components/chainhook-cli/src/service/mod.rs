@@ -154,7 +154,8 @@ impl Service {
             }
         }
 
-        initialize_signers_db(&self.config.expected_cache_path(), &self.ctx);
+        initialize_signers_db(&self.config.expected_cache_path(), &self.ctx)
+            .map_err(|e| format!("unable to initialize signers db: {e}"))?;
 
         let (observer_command_tx, observer_command_rx) =
             observer_commands_tx_rx.unwrap_or(channel());

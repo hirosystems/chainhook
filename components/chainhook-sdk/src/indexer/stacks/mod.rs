@@ -652,22 +652,25 @@ pub fn standardize_stacks_microblock_trail(
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_marshalled_stackerdb_chunks(
     marshalled_stackerdb_chunks: JsonValue,
-    _ctx: &Context,
+    ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     let mut stackerdb_chunks: NewStackerDbChunks =
         serde_json::from_value(marshalled_stackerdb_chunks)
             .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
-    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks)
+    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks, ctx)
 }
 
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
     stackerdb_chunks: &NewStackerDbChunks,
+    ctx: &Context
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     use stacks_codec::codec::BlockResponse;
     use stacks_codec::codec::RejectCode;
     use stacks_codec::codec::SignerMessage;
     use stacks_codec::codec::ValidateRejectCode;
+
+    use crate::try_debug;
 
     let contract_id = &stackerdb_chunks.contract_id.name;
     let mut parsed_chunks: Vec<StacksStackerDbChunk> = vec![];
@@ -753,9 +756,16 @@ pub fn standardize_stacks_stackerdb_chunks(
                     block: standardize_stacks_nakamoto_block(&nakamoto_block)?,
                 })
             }
-            SignerMessage::MockSignature(_)
-            | SignerMessage::MockProposal(_)
-            | SignerMessage::MockBlock(_) => {
+            SignerMessage::MockSignature(_) => {
+                try_debug!(ctx, "Ignoring MockSignature stacks signer message");
+                continue;
+            }
+            SignerMessage::MockProposal(_) => {
+                try_debug!(ctx, "Ignoring MockProposal stacks signer message");
+                continue;
+            }
+            SignerMessage::MockBlock(_) => {
+                try_debug!(ctx, "Ignoring MockBlock stacks signer message");
                 continue;
             }
         };
