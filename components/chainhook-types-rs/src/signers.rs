@@ -33,7 +33,7 @@ pub struct BlockProposalData {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BlockAcceptedResponse {
     pub signer_signature_hash: String,
-    pub sig: String,
+    pub signature: String,
     pub metadata: SignerMessageMetadata,
 }
 

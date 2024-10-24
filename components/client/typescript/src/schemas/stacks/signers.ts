@@ -40,7 +40,7 @@ export const StacksSignerMessageBlockResponseAcceptedSchema = Type.Object({
   type: Type.Literal('Accepted'),
   data: Type.Object({
     signer_signature_hash: Type.String(),
-    sig: Type.String(),
+    signature: Type.String(),
     metadata: Type.Object({
       server_version: Type.String(),
     }),

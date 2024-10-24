@@ -427,7 +427,7 @@ fn stackerdb_chunks_covert_into_signer_messages() {
     match &message.message {
         StacksSignerMessage::BlockResponse(block_response_data) => match block_response_data {
             BlockResponseData::Accepted(block_accepted_response) => {
-                assert_eq!(block_accepted_response.sig, "0x005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b");
+                assert_eq!(block_accepted_response.signature, "0x005eb55250597b25acbf99d3dd3c2fa8189046e1b5d21309a44cbaf2b327c09b0159a01ed3f0094bfa9e5f72f5d894e12ce252081eab5396eb8bba137bddfc365b");
                 assert_eq!(
                     block_accepted_response.signer_signature_hash,
                     "0x74aff146904763a787aa14c614d0dd1fc63b537bdb2fd351cdf881f6db75f986"

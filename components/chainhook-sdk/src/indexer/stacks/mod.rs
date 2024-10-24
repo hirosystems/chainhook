@@ -716,7 +716,7 @@ pub fn standardize_stacks_stackerdb_chunks(
                 BlockResponse::Accepted(block_accepted) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
                         signer_signature_hash: format!("0x{}", block_accepted.signer_signature_hash.to_hex()),
-                        sig: format!("0x{}", block_accepted.signature.to_hex()),
+                        signature: format!("0x{}", block_accepted.signature.to_hex()),
                         metadata: SignerMessageMetadata {
                             server_version: block_accepted.metadata.server_version,
                         }
