@@ -646,6 +646,7 @@ pub async fn consolidate_local_stacks_chainstate_using_csv(
                 }
             };
 
+            // TODO(rafaelcr): Store signer messages
             insert_entry_in_stacks_blocks(&block_data, &stacks_db_rw, ctx)?;
 
             if blocks_inserted % 2500 == 0 {

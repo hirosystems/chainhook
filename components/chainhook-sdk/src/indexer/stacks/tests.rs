@@ -404,9 +404,12 @@ fn into_chainhook_event_rejects_invalid_missing_event() {
 fn parses_block_response_signer_message() {
     use chainhook_types::{BlockResponseData, StacksSignerMessage};
 
-    use crate::indexer::stacks::{
-        NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
-        NewStackerDbChunks, NewStackerDbChunksContractId,
+    use crate::{
+        indexer::stacks::{
+            NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
+            NewStackerDbChunks, NewStackerDbChunksContractId,
+        },
+        utils::Context,
     };
 
     use super::standardize_stacks_stackerdb_chunks;
@@ -426,7 +429,8 @@ fn parses_block_response_signer_message() {
             slot_version: 11,
         }],
     };
-    let parsed_chunk = standardize_stacks_stackerdb_chunks(&new_chunks).unwrap();
+    let ctx = &Context::empty();
+    let parsed_chunk = standardize_stacks_stackerdb_chunks(&new_chunks, ctx).unwrap();
 
     assert_eq!(parsed_chunk.len(), 1);
     let message = &parsed_chunk[0];
