@@ -713,10 +713,10 @@ pub fn standardize_stacks_stackerdb_chunks(
                 })
             }
             SignerMessage::BlockResponse(block_response) => match block_response {
-                BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
+                BlockResponse::Accepted(block_accepted) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        signer_signature_hash: format!("0x{}", block_hash.to_hex()),
-                        sig: format!("0x{}", sig.to_hex()),
+                        signer_signature_hash: format!("0x{}", block_accepted.signer_signature_hash.to_hex()),
+                        sig: format!("0x{}", block_accepted.signature.to_hex()),
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
