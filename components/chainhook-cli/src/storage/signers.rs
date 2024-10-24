@@ -15,7 +15,7 @@ fn get_default_signers_db_file_path(base_dir: &PathBuf) -> PathBuf {
 }
 
 pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connection, String> {
-    let conn = create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx);
+    let conn = create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx)?;
 
     // Stores message headers
     conn.execute(
@@ -100,7 +100,7 @@ pub fn store_signer_db_messages(
         return Ok(());
     }
     let mut conn =
-        create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx);
+        create_or_open_readwrite_db(Some(&get_default_signers_db_file_path(base_dir)), ctx)?;
     let db_tx = conn
         .transaction()
         .map_err(|e| format!("unable to open db transaction: {e}"))?;

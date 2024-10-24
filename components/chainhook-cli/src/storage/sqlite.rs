@@ -3,38 +3,28 @@ use std::path::PathBuf;
 use chainhook_sdk::{try_error, utils::Context};
 use rusqlite::{Connection, OpenFlags};
 
-fn connection_with_defaults_pragma(conn: Connection) -> Connection {
-    conn.busy_timeout(std::time::Duration::from_secs(300))
-        .expect("unable to set db timeout");
-    conn.pragma_update(None, "mmap_size", 512 * 1024 * 1024)
-        .expect("unable to enable mmap_size");
-    conn.pragma_update(None, "cache_size", 512 * 1024 * 1024)
-        .expect("unable to enable cache_size");
-    conn.pragma_update(None, "journal_mode", &"WAL")
-        .expect("unable to enable wal");
-    conn
-}
-
-pub fn create_or_open_readwrite_db(db_path: Option<&PathBuf>, ctx: &Context) -> Connection {
+pub fn create_or_open_readwrite_db(
+    db_path: Option<&PathBuf>,
+    ctx: &Context,
+) -> Result<Connection, String> {
     let open_flags = if let Some(db_path) = db_path {
         match std::fs::metadata(&db_path) {
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::NotFound {
-                    // need to create
+                    // Create the directory path that leads to the DB file
                     if let Some(dirp) = PathBuf::from(&db_path).parent() {
-                        std::fs::create_dir_all(dirp).unwrap_or_else(|e| {
-                            try_error!(ctx, "{}", e.to_string());
-                        });
+                        std::fs::create_dir_all(dirp)
+                            .map_err(|e| format!("unable to create db directory path: {e}"))?;
                     }
                     OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
                 } else {
-                    panic!("FATAL: could not stat {}", db_path.display());
+                    return Err(format!(
+                        "could not stat db directory {}: {e}",
+                        db_path.display()
+                    ));
                 }
             }
-            Ok(_md) => {
-                // can just open
-                OpenFlags::SQLITE_OPEN_READ_WRITE
-            }
+            Ok(_) => OpenFlags::SQLITE_OPEN_READ_WRITE,
         }
     } else {
         OpenFlags::SQLITE_OPEN_READ_WRITE
@@ -45,13 +35,24 @@ pub fn create_or_open_readwrite_db(db_path: Option<&PathBuf>, ctx: &Context) -> 
         None => ":memory:",
     };
     let conn = loop {
+        // Connect with retry.
         match Connection::open_with_flags(&path, open_flags) {
             Ok(conn) => break conn,
             Err(e) => {
-                try_error!(ctx, "{}", e.to_string());
+                try_error!(ctx, "unable to open sqlite db: {e}");
             }
         };
         std::thread::sleep(std::time::Duration::from_secs(1));
     };
-    connection_with_defaults_pragma(conn)
+
+    conn.busy_timeout(std::time::Duration::from_secs(300))
+        .map_err(|e| format!("unable to set db timeout: {e}"))?;
+    conn.pragma_update(None, "mmap_size", 512 * 1024 * 1024)
+        .map_err(|e| format!("unable to set db mmap_size: {e}"))?;
+    conn.pragma_update(None, "cache_size", 512 * 1024 * 1024)
+        .map_err(|e| format!("unable to set db cache_size: {e}"))?;
+    conn.pragma_update(None, "journal_mode", &"WAL")
+        .map_err(|e| format!("unable to enable db wal: {e}"))?;
+
+    Ok(conn)
 }
