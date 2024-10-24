@@ -326,8 +326,8 @@ pub struct NewStackerDbChunksContractId {
 pub struct NewSignerModifiedSlot {
     pub sig: String,
     pub data: String,
-    pub slot_id: u64,
-    pub slot_version: u64,
+    pub slot_id: u32,
+    pub slot_version: u32,
 }
 
 #[cfg(feature = "stacks-signers")]
