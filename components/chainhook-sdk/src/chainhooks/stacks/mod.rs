@@ -847,7 +847,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
     events: &'a Vec<StacksNonConsensusEventData>,
     chainhook: &'a StacksChainhookInstance,
-    _ctx: &Context,
+    ctx: &Context,
 ) -> (
     Vec<&'a StacksNonConsensusEventData>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
@@ -873,7 +873,11 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
             | StacksPredicate::NftEvent(_)
             | StacksPredicate::StxEvent(_)
             | StacksPredicate::PrintEvent(_)
-            | StacksPredicate::Txid(_) => unreachable!(),
+            | StacksPredicate::Txid(_) => {
+                ctx.try_log(|logger| {
+                    slog::error!(logger, "Invalid predicate for non-consensus events: {:?}", chainhook.predicate)
+                });
+            },
         };
     }
     (occurrences, expired_predicates)
