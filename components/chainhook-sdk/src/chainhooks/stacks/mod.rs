@@ -847,7 +847,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
 pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
     events: &'a Vec<StacksNonConsensusEventData>,
     chainhook: &'a StacksChainhookInstance,
-    ctx: &Context,
+    _ctx: &Context,
 ) -> (
     Vec<&'a StacksNonConsensusEventData>,
     BTreeMap<&'a str, &'a BlockIdentifier>,
@@ -874,9 +874,8 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
             | StacksPredicate::StxEvent(_)
             | StacksPredicate::PrintEvent(_)
             | StacksPredicate::Txid(_) => {
-                ctx.try_log(|logger| {
-                    slog::error!(logger, "Invalid predicate for non-consensus events: {:?}", chainhook.predicate)
-                });
+                // Ignore, possibly expected behavior?
+                // https://github.com/hirosystems/chainhook/pull/663#discussion_r1814995429
             },
         };
     }
