@@ -20,7 +20,7 @@ use chainhook_sdk::observer::{
     PredicateDeregisteredEvent, PredicateEvaluationReport, PredicateInterruptedData,
     StacksObserverStartupContext,
 };
-use chainhook_sdk::try_error;
+use chainhook_sdk::{try_error, try_info};
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
@@ -564,6 +564,7 @@ impl Service {
                                 ) {
                                     try_error!(self.ctx, "unable to store signer messages: {e}");
                                 };
+                                try_info!(self.ctx, "Stored {} stacks non-consensus events", data.events.len());
                             }
                         },
                         Err(e) => {

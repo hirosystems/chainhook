@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use chainhook_sdk::{
-    types::{BlockRejectReasonCode, BlockResponseData, BlockValidationFailedCode},
-    utils::Context,
+    try_info, types::{BlockRejectReasonCode, BlockResponseData, BlockValidationFailedCode}, utils::Context
 };
 use rusqlite::Connection;
 
@@ -59,8 +58,8 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             pox_treatment TEXT NOT NULL,
             block_hash TEXT NOT NULL,
             index_block_hash TEXT NOT NULL,
-            proposal_burn_height INTEGER NOT NULL,
-            proposal_reward_cycle INTEGER NOT NULL,
+            proposal_burn_height INTEGER,
+            proposal_reward_cycle INTEGER,
             UNIQUE(message_id),
             FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
         )",
@@ -141,6 +140,7 @@ pub fn store_signer_db_messages(
                     // Write payload specifics.
                     match &chunk.message {
                         StacksSignerMessage::BlockProposal(data) => {
+                            try_info!(ctx, "Storing stacks BlockProposal by signer {}", chunk.pubkey);
                             let mut stmt = db_tx
                             .prepare("INSERT INTO blocks
                                 (message_id, proposed, version, chain_length, burn_spent, consensus_hash, parent_block_id,
@@ -169,6 +169,7 @@ pub fn store_signer_db_messages(
                             .map_err(|e| format!("unable to write block proposal: {e}"))?;
                         }
                         StacksSignerMessage::BlockPushed(data) => {
+                            try_info!(ctx, "Storing stacks BlockPushed by signer {}", chunk.pubkey);
                             let mut stmt = db_tx
                             .prepare("INSERT INTO blocks
                                 (message_id, proposed, version, chain_length, burn_spent, consensus_hash, parent_block_id,
@@ -197,6 +198,7 @@ pub fn store_signer_db_messages(
                         StacksSignerMessage::BlockResponse(data) => {
                             match data {
                                 BlockResponseData::Accepted(response) => {
+                                    try_info!(ctx, "Storing stacks BlockResponse (Accepted) by signer {}", chunk.pubkey);
                                     let mut stmt = db_tx
                                         .prepare(
                                             "INSERT INTO block_responses
@@ -212,9 +214,10 @@ pub fn store_signer_db_messages(
                                     .map_err(|e| format!("unable to write block pushed: {e}"))?;
                                 }
                                 BlockResponseData::Rejected(response) => {
+                                    try_info!(ctx, "Storing stacks BlockResponse (Rejected) by signer {}", chunk.pubkey);
                                     let mut validation_code: Option<&str> = None;
                                     let reason_code = match &response.reason_code {
-                                        BlockRejectReasonCode::ValidationFailed{ validation_failed} => {
+                                        BlockRejectReasonCode::ValidationFailed{ validation_failed } => {
                                             validation_code = match validation_failed {
                                                 BlockValidationFailedCode::BadBlockHash => {
                                                     Some("bad_block_hash")
