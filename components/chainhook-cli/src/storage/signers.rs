@@ -74,12 +74,11 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             message_id INTEGER NOT NULL,
             accepted BOOLEAN NOT NULL,
             signer_signature_hash TEXT NOT NULL,
-            accepted_sig TEXT,
+            signature TEXT NOT NULL,
             rejected_reason TEXT,
             rejected_reason_code TEXT,
             rejected_validation_failed_code TEXT,
             rejected_chain_id INTEGER,
-            rejected_signature TEXT,
             UNIQUE(message_id),
             FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
         )",
@@ -201,22 +200,22 @@ pub fn store_signer_db_messages(
                                     let mut stmt = db_tx
                                         .prepare(
                                             "INSERT INTO block_responses
-                                        (message_id, accepted, signer_signature_hash, accepted_sig)
+                                        (message_id, accepted, signer_signature_hash, signature)
                                         VALUES (?,TRUE,?,?)",
                                         )
                                         .map_err(|e| format!("unable to prepare statement: {e}"))?;
                                     stmt.execute(rusqlite::params![
                                         &message_id,
                                         &response.signer_signature_hash,
-                                        &response.sig,
+                                        &response.signature,
                                     ])
                                     .map_err(|e| format!("unable to write block pushed: {e}"))?;
                                 }
                                 BlockResponseData::Rejected(response) => {
                                     let mut validation_code: Option<&str> = None;
                                     let reason_code = match &response.reason_code {
-                                        BlockRejectReasonCode::ValidationFailed(code) => {
-                                            validation_code = match code {
+                                        BlockRejectReasonCode::ValidationFailed{ validation_failed} => {
+                                            validation_code = match validation_failed {
                                                 BlockValidationFailedCode::BadBlockHash => {
                                                     Some("bad_block_hash")
                                                 }
@@ -259,19 +258,18 @@ pub fn store_signer_db_messages(
                                     };
                                     let mut stmt = db_tx
                                     .prepare("INSERT INTO block_responses
-                                        (message_id, accepted, signer_signature_hash, rejected_reason,
-                                            rejected_reason_code, rejected_validation_failed_code, rejected_chain_id,
-                                            rejected_signature)
+                                        (message_id, accepted, signer_signature_hash, signature, rejected_reason,
+                                            rejected_reason_code, rejected_validation_failed_code, rejected_chain_id)
                                         VALUES (?,FALSE,?,?,?,?,?,?)")
                                     .map_err(|e| format!("unable to prepare statement: {e}"))?;
                                     stmt.execute(rusqlite::params![
                                         &message_id,
                                         &response.signer_signature_hash,
+                                        &response.signature,
                                         &response.reason,
                                         &reason_code,
                                         &validation_code,
                                         &response.chain_id,
-                                        &response.signature,
                                     ])
                                     .map_err(|e| format!("unable to write block pushed: {e}"))?;
                                 }
