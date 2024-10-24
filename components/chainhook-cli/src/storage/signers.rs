@@ -61,7 +61,8 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             index_block_hash TEXT NOT NULL,
             proposal_burn_height INTEGER NOT NULL,
             proposal_reward_cycle INTEGER NOT NULL,
-            UNIQUE(message_id)
+            UNIQUE(message_id),
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
         )",
         [],
     )
@@ -79,7 +80,8 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             rejected_validation_failed_code TEXT,
             rejected_chain_id INTEGER,
             rejected_signature TEXT,
-            UNIQUE(message_id)
+            UNIQUE(message_id),
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
         )",
         [],
     )
