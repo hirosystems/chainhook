@@ -55,11 +55,13 @@ pub enum BlockValidationFailedCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(untagged)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockRejectReasonCode {
     #[serde(rename_all = "SCREAMING_SNAKE_CASE")] 
-    ValidationFailed { validation_failed: BlockValidationFailedCode },
+    ValidationFailed {
+        #[serde(rename = "VALIDATION_FAILED")]
+        validation_failed: BlockValidationFailedCode,
+    },
     ConnectivityIssues,
     RejectedInPriorRound,
     NoSortitionView,
