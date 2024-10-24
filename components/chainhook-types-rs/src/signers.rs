@@ -33,10 +33,17 @@ pub struct BlockProposalData {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct BlockAcceptedResponse {
     pub signer_signature_hash: String,
-    pub sig: String,
+    pub signature: String,
+    pub metadata: SignerMessageMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct SignerMessageMetadata {
+    pub server_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockValidationFailedCode {
     BadBlockHash,
     BadTransaction,
@@ -50,7 +57,11 @@ pub enum BlockValidationFailedCode {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BlockRejectReasonCode {
-    ValidationFailed(BlockValidationFailedCode),
+    #[serde(rename_all = "SCREAMING_SNAKE_CASE")] 
+    ValidationFailed {
+        #[serde(rename = "VALIDATION_FAILED")]
+        validation_failed: BlockValidationFailedCode,
+    },
     ConnectivityIssues,
     RejectedInPriorRound,
     NoSortitionView,
@@ -65,6 +76,7 @@ pub struct BlockRejectedResponse {
     pub signer_signature_hash: String,
     pub chain_id: u32,
     pub signature: String,
+    pub metadata: SignerMessageMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

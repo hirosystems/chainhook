@@ -2,6 +2,30 @@
   "version": "0.2.0",
   "configurations": [
     {
+        "type": "lldb",
+        "request": "launch",
+        "name": "Debug executable 'chainhook'",
+        "cargo": {
+            "args": [
+                "build",
+                "--bin=chainhook",
+                "--package=chainhook"
+            ],
+            "filter": {
+                "name": "chainhook",
+                "kind": "bin"
+            }
+        },
+        "args": [
+            "service",
+            "start",
+            "--config-path=${workspaceFolder}/.vscode/chainhook.toml",
+        ],
+        "cwd": "${workspaceFolder}",
+        "preLaunchTask": "redis:start",
+        "postDebugTask": "redis:stop"
+    },
+    {
       "type": "lldb",
       "request": "launch",
       "name": "test: chainhook-sdk",

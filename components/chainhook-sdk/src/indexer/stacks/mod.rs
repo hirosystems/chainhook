@@ -46,6 +46,9 @@ pub struct NewBlock {
     pub signer_bitvec: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_signature_hash: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_signature: Option<Vec<String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -326,8 +329,8 @@ pub struct NewStackerDbChunksContractId {
 pub struct NewSignerModifiedSlot {
     pub sig: String,
     pub data: String,
-    pub slot_id: u64,
-    pub slot_version: u64,
+    pub slot_id: u32,
+    pub slot_version: u32,
 }
 
 #[cfg(feature = "stacks-signers")]
@@ -472,6 +475,13 @@ pub fn standardize_stacks_block(
         })
     };
 
+    let signer_sig_hash = block
+        .signer_signature_hash
+        .as_ref()
+        .map(|hash| {
+            hex::decode(&hash[2..]).expect("unable to decode signer_signature hex")
+        });
+
     let block = StacksBlockData {
         block_identifier: BlockIdentifier {
             hash: block.index_block_hash.clone(),
@@ -501,6 +511,20 @@ pub fn standardize_stacks_block(
             // TODO: decode `signer_bitvec` into an easy to use bit string representation (e.g. "01010101")
             signer_bitvec: block.signer_bitvec.clone(),
             signer_signature: block.signer_signature.clone(),
+
+            signer_public_keys: match (signer_sig_hash, &block.signer_signature) {
+                (Some(signer_sig_hash), Some(signatures)) => {
+                    Some(signatures.iter().map(|sig_hex| {
+                        let sig_msg = clarity::util::secp256k1::MessageSignature::from_hex(sig_hex)
+                            .map_err(|e| format!("unable to parse signer signature message: {}", e))?;
+                        let pubkey = get_signer_pubkey_from_message_hash(&signer_sig_hash, &sig_msg)
+                            .map_err(|e| format!("unable to recover signer sig pubkey: {}", e))?;
+                        Ok(format!("0x{}", hex::encode(pubkey)))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?)
+                }
+                _ => None,
+            },
 
             cycle_number: block.cycle_number,
             reward_set: block.reward_set.as_ref().and_then(|r| {
@@ -693,10 +717,13 @@ pub fn standardize_stacks_stackerdb_chunks(
                 })
             }
             SignerMessage::BlockResponse(block_response) => match block_response {
-                BlockResponse::Accepted((block_hash, sig)) => StacksSignerMessage::BlockResponse(
+                BlockResponse::Accepted(block_accepted) => StacksSignerMessage::BlockResponse(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
-                        signer_signature_hash: format!("0x{}", block_hash.to_hex()),
-                        sig: format!("0x{}", sig.to_hex()),
+                        signer_signature_hash: format!("0x{}", block_accepted.signer_signature_hash.to_hex()),
+                        signature: format!("0x{}", block_accepted.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_accepted.metadata.server_version,
+                        }
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
@@ -704,8 +731,8 @@ pub fn standardize_stacks_stackerdb_chunks(
                         reason: block_rejection.reason,
                         reason_code: match block_rejection.reason_code {
                             RejectCode::ValidationFailed(validate_reject_code) => {
-                                BlockRejectReasonCode::ValidationFailed(
-                                    match validate_reject_code {
+                                BlockRejectReasonCode::ValidationFailed {
+                                    validation_failed: match validate_reject_code {
                                         ValidateRejectCode::BadBlockHash => {
                                             BlockValidationFailedCode::BadBlockHash
                                         }
@@ -728,7 +755,7 @@ pub fn standardize_stacks_stackerdb_chunks(
                                             BlockValidationFailedCode::NoSuchTenure
                                         }
                                     },
-                                )
+                                }
                             }
                             RejectCode::NoSortitionView => BlockRejectReasonCode::NoSortitionView,
                             RejectCode::ConnectivityIssues => {
@@ -748,6 +775,9 @@ pub fn standardize_stacks_stackerdb_chunks(
                         ),
                         chain_id: block_rejection.chain_id,
                         signature: format!("0x{}", block_rejection.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_rejection.metadata.server_version,
+                        },
                     }),
                 ),
             },
@@ -856,6 +886,36 @@ fn get_nakamoto_index_block_hash(
 
     let hash = Sha512Trunc256Sum::from_data(&bytes).to_bytes();
     Ok(format!("0x{}", hex::encode(hash)))
+}
+
+pub fn get_signer_pubkey_from_message_hash(
+    message_hash: &Vec<u8>,
+    signature: &clarity::util::secp256k1::MessageSignature,
+) -> Result<[u8; 33], String> {
+    use miniscript::bitcoin::{
+        key::Secp256k1,
+        secp256k1::{
+            ecdsa::{RecoverableSignature, RecoveryId},
+            Message,
+        },
+    };
+
+    let (first, sig) = signature.0.split_at(1);
+    let rec_id = first[0];
+
+    let secp = Secp256k1::new();
+    let recovery_id =
+        RecoveryId::from_i32(rec_id as i32).map_err(|e| format!("invalid recovery id: {e}"))?;
+    let signature = RecoverableSignature::from_compact(&sig, recovery_id)
+        .map_err(|e| format!("invalid signature: {e}"))?;
+    let message =
+        Message::from_digest_slice(&message_hash).map_err(|e| format!("invalid digest message: {e}"))?;
+
+    let pubkey = secp
+        .recover_ecdsa(&message, &signature)
+        .map_err(|e| format!("unable to recover pubkey: {e}"))?;
+
+    Ok(pubkey.serialize())
 }
 
 #[cfg(feature = "stacks-signers")]

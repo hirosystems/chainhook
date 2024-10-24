@@ -119,6 +119,7 @@ pub struct StacksBlockMetadata {
     pub block_time: Option<u64>,
     pub signer_bitvec: Option<String>,
     pub signer_signature: Option<Vec<String>>,
+    pub signer_public_keys: Option<Vec<String>>,
 
     // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
     pub cycle_number: Option<u64>,

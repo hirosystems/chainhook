@@ -40,7 +40,10 @@ export const StacksSignerMessageBlockResponseAcceptedSchema = Type.Object({
   type: Type.Literal('Accepted'),
   data: Type.Object({
     signer_signature_hash: Type.String(),
-    sig: Type.String(),
+    signature: Type.String(),
+    metadata: Type.Object({
+      server_version: Type.String(),
+    }),
   }),
 });
 export type StacksSignerMessageBlockResponseAccepted = Static<
@@ -52,7 +55,17 @@ export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
   data: Type.Object({
     reason: Type.String(),
     reason_code: Type.Union([
-      Type.Literal('VALIDATION_FAILED'),
+      Type.Object({
+        VALIDATION_FAILED: Type.Union([
+          Type.Literal('BAD_BLOCK_HASH'),
+          Type.Literal('BAD_TRANSACTION'),
+          Type.Literal('INVALID_BLOCK'),
+          Type.Literal('CHAINSTATE_ERROR'),
+          Type.Literal('UNKNOWN_PARENT'),
+          Type.Literal('NON_CANONICAL_TENURE'),
+          Type.Literal('NO_SUCH_TENURE'),
+        ]),
+      }),
       Type.Literal('CONNECTIVITY_ISSUES'),
       Type.Literal('REJECTED_IN_PRIOR_ROUND'),
       Type.Literal('NO_SORTITION_VIEW'),
@@ -62,6 +75,9 @@ export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
     signer_signature_hash: Type.String(),
     chain_id: Type.Integer(),
     signature: Type.String(),
+    metadata: Type.Object({
+      server_version: Type.String(),
+    }),
   }),
 });
 export type StacksSignerMessageBlockResponseRejected = Static<
