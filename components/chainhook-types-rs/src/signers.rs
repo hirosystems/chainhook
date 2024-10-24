@@ -34,6 +34,12 @@ pub struct BlockProposalData {
 pub struct BlockAcceptedResponse {
     pub signer_signature_hash: String,
     pub sig: String,
+    pub metadata: SignerMessageMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct SignerMessageMetadata {
+    pub server_version: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -65,6 +71,7 @@ pub struct BlockRejectedResponse {
     pub signer_signature_hash: String,
     pub chain_id: u32,
     pub signature: String,
+    pub metadata: SignerMessageMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

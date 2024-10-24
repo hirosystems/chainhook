@@ -41,6 +41,9 @@ export const StacksSignerMessageBlockResponseAcceptedSchema = Type.Object({
   data: Type.Object({
     signer_signature_hash: Type.String(),
     sig: Type.String(),
+    metadata: Type.Object({
+      server_version: Type.String(),
+    }),
   }),
 });
 export type StacksSignerMessageBlockResponseAccepted = Static<
@@ -62,6 +65,9 @@ export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
     signer_signature_hash: Type.String(),
     chain_id: Type.Integer(),
     signature: Type.String(),
+    metadata: Type.Object({
+      server_version: Type.String(),
+    }),
   }),
 });
 export type StacksSignerMessageBlockResponseRejected = Static<

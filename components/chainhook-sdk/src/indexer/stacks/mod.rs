@@ -717,6 +717,9 @@ pub fn standardize_stacks_stackerdb_chunks(
                     BlockResponseData::Accepted(BlockAcceptedResponse {
                         signer_signature_hash: format!("0x{}", block_accepted.signer_signature_hash.to_hex()),
                         sig: format!("0x{}", block_accepted.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_accepted.metadata.server_version,
+                        }
                     }),
                 ),
                 BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
@@ -768,6 +771,9 @@ pub fn standardize_stacks_stackerdb_chunks(
                         ),
                         chain_id: block_rejection.chain_id,
                         signature: format!("0x{}", block_rejection.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_rejection.metadata.server_version,
+                        },
                     }),
                 ),
             },
