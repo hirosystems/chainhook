@@ -100,6 +100,7 @@ pub struct PeerInfoData {
     pub pox_consensus: String,
     pub server_version: String,
     pub network_id: u32,
+    pub index_block_hash: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

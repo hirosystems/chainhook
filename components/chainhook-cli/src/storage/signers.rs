@@ -116,6 +116,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             pox_consensus TEXT NOT NULL,
             server_version TEXT NOT NULL,
             network_id INTEGER NOT NULL,
+            index_block_hash TEXT NOT NULL,
             UNIQUE(message_id),
             FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
         )",
@@ -166,7 +167,7 @@ fn store_mock_proposal_peer_info(
         .prepare(
             "INSERT INTO mock_proposals
             (message_id, burn_block_height, stacks_tip_consensus_hash, stacks_tip, stacks_tip_height, pox_consensus,
-                server_version, network_id)
+                server_version, network_id, index_block_hash)
             VALUES (?,?,?,?,?,?,?,?)
             RETURNING id",
         )
@@ -181,6 +182,7 @@ fn store_mock_proposal_peer_info(
             &peer_info.pox_consensus,
             &peer_info.server_version,
             &peer_info.network_id,
+            &peer_info.index_block_hash,
         ])
         .map_err(|e| format!("unable to write mock proposal: {e}"))?
         .next()
@@ -667,11 +669,12 @@ pub fn get_signer_db_messages_received_at_block(
                                         stacks_tip_height: signature_row.get(3).unwrap(),
                                         pox_consensus: signature_row.get(4).unwrap(),
                                         server_version: signature_row.get(5).unwrap(),
-                                        network_id: signature_row.get(6).unwrap()
+                                        network_id: signature_row.get(6).unwrap(),
+                                        index_block_hash: signature_row.get(7).unwrap(),
                                     }
                                 },
                                 metadata: SignerMessageMetadata {
-                                    server_version: signature_row.get(7).unwrap()
+                                    server_version: signature_row.get(8).unwrap()
                                 }
                             }))
                         },
@@ -680,7 +683,7 @@ pub fn get_signer_db_messages_received_at_block(
                 "mock_proposal" => db_tx
                     .query_row(
                         "SELECT burn_block_height, stacks_tip_consensus_hash, stacks_tip, stacks_tip_height,
-                            pox_consensus, server_version, network_id
+                            pox_consensus, server_version, network_id, index_block_hash
                         FROM mock_proposals
                         WHERE message_id = ?",
                         rusqlite::params![&message_id],
@@ -692,7 +695,8 @@ pub fn get_signer_db_messages_received_at_block(
                                 stacks_tip_height: proposal_row.get(3).unwrap(),
                                 pox_consensus: proposal_row.get(4).unwrap(),
                                 server_version: proposal_row.get(5).unwrap(),
-                                network_id: proposal_row.get(6).unwrap()
+                                network_id: proposal_row.get(6).unwrap(),
+                                index_block_hash: proposal_row.get(7).unwrap(),
                             }))
                         },
                     )
@@ -700,7 +704,7 @@ pub fn get_signer_db_messages_received_at_block(
                 "mock_block" => db_tx
                     .query_row(
                         "SELECT b.id, p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
-                            p.pox_consensus, p.server_version, p.network_id
+                            p.pox_consensus, p.server_version, p.network_id, p.index_block_hash
                         FROM mock_blocks AS b
                         INNER JOIN mock_proposals AS p ON p.id = b.mock_proposal_id
                         WHERE b.message_id = ?",
@@ -711,7 +715,7 @@ pub fn get_signer_db_messages_received_at_block(
                                 .prepare(
                                     "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip,
                                         p.stacks_tip_height, p.pox_consensus, p.server_version AS peer_version,
-                                        p.network_id, s.server_version
+                                        p.network_id, p.index_block_hash, s.server_version
                                     FROM mock_signatures AS s
                                     INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
                                     WHERE s.mock_block_id = ?")?;
@@ -727,11 +731,12 @@ pub fn get_signer_db_messages_received_at_block(
                                             stacks_tip_height: signature_row.get(3).unwrap(),
                                             pox_consensus: signature_row.get(4).unwrap(),
                                             server_version: signature_row.get(5).unwrap(),
-                                            network_id: signature_row.get(6).unwrap()
+                                            network_id: signature_row.get(6).unwrap(),
+                                            index_block_hash: signature_row.get(7).unwrap(),
                                         }
                                     },
                                     metadata: SignerMessageMetadata {
-                                        server_version: signature_row.get(7).unwrap()
+                                        server_version: signature_row.get(8).unwrap()
                                     }
                                 });
                             }
@@ -744,7 +749,8 @@ pub fn get_signer_db_messages_received_at_block(
                                         stacks_tip_height: block_row.get(4).unwrap(),
                                         pox_consensus: block_row.get(5).unwrap(),
                                         server_version: block_row.get(6).unwrap(),
-                                        network_id: block_row.get(7).unwrap()
+                                        network_id: block_row.get(7).unwrap(),
+                                        index_block_hash: block_row.get(8).unwrap(),
                                     }
                                 },
                                 mock_signatures

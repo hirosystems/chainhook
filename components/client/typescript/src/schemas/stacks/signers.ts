@@ -114,6 +114,7 @@ export const StacksSignerMessagePeerInfoSchema = Type.Object({
   pox_consensus: Type.String(),
   server_version: Type.String(),
   network_id: Type.Integer(),
+  index_block_hash: Type.String(),
 });
 export type StacksSignerMessagePeerInfo = Static<typeof StacksSignerMessagePeerInfoSchema>;
 
