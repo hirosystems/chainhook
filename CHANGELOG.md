@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.5](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.4...v1.9.0-stacks-signers.5) (2024-10-25)
+
+
+### Bug Fixes
+
+* mock signature retrieval ([#671](https://github.com/hirosystems/chainhook/issues/671)) ([8bb59c1](https://github.com/hirosystems/chainhook/commit/8bb59c1b4727a37df47e08b7a31456bcb6528289))
+
 ## [1.9.0-stacks-signers.4](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.3...v1.9.0-stacks-signers.4) (2024-10-25)
 
 
