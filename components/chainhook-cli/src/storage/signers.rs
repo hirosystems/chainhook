@@ -146,6 +146,8 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
             message_id INTEGER,
             mock_block_id INTEGER,
             server_version TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            pubkey TEXT NOT NULL,
             UNIQUE(message_id),
             FOREIGN KEY (mock_proposal_id) REFERENCES mock_proposals(id) ON DELETE CASCADE,
             FOREIGN KEY (mock_block_id) REFERENCES mock_blocks(id) ON DELETE CASCADE,
@@ -168,7 +170,7 @@ fn store_mock_proposal_peer_info(
             "INSERT INTO mock_proposals
             (message_id, burn_block_height, stacks_tip_consensus_hash, stacks_tip, stacks_tip_height, pox_consensus,
                 server_version, network_id, index_block_hash)
-            VALUES (?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?)
             RETURNING id",
         )
         .map_err(|e| format!("unable to prepare statement: {e}"))?;
@@ -195,17 +197,17 @@ fn store_mock_proposal_peer_info(
 
 fn store_mock_signature(
     db_tx: &Transaction<'_>,
-    peer_info: &PeerInfoData,
-    metadata: &SignerMessageMetadata,
+    mock_signature: &MockSignatureData,
     message_id: Option<u64>,
     mock_block_id: Option<u64>,
 ) -> Result<(), String> {
-    let mock_proposal_id = store_mock_proposal_peer_info(&db_tx, &peer_info, None)?;
+    let mock_proposal_id =
+        store_mock_proposal_peer_info(&db_tx, &mock_signature.mock_proposal.peer_info, None)?;
     let mut signature_stmt = db_tx
         .prepare(
             "INSERT INTO mock_signatures
-            (message_id, mock_proposal_id, mock_block_id, server_version)
-            VALUES (?,?,?,?)",
+            (message_id, mock_proposal_id, mock_block_id, server_version, signature, pubkey)
+            VALUES (?,?,?,?,?,?)",
         )
         .map_err(|e| format!("unable to prepare statement: {e}"))?;
     signature_stmt
@@ -213,7 +215,9 @@ fn store_mock_signature(
             &message_id,
             &mock_proposal_id,
             &mock_block_id,
-            &metadata.server_version,
+            &mock_signature.metadata.server_version,
+            &mock_signature.signature,
+            &mock_signature.pubkey,
         ])
         .map_err(|e| format!("unable to write mock signature: {e}"))?;
     Ok(())
@@ -435,13 +439,7 @@ pub fn store_signer_db_messages(
                                 "Storing stacks MockSignature by signer {}",
                                 chunk.pubkey
                             );
-                            store_mock_signature(
-                                &db_tx,
-                                &data.mock_proposal.peer_info,
-                                &data.metadata,
-                                Some(message_id),
-                                None,
-                            )?;
+                            store_mock_signature(&db_tx, &data, Some(message_id), None)?;
                         }
                         StacksSignerMessage::MockProposal(data) => {
                             try_info!(
@@ -477,8 +475,7 @@ pub fn store_signer_db_messages(
                             for signature in data.mock_signatures.iter() {
                                 store_mock_signature(
                                     &db_tx,
-                                    &signature.mock_proposal.peer_info,
-                                    &signature.metadata,
+                                    &signature,
                                     None,
                                     Some(mock_block_id),
                                 )?;
@@ -654,7 +651,8 @@ pub fn get_signer_db_messages_received_at_block(
                 "mock_signature" => db_tx
                     .query_row(
                         "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
-                            p.pox_consensus, p.server_version AS peer_version, p.network_id, s.server_version
+                            p.pox_consensus, p.server_version AS peer_version, p.network_id, s.server_version, s.signature,
+                            s.pubkey
                         FROM mock_signatures AS s
                         INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
                         WHERE s.message_id = ?",
@@ -675,7 +673,9 @@ pub fn get_signer_db_messages_received_at_block(
                                 },
                                 metadata: SignerMessageMetadata {
                                     server_version: signature_row.get(8).unwrap()
-                                }
+                                },
+                                signature: signature_row.get(9).unwrap(),
+                                pubkey: signature_row.get(10).unwrap()
                             }))
                         },
                     )
@@ -715,7 +715,7 @@ pub fn get_signer_db_messages_received_at_block(
                                 .prepare(
                                     "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip,
                                         p.stacks_tip_height, p.pox_consensus, p.server_version AS peer_version,
-                                        p.network_id, p.index_block_hash, s.server_version
+                                        p.network_id, p.index_block_hash, s.server_version, s.signature, s.pubkey
                                     FROM mock_signatures AS s
                                     INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
                                     WHERE s.mock_block_id = ?")?;
@@ -737,7 +737,9 @@ pub fn get_signer_db_messages_received_at_block(
                                     },
                                     metadata: SignerMessageMetadata {
                                         server_version: signature_row.get(8).unwrap()
-                                    }
+                                    },
+                                    signature: signature_row.get(9).unwrap(),
+                                    pubkey: signature_row.get(10).unwrap()
                                 });
                             }
                             Ok(StacksSignerMessage::MockBlock(MockBlockData {

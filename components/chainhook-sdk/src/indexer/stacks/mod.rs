@@ -802,13 +802,16 @@ pub fn standardize_stacks_stackerdb_chunks(
                     .mock_signatures
                     .iter()
                     .map(|signature| standardize_stacks_signer_mock_signature(signature))
-                    .try_fold(Vec::new(), |mut acc, item| -> Result<Vec<MockSignatureData>, String> {
-                        item.and_then(|val| {
-                            acc.push(val);
-                            Ok(())
-                        })?;
-                        Ok(acc)
-                    })?,
+                    .try_fold(
+                        Vec::new(),
+                        |mut acc, item| -> Result<Vec<MockSignatureData>, String> {
+                            item.and_then(|val| {
+                                acc.push(val);
+                                Ok(())
+                            })?;
+                            Ok(acc)
+                        },
+                    )?,
             }),
         };
         parsed_chunks.push(StacksStackerDbChunk {
@@ -829,6 +832,14 @@ pub fn standardize_stacks_stackerdb_chunks(
 pub fn standardize_stacks_signer_mock_signature(
     signature: &stacks_codec::codec::MockSignature,
 ) -> Result<MockSignatureData, String> {
+    let pubkey = get_signer_pubkey_from_message_hash(
+        &signature
+            .mock_proposal
+            .signer_signature_hash()
+            .as_bytes()
+            .to_vec(),
+        &signature.signature,
+    )?;
     Ok(MockSignatureData {
         mock_proposal: MockProposalData {
             peer_info: standardize_stacks_signer_peer_info(&signature.mock_proposal.peer_info)?,
@@ -836,6 +847,8 @@ pub fn standardize_stacks_signer_mock_signature(
         metadata: SignerMessageMetadata {
             server_version: signature.metadata.server_version.clone(),
         },
+        signature: format!("0x{}", signature.signature.to_hex()),
+        pubkey: format!("0x{}", hex::encode(pubkey)),
     })
 }
 

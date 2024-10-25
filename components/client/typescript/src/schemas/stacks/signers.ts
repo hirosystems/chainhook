@@ -128,6 +128,8 @@ export type StacksSignerMessageMockProposalData = Static<
 export const StacksSignerMessageMockSignatureDataSchema = Type.Object({
   mock_proposal: StacksSignerMessageMockProposalDataSchema,
   metadata: StacksSignerMessageMetadataSchema,
+  signature: Type.String(),
+  pubkey: Type.String(),
 });
 export type StacksSignerMessageMockSignatureData = Static<
   typeof StacksSignerMessageMockSignatureDataSchema
