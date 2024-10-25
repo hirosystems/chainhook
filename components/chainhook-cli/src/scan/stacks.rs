@@ -17,6 +17,7 @@ use crate::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
         open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
+        signers::get_signer_db_messages_received_at_block, StacksDbConnections,
     },
 };
 use chainhook_sdk::types::{BlockIdentifier, Chain};
@@ -32,7 +33,6 @@ use chainhook_sdk::{
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };
-use rocksdb::DB;
 
 use super::common::PredicateScanResult;
 
@@ -180,11 +180,12 @@ pub async fn get_canonical_fork_from_tsv(
 pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     predicate_spec: &StacksChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
-    stacks_db_conn: &DB,
+    db_conns: &mut StacksDbConnections,
     config: &Config,
     kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
 ) -> Result<PredicateScanResult, String> {
+    let stacks_db_conn = &db_conns.stacks_db;
     let predicate_uuid = &predicate_spec.uuid;
     let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
         Some(chain_tip) => chain_tip,
@@ -335,12 +336,14 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             continue;
         }
 
+        let non_consensus_events =
+            get_signer_db_messages_received_at_block(&mut db_conns.signers_db, &block_data.block_identifier)?;
+
         let trigger = StacksTriggerChainhook {
             chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
-            // TODO(rafaelcr): Query for non consensus events which fall between block timestamps to fill in here
-            events: vec![]
+            events: non_consensus_events.iter().collect(),
         };
         let res = match handle_stacks_hook_action(
             trigger,
@@ -536,7 +539,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
             apply: hits_per_blocks,
             rollback: vec![],
             // TODO(rafaelcr): Consider StackerDB chunks that come from TSVs.
-            events: vec![]
+            events: vec![],
         };
         match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx)
         {
