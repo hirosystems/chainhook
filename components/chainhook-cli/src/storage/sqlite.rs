@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use chainhook_sdk::{try_error, utils::Context};
 use rusqlite::{Connection, OpenFlags};
 
+/// Configures the SQLite connection with common settings.
 fn connection_with_defaults_pragma(conn: Connection) -> Result<Connection, String> {
     conn.busy_timeout(std::time::Duration::from_secs(300))
         .map_err(|e| format!("unable to set db timeout: {e}"))?;

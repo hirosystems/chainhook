@@ -19,8 +19,7 @@ use crate::{
         bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate, common::PredicateScanResult,
         stacks::scan_stacks_chainstate_via_rocksdb_using_predicate,
     },
-    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status},
-    storage::open_readonly_db_conns,
+    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status}, storage::StacksDbConnections,
 };
 
 use super::ScanningData;
@@ -54,7 +53,7 @@ pub fn start_stacks_scan_runloop(
                 let kill_signal = Arc::new(RwLock::new(false));
                 kill_signals.insert(predicate_spec.uuid.clone(), kill_signal.clone());
                 stacks_scan_pool.execute(move || {
-                    let mut db_conns = match open_readonly_db_conns(
+                    let mut db_conns = match StacksDbConnections::open_readonly(
                         &moved_config.expected_cache_path(),
                         &moved_ctx,
                     ) {

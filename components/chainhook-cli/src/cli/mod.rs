@@ -11,8 +11,8 @@ use crate::storage::{
     delete_confirmed_entry_from_stacks_blocks, delete_unconfirmed_entry_from_stacks_blocks,
     get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
     get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
-    is_stacks_block_present, open_readonly_db_conns, open_readonly_stacks_db_conn,
-    open_readwrite_stacks_db_conn, set_last_confirmed_insert_key,
+    is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+    set_last_confirmed_insert_key, StacksDbConnections,
 };
 use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecification;
 use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
@@ -547,8 +547,10 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 )
                                 .await;
                                 // Refresh DB connection so it picks up recent changes made by TSV consolidation.
-                                let mut db_conns =
-                                    open_readonly_db_conns(&config.expected_cache_path(), &ctx)?;
+                                let mut db_conns = StacksDbConnections::open_readonly(
+                                    &config.expected_cache_path(),
+                                    &ctx,
+                                )?;
                                 scan_stacks_chainstate_via_rocksdb_using_predicate(
                                     &predicate_spec,
                                     None,

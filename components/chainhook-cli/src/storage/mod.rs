@@ -16,6 +16,7 @@ const KEY_SUFFIX: &[u8; 2] = b":d";
 const LAST_UNCONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:~";
 const LAST_CONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:t";
 
+/// Keeps references to all databases used to monitor Stacks transactions and events.
 // TODO(rafaelcr): Expand this struct to be flexible enough to include Bitcoin DBs and/or turn some DBs on/off.
 pub struct StacksDbConnections {
     pub stacks_db: DB,
@@ -23,11 +24,14 @@ pub struct StacksDbConnections {
     pub signers_db: Connection,
 }
 
-pub fn open_readonly_db_conns(base_dir: &PathBuf, ctx: &Context) -> Result<StacksDbConnections, String> {
-    Ok(StacksDbConnections {
-        stacks_db: open_readonly_stacks_db_conn(base_dir, ctx)?,
-        signers_db: open_readonly_signers_db_conn(base_dir, ctx)?,
-    })
+impl StacksDbConnections {
+    /// Opens all connections in read-only mode.
+    pub fn open_readonly(base_dir: &PathBuf, ctx: &Context) -> Result<Self, String> {
+        Ok(StacksDbConnections {
+            stacks_db: open_readonly_stacks_db_conn(base_dir, ctx)?,
+            signers_db: open_readonly_signers_db_conn(base_dir, ctx)?,
+        })
+    }
 }
 
 fn get_db_default_options() -> Options {
