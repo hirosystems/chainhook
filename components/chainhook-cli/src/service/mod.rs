@@ -176,6 +176,7 @@ impl Service {
                     &config,
                     stacks_scan_op_rx,
                     observer_command_tx_moved.clone(),
+                    None,
                     &ctx,
                 );
                 // the scan runloop should loop forever; if it finishes, something is wrong
@@ -195,6 +196,7 @@ impl Service {
                     &config,
                     bitcoin_scan_op_rx,
                     observer_command_tx_moved.clone(),
+                    None,
                     &ctx,
                 );
                 // the scan runloop should loop forever; if it finishes, something is wrong
@@ -283,6 +285,7 @@ impl Service {
             moved_observer_command_tx,
             observer_command_rx,
             Some(observer_event_tx_moved),
+            None,
             None,
             Some(stacks_startup_context),
             self.ctx.clone(),

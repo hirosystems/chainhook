@@ -11,6 +11,7 @@ use chainhook_sdk::chainhooks::bitcoin::{
     BitcoinChainhookOccurrence, BitcoinTriggerChainhook,
 };
 use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookInstance;
+use chainhook_sdk::dispatcher::{ChainhookOccurrencePayload, Dispatcher};
 use chainhook_sdk::indexer;
 use chainhook_sdk::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, retrieve_block_hash_with_retry,
@@ -29,6 +30,7 @@ use super::common::PredicateScanResult;
 pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
     predicate_spec: &BitcoinChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
+    dispatcher: Dispatcher<ChainhookOccurrencePayload>,
     config: &Config,
     kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
@@ -188,6 +190,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
             block,
             &vec![&predicate_spec],
             &event_observer_config,
+            &dispatcher,
             ctx,
         )
         .await
@@ -264,6 +267,7 @@ pub async fn process_block_with_predicates(
     block: BitcoinBlockData,
     predicates: &Vec<&BitcoinChainhookInstance>,
     event_observer_config: &EventObserverConfig,
+    dispatcher: &Dispatcher<ChainhookOccurrencePayload>,
     ctx: &Context,
 ) -> Result<u32, String> {
     let chain_event =
@@ -275,11 +279,12 @@ pub async fn process_block_with_predicates(
     let (predicates_triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_bitcoin_chainhooks_on_chain_event(&chain_event, predicates, ctx);
 
-    execute_predicates_action(predicates_triggered, event_observer_config, ctx).await
+    execute_predicates_action(predicates_triggered, dispatcher, event_observer_config, ctx).await
 }
 
 pub async fn execute_predicates_action<'a>(
     hits: Vec<BitcoinTriggerChainhook<'a>>,
+    dispatcher: &Dispatcher<ChainhookOccurrencePayload>,
     config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<u32, String> {
@@ -300,8 +305,9 @@ pub async fn execute_predicates_action<'a>(
             Ok(action) => {
                 actions_triggered += 1;
                 match action {
-                    BitcoinChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 10, 3, ctx).await?
+                    BitcoinChainhookOccurrence::Http(request, data) => {
+                        dispatcher.send(request, ChainhookOccurrencePayload::Bitcoin(data));
+                        //send_request(request, 10, 3, ctx).await?
                     }
                     BitcoinChainhookOccurrence::File(path, bytes) => {
                         file_append(path, bytes, ctx)?

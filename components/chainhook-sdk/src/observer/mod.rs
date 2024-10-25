@@ -15,6 +15,7 @@ use crate::chainhooks::types::{
     ChainhookInstance, ChainhookSpecificationNetworkMap, ChainhookStore,
 };
 
+use crate::dispatcher::{ChainhookOccurrencePayload, Dispatcher};
 use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
     BitcoinBlockFullBreakdown,
@@ -727,6 +728,7 @@ pub struct EventObserverBuilder {
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     ctx: Context,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
@@ -738,6 +740,7 @@ impl EventObserverBuilder {
         config: EventObserverConfig,
         observer_commands_tx: &Sender<ObserverCommand>,
         observer_commands_rx: Receiver<ObserverCommand>,
+        dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
         ctx: &Context,
     ) -> Self {
         EventObserverBuilder {
@@ -748,6 +751,7 @@ impl EventObserverBuilder {
             observer_events_tx: None,
             observer_sidecar: None,
             stacks_startup_context: None,
+            dispatcher,
         }
     }
 
@@ -781,6 +785,7 @@ impl EventObserverBuilder {
             self.observer_commands_tx,
             self.observer_commands_rx,
             self.observer_events_tx,
+            self.dispatcher,
             self.observer_sidecar,
             self.stacks_startup_context,
             self.ctx,
@@ -794,6 +799,7 @@ pub fn start_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
     ctx: Context,
@@ -813,6 +819,7 @@ pub fn start_event_observer(
                         observer_commands_tx_moved,
                         observer_commands_rx,
                         observer_events_tx.clone(),
+                        dispatcher,
                         observer_sidecar,
                         context_cloned.clone(),
                     );
@@ -846,6 +853,7 @@ pub fn start_event_observer(
                         observer_commands_tx_moved,
                         observer_commands_rx,
                         observer_events_tx.clone(),
+                        dispatcher,
                         observer_sidecar,
                         stacks_startup_context.unwrap_or_default(),
                         context_cloned.clone(),
@@ -888,6 +896,7 @@ pub async fn start_bitcoin_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     observer_sidecar: Option<ObserverSidecar>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
@@ -927,6 +936,7 @@ pub async fn start_bitcoin_event_observer(
         chainhook_store,
         observer_commands_rx,
         observer_events_tx,
+        dispatcher,
         None,
         prometheus_monitoring,
         observer_sidecar,
@@ -940,6 +950,7 @@ pub async fn start_stacks_event_observer(
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
     ctx: Context,
@@ -1054,6 +1065,7 @@ pub async fn start_stacks_event_observer(
         chainhook_store,
         observer_commands_rx,
         observer_events_tx,
+        dispatcher,
         ingestion_shutdown,
         prometheus_monitoring,
         observer_sidecar,
@@ -1134,6 +1146,7 @@ pub async fn start_observer_commands_handler(
     mut chainhook_store: ChainhookStore,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     ingestion_shutdown: Option<Shutdown>,
     prometheus_monitoring: PrometheusMonitoring,
     observer_sidecar: Option<ObserverSidecar>,
@@ -1148,7 +1161,64 @@ pub async fn start_observer_commands_handler(
         .and_then(|s| s.bitcoin_blocks_mutator.as_ref())
         .is_some();
 
+    let mut dispatcher = match dispatcher {
+        Some(instance) => instance,
+        None => {
+            let mut dispatcher = Dispatcher::new_single_threaded(&ctx);
+            dispatcher.start();
+            dispatcher
+        },
+    };
+
+    dispatcher.register_result_location();
+
     loop {
+        if let Ok(responses) = dispatcher.try_iter() {
+            for (data, response) in responses {
+                match *data {
+                    ChainhookOccurrencePayload::Stacks(payload) => {
+                        match response {
+                            Ok(_) => {
+                                if let Some(ref tx) = observer_events_tx {
+                                    let _ = tx.send(ObserverEvent::StacksPredicateTriggered(payload));
+                                }
+                            },
+    
+                            Err(e) => {
+                                chainhook_store.deregister_stacks_hook(payload.chainhook.uuid.clone());
+                                if let Some(ref tx) = observer_events_tx {
+                                    let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                                        predicate_key: ChainhookInstance::stacks_key(&payload.chainhook.uuid),
+                                        error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
+                                    }));
+                                }
+                            },
+                        }
+                    },
+
+                    ChainhookOccurrencePayload::Bitcoin(payload) => {
+                        match response {
+                            Ok(_) => {
+                                if let Some(ref tx) = observer_events_tx {
+                                    let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(payload));
+                                }
+                            }
+
+                            Err(e) => {
+                                chainhook_store.deregister_bitcoin_hook(payload.chainhook.uuid.clone());
+                                if let Some(ref tx) = observer_events_tx {
+                                    let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
+                                        predicate_key: ChainhookInstance::bitcoin_key(&payload.chainhook.uuid),
+                                        error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
+                                    }));
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+
         let command = match observer_commands_rx.recv() {
             Ok(cmd) => cmd,
             Err(e) => {
@@ -1560,24 +1630,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for (request, data) in requests.into_iter() {
-                    match send_request(request, 3, 1, &ctx).await {
-                        Ok(_) => {
-                            if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
-                            }
-                        }
-                        Err(e) => {
-                            chainhook_store.deregister_bitcoin_hook(data.chainhook.uuid.clone());
-                            if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookInstance::bitcoin_key(&data.chainhook.uuid),
-                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
-                                }));
-                            }
-                        }
-                    }
-                }
+                let requests =  requests
+                    .into_iter()
+                    .map(|x| (Box::new(x.0), Box::new(ChainhookOccurrencePayload::Bitcoin(x.1))))
+                    .collect::<Vec<_>>();
+
+                dispatcher.send_batch(requests);
 
                 prometheus_monitoring.btc_metrics_block_evaluated(new_tip);
 
@@ -1742,32 +1800,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for (request, data) in requests.into_iter() {
-                    // todo(lgalabru): collect responses for reporting
-                    ctx.try_log(|logger| {
-                        slog::debug!(
-                            logger,
-                            "Dispatching request from stacks chainhook {:?}",
-                            request
-                        )
-                    });
-                    match send_request(request, 3, 1, &ctx).await {
-                        Ok(_) => {
-                            if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::StacksPredicateTriggered(data));
-                            }
-                        }
-                        Err(e) => {
-                            chainhook_store.deregister_stacks_hook(data.chainhook.uuid.clone());
-                            if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookInstance::stacks_key(&data.chainhook.uuid),
-                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
-                                }));
-                            }
-                        }
-                    };
-                }
+                let requests =  requests
+                    .into_iter()
+                    .map(|x| (Box::new(x.0), Box::new(ChainhookOccurrencePayload::Stacks(x.1))))
+                    .collect::<Vec<_>>();
+
+                dispatcher.send_batch(requests);
 
                 prometheus_monitoring.stx_metrics_block_evaluated(new_tip);
 
@@ -1898,6 +1936,7 @@ pub async fn start_observer_commands_handler(
         }
     }
     terminate(ingestion_shutdown, observer_events_tx, &ctx);
+    dispatcher.graceful_shutdown();
     Ok(())
 }
 

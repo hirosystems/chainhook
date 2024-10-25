@@ -19,7 +19,7 @@ use crate::{
         open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
     },
 };
-use chainhook_sdk::types::{BlockIdentifier, Chain};
+use chainhook_sdk::{dispatcher::{ChainhookOccurrencePayload, Dispatcher}, types::{BlockIdentifier, Chain}};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
@@ -181,6 +181,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     predicate_spec: &StacksChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
     stacks_db_conn: &DB,
+    dispatcher: Dispatcher<ChainhookOccurrencePayload>,
     config: &Config,
     kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
@@ -357,8 +358,10 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 number_of_times_triggered += 1;
                 loop_did_trigger = true;
                 let res = match action {
-                    StacksChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 3, 1, ctx).await
+                    StacksChainhookOccurrence::Http(request, data) => {
+                        dispatcher.send(request, ChainhookOccurrencePayload::Stacks(data));
+                        Ok(())
+                        //send_request(request, 3, 1, ctx).await
                     }
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx),
                     StacksChainhookOccurrence::Data(_payload) => Ok(()),

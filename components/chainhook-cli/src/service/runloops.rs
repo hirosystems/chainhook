@@ -7,9 +7,7 @@ use chainhook_sdk::{
     chainhooks::{
         bitcoin::BitcoinChainhookInstance, stacks::StacksChainhookInstance,
         types::ChainhookInstance,
-    },
-    observer::ObserverCommand,
-    utils::Context,
+    }, dispatcher::{ChainhookOccurrencePayload, Dispatcher}, observer::ObserverCommand, utils::Context
 };
 use threadpool::ThreadPool;
 
@@ -37,10 +35,20 @@ pub fn start_stacks_scan_runloop(
     config: &Config,
     stacks_scan_op_rx: crossbeam_channel::Receiver<StacksScanOp>,
     observer_command_tx: Sender<ObserverCommand>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     ctx: &Context,
 ) {
     let stacks_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_stacks_scans);
     let mut kill_signals = HashMap::new();
+
+    let mut dispatcher = match dispatcher {
+        Some(instance) => instance,
+        None => {
+            let mut dispatcher = Dispatcher::new_single_threaded(ctx);
+            dispatcher.start();
+            dispatcher
+        },
+    };
 
     while let Ok(op) = stacks_scan_op_rx.recv() {
         match op {
@@ -51,6 +59,7 @@ pub fn start_stacks_scan_runloop(
                 let moved_ctx = ctx.clone();
                 let moved_config = config.clone();
                 let observer_command_tx = observer_command_tx.clone();
+                let moved_dispatcher = dispatcher.clone();
                 let kill_signal = Arc::new(RwLock::new(false));
                 kill_signals.insert(predicate_spec.uuid.clone(), kill_signal.clone());
                 stacks_scan_pool.execute(move || {
@@ -76,6 +85,7 @@ pub fn start_stacks_scan_runloop(
                         &predicate_spec,
                         unfinished_scan_data,
                         &stacks_db_conn,
+                        moved_dispatcher,
                         &moved_config,
                         Some(kill_signal),
                         &moved_ctx,
@@ -125,6 +135,8 @@ pub fn start_stacks_scan_runloop(
         }
     }
     stacks_scan_pool.join();
+
+    dispatcher.graceful_shutdown();
 }
 
 pub enum BitcoinScanOp {
@@ -139,10 +151,20 @@ pub fn start_bitcoin_scan_runloop(
     config: &Config,
     bitcoin_scan_op_rx: crossbeam_channel::Receiver<BitcoinScanOp>,
     observer_command_tx: Sender<ObserverCommand>,
+    dispatcher: Option<Dispatcher<ChainhookOccurrencePayload>>,
     ctx: &Context,
 ) {
     let bitcoin_scan_pool = ThreadPool::new(config.limits.max_number_of_concurrent_bitcoin_scans);
     let mut kill_signals = HashMap::new();
+
+    let mut dispatcher = match dispatcher {
+        Some(instance) => instance,
+        None => {
+            let mut dispatcher = Dispatcher::new_single_threaded(ctx);
+            dispatcher.start();
+            dispatcher
+        },
+    };
 
     while let Ok(op) = bitcoin_scan_op_rx.recv() {
         match op {
@@ -155,11 +177,13 @@ pub fn start_bitcoin_scan_runloop(
                 let observer_command_tx = observer_command_tx.clone();
                 let kill_signal = Arc::new(RwLock::new(false));
                 kill_signals.insert(predicate_spec.uuid.clone(), kill_signal.clone());
+                let moved_dispatcher = dispatcher.clone();
 
                 bitcoin_scan_pool.execute(move || {
                     let op = scan_bitcoin_chainstate_via_rpc_using_predicate(
                         &predicate_spec,
                         unfinished_scan_data,
+                        moved_dispatcher,
                         &moved_config,
                         Some(kill_signal),
                         &moved_ctx,
@@ -209,4 +233,6 @@ pub fn start_bitcoin_scan_runloop(
         }
     }
     bitcoin_scan_pool.join();
+
+    dispatcher.graceful_shutdown();
 }
