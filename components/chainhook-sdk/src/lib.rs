@@ -22,6 +22,7 @@ pub use bitcoincore_rpc::bitcoin;
 pub use chainhook_types as types;
 
 pub mod chainhooks;
+pub mod dispatcher;
 pub mod indexer;
 pub mod monitoring;
 pub mod observer;

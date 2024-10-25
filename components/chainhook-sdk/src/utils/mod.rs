@@ -187,7 +187,7 @@ pub async fn send_request(
             ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
             return Err(msg);
         }
-        std::thread::sleep(std::time::Duration::from_secs(attempts_interval_sec.into()));
+        tokio::time::sleep(std::time::Duration::from_secs(attempts_interval_sec.into())).await;
     }
 }
 
