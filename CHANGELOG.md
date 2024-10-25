@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.4](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.3...v1.9.0-stacks-signers.4) (2024-10-25)
+
+
+### Bug Fixes
+
+* bump stacks codec ([3c117b5](https://github.com/hirosystems/chainhook/commit/3c117b562d02b8b5379fd4b0f3187567d7f5289b))
+
 ## [1.9.0-stacks-signers.3](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.2...v1.9.0-stacks-signers.3) (2024-10-25)
 
 
