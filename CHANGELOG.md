@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.2](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.1...v1.9.0-stacks-signers.2) (2024-10-25)
+
+
+### Features
+
+* add mock signer message support ([#669](https://github.com/hirosystems/chainhook/issues/669)) ([ad5fd54](https://github.com/hirosystems/chainhook/commit/ad5fd54b3d1d8f638fa44a531bca71306fbb8c6f))
+
 ## [1.9.0-stacks-signers.1](https://github.com/hirosystems/chainhook/compare/v1.8.0...v1.9.0-stacks-signers.1) (2024-10-25)
 
 
