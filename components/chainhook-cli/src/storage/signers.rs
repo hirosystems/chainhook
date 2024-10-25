@@ -5,13 +5,13 @@ use chainhook_sdk::{
     types::{
         BlockAcceptedResponse, BlockIdentifier, BlockProposalData, BlockPushedData,
         BlockRejectReasonCode, BlockRejectedResponse, BlockResponseData, BlockValidationFailedCode,
-        NakamotoBlockData, NakamotoBlockHeaderData, SignerMessageMetadata,
+        NakamotoBlockData, NakamotoBlockHeaderData, PeerInfoData, SignerMessageMetadata,
         StacksNonConsensusEventData, StacksNonConsensusEventPayloadData, StacksSignerMessage,
         StacksStackerDbChunk,
     },
     utils::Context,
 };
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 
 use super::sqlite::{create_or_open_readwrite_db, open_existing_readonly_db};
 
@@ -49,7 +49,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     )
     .map_err(|e| format!("unable to create table: {e}"))?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_ms, received_at_block_height)", 
+        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_block_height)", 
         []
     ).map_err(|e| format!("unable to create index: {e}"))?;
     conn.execute(
@@ -104,7 +104,117 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     )
     .map_err(|e| format!("unable to create table: {e}"))?;
 
+    // `MockProposal` or `PeerInfo` data
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS mock_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER,
+            burn_block_height INTEGER NOT NULL,
+            stacks_tip_consensus_hash TEXT NOT NULL,
+            stacks_tip TEXT NOT NULL,
+            stacks_tip_height INTEGER NOT NULL,
+            pox_consensus TEXT NOT NULL,
+            server_version TEXT NOT NULL,
+            network_id INTEGER NOT NULL,
+            UNIQUE(message_id),
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+
+    // `MockBlock` data
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS mock_blocks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER NOT NULL,
+            mock_proposal_id INTEGER NOT NULL,
+            UNIQUE(message_id),
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+            FOREIGN KEY (mock_proposal_id) REFERENCES mock_proposals(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+
+    // `MockSignature` data
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS mock_signatures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mock_proposal_id INTEGER NOT NULL,
+            message_id INTEGER,
+            mock_block_id INTEGER,
+            server_version TEXT NOT NULL,
+            UNIQUE(message_id),
+            FOREIGN KEY (mock_proposal_id) REFERENCES mock_proposals(id) ON DELETE CASCADE,
+            FOREIGN KEY (mock_block_id) REFERENCES mock_blocks(id) ON DELETE CASCADE,
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| format!("unable to create table: {e}"))?;
+
     Ok(conn)
+}
+
+fn store_mock_proposal_peer_info(
+    db_tx: &Transaction<'_>,
+    peer_info: &PeerInfoData,
+    message_id: Option<u64>,
+) -> Result<u64, String> {
+    let mut proposal_stmt = db_tx
+        .prepare(
+            "INSERT INTO mock_proposals
+            (message_id, burn_block_height, stacks_tip_consensus_hash, stacks_tip, stacks_tip_height, pox_consensus,
+                server_version, network_id)
+            VALUES (?,?,?,?,?,?,?,?)
+            RETURNING id",
+        )
+        .map_err(|e| format!("unable to prepare statement: {e}"))?;
+    let mock_proposal_id: u64 = proposal_stmt
+        .query(rusqlite::params![
+            &message_id,
+            &peer_info.burn_block_height,
+            &peer_info.stacks_tip_consensus_hash,
+            &peer_info.stacks_tip,
+            &peer_info.stacks_tip_height,
+            &peer_info.pox_consensus,
+            &peer_info.server_version,
+            &peer_info.network_id,
+        ])
+        .map_err(|e| format!("unable to write mock proposal: {e}"))?
+        .next()
+        .map_err(|e| format!("unable to retrieve mock proposal id: {e}"))?
+        .ok_or("mock proposal id is empty")?
+        .get(0)
+        .map_err(|e| format!("unable to convert message id: {e}"))?;
+    Ok(mock_proposal_id)
+}
+
+fn store_mock_signature(
+    db_tx: &Transaction<'_>,
+    peer_info: &PeerInfoData,
+    metadata: &SignerMessageMetadata,
+    message_id: Option<u64>,
+    mock_block_id: Option<u64>,
+) -> Result<(), String> {
+    let mock_proposal_id = store_mock_proposal_peer_info(&db_tx, &peer_info, None)?;
+    let mut signature_stmt = db_tx
+        .prepare(
+            "INSERT INTO mock_signatures
+            (message_id, mock_proposal_id, mock_block_id, server_version)
+            VALUES (?,?,?,?)",
+        )
+        .map_err(|e| format!("unable to prepare statement: {e}"))?;
+    signature_stmt
+        .execute(rusqlite::params![
+            &message_id,
+            &mock_proposal_id,
+            &mock_block_id,
+            &metadata.server_version,
+        ])
+        .map_err(|e| format!("unable to write mock signature: {e}"))?;
+    Ok(())
 }
 
 pub fn store_signer_db_messages(
@@ -139,6 +249,9 @@ pub fn store_signer_db_messages(
                         StacksSignerMessage::BlockProposal(_) => "block_proposal",
                         StacksSignerMessage::BlockResponse(_) => "block_response",
                         StacksSignerMessage::BlockPushed(_) => "block_pushed",
+                        StacksSignerMessage::MockBlock(_) => "mock_block",
+                        StacksSignerMessage::MockSignature(_) => "mock_signature",
+                        StacksSignerMessage::MockProposal(_) => "mock_proposal",
                     };
                     let message_id: u64 = message_stmt
                         .query(rusqlite::params![
@@ -314,6 +427,61 @@ pub fn store_signer_db_messages(
                                 }
                             };
                         }
+                        StacksSignerMessage::MockSignature(data) => {
+                            try_info!(
+                                ctx,
+                                "Storing stacks MockSignature by signer {}",
+                                chunk.pubkey
+                            );
+                            store_mock_signature(
+                                &db_tx,
+                                &data.mock_proposal.peer_info,
+                                &data.metadata,
+                                Some(message_id),
+                                None,
+                            )?;
+                        }
+                        StacksSignerMessage::MockProposal(data) => {
+                            try_info!(
+                                ctx,
+                                "Storing stacks MockProposal by signer {}",
+                                chunk.pubkey
+                            );
+                            let _ = store_mock_proposal_peer_info(&db_tx, data, Some(message_id));
+                        }
+                        StacksSignerMessage::MockBlock(data) => {
+                            try_info!(ctx, "Storing stacks MockBlock by signer {}", chunk.pubkey);
+                            let mock_proposal_id = store_mock_proposal_peer_info(
+                                &db_tx,
+                                &data.mock_proposal.peer_info,
+                                None,
+                            )?;
+                            let mut block_stmt = db_tx
+                                .prepare(
+                                    "INSERT INTO mock_blocks
+                                    (message_id, mock_proposal_id)
+                                    VALUES (?,?)
+                                    RETURNING id",
+                                )
+                                .map_err(|e| format!("unable to prepare statement: {e}"))?;
+                            let mock_block_id: u64 = block_stmt
+                                .query(rusqlite::params![&message_id, &mock_proposal_id,])
+                                .map_err(|e| format!("unable to write mock block: {e}"))?
+                                .next()
+                                .map_err(|e| format!("unable to retrieve mock block id: {e}"))?
+                                .ok_or("mock block id is empty")?
+                                .get(0)
+                                .map_err(|e| format!("unable to convert message id: {e}"))?;
+                            for signature in data.mock_signatures.iter() {
+                                store_mock_signature(
+                                    &db_tx,
+                                    &signature.mock_proposal.peer_info,
+                                    &signature.metadata,
+                                    None,
+                                    Some(mock_block_id),
+                                )?;
+                            }
+                        }
                     }
                 }
             }
@@ -481,6 +649,9 @@ pub fn get_signer_db_messages_received_at_block(
                         },
                     )
                     .map_err(|e| format!("unable to query block response: {e}"))?,
+                "mock_signature" => todo!(),
+                "mock_proposal" => todo!(),
+                "mock_block" => todo!(),
                 _ => return Err(format!("invalid message type: {type_str}")),
             };
             events.push(event_data_from_message_row(

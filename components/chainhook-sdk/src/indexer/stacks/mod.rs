@@ -693,14 +693,12 @@ pub fn standardize_stacks_marshalled_stackerdb_chunks(
 #[cfg(feature = "stacks-signers")]
 pub fn standardize_stacks_stackerdb_chunks(
     stackerdb_chunks: &NewStackerDbChunks,
-    ctx: &Context,
+    _ctx: &Context,
 ) -> Result<Vec<StacksStackerDbChunk>, String> {
     use stacks_codec::codec::BlockResponse;
     use stacks_codec::codec::RejectCode;
     use stacks_codec::codec::SignerMessage;
     use stacks_codec::codec::ValidateRejectCode;
-
-    use crate::try_debug;
 
     let contract_id = &stackerdb_chunks.contract_id.name;
     let mut parsed_chunks: Vec<StacksStackerDbChunk> = vec![];
