@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.3](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.2...v1.9.0-stacks-signers.3) (2024-10-25)
+
+
+### Features
+
+* add mock signature pubkey ([#670](https://github.com/hirosystems/chainhook/issues/670)) ([c414d79](https://github.com/hirosystems/chainhook/commit/c414d793e9a25c1b541914fee256d98d53bc08a3))
+
 ## [1.9.0-stacks-signers.2](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.1...v1.9.0-stacks-signers.2) (2024-10-25)
 
 
