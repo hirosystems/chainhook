@@ -5,9 +5,9 @@ use chainhook_sdk::{
     types::{
         BlockAcceptedResponse, BlockIdentifier, BlockProposalData, BlockPushedData,
         BlockRejectReasonCode, BlockRejectedResponse, BlockResponseData, BlockValidationFailedCode,
-        NakamotoBlockData, NakamotoBlockHeaderData, PeerInfoData, SignerMessageMetadata,
-        StacksNonConsensusEventData, StacksNonConsensusEventPayloadData, StacksSignerMessage,
-        StacksStackerDbChunk,
+        MockBlockData, MockProposalData, MockSignatureData, NakamotoBlockData,
+        NakamotoBlockHeaderData, PeerInfoData, SignerMessageMetadata, StacksNonConsensusEventData,
+        StacksNonConsensusEventPayloadData, StacksSignerMessage, StacksStackerDbChunk,
     },
     utils::Context,
 };
@@ -649,9 +649,109 @@ pub fn get_signer_db_messages_received_at_block(
                         },
                     )
                     .map_err(|e| format!("unable to query block response: {e}"))?,
-                "mock_signature" => todo!(),
-                "mock_proposal" => todo!(),
-                "mock_block" => todo!(),
+                "mock_signature" => db_tx
+                    .query_row(
+                        "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
+                            p.pox_consensus, p.server_version AS peer_version, p.network_id, s.server_version
+                        FROM mock_signatures AS s
+                        INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
+                        WHERE s.message_id = ?",
+                        rusqlite::params![&message_id],
+                        |signature_row| {
+                            Ok(StacksSignerMessage::MockSignature(MockSignatureData {
+                                mock_proposal: MockProposalData {
+                                    peer_info: PeerInfoData {
+                                        burn_block_height: signature_row.get(0).unwrap(),
+                                        stacks_tip_consensus_hash: signature_row.get(1).unwrap(),
+                                        stacks_tip: signature_row.get(2).unwrap(),
+                                        stacks_tip_height: signature_row.get(3).unwrap(),
+                                        pox_consensus: signature_row.get(4).unwrap(),
+                                        server_version: signature_row.get(5).unwrap(),
+                                        network_id: signature_row.get(6).unwrap()
+                                    }
+                                },
+                                metadata: SignerMessageMetadata {
+                                    server_version: signature_row.get(7).unwrap()
+                                }
+                            }))
+                        },
+                    )
+                    .map_err(|e| format!("unable to query mock signature: {e}"))?,
+                "mock_proposal" => db_tx
+                    .query_row(
+                        "SELECT burn_block_height, stacks_tip_consensus_hash, stacks_tip, stacks_tip_height,
+                            pox_consensus, server_version, network_id
+                        FROM mock_proposals
+                        WHERE message_id = ?",
+                        rusqlite::params![&message_id],
+                        |proposal_row| {
+                            Ok(StacksSignerMessage::MockProposal(PeerInfoData {
+                                burn_block_height: proposal_row.get(0).unwrap(),
+                                stacks_tip_consensus_hash: proposal_row.get(1).unwrap(),
+                                stacks_tip: proposal_row.get(2).unwrap(),
+                                stacks_tip_height: proposal_row.get(3).unwrap(),
+                                pox_consensus: proposal_row.get(4).unwrap(),
+                                server_version: proposal_row.get(5).unwrap(),
+                                network_id: proposal_row.get(6).unwrap()
+                            }))
+                        },
+                    )
+                    .map_err(|e| format!("unable to query mock proposal: {e}"))?,
+                "mock_block" => db_tx
+                    .query_row(
+                        "SELECT b.id, p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
+                            p.pox_consensus, p.server_version, p.network_id
+                        FROM mock_blocks AS b
+                        INNER JOIN mock_proposals AS p ON p.id = b.mock_proposal_id
+                        WHERE b.message_id = ?",
+                        rusqlite::params![&message_id],
+                        |block_row| {
+                            let mock_block_id: u64 = block_row.get(0).unwrap();
+                            let mut sig_stmt = db_tx
+                                .prepare(
+                                    "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip,
+                                        p.stacks_tip_height, p.pox_consensus, p.server_version AS peer_version,
+                                        p.network_id, s.server_version
+                                    FROM mock_signatures AS s
+                                    INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
+                                    WHERE s.mock_block_id = ?")?;
+                            let mut signatures_iter = sig_stmt.query(rusqlite::params![&mock_block_id])?;
+                            let mut mock_signatures = vec![];
+                            while let Some(signature_row) = signatures_iter.next()? {
+                                mock_signatures.push(MockSignatureData {
+                                    mock_proposal: MockProposalData {
+                                        peer_info: PeerInfoData {
+                                            burn_block_height: signature_row.get(0).unwrap(),
+                                            stacks_tip_consensus_hash: signature_row.get(1).unwrap(),
+                                            stacks_tip: signature_row.get(2).unwrap(),
+                                            stacks_tip_height: signature_row.get(3).unwrap(),
+                                            pox_consensus: signature_row.get(4).unwrap(),
+                                            server_version: signature_row.get(5).unwrap(),
+                                            network_id: signature_row.get(6).unwrap()
+                                        }
+                                    },
+                                    metadata: SignerMessageMetadata {
+                                        server_version: signature_row.get(7).unwrap()
+                                    }
+                                });
+                            }
+                            Ok(StacksSignerMessage::MockBlock(MockBlockData {
+                                mock_proposal: MockProposalData {
+                                    peer_info: PeerInfoData {
+                                        burn_block_height: block_row.get(1).unwrap(),
+                                        stacks_tip_consensus_hash: block_row.get(2).unwrap(),
+                                        stacks_tip: block_row.get(3).unwrap(),
+                                        stacks_tip_height: block_row.get(4).unwrap(),
+                                        pox_consensus: block_row.get(5).unwrap(),
+                                        server_version: block_row.get(6).unwrap(),
+                                        network_id: block_row.get(7).unwrap()
+                                    }
+                                },
+                                mock_signatures
+                            }))
+                        },
+                    )
+                    .map_err(|e| format!("unable to query mock block: {e}"))?,
                 _ => return Err(format!("invalid message type: {type_str}")),
             };
             events.push(event_data_from_message_row(
