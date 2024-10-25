@@ -50,6 +50,11 @@ export type StacksSignerMessageBlockResponseAccepted = Static<
   typeof StacksSignerMessageBlockResponseAcceptedSchema
 >;
 
+export const StacksSignerMessageMetadataSchema = Type.Object({
+  server_version: Type.String(),
+});
+export type StacksSignerMessageMetadata = Static<typeof StacksSignerMessageMetadataSchema>;
+
 export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
   type: Type.Literal('Rejected'),
   data: Type.Object({
@@ -75,9 +80,7 @@ export const StacksSignerMessageBlockResponseRejectedSchema = Type.Object({
     signer_signature_hash: Type.String(),
     chain_id: Type.Integer(),
     signature: Type.String(),
-    metadata: Type.Object({
-      server_version: Type.String(),
-    }),
+    metadata: StacksSignerMessageMetadataSchema,
   }),
 });
 export type StacksSignerMessageBlockResponseRejected = Static<
@@ -103,10 +106,62 @@ export const StacksSignerMessageBlockPushedSchema = Type.Object({
 });
 export type StacksSignerMessageBlockPushed = Static<typeof StacksSignerMessageBlockPushedSchema>;
 
+export const StacksSignerMessagePeerInfoSchema = Type.Object({
+  burn_block_height: Type.Integer(),
+  stacks_tip_consensus_hash: Type.String(),
+  stacks_tip: Type.String(),
+  stacks_tip_height: Type.Integer(),
+  pox_consensus: Type.String(),
+  server_version: Type.String(),
+  network_id: Type.Integer(),
+});
+export type StacksSignerMessagePeerInfo = Static<typeof StacksSignerMessagePeerInfoSchema>;
+
+export const StacksSignerMessageMockProposalDataSchema = Type.Object({
+  peer_info: StacksSignerMessagePeerInfoSchema,
+});
+export type StacksSignerMessageMockProposalData = Static<
+  typeof StacksSignerMessageMockProposalDataSchema
+>;
+
+export const StacksSignerMessageMockSignatureDataSchema = Type.Object({
+  mock_proposal: StacksSignerMessageMockProposalDataSchema,
+  metadata: StacksSignerMessageMetadataSchema,
+});
+export type StacksSignerMessageMockSignatureData = Static<
+  typeof StacksSignerMessageMockSignatureDataSchema
+>;
+
+export const StacksSignerMessageMockSignatureSchema = Type.Object({
+  type: Type.Literal('MockSignature'),
+  data: StacksSignerMessageMockSignatureDataSchema,
+});
+export type StacksSignerMessageMockSignature = Static<
+  typeof StacksSignerMessageMockSignatureSchema
+>;
+
+export const StacksSignerMessageMockProposalSchema = Type.Object({
+  type: Type.Literal('MockProposal'),
+  data: StacksSignerMessagePeerInfoSchema,
+});
+export type StacksSignerMessageMockProposal = Static<typeof StacksSignerMessageMockProposalSchema>;
+
+export const StacksSignerMessageMockBlockSchema = Type.Object({
+  type: Type.Literal('MockBlock'),
+  data: Type.Object({
+    mock_proposal: StacksSignerMessageMockProposalDataSchema,
+    mock_signatures: Type.Array(StacksSignerMessageMockSignatureDataSchema),
+  }),
+});
+export type StacksSignerMessageMockBlock = Static<typeof StacksSignerMessageMockBlockSchema>;
+
 export const StacksSignerMessageSchema = Type.Union([
   StacksSignerMessageBlockProposalSchema,
   StacksSignerMessageBlockResponseSchema,
   StacksSignerMessageBlockPushedSchema,
+  StacksSignerMessageMockSignatureSchema,
+  StacksSignerMessageMockProposalSchema,
+  StacksSignerMessageMockBlockSchema,
 ]);
 export type StacksSignerMessage = Static<typeof StacksSignerMessageSchema>;
 
