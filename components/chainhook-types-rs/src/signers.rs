@@ -111,7 +111,9 @@ pub struct MockProposalData {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MockSignatureData {
     pub mock_proposal: MockProposalData,
-    pub metadata: SignerMessageMetadata
+    pub metadata: SignerMessageMetadata,
+    pub signature: String,
+    pub pubkey: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
