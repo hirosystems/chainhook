@@ -5,6 +5,7 @@ use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
 use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
+use crate::storage::signers::{initialize_signers_db, store_signer_db_messages};
 use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
     get_last_block_height_inserted, open_readonly_stacks_db_conn_with_retry,
@@ -19,6 +20,7 @@ use chainhook_sdk::observer::{
     PredicateDeregisteredEvent, PredicateEvaluationReport, PredicateInterruptedData,
     StacksObserverStartupContext,
 };
+use chainhook_sdk::{try_error, try_info};
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
@@ -152,10 +154,12 @@ impl Service {
             }
         }
 
+        initialize_signers_db(&self.config.expected_cache_path(), &self.ctx)
+            .map_err(|e| format!("unable to initialize signers db: {e}"))?;
+
         let (observer_command_tx, observer_command_rx) =
             observer_commands_tx_rx.unwrap_or(channel());
         let (observer_event_tx, observer_event_rx) = crossbeam_channel::unbounded();
-        // let (ordinal_indexer_command_tx, ordinal_indexer_command_rx) = channel();
 
         let mut event_observer_config = self.config.get_event_observer_config();
         event_observer_config.registered_chainhooks = chainhook_store;
@@ -441,12 +445,14 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Bitcoin,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Bitcoin,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireBitcoinPredicate(
@@ -466,12 +472,14 @@ impl Service {
                                 data,
                             ) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Bitcoin,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Bitcoin,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireBitcoinPredicate(
@@ -547,10 +555,16 @@ impl Service {
                                 };
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
-                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
+                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                             StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
-                                // TODO(rafaelcr): Store signer data.
-                                println!("signer message: {:?}", data);
+                                if let Err(e) = store_signer_db_messages(
+                                    &self.config.expected_cache_path(),
+                                    &data.events,
+                                    &self.ctx,
+                                ) {
+                                    try_error!(self.ctx, "unable to store signer messages: {e}");
+                                };
+                                try_info!(self.ctx, "Stored {} stacks non-consensus events", data.events.len());
                             }
                         },
                         Err(e) => {
@@ -574,12 +588,14 @@ impl Service {
                             StacksChainEvent::ChainUpdatedWithBlocks(data) => {
                                 stacks_event += 1;
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Stacks,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Stacks,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireStacksPredicate(
@@ -597,12 +613,14 @@ impl Service {
                             }
                             StacksChainEvent::ChainUpdatedWithReorg(data) => {
                                 for confirmed_block in &data.confirmed_blocks {
-                                    if let Some(expired_predicate_uuids) = expire_predicates_for_block(
-                                        &Chain::Stacks,
-                                        confirmed_block.block_identifier.index,
-                                        &mut predicates_db_conn,
-                                        &ctx,
-                                    ) {
+                                    if let Some(expired_predicate_uuids) =
+                                        expire_predicates_for_block(
+                                            &Chain::Stacks,
+                                            confirmed_block.block_identifier.index,
+                                            &mut predicates_db_conn,
+                                            &ctx,
+                                        )
+                                    {
                                         for uuid in expired_predicate_uuids.into_iter() {
                                             let _ = observer_command_tx.send(
                                                 ObserverCommand::ExpireStacksPredicate(
@@ -619,10 +637,10 @@ impl Service {
                                 }
                             }
                             StacksChainEvent::ChainUpdatedWithMicroblocks(_)
-                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {},
+                            | StacksChainEvent::ChainUpdatedWithMicroblocksReorg(_) => {}
                             StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => {
                                 // TODO(rafaelcr): Expire signer message predicates when appropriate
-                            },
+                            }
                         };
                         update_status_from_report(
                             Chain::Stacks,
@@ -640,7 +658,8 @@ impl Service {
                                 &mut self.config,
                                 &self.ctx,
                             )
-                            .await {
+                            .await
+                            {
                                 error!(
                                     self.ctx.expect_logger(),
                                     "Failed to update database from archive: {e}"

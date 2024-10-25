@@ -873,10 +873,7 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
             | StacksPredicate::NftEvent(_)
             | StacksPredicate::StxEvent(_)
             | StacksPredicate::PrintEvent(_)
-            | StacksPredicate::Txid(_) => {
-                // Ignore, possibly expected behavior?
-                // https://github.com/hirosystems/chainhook/pull/663#discussion_r1814995429
-            },
+            | StacksPredicate::Txid(_) => {},
         };
     }
     (occurrences, expired_predicates)
