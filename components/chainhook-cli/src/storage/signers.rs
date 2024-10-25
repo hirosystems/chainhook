@@ -651,8 +651,8 @@ pub fn get_signer_db_messages_received_at_block(
                 "mock_signature" => db_tx
                     .query_row(
                         "SELECT p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
-                            p.pox_consensus, p.server_version AS peer_version, p.network_id, s.server_version, s.signature,
-                            s.pubkey
+                            p.pox_consensus, p.server_version AS peer_version, p.network_id, p.index_block_hash, s.server_version,
+                            s.signature, s.pubkey
                         FROM mock_signatures AS s
                         INNER JOIN mock_proposals AS p ON p.id = s.mock_proposal_id
                         WHERE s.message_id = ?",
