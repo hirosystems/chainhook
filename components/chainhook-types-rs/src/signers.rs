@@ -92,12 +92,42 @@ pub struct BlockPushedData {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct PeerInfoData {
+    pub burn_block_height: u64,
+    pub stacks_tip_consensus_hash: String,
+    pub stacks_tip: String,
+    pub stacks_tip_height: u64,
+    pub pox_consensus: String,
+    pub server_version: String,
+    pub network_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct MockProposalData {
+    pub peer_info: PeerInfoData,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct MockSignatureData {
+    pub mock_proposal: MockProposalData,
+    pub metadata: SignerMessageMetadata
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct MockBlockData {
+    pub mock_proposal: MockProposalData,
+    pub mock_signatures: Vec<MockSignatureData>
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum StacksSignerMessage {
     BlockProposal(BlockProposalData),
     BlockResponse(BlockResponseData),
     BlockPushed(BlockPushedData),
-    // TODO(rafaelcr): Add mock messages
+    MockSignature(MockSignatureData),
+    MockProposal(PeerInfoData),
+    MockBlock(MockBlockData),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

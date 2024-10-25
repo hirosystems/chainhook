@@ -790,18 +790,22 @@ pub fn standardize_stacks_stackerdb_chunks(
                     block: standardize_stacks_nakamoto_block(&nakamoto_block)?,
                 })
             }
-            SignerMessage::MockSignature(_) => {
-                try_debug!(ctx, "Ignoring MockSignature stacks signer message");
-                continue;
+            SignerMessage::MockSignature(signature) => {
+                StacksSignerMessage::MockSignature(standardize_stacks_signer_mock_signature(&signature))
             }
-            SignerMessage::MockProposal(_) => {
-                try_debug!(ctx, "Ignoring MockProposal stacks signer message");
-                continue;
-            }
-            SignerMessage::MockBlock(_) => {
-                try_debug!(ctx, "Ignoring MockBlock stacks signer message");
-                continue;
-            }
+            SignerMessage::MockProposal(data) => StacksSignerMessage::MockProposal(
+                standardize_stacks_signer_peer_info(&data.peer_info),
+            ),
+            SignerMessage::MockBlock(data) => StacksSignerMessage::MockBlock(MockBlockData {
+                mock_proposal: MockProposalData {
+                    peer_info: standardize_stacks_signer_peer_info(&data.mock_proposal.peer_info),
+                },
+                mock_signatures: data
+                    .mock_signatures
+                    .iter()
+                    .map(|signature| standardize_stacks_signer_mock_signature(signature))
+                    .collect(),
+            }),
         };
         parsed_chunks.push(StacksStackerDbChunk {
             contract: contract_id.clone(),
@@ -815,6 +819,37 @@ pub fn standardize_stacks_stackerdb_chunks(
     }
 
     Ok(parsed_chunks)
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_signer_mock_signature(
+    signature: &stacks_codec::codec::MockSignature,
+) -> MockSignatureData {
+    MockSignatureData {
+        mock_proposal: MockProposalData {
+            peer_info: standardize_stacks_signer_peer_info(
+                &signature.mock_proposal.peer_info,
+            ),
+        },
+        metadata: SignerMessageMetadata {
+            server_version: signature.metadata.server_version.clone(),
+        },
+    }
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_signer_peer_info(
+    peer_info: &stacks_codec::codec::PeerInfo,
+) -> PeerInfoData {
+    PeerInfoData {
+        burn_block_height: peer_info.burn_block_height,
+        stacks_tip_consensus_hash: format!("0x{}", peer_info.stacks_tip_consensus_hash.to_hex()),
+        stacks_tip: format!("0x{}", peer_info.stacks_tip.to_hex()),
+        stacks_tip_height: peer_info.stacks_tip_height,
+        pox_consensus: format!("0x{}", peer_info.pox_consensus.to_hex()),
+        server_version: peer_info.server_version.clone(),
+        network_id: peer_info.network_id,
+    }
 }
 
 #[cfg(feature = "stacks-signers")]
