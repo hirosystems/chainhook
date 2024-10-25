@@ -360,7 +360,8 @@ pub fn get_signer_db_messages_received_at_block(
     {
         let mut messages_stmt = db_tx
             .prepare(
-                "SELECT id, pubkey, contract, sig, received_at_ms, received_at_block_height, received_at_index_block_hash, type
+                "SELECT id, pubkey, contract, sig, received_at_ms, received_at_block_height, received_at_index_block_hash,
+                    type
                 FROM messages
                 WHERE received_at_block_height = ?
                 ORDER BY id ASC",
@@ -425,57 +426,61 @@ pub fn get_signer_db_messages_received_at_block(
                     )
                     .map_err(|e| format!("unable to query block proposal: {e}"))?,
                 "block_response" => db_tx
-                .query_row(
-                    "SELECT accepted, signer_signature_hash, signature, server_version, rejected_reason, rejected_reason_code,
-                        rejected_validation_failed_code, rejected_chain_id
-                    FROM block_responses
-                    WHERE message_id = ?",
-                    rusqlite::params![&message_id],
-                    |response_row| {
-                        let accepted: bool = response_row.get(0).unwrap();
-                        let signer_signature_hash: String = response_row.get(1).unwrap();
-                        let signature: String = response_row.get(2).unwrap();
-                        let metadata = SignerMessageMetadata { server_version: response_row.get(3).unwrap() };
-                        if accepted {
-                            Ok(StacksSignerMessage::BlockResponse(BlockResponseData::Accepted(BlockAcceptedResponse {
-                                signer_signature_hash,
-                                signature,
-                                metadata,
-                            })))
-                        } else {
-                            let rejected_reason_code: String = response_row.get(5).unwrap();
-                            Ok(StacksSignerMessage::BlockResponse(BlockResponseData::Rejected(BlockRejectedResponse {
-                                signer_signature_hash,
-                                signature,
-                                metadata,
-                                reason: response_row.get(4).unwrap(),
-                                reason_code: match rejected_reason_code.as_str() {
-                                    "validation_failed" => {
-                                        let validation_code: String = response_row.get(6).unwrap();
-                                        BlockRejectReasonCode::ValidationFailed { validation_failed: match validation_code.as_str() {
-                                            "bad_block_hash" => BlockValidationFailedCode::BadBlockHash,
-                                            "bad_transaction" => BlockValidationFailedCode::BadTransaction,
-                                            "invalid_block" => BlockValidationFailedCode::InvalidBlock,
-                                            "chainstate_error" => BlockValidationFailedCode::ChainstateError,
-                                            "unknown_parent" => BlockValidationFailedCode::UnknownParent,
-                                            "no_canonical_tenure" => BlockValidationFailedCode::NonCanonicalTenure,
-                                            "no_such_tenure" => BlockValidationFailedCode::NoSuchTenure,
-                                            _ => unreachable!(),
-                                        } }
+                    .query_row(
+                        "SELECT accepted, signer_signature_hash, signature, server_version, rejected_reason,
+                            rejected_reason_code, rejected_validation_failed_code, rejected_chain_id
+                        FROM block_responses
+                        WHERE message_id = ?",
+                        rusqlite::params![&message_id],
+                        |response_row| {
+                            let accepted: bool = response_row.get(0).unwrap();
+                            let signer_signature_hash: String = response_row.get(1).unwrap();
+                            let signature: String = response_row.get(2).unwrap();
+                            let metadata = SignerMessageMetadata {
+                                server_version: response_row.get(3).unwrap()
+                            };
+                            if accepted {
+                                Ok(StacksSignerMessage::BlockResponse(BlockResponseData::Accepted(BlockAcceptedResponse {
+                                    signer_signature_hash,
+                                    signature,
+                                    metadata,
+                                })))
+                            } else {
+                                let rejected_reason_code: String = response_row.get(5).unwrap();
+                                Ok(StacksSignerMessage::BlockResponse(BlockResponseData::Rejected(BlockRejectedResponse {
+                                    signer_signature_hash,
+                                    signature,
+                                    metadata,
+                                    reason: response_row.get(4).unwrap(),
+                                    reason_code: match rejected_reason_code.as_str() {
+                                        "validation_failed" => {
+                                            let validation_code: String = response_row.get(6).unwrap();
+                                            BlockRejectReasonCode::ValidationFailed {
+                                                validation_failed: match validation_code.as_str() {
+                                                    "bad_block_hash" => BlockValidationFailedCode::BadBlockHash,
+                                                    "bad_transaction" => BlockValidationFailedCode::BadTransaction,
+                                                    "invalid_block" => BlockValidationFailedCode::InvalidBlock,
+                                                    "chainstate_error" => BlockValidationFailedCode::ChainstateError,
+                                                    "unknown_parent" => BlockValidationFailedCode::UnknownParent,
+                                                    "no_canonical_tenure" => BlockValidationFailedCode::NonCanonicalTenure,
+                                                    "no_such_tenure" => BlockValidationFailedCode::NoSuchTenure,
+                                                    _ => unreachable!(),
+                                                }
+                                            }
+                                        },
+                                        "connectivity_issues" => BlockRejectReasonCode::ConnectivityIssues,
+                                        "rejected_in_prior_round" => BlockRejectReasonCode::RejectedInPriorRound,
+                                        "no_sortition_view" => BlockRejectReasonCode::NoSortitionView,
+                                        "sortition_view_mismatch" => BlockRejectReasonCode::SortitionViewMismatch,
+                                        "testing_directive" => BlockRejectReasonCode::TestingDirective,
+                                        _ => unreachable!(),
                                     },
-                                    "connectivity_issues" => BlockRejectReasonCode::ConnectivityIssues,
-                                    "rejected_in_prior_round" => BlockRejectReasonCode::RejectedInPriorRound,
-                                    "no_sortition_view" => BlockRejectReasonCode::NoSortitionView,
-                                    "sortition_view_mismatch" => BlockRejectReasonCode::SortitionViewMismatch,
-                                    "testing_directive" => BlockRejectReasonCode::TestingDirective,
-                                    _ => unreachable!(),
-                                },
-                                chain_id: response_row.get(7).unwrap(),
-                            })))
-                        }
-                    },
-                )
-                .map_err(|e| format!("unable to query block response: {e}"))?,
+                                    chain_id: response_row.get(7).unwrap(),
+                                })))
+                            }
+                        },
+                    )
+                    .map_err(|e| format!("unable to query block response: {e}"))?,
                 _ => return Err(format!("invalid message type: {type_str}")),
             };
             events.push(event_data_from_message_row(

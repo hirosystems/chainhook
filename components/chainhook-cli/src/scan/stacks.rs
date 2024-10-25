@@ -20,11 +20,14 @@ use crate::{
         signers::get_signer_db_messages_received_at_block, StacksDbConnections,
     },
 };
-use chainhook_sdk::types::{BlockIdentifier, Chain};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
     utils::Context,
+};
+use chainhook_sdk::{
+    chainhooks::stacks::evaluate_stacks_predicate_on_non_consensus_events,
+    types::{BlockIdentifier, Chain},
 };
 use chainhook_sdk::{
     chainhooks::stacks::{
@@ -328,22 +331,28 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         last_block_scanned = block_data.block_identifier.clone();
 
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
-
         let (hits_per_blocks, _predicates_expired) =
             evaluate_stacks_chainhook_on_blocks(blocks, predicate_spec, ctx);
 
-        if hits_per_blocks.is_empty() {
+        let events = get_signer_db_messages_received_at_block(
+            &mut db_conns.signers_db,
+            &block_data.block_identifier,
+        )?;
+        let (hits_per_events, _) = evaluate_stacks_predicate_on_non_consensus_events(
+            &events,
+            predicate_spec,
+            ctx,
+        );
+
+        if hits_per_blocks.is_empty() && hits_per_events.is_empty() {
             continue;
         }
-
-        let non_consensus_events =
-            get_signer_db_messages_received_at_block(&mut db_conns.signers_db, &block_data.block_identifier)?;
 
         let trigger = StacksTriggerChainhook {
             chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
-            events: non_consensus_events.iter().collect(),
+            events: hits_per_events,
         };
         let res = match handle_stacks_hook_action(
             trigger,
