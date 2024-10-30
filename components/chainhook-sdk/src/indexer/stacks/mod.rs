@@ -147,6 +147,7 @@ pub struct NewEvent {
     pub data_map_insert_event: Option<JsonValue>,
     pub data_map_update_event: Option<JsonValue>,
     pub data_map_delete_event: Option<JsonValue>,
+    pub tenure_change_event: Option<JsonValue>,
     pub contract_event: Option<JsonValue>,
 }
 
@@ -274,6 +275,15 @@ impl NewEvent {
                 serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
             return Ok(StacksTransactionEvent {
                 event_payload: StacksTransactionEventPayload::DataMapDeleteEvent(data.clone()),
+                position: StacksTransactionEventPosition {
+                    index: self.event_index,
+                },
+            });
+        } else if let Some(ref event_data) = self.tenure_change_event {
+            let data: TenureChangeEventData =
+                serde_json::from_value(event_data.clone()).expect("Unable to decode event_data");
+            return Ok(StacksTransactionEvent {
+                event_payload: StacksTransactionEventPayload::TenureChangeEvent(data.clone()),
                 position: StacksTransactionEventPosition {
                     index: self.event_index,
                 },

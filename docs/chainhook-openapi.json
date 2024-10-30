@@ -1182,6 +1182,27 @@
           },
           {
             "type": "object",
+            "required": [
+              "actions",
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "tenure_change"
+                ]
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
             "oneOf": [
               {
                 "type": "object",

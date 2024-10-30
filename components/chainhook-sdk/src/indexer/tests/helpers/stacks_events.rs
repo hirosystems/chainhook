@@ -91,6 +91,13 @@ pub fn create_new_event_from_stacks_event(event: StacksTransactionEventPayload) 
         } else {
             None
         };
+    let tenure_change_event = if let StacksTransactionEventPayload::TenureChangeEvent(data) = &event
+    {
+        event_type = "tenure_change".to_string();
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
     let contract_event = if let StacksTransactionEventPayload::SmartContractEvent(data) = &event {
         event_type = "smart_contract_print_event".to_string();
         Some(serde_json::to_value(data).unwrap())
@@ -116,6 +123,7 @@ pub fn create_new_event_from_stacks_event(event: StacksTransactionEventPayload) 
         data_map_insert_event,
         data_map_update_event,
         data_map_delete_event,
+        tenure_change_event,
         contract_event,
     }
 }

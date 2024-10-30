@@ -1,7 +1,9 @@
 use crate::scan::stacks::{Record, RecordKind};
 use crate::service::tests::helpers::mock_bitcoin_rpc::TipData;
 use chainhook_sdk::indexer::bitcoin::NewBitcoinBlock;
-use chainhook_sdk::indexer::stacks::{NewBlock, NewEvent, NewTransaction, RewardSet, RewardSetSigner};
+use chainhook_sdk::indexer::stacks::{
+    NewBlock, NewEvent, NewTransaction, RewardSet, RewardSetSigner,
+};
 use chainhook_sdk::types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
@@ -87,6 +89,13 @@ fn create_stacks_new_event(
     } else {
         None
     };
+    let tenure_change_event = if let StacksTransactionEventPayload::TenureChangeEvent(data) = &event
+    {
+        event_type = "tenure_change_event".to_string();
+        Some(serde_json::to_value(data).unwrap())
+    } else {
+        None
+    };
     let contract_event = if let StacksTransactionEventPayload::SmartContractEvent(data) = &event {
         event_type = "smart_contract_print_event".to_string();
         Some(serde_json::to_value(data).unwrap())
@@ -112,6 +121,7 @@ fn create_stacks_new_event(
         data_map_insert_event: None,
         data_map_update_event: None,
         data_map_delete_event: None,
+        tenure_change_event,
         contract_event,
     }
 }
@@ -336,12 +346,7 @@ pub async fn mine_stacks_block(
         .map_err(|e| format!("failed to send new_block request: {}", e))?
         .text()
         .await
-        .map_err(|e| {
-            format!(
-                "failed to parse response for new_block request: {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to parse response for new_block request: {}", e))?;
     Ok(())
 }
 
@@ -414,12 +419,7 @@ async fn call_new_burn_block(
         .map_err(|e| format!("failed to send new_burn_block request: {}", e))?
         .text()
         .await
-        .map_err(|e| {
-            format!(
-                "failed to parse response for new_burn_block request: {}",
-                e
-            )
-        })?;
+        .map_err(|e| format!("failed to parse response for new_burn_block request: {}", e))?;
     Ok(())
 }
 

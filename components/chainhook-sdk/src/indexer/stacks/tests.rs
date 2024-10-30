@@ -3,6 +3,7 @@ use chainhook_types::{
     FTBurnEventData, FTMintEventData, FTTransferEventData, NFTBurnEventData, NFTMintEventData,
     NFTTransferEventData, STXBurnEventData, STXLockEventData, STXMintEventData,
     STXTransferEventData, SmartContractEventData, StacksTransactionEventPayload,
+    TenureChangeEventData,
 };
 
 use crate::indexer::tests::helpers::stacks_events::create_new_event_from_stacks_event;
@@ -213,10 +214,10 @@ fn test_stacks_vector_040() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_040(), None));
 }
 
-// #[test]
-// fn test_stacks_vector_041() {
-//     process_stacks_blocks_and_check_expectations((helpers::shapes::get_vector_041(), None));
-// }
+#[test]
+fn test_stacks_vector_041() {
+    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_041(), None));
+}
 
 #[test]
 fn test_stacks_vector_042() {
@@ -363,6 +364,9 @@ fn test_stacks_vector_055() {
     topic: "print".to_string(),
     hex_value: String::new(),
 }); "smart_contract_print_event")]
+#[test_case(StacksTransactionEventPayload::TenureChangeEvent(TenureChangeEventData {
+    consensus_hash: String::new(),
+}); "tenure_change_event")]
 fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEventPayload) {
     let new_event = create_new_event_from_stacks_event(original_event.clone());
     let event = new_event.into_chainhook_event().unwrap();
@@ -392,6 +396,7 @@ fn into_chainhook_event_rejects_invalid_missing_event() {
         data_map_insert_event: None,
         data_map_update_event: None,
         data_map_delete_event: None,
+        tenure_change_event: None,
         contract_event: None,
     };
     new_event
