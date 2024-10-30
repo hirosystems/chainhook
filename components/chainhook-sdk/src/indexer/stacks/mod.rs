@@ -41,10 +41,10 @@ pub struct NewBlock {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_time: Option<u64>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_bitvec: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_signature: Option<Vec<String>>,
 
@@ -387,8 +387,7 @@ pub fn standardize_stacks_block(
                     }
                     return Err(format!(
                         "unable to standardize block #{} ({})",
-                        block.block_height,
-                        e
+                        block.block_height, e
                     ));
                 }
             };
@@ -629,7 +628,6 @@ pub fn get_value_description(raw_value: &str, ctx: &Context) -> String {
         _ => return raw_value.to_string(),
     };
 
-    
     match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => format!("{}", value),
         Err(e) => {
@@ -703,12 +701,12 @@ pub fn get_tx_description(
                         if let ClarityValue::Tuple(outter) = *data.data {
                             if let Some(ClarityValue::Tuple(inner)) = outter.data_map.get("data") {
                                 if let (
-                                        Some(ClarityValue::Principal(stacking_address)),
-                                        Some(ClarityValue::UInt(amount_ustx)),
-                                        Some(ClarityValue::Principal(delegate)),
-                                        Some(ClarityValue::Optional(pox_addr)),
-                                        Some(ClarityValue::Optional(unlock_burn_height)),
-                                    ) = (
+                                    Some(ClarityValue::Principal(stacking_address)),
+                                    Some(ClarityValue::UInt(amount_ustx)),
+                                    Some(ClarityValue::Principal(delegate)),
+                                    Some(ClarityValue::Optional(pox_addr)),
+                                    Some(ClarityValue::Optional(unlock_burn_height)),
+                                ) = (
                                     &outter.data_map.get("stacker"),
                                     &inner.data_map.get("amount-ustx"),
                                     &inner.data_map.get("delegate-to"),
@@ -728,17 +726,13 @@ pub fn get_tx_description(
                                                 Some(value) => match &**value {
                                                     ClarityValue::Tuple(address_comps) => {
                                                         match (
-                                                            &address_comps
-                                                                .data_map
-                                                                .get("version"),
+                                                            &address_comps.data_map.get("version"),
                                                             &address_comps
                                                                 .data_map
                                                                 .get("hashbytes"),
                                                         ) {
                                                             (
-                                                                Some(ClarityValue::UInt(
-                                                                    _version,
-                                                                )),
+                                                                Some(ClarityValue::UInt(_version)),
                                                                 Some(ClarityValue::Sequence(
                                                                     SequenceData::Buffer(
                                                                         _hashbytes,
@@ -763,14 +757,7 @@ pub fn get_tx_description(
                                             },
                                         }),
                                     );
-                                    return Ok((
-                                        description,
-                                        tx_type,
-                                        0,
-                                        0,
-                                        "".to_string(),
-                                        None,
-                                    ));
+                                    return Ok((description, tx_type, 0, 0, "".to_string(), None));
                                 }
                             }
                         }
@@ -1324,6 +1311,7 @@ pub fn get_standardized_stacks_receipt(
                 StacksTransactionEventPayload::DataMapInsertEvent(_data) => {}
                 StacksTransactionEventPayload::DataMapUpdateEvent(_data) => {}
                 StacksTransactionEventPayload::DataMapDeleteEvent(_data) => {}
+                StacksTransactionEventPayload::TenureChangeEvent(_data) => {}
                 StacksTransactionEventPayload::SmartContractEvent(data) => {
                     mutated_contracts_radius.insert(data.contract_identifier.clone());
                 }

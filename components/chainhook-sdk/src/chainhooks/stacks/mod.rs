@@ -1,11 +1,11 @@
 use crate::observer::EventObserverConfig;
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
+use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
-use super::types::validate_txid;
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
     StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
@@ -258,6 +258,7 @@ pub enum StacksPredicate {
     FtEvent(StacksFtEventBasedPredicate),
     NftEvent(StacksNftEventBasedPredicate),
     StxEvent(StacksStxEventBasedPredicate),
+    TenureChange(TenureChangeBasedPredicate),
     Txid(ExactMatchingRule),
 }
 
@@ -299,6 +300,7 @@ impl StacksPredicate {
             StacksPredicate::FtEvent(_) => {}
             StacksPredicate::NftEvent(_) => {}
             StacksPredicate::StxEvent(_) => {}
+            StacksPredicate::TenureChange(_) => {}
             StacksPredicate::Txid(ExactMatchingRule::Equals(txid)) => {
                 if let Err(e) = validate_txid(txid) {
                     return Err(append_error_context(
@@ -452,6 +454,12 @@ pub struct StacksStxEventBasedPredicate {
     pub actions: Vec<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct TenureChangeBasedPredicate {
+    pub actions: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct StacksTriggerChainhook<'a> {
     pub chainhook: &'a StacksChainhookInstance,
@@ -484,17 +492,13 @@ pub struct StacksChainhookOccurrencePayload {
 }
 
 impl StacksChainhookOccurrencePayload {
-    pub fn from_trigger(
-        trigger: StacksTriggerChainhook<'_>,
-    ) -> StacksChainhookOccurrencePayload {
+    pub fn from_trigger(trigger: StacksTriggerChainhook<'_>) -> StacksChainhookOccurrencePayload {
         StacksChainhookOccurrencePayload {
             apply: trigger
                 .apply
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksApplyTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -505,9 +509,7 @@ impl StacksChainhookOccurrencePayload {
                 .rollback
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter().cloned()
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksRollbackTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -790,6 +792,7 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
         | StacksPredicate::FtEvent(_)
         | StacksPredicate::NftEvent(_)
         | StacksPredicate::StxEvent(_)
+        | StacksPredicate::TenureChange(_)
         | StacksPredicate::PrintEvent(_)
         | StacksPredicate::Txid(_) => unreachable!(),
     }
@@ -922,6 +925,18 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             }
             false
         }
+        StacksPredicate::TenureChange(_expected_event) => {
+            for event in transaction.metadata.receipt.events.iter() {
+                if matches!(
+                    &event.event_payload,
+                    StacksTransactionEventPayload::TenureChangeEvent(_)
+                ) {
+                    return true;
+                }
+            }
+            false
+        }
+
         StacksPredicate::StxEvent(expected_event) => {
             let expecting_mint = expected_event.actions.contains(&"mint".to_string());
             let expecting_transfer = expected_event.actions.contains(&"transfer".to_string());
@@ -949,7 +964,9 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
         }
         StacksPredicate::PrintEvent(expected_event) => {
             for event in transaction.metadata.receipt.events.iter() {
-                if let StacksTransactionEventPayload::SmartContractEvent(actual) = &event.event_payload {
+                if let StacksTransactionEventPayload::SmartContractEvent(actual) =
+                    &event.event_payload
+                {
                     if actual.topic == "print" {
                         match expected_event {
                             StacksPrintEventBasedPredicate::Contains {
@@ -1212,6 +1229,17 @@ pub fn serialized_event_with_decoded_clarity_value(
                 "position": event.position
             })
         }
+        StacksTransactionEventPayload::TenureChangeEvent(_payload) => {
+            json!({
+                "type": "TenureChangeEvent",
+                // "data": {
+                //     "contract_identifier": payload.contract_identifier,
+                //     "topic": payload.topic,
+                //     "value": serialized_decoded_clarity_value(&payload.tenure_change, ctx),
+                // },
+                "position": event.position
+            })
+        }
     }
 }
 
@@ -1235,7 +1263,7 @@ pub fn serialized_decoded_clarity_value(hex_value: &str, ctx: &Context) -> serde
         Ok(bytes) => bytes,
         _ => return json!(hex_value.to_string()),
     };
-    
+
     match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => serialize_to_json(&value),
         Err(e) => {

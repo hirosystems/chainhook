@@ -121,6 +121,11 @@ pub struct SmartContractEventData {
     pub hex_value: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct TenureChangeEventData {
+    pub consensus_hash: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum StacksTransactionEventPayload {
@@ -139,6 +144,7 @@ pub enum StacksTransactionEventPayload {
     DataMapUpdateEvent(DataMapUpdateEventData),
     DataMapDeleteEvent(DataMapDeleteEventData),
     SmartContractEvent(SmartContractEventData),
+    TenureChangeEvent(TenureChangeEventData),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
