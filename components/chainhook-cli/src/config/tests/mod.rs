@@ -178,5 +178,5 @@ fn it_has_default_config_for_each_network() {
     let config = Config::default(false, false, false, &Some(path)).unwrap();
     assert_eq!(config.network.bitcoin_network, BitcoinNetwork::Regtest);
     assert_eq!(config.network.stacks_network, StacksNetwork::Devnet);
-    Config::default(true, true, false, &None).expect_err("expected invalid combination error");
+    Config::default(true, true, false, &None).expect_err("expected missing environment flag error");
 }

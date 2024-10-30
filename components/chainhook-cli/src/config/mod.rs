@@ -357,7 +357,7 @@ impl Config {
             (false, true, false, _) => Config::testnet_default(),
             (false, false, true, _) => Config::mainnet_default(),
             (false, false, false, Some(config_path)) => Config::from_file_path(config_path)?,
-            _ => Err("Invalid combination of arguments".to_string())?,
+            _ => Err("Must include environment flag (for example --devnet)".to_string())?,
         };
         Ok(config)
     }
