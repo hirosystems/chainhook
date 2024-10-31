@@ -130,12 +130,22 @@ export class ChainhookEventObserver {
     this.fastify = await buildServer(this.observer, this.chainhook, predicates, callback);
     await this.fastify.listen({ host: this.observer.hostname, port: this.observer.port });
     if (this.observer.predicate_health_check_interval_ms && this.healthCheckTimer === undefined) {
-      this.healthCheckTimer = setInterval(() => {
-        predicateHealthCheck(this.observer, this.chainhook).catch(err =>
-          logger.error(err, `ChainhookEventObserver predicate health check error`)
-        );
-      }, this.observer.predicate_health_check_interval_ms);
+      this.scheduleHealthCheck();
     }
+  }
+
+  private scheduleHealthCheck() {
+    this.healthCheckTimer = setTimeout(() => {
+      void predicateHealthCheck(this.observer, this.chainhook)
+        .catch(err => {
+          logger.error(err, `ChainhookEventObserver predicate health check error`);
+        })
+        .finally(() => {
+          if (this.healthCheckTimer) {
+            this.scheduleHealthCheck();
+          }
+        });
+    }, this.observer.predicate_health_check_interval_ms);
   }
 
   /**
