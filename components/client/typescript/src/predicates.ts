@@ -146,10 +146,14 @@ async function registerPredicate(
         authorization_header: `Bearer ${observer.auth_token}`,
       },
     };
-    const newPredicate = pendingPredicate as Predicate;
+    let newPredicate = pendingPredicate as Predicate;
     newPredicate.uuid = randomUUID();
     if (newPredicate.networks.mainnet) newPredicate.networks.mainnet.then_that = thenThat;
     if (newPredicate.networks.testnet) newPredicate.networks.testnet.then_that = thenThat;
+
+    if (observer.predicate_re_register_callback) {
+      newPredicate = await observer.predicate_re_register_callback(newPredicate);
+    }
 
     const path = observer.node_type === 'chainhook' ? `/v1/chainhooks` : `/v1/observers`;
     await request(`${chainhook.base_url}${path}`, {

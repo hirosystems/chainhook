@@ -6,6 +6,7 @@ import { Static, Type } from '@fastify/type-provider-typebox';
 import { BitcoinIfThisOptionsSchema, BitcoinIfThisSchema } from './schemas/bitcoin/if_this';
 import { StacksIfThisOptionsSchema, StacksIfThisSchema } from './schemas/stacks/if_this';
 import { logger } from './util/logger';
+import { PredicateSchema } from './schemas/predicate';
 
 const EventObserverOptionsSchema = Type.Object({
   /** Event observer host name (usually '0.0.0.0') */
@@ -40,6 +41,9 @@ const EventObserverOptionsSchema = Type.Object({
    * up to date. If they become obsolete, we will attempt to re-register them.
    */
   predicate_health_check_interval_ms: Type.Optional(Type.Integer({ default: 5000 })),
+  predicate_re_register_callback: Type.Optional(
+    Type.Function([PredicateSchema], Type.Promise(PredicateSchema))
+  ),
 });
 /** Chainhook event observer configuration options */
 export type EventObserverOptions = Static<typeof EventObserverOptionsSchema>;
