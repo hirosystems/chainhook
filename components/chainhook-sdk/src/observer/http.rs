@@ -301,9 +301,9 @@ pub fn handle_new_mempool_tx(
     success_response()
 }
 
-#[post("/drop_mempool_tx", format = "application/json")]
-pub fn handle_drop_mempool_tx(ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::debug!(logger, "POST /drop_mempool_tx"));
+#[post("/drop_mempool_tx", format = "application/json", data = "<payload>")]
+pub fn handle_drop_mempool_tx(payload: Json<JsonValue>, ctx: &State<Context>) -> Json<JsonValue> {
+    ctx.try_log(|logger| slog::debug!(logger, "POST /drop_mempool_tx {:?}", payload));
     // TODO(lgalabru): use propagate mempool events
     Json(json!({
         "status": 200,
@@ -311,9 +311,9 @@ pub fn handle_drop_mempool_tx(ctx: &State<Context>) -> Json<JsonValue> {
     }))
 }
 
-#[post("/attachments/new", format = "application/json")]
-pub fn handle_new_attachement(ctx: &State<Context>) -> Json<JsonValue> {
-    ctx.try_log(|logger| slog::debug!(logger, "POST /attachments/new"));
+#[post("/attachments/new", format = "application/json", data = "<payload>")]
+pub fn handle_new_attachement(payload: Json<JsonValue>, ctx: &State<Context>) -> Json<JsonValue> {
+    ctx.try_log(|logger| slog::debug!(logger, "POST /attachments/new {:?}", payload));
     Json(json!({
         "status": 200,
         "result": "Ok",
