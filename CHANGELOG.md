@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.6](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.5...v1.9.0-stacks-signers.6) (2024-10-31)
+
+
+### Bug Fixes
+
+* read stacks-core http event POST payloads for ignored events ([#673](https://github.com/hirosystems/chainhook/issues/673)) ([a01470e](https://github.com/hirosystems/chainhook/commit/a01470e34876dcf67969063e1fc900ae947a0a54))
+
 ## [1.9.0-stacks-signers.5](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.4...v1.9.0-stacks-signers.5) (2024-10-25)
 
 
