@@ -170,8 +170,8 @@ async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_po
     .unwrap();
     await_observer_started(ingestion_port).await;
 }
-#[test_case("/drop_mempool_tx", Method::POST, None)]
-#[test_case("/attachments/new", Method::POST, None)]
+#[test_case("/drop_mempool_tx", Method::POST, Some(&json!({})))]
+#[test_case("/attachments/new", Method::POST, Some(&json!({})))]
 #[test_case("/mined_block", Method::POST, Some(&json!({})))]
 #[test_case("/mined_microblock", Method::POST, Some(&json!({})))]
 #[tokio::test]
