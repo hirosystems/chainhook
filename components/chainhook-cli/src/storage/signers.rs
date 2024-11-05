@@ -49,7 +49,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     )
     .map_err(|e| format!("unable to create table: {e}"))?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_block_height)", 
+        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_block_height)",
         []
     ).map_err(|e| format!("unable to create index: {e}"))?;
     conn.execute(
@@ -108,7 +108,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     conn.execute(
         "CREATE TABLE IF NOT EXISTS mock_proposals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message_id INTEGER,
+            message_id INTEGER NOT NULL,
             burn_block_height INTEGER NOT NULL,
             stacks_tip_consensus_hash TEXT NOT NULL,
             stacks_tip TEXT NOT NULL,
@@ -143,7 +143,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
         "CREATE TABLE IF NOT EXISTS mock_signatures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             mock_proposal_id INTEGER NOT NULL,
-            message_id INTEGER,
+            message_id INTEGER NOT NULL,
             mock_block_id INTEGER,
             server_version TEXT NOT NULL,
             signature TEXT NOT NULL,
