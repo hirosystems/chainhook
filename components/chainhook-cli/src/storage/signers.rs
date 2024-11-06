@@ -108,7 +108,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     conn.execute(
         "CREATE TABLE IF NOT EXISTS mock_proposals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message_id INTEGER NOT NULL,
+            message_id INTEGER,
             burn_block_height INTEGER NOT NULL,
             stacks_tip_consensus_hash TEXT NOT NULL,
             stacks_tip TEXT NOT NULL,
@@ -143,7 +143,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
         "CREATE TABLE IF NOT EXISTS mock_signatures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             mock_proposal_id INTEGER NOT NULL,
-            message_id INTEGER NOT NULL,
+            message_id INTEGER,
             mock_block_id INTEGER,
             server_version TEXT NOT NULL,
             signature TEXT NOT NULL,
@@ -699,8 +699,13 @@ pub fn get_signer_db_messages_received_at_block(
                                 index_block_hash: proposal_row.get(7).unwrap(),
                             }))
                         },
-                    )
-                    .map_err(|e| format!("unable to query mock proposal: {e}"))?,
+                    ).unwrap_or_else(|e| {
+                        warn!(
+                            ctx.expect_logger(),
+                            "unable to query mock_proposals table for message_id {}: {}", message_id, e
+                        );
+                        return vec![];
+                    }),
                 "mock_block" => db_tx
                     .query_row(
                         "SELECT b.id, p.burn_block_height, p.stacks_tip_consensus_hash, p.stacks_tip, p.stacks_tip_height,
