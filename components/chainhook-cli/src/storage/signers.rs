@@ -49,7 +49,7 @@ pub fn initialize_signers_db(base_dir: &PathBuf, ctx: &Context) -> Result<Connec
     )
     .map_err(|e| format!("unable to create table: {e}"))?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_block_height)", 
+        "CREATE INDEX IF NOT EXISTS index_messages_on_received_at ON messages(received_at_block_height)",
         []
     ).map_err(|e| format!("unable to create index: {e}"))?;
     conn.execute(
@@ -447,7 +447,7 @@ pub fn store_signer_db_messages(
                                 "Storing stacks MockProposal by signer {}",
                                 chunk.pubkey
                             );
-                            let _ = store_mock_proposal_peer_info(&db_tx, data, Some(message_id));
+                            let _ = store_mock_proposal_peer_info(&db_tx, data, Some(message_id))?;
                         }
                         StacksSignerMessage::MockBlock(data) => {
                             try_info!(ctx, "Storing stacks MockBlock by signer {}", chunk.pubkey);
