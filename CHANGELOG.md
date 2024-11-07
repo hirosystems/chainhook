@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.7](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.6...v1.9.0-stacks-signers.7) (2024-11-07)
+
+
+### Bug Fixes
+
+* propagate error when trying to store peer info ([1bc949a](https://github.com/hirosystems/chainhook/commit/1bc949a6ce17ab67c2c1af2d21fe330461689f49))
+
 ## [1.9.0-stacks-signers.6](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.5...v1.9.0-stacks-signers.6) (2024-10-31)
 
 
