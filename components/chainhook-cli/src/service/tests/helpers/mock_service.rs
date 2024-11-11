@@ -2,7 +2,7 @@ use crate::config::{
     Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi,
     PredicatesApiConfig, StorageConfig, DEFAULT_REDIS_URI,
 };
-use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
+use crate::scan::stacks::import_stacks_chainstate_from_remote_tsv;
 use crate::service::{
     http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
     PredicateStatus, Service,
@@ -442,7 +442,7 @@ pub async fn setup_stacks_chainhook_test(
         Some(prometheus_port),
     );
 
-    consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx)
+    import_stacks_chainstate_from_remote_tsv(&mut config, &ctx)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();

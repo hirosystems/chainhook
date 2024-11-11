@@ -304,6 +304,12 @@ impl Config {
         destination_path
     }
 
+    pub fn is_cache_path_empty(&self) -> Result<bool, String> {
+        let mut dir = std::fs::read_dir(self.expected_cache_path())
+            .map_err(|e| format!("unable to read cache directory: {e}"))?;
+        Ok(dir.next().is_none())
+    }
+
     fn expected_remote_stacks_tsv_base_url(&self) -> Result<&String, String> {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvUrl(config) = source {
@@ -323,7 +329,7 @@ impl Config {
             .map(|url| format!("{}.gz", url))
     }
 
-    pub fn rely_on_remote_stacks_tsv(&self) -> bool {
+    pub fn contains_remote_stacks_tsv_url(&self) -> bool {
         for source in self.event_sources.iter() {
             if let EventSourceConfig::StacksTsvUrl(_config) = source {
                 return true;
