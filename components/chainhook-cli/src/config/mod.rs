@@ -305,8 +305,13 @@ impl Config {
     }
 
     pub fn is_cache_path_empty(&self) -> Result<bool, String> {
-        let mut dir = std::fs::read_dir(self.expected_cache_path())
-            .map_err(|e| format!("unable to read cache directory: {e}"))?;
+        let mut dir = match std::fs::read_dir(self.expected_cache_path()) {
+            Ok(dir) => dir,
+            Err(error) => match error.kind() {
+                std::io::ErrorKind::NotFound => return Ok(true),
+                _ => return Err(format!("unable to read cache directory: {error}"))
+            },
+        };
         Ok(dir.next().is_none())
     }
 
