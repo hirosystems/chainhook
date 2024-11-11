@@ -588,13 +588,16 @@ pub async fn import_stacks_chainstate_from_remote_tsv(
     config: &mut Config,
     ctx: &Context,
 ) -> Result<(), String> {
-    if !config.is_cache_path_empty()? {
-        try_info!(ctx, "A Stacks chainstate already exists, skipping TSV chainstante import");
-        return Ok(());
-    }
-    if !config.contains_remote_stacks_tsv_url() {
-        try_info!(ctx, "No remote Stacks TSV location was specified in config file, skipping TSV chainstante import");
-        return Ok(());
+    #[cfg(not(test))]
+    {
+        if !config.is_cache_path_empty()? {
+            try_info!(ctx, "A Stacks chainstate already exists, skipping TSV chainstante import");
+            return Ok(());
+        }
+        if !config.contains_remote_stacks_tsv_url() {
+            try_info!(ctx, "No remote Stacks TSV location was specified in config file, skipping TSV chainstante import");
+            return Ok(());
+        }
     }
     try_info!(ctx, "Importing Stacks chainstate from TSV");
 
