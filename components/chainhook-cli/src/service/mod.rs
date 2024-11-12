@@ -2,7 +2,6 @@ pub(crate) mod http_api;
 mod runloops;
 
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
-use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
 use crate::storage::signers::{initialize_signers_db, store_signer_db_messages};
@@ -164,11 +163,6 @@ impl Service {
         let mut event_observer_config = self.config.get_event_observer_config();
         event_observer_config.registered_chainhooks = chainhook_store;
 
-        // Download and ingest a Stacks dump
-        if self.config.rely_on_remote_stacks_tsv() {
-            consolidate_local_stacks_chainstate_using_csv(&mut self.config, &self.ctx).await?;
-        }
-
         // Stacks scan operation threadpool
         let (stacks_scan_op_tx, stacks_scan_op_rx) = crossbeam_channel::unbounded();
         let ctx = self.ctx.clone();
@@ -291,8 +285,6 @@ impl Service {
             Some(stacks_startup_context),
             self.ctx.clone(),
         );
-
-        let mut stacks_event = 0;
 
         let ctx = self.ctx.clone();
         match self.config.http_api {
@@ -586,7 +578,6 @@ impl Service {
 
                         match &chain_event {
                             StacksChainEvent::ChainUpdatedWithBlocks(data) => {
-                                stacks_event += 1;
                                 for confirmed_block in &data.confirmed_blocks {
                                     if let Some(expired_predicate_uuids) =
                                         expire_predicates_for_block(
@@ -649,24 +640,6 @@ impl Service {
                             &ctx,
                         );
                     };
-
-                    // Every 32 blocks, we will check if there's a new Stacks file archive to ingest
-                    if stacks_event > 32 {
-                        stacks_event = 0;
-                        if self.config.rely_on_remote_stacks_tsv() {
-                            if let Err(e) = consolidate_local_stacks_chainstate_using_csv(
-                                &mut self.config,
-                                &self.ctx,
-                            )
-                            .await
-                            {
-                                error!(
-                                    self.ctx.expect_logger(),
-                                    "Failed to update database from archive: {e}"
-                                )
-                            };
-                        }
-                    }
                 }
                 ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                     predicate_key,
