@@ -1,3 +1,10 @@
+## [1.9.0-stacks-signers.8](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.7...v1.9.0-stacks-signers.8) (2024-11-12)
+
+
+### Bug Fixes
+
+* only import stacks tsv if chainstate is empty ([#684](https://github.com/hirosystems/chainhook/issues/684)) ([1f9f37e](https://github.com/hirosystems/chainhook/commit/1f9f37ee8c9afa864fc618b761195b0d0711dfbe)), closes [#677](https://github.com/hirosystems/chainhook/issues/677)
+
 ## [1.9.0-stacks-signers.7](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.6...v1.9.0-stacks-signers.7) (2024-11-07)
 
 
