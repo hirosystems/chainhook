@@ -123,7 +123,13 @@ pub struct SmartContractEventData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TenureChangeEventData {
-    pub consensus_hash: String,
+    pub tenure_consensus_hash: String,
+    pub prev_tenure_consensus_hash: String,
+    pub burn_view_consensus_hash: String,
+    pub previous_tenure_end: String,
+    pub previous_tenure_blocks: String,
+    pub cause: String,
+    pub pubkey_hash: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

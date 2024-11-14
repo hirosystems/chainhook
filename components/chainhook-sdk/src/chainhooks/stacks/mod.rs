@@ -819,7 +819,7 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             _ => false,
         },
         StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(
-            stacks_trait,
+            _stacks_trait,
         )) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractDeployment(_actual_deployment) => {
                 ctx.try_log(|logger| {

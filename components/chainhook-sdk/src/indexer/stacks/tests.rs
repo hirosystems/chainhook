@@ -365,7 +365,13 @@ fn test_stacks_vector_055() {
     hex_value: String::new(),
 }); "smart_contract_print_event")]
 #[test_case(StacksTransactionEventPayload::TenureChangeEvent(TenureChangeEventData {
-    consensus_hash: String::new(),
+    tenure_consensus_hash: String::new(),
+    prev_tenure_consensus_hash: String::new(),
+    burn_view_consensus_hash: String::new(),
+    previous_tenure_end: String::new(),
+    previous_tenure_blocks: "9".to_string(),
+    cause: "block_found".to_string(),
+    pubkey_hash: String::new(),
 }); "tenure_change_event")]
 fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEventPayload) {
     let new_event = create_new_event_from_stacks_event(original_event.clone());
