@@ -53,6 +53,13 @@ export const StacksIfThisPrintEventSchema = Type.Object({
 });
 export type StacksIfThisPrintEvent = Static<typeof StacksIfThisPrintEventSchema>;
 
+export const StacksIfThisPrintEventRegexSchema = Type.Object({
+  scope: Type.Literal('print_event'),
+  contract_identifier: Type.String(),
+  matches_regex: Type.String(),
+});
+export type StacksIfThisPrintEventRegex = Static<typeof StacksIfThisPrintEventRegexSchema>;
+
 export const StacksIfThisContractCallSchema = Type.Object({
   scope: Type.Literal('contract_call'),
   contract_identifier: Type.String(),
@@ -90,6 +97,7 @@ export const StacksIfThisSchema = Type.Union([
   StacksIfThisNftEventSchema,
   StacksIfThisStxEventSchema,
   StacksIfThisPrintEventSchema,
+  StacksIfThisPrintEventRegexSchema,
   StacksIfThisContractCallSchema,
   StacksIfThisContractDeploymentSchema,
   StacksIfThisContractDeploymentTraitSchema,
