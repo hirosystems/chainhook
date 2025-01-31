@@ -511,7 +511,7 @@ dependencies = [
 
 [[package]]
 name = "chainhook-sdk"
-version = "0.12.11"
+version = "0.12.12"
 dependencies = [
  "assert-json-diff",
  "base58",
@@ -519,7 +519,7 @@ dependencies = [
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "chainhook-types",
- "clarity",
+ "clarity 2.3.0 (git+https://github.com/stacks-network/stacks-core.git?rev=5f9c466ad8d60e99fd3fc77e9291472e7bb01eef)",
  "crossbeam-channel",
  "dashmap",
  "futures",
@@ -680,7 +680,28 @@ dependencies = [
  "serde_stacker",
  "sha2-asm 0.5.5",
  "slog",
- "stacks-common",
+ "stacks-common 0.0.2 (git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop)",
+]
+
+[[package]]
+name = "clarity"
+version = "2.3.0"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=5f9c466ad8d60e99fd3fc77e9291472e7bb01eef#5f9c466ad8d60e99fd3fc77e9291472e7bb01eef"
+dependencies = [
+ "hashbrown 0.14.5",
+ "integer-sqrt",
+ "lazy_static",
+ "rand",
+ "rand_chacha",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_stacker",
+ "sha2-asm 0.5.5",
+ "slog",
+ "stacks-common 0.0.2 (git+https://github.com/stacks-network/stacks-core.git?rev=5f9c466ad8d60e99fd3fc77e9291472e7bb01eef)",
 ]
 
 [[package]]
@@ -3550,9 +3571,9 @@ dependencies = [
 [[package]]
 name = "stacks-codec"
 version = "2.8.0"
-source = "git+https://github.com/hirosystems/clarinet.git#b84e0d0228a2220c860150939bdc5207e8b505ff"
+source = "git+https://github.com/hirosystems/clarinet.git?rev=b84e0d0228a2220c860150939bdc5207e8b505ff#b84e0d0228a2220c860150939bdc5207e8b505ff"
 dependencies = [
- "clarity",
+ "clarity 2.3.0 (git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop)",
  "serde",
  "wsts",
 ]
@@ -3561,6 +3582,36 @@ dependencies = [
 name = "stacks-common"
 version = "0.0.2"
 source = "git+https://github.com/stacks-network/stacks-core.git?branch=feat/clarity-wasm-develop#5f9c466ad8d60e99fd3fc77e9291472e7bb01eef"
+dependencies = [
+ "chrono",
+ "curve25519-dalek 2.0.0",
+ "ed25519-dalek",
+ "hashbrown 0.14.5",
+ "lazy_static",
+ "libc",
+ "nix 0.23.2",
+ "percent-encoding",
+ "rand",
+ "ripemd",
+ "rusqlite",
+ "secp256k1 0.24.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2",
+ "sha3",
+ "slog",
+ "slog-json",
+ "slog-term",
+ "time",
+ "winapi",
+ "wsts",
+]
+
+[[package]]
+name = "stacks-common"
+version = "0.0.2"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=5f9c466ad8d60e99fd3fc77e9291472e7bb01eef#5f9c466ad8d60e99fd3fc77e9291472e7bb01eef"
 dependencies = [
  "chrono",
  "curve25519-dalek 2.0.0",

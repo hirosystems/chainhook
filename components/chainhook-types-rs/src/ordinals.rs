@@ -54,7 +54,7 @@ pub struct OrdinalInscriptionRevealData {
     pub delegate: Option<String>,
     pub metaprotocol: Option<String>,
     pub metadata: Option<Value>,
-    pub parent: Option<String>,
+    pub parents: Option<Vec<String>>,
     pub ordinal_number: u64,
     pub ordinal_block_height: u64,
     pub ordinal_offset: u64,

@@ -1,6 +1,6 @@
 [package]
 name = "chainhook-sdk"
-version = "0.12.11"
+version = "0.12.12"
 description = "Stateless Transaction Indexing Engine for Stacks and Bitcoin"
 license = "GPL-3.0"
 edition = "2021"
@@ -13,7 +13,7 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde-hex = "0.1.0"
 serde_derive = "1"
 stacks-codec = "2.4.1"
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", package = "clarity", default-features = false, features = [
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", rev = "5f9c466ad8d60e99fd3fc77e9291472e7bb01eef", package = "clarity", default-features = false, features = [
     "canonical",
     "log",
 ] }
