@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
+use crate::{events::*, Brc20Operation, StacksStackerDbChunk, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -119,6 +119,7 @@ pub struct StacksBlockMetadata {
     pub block_time: Option<u64>,
     pub signer_bitvec: Option<String>,
     pub signer_signature: Option<Vec<String>>,
+    pub signer_public_keys: Option<Vec<String>>,
 
     // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
     pub cycle_number: Option<u64>,
@@ -667,6 +668,19 @@ pub struct BlockchainUpdatedWithReorg {
     pub confirmed_headers: Vec<BlockHeader>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "type", content = "data")]
+pub enum StacksNonConsensusEventPayloadData {
+    SignerMessage(StacksStackerDbChunk),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct StacksNonConsensusEventData {
+    pub payload: StacksNonConsensusEventPayloadData,
+    pub received_at_ms: u64,
+    pub received_at_block: BlockIdentifier,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BlockHeader {
     pub block_identifier: BlockIdentifier,
@@ -693,6 +707,11 @@ pub struct BitcoinChainUpdatedWithReorgData {
     pub confirmed_blocks: Vec<BitcoinBlockData>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StacksChainUpdatedWithNonConsensusEventsData {
+    pub events: Vec<StacksNonConsensusEventData>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum StacksChainEvent {
@@ -700,6 +719,7 @@ pub enum StacksChainEvent {
     ChainUpdatedWithReorg(StacksChainUpdatedWithReorgData),
     ChainUpdatedWithMicroblocks(StacksChainUpdatedWithMicroblocksData),
     ChainUpdatedWithMicroblocksReorg(StacksChainUpdatedWithMicroblocksReorgData),
+    ChainUpdatedWithNonConsensusEvents(StacksChainUpdatedWithNonConsensusEventsData),
 }
 
 impl StacksChainEvent {
@@ -729,6 +749,7 @@ impl StacksChainEvent {
                 .microblocks_to_apply
                 .first()
                 .and_then(|b| Some(&b.metadata.anchor_block_identifier)),
+            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => None,
         }
     }
 }

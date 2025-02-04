@@ -496,11 +496,13 @@ dependencies = [
  "rocket",
  "rocket_okapi",
  "rocksdb",
+ "rusqlite",
  "serde",
  "serde-redis",
  "serde_derive",
  "serde_json",
  "serial_test",
+ "slog",
  "tar",
  "test-case",
  "threadpool",
@@ -3549,12 +3551,11 @@ dependencies = [
 
 [[package]]
 name = "stacks-codec"
-version = "2.8.0"
-source = "git+https://github.com/hirosystems/clarinet.git#b84e0d0228a2220c860150939bdc5207e8b505ff"
+version = "2.10.0"
+source = "git+https://github.com/hirosystems/clarinet.git?rev=2ea8e2a104c2e9f3c6f90297bfd79daf596bf34d#2ea8e2a104c2e9f3c6f90297bfd79daf596bf34d"
 dependencies = [
  "clarity",
  "serde",
- "wsts",
 ]
 
 [[package]]

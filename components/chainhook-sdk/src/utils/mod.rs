@@ -6,8 +6,7 @@ use std::{
 };
 
 use chainhook_types::{
-    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData,
-    StacksTransactionData,
+    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData, StacksTransactionData
 };
 use hiro_system_kit::slog::{self, Logger};
 use reqwest::RequestBuilder;

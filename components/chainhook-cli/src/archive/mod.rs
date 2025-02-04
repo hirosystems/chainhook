@@ -132,7 +132,7 @@ pub async fn download_stacks_dataset_if_required(
 ) -> Result<bool, String> {
     if config.is_initial_ingestion_required() {
         // Download default tsv.
-        if config.rely_on_remote_stacks_tsv() && config.should_download_remote_stacks_tsv() {
+        if config.contains_remote_stacks_tsv_url() && config.should_download_remote_stacks_tsv() {
             let url = config.expected_remote_stacks_tsv_url()?;
             let mut tsv_file_path = config.expected_cache_path();
             tsv_file_path.push(default_tsv_file_path(&config.network.stacks_network));

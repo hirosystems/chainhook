@@ -49,6 +49,15 @@ impl StacksBlockPool {
         }
     }
 
+    pub fn get_canonical_fork_chain_tip(&self) -> Option<&BlockIdentifier> {
+        match self.forks.get(&self.canonical_fork_id) {
+            Some(fork) => {
+                Some(fork.get_tip())
+            },
+            None => None,
+        }
+    }
+
     pub fn seed_block_pool(&mut self, blocks: Vec<StacksBlockData>, ctx: &Context) {
         ctx.try_log(|logger| {
             slog::info!(logger, "Seeding block pool with {} blocks", blocks.len())

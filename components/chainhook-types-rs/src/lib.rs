@@ -9,12 +9,14 @@ mod events;
 mod ordinals;
 mod processors;
 mod rosetta;
+mod signers;
 
 pub use contract_interface::*;
 pub use events::*;
 pub use ordinals::*;
 pub use processors::*;
 pub use rosetta::*;
+pub use signers::*;
 
 pub const DEFAULT_STACKS_NODE_RPC: &str = "http://localhost:20443";
 

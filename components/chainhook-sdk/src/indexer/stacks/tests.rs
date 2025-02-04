@@ -398,3 +398,60 @@ fn into_chainhook_event_rejects_invalid_missing_event() {
         .into_chainhook_event()
         .expect_err("expected error on missing event");
 }
+
+#[test]
+#[cfg(feature = "stacks-signers")]
+fn parses_block_response_signer_message() {
+    use chainhook_types::{BlockResponseData, StacksSignerMessage};
+
+    use crate::{
+        indexer::stacks::{
+            NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
+            NewStackerDbChunks, NewStackerDbChunksContractId,
+        },
+        utils::Context,
+    };
+
+    use super::standardize_stacks_stackerdb_chunks;
+
+    let new_chunks = NewStackerDbChunks {
+        contract_id: NewStackerDbChunksContractId {
+            name: "signers-0-1".to_string(),
+            issuer: (
+                NewStackerDbChunkIssuerId(26),
+                NewStackerDbChunkIssuerSlots(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            ),
+        },
+        modified_slots: vec![NewSignerModifiedSlot {
+            sig: "01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1".to_string(),
+            data: "01008f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f000a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b10000005d737461636b732d7369676e657220302e302e3120283a646431656265363436303366353464616534383535386135643832643962643838356539376130312c206465627567206275696c642c206c696e7578205b616172636836345d29".to_string(),
+            slot_id: 1,
+            slot_version: 11,
+        }],
+    };
+    let ctx = &Context::empty();
+    let parsed_chunk = standardize_stacks_stackerdb_chunks(&new_chunks, ctx).unwrap();
+
+    assert_eq!(parsed_chunk.len(), 1);
+    let message = &parsed_chunk[0];
+    assert_eq!(message.contract, "signers-0-1");
+    assert_eq!(
+        message.pubkey,
+        "0x028efa20fa5706567008ebaf48f7ae891342eeb944d96392f719c505c89f84ed8d"
+    );
+    assert_eq!(message.sig, "0x01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1");
+
+    match &message.message {
+        StacksSignerMessage::BlockResponse(response) => match response {
+            BlockResponseData::Accepted(accepted) => {
+                assert_eq!(accepted.signature, "0x00a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b1");
+                assert_eq!(
+                    accepted.signer_signature_hash,
+                    "0x8f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f0"
+                );
+            }
+            _ => assert!(false),
+        },
+        _ => assert!(false),
+    }
+}

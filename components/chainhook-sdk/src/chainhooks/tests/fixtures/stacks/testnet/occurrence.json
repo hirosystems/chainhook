@@ -20,7 +20,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -108,7 +109,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -195,7 +197,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -283,7 +286,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -370,7 +374,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -459,7 +464,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -547,7 +553,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -635,7 +642,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -724,7 +732,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -812,7 +821,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -900,7 +910,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -988,7 +999,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -1076,7 +1088,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -1174,7 +1187,8 @@
         "cycle_number": null,
         "reward_set": null,
         "signer_bitvec": null,
-        "signer_signature": null
+        "signer_signature": null,
+        "signer_public_keys": null
       },
       "parent_block_identifier": {
         "hash": "0x",
@@ -1225,5 +1239,6 @@
         }
       ]
     }
-  ]
+  ],
+  "events": []
 }

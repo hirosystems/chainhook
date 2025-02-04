@@ -1,6 +1,16 @@
 {
   "branches": [
-    "main"
+    "main",
+    {
+      "name": "beta",
+      "channel": "beta",
+      "prerelease": true
+    },
+    {
+      "name": "stacks-signers",
+      "channel": "stacks-signers",
+      "prerelease": true
+    }
   ],
   "plugins": [
     [
