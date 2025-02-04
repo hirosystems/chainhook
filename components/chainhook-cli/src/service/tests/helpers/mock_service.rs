@@ -2,7 +2,7 @@ use crate::config::{
     Config, EventSourceConfig, LimitsConfig, MonitoringConfig, PathConfig, PredicatesApi,
     PredicatesApiConfig, StorageConfig, DEFAULT_REDIS_URI,
 };
-use crate::scan::stacks::consolidate_local_stacks_chainstate_using_csv;
+use crate::scan::stacks::import_stacks_chainstate_from_remote_tsv;
 use crate::service::{
     http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
     PredicateStatus, Service,
@@ -22,8 +22,6 @@ use reqwest::Method;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::path::PathBuf;
-use std::process::Stdio;
-use std::process::{Child, Command};
 use std::sync::mpsc;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -236,21 +234,16 @@ pub async fn build_predicate_api_server(port: u16) -> (Receiver<ObserverCommand>
     (rx, shutdown)
 }
 
-pub async fn start_redis(port: u16) -> Result<Child, String> {
-    let handle = Command::new("redis-server")
-        .arg(format!("--port {port}"))
-        .stdout(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("failed to create start-redis command: {}", e))?;
+pub async fn wait_for_redis(port: u16) -> Result<(), String> {
     let mut attempts = 0;
     loop {
         match redis::Client::open(format!("redis://localhost:{port}/")) {
             Ok(client) => match client.get_connection() {
-                Ok(_) => return Ok(handle),
+                Ok(_) => return Ok(()),
                 Err(e) => {
                     attempts += 1;
                     if attempts == 10 {
-                        return Err(format!("failed to start redis service: {}", e));
+                        return Err(format!("failed to connect to redis service: {}", e));
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await
                 }
@@ -258,7 +251,7 @@ pub async fn start_redis(port: u16) -> Result<Child, String> {
             Err(e) => {
                 attempts += 1;
                 if attempts == 10 {
-                    return Err(format!("failed to start redis service: {}", e));
+                    return Err(format!("failed to connect to redis service: {}", e));
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await
             }
@@ -368,7 +361,6 @@ pub async fn start_chainhook_service(
 }
 
 pub struct TestSetupResult {
-    pub redis_process: Child,
     pub working_dir: String,
     pub chainhook_service_port: u16,
     pub redis_port: u16,
@@ -393,7 +385,7 @@ pub async fn setup_stacks_chainhook_test(
         prometheus_port,
     ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
-    let mut redis_process = start_redis(redis_port)
+    wait_for_redis(redis_port)
         .await
         .unwrap_or_else(|e| panic!("test failed with error: {e}"));
     flush_redis(redis_port);
@@ -409,19 +401,16 @@ pub async fn setup_stacks_chainhook_test(
         let client = redis::Client::open(format!("redis://localhost:{redis_port}/"))
             .unwrap_or_else(|e| {
                 flush_redis(redis_port);
-                redis_process.kill().unwrap();
                 panic!("test failed with error: {e}");
             });
         let mut connection = client.get_connection().unwrap_or_else(|e| {
             flush_redis(redis_port);
-            redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
         let stacks_spec = predicate
             .into_specification_for_network(&StacksNetwork::Devnet)
             .unwrap_or_else(|e| {
                 flush_redis(redis_port);
-                redis_process.kill().unwrap();
                 panic!("test failed with error: {e}");
             });
 
@@ -432,14 +421,13 @@ pub async fn setup_stacks_chainhook_test(
 
     let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
         flush_redis(redis_port);
-        redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
 
     write_stacks_blocks_to_tsv(starting_chain_tip, &tsv_dir).unwrap_or_else(|e| {
         std::fs::remove_dir_all(&working_dir).unwrap();
         flush_redis(redis_port);
-        redis_process.kill().unwrap();
+        // redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
 
@@ -454,12 +442,11 @@ pub async fn setup_stacks_chainhook_test(
         Some(prometheus_port),
     );
 
-    consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx)
+    import_stacks_chainstate_from_remote_tsv(&mut config, &ctx)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
             flush_redis(redis_port);
-            redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
 
@@ -469,11 +456,9 @@ pub async fn setup_stacks_chainhook_test(
             .unwrap_or_else(|e| {
                 std::fs::remove_dir_all(&working_dir).unwrap();
                 flush_redis(redis_port);
-                redis_process.kill().unwrap();
                 panic!("test failed with error: {e}");
             });
     TestSetupResult {
-        redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
@@ -495,14 +480,13 @@ pub async fn setup_bitcoin_chainhook_test(starting_chain_tip: u64) -> TestSetupR
         prometheus_port,
     ) = setup_chainhook_service_ports().unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
-    let mut redis_process = start_redis(redis_port)
+    wait_for_redis(redis_port)
         .await
         .unwrap_or_else(|e| panic!("test failed with error: {e}"));
 
     flush_redis(redis_port);
     let (working_dir, tsv_dir) = create_tmp_working_dir().unwrap_or_else(|e| {
         flush_redis(redis_port);
-        redis_process.kill().unwrap();
         panic!("test failed with error: {e}");
     });
 
@@ -536,11 +520,9 @@ pub async fn setup_bitcoin_chainhook_test(starting_chain_tip: u64) -> TestSetupR
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();
             flush_redis(redis_port);
-            redis_process.kill().unwrap();
             panic!("test failed with error: {e}");
         });
     TestSetupResult {
-        redis_process,
         working_dir,
         chainhook_service_port,
         redis_port,
@@ -553,7 +535,7 @@ pub async fn setup_bitcoin_chainhook_test(starting_chain_tip: u64) -> TestSetupR
 }
 
 pub fn setup_chainhook_service_ports() -> Result<(u16, u16, u16, u16, u16, u16), String> {
-    let redis_port = get_free_port()?;
+    let redis_port = 6379;
     let chainhook_service_port = get_free_port()?;
     let stacks_rpc_port = get_free_port()?;
     let stacks_ingestion_port = get_free_port()?;

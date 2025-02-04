@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
+      - beta
       - develop
+      - stacks-signers
     paths-ignore:
       - '**/CHANGELOG.md'
   pull_request:
@@ -20,7 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [cli, sdk]
+        include:
+          - suite: cli
+            features: redis_tests
+          - suite: sdk
+            features: stacks-signers
     defaults:
       run:
         working-directory: ./components/chainhook-${{ matrix.suite }}
@@ -34,12 +40,6 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
-
-      - name: Install redis
-        if: matrix.suite == 'cli'
-        run: |
-          sudo apt-get install -y redis-server
-          echo "TARPAULIN_FLAGS=--features redis_tests" >> $GITHUB_ENV
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -59,15 +59,30 @@ jobs:
         run: |
           cargo install cargo-tarpaulin
 
+      - name: Setup integration environment
+        run: |
+          sudo ufw disable
+          docker compose -f ../../dockerfiles/docker-compose.dev.yml up -d
+          docker compose -f ../../dockerfiles/docker-compose.dev.yml logs -t -f --no-color &> docker-compose-logs.txt &
+        if: matrix.suite == 'cli'
+  
       - name: Run tests
         run: |
-          cargo tarpaulin --skip-clean --out lcov ${{ env.TARPAULIN_FLAGS }} -- --test-threads=1
+          cargo tarpaulin --skip-clean --out lcov --features ${{ matrix.features }} -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         env:
           token: ${{ secrets.CODECOV_TOKEN }}
           codecov_yml_path: .github/codecov.yml
+
+      - name: Print integration environment logs
+        run: cat docker-compose-logs.txt
+        if: matrix.suite == 'cli' && failure()
+
+      - name: Teardown integration environment
+        run: docker compose -f ../../dockerfiles/docker-compose.dev.yml down -v -t 0
+        if: matrix.suite == 'cli' && always()
 
   distributions:
     runs-on: ${{ matrix.os }}
@@ -270,6 +285,7 @@ jobs:
       - distributions
     outputs:
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_git_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -325,7 +341,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ needs.semantic-release.outputs.new_release_version }}
+          ref: ${{ needs.semantic-release.outputs.new_release_git_tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

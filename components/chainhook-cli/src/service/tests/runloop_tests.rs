@@ -12,7 +12,7 @@ use chainhook_sdk::{
 
 use crate::{
     config::{Config, EventSourceConfig, PathConfig},
-    scan::stacks::consolidate_local_stacks_chainstate_using_csv,
+    scan::stacks::import_stacks_chainstate_from_remote_tsv,
     service::{
         runloops::{
             start_bitcoin_scan_runloop, start_stacks_scan_runloop, BitcoinScanOp, StacksScanOp,
@@ -49,7 +49,7 @@ async fn test_stacks_runloop_kill_scan() {
         tracer: false,
     };
 
-    consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx)
+    import_stacks_chainstate_from_remote_tsv(&mut config, &ctx)
         .await
         .unwrap_or_else(|e| {
             std::fs::remove_dir_all(&working_dir).unwrap();

@@ -885,7 +885,7 @@ pub fn start_event_observer(
 
 pub async fn start_bitcoin_event_observer(
     config: EventObserverConfig,
-    observer_commands_tx: Sender<ObserverCommand>,
+    _observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
@@ -897,7 +897,8 @@ pub async fn start_bitcoin_event_observer(
         let ctx_moved = ctx.clone();
         let config_moved = config.clone();
         let _ = hiro_system_kit::thread_named("ZMQ handler").spawn(move || {
-            let future = zmq::start_zeromq_runloop(&config_moved, observer_commands_tx, &ctx_moved);
+            let future =
+                zmq::start_zeromq_runloop(&config_moved, _observer_commands_tx, &ctx_moved);
             hiro_system_kit::nestable_block_on(future);
         });
     }
@@ -958,11 +959,7 @@ pub async fn start_stacks_event_observer(
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
     let log_level = if config.display_stacks_ingestion_logs {
-        if cfg!(feature = "cli") {
-            LogLevel::Critical
-        } else {
-            LogLevel::Debug
-        }
+        LogLevel::Debug
     } else {
         LogLevel::Off
     };
@@ -1026,7 +1023,10 @@ pub async fn start_stacks_event_observer(
         http::handle_mined_block,
         http::handle_mined_microblock,
     ];
-
+    #[cfg(feature = "stacks-signers")]
+    {
+        routes.append(&mut routes![http::handle_stackerdb_chunks]);
+    }
     if bitcoin_rpc_proxy_enabled {
         routes.append(&mut routes![http::handle_bitcoin_rpc_call]);
         routes.append(&mut routes![http::handle_bitcoin_wallet_rpc_call]);
@@ -1655,12 +1655,20 @@ pub async fn start_observer_commands_handler(
                     report.track_expiration(uuid, block_identifier);
                 }
                 for entry in predicates_triggered.iter() {
-                    let blocks_ids = entry
+                    let mut block_ids = entry
                         .apply
                         .iter()
                         .map(|e| e.1.get_identifier())
                         .collect::<Vec<&BlockIdentifier>>();
-                    report.track_trigger(&entry.chainhook.uuid, &blocks_ids);
+                    let mut event_block_ids = entry
+                        .events
+                        .iter()
+                        .map(|e| &e.received_at_block)
+                        .collect::<Vec<&BlockIdentifier>>();
+                    if event_block_ids.len() > 0 {
+                        block_ids.append(&mut event_block_ids);
+                    }
+                    report.track_trigger(&entry.chainhook.uuid, &block_ids);
                 }
                 ctx.try_log(|logger| {
                     slog::info!(

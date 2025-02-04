@@ -699,6 +699,7 @@ export interface StacksBlockMetadata {
   tenure_height?: number | null;
   signer_bitvec?: string | null;
   signer_signature?: string[] | null;
+  signer_public_keys?: string[] | null;
   cycle_number?: number | null;
   reward_set?: {
     pox_ustx_threshold: string;

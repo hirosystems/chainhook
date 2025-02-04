@@ -109,7 +109,6 @@ impl Indexer {
         header: BlockHeader,
         ctx: &Context,
     ) -> Result<Option<BlockchainEvent>, String> {
-        
         self.bitcoin_blocks_pool.process_header(header, ctx)
     }
 
@@ -166,6 +165,42 @@ impl Indexer {
 
     pub fn get_pox_config(&mut self) -> PoxConfig {
         self.stacks_context.pox_config.clone()
+    }
+
+    #[cfg(feature = "stacks-signers")]
+    pub fn handle_stacks_marshalled_stackerdb_chunk(
+        &mut self,
+        marshalled_stackerdb_chunks: JsonValue,
+        receipt_time_ms: u128,
+        ctx: &Context,
+    ) -> Result<Option<StacksChainEvent>, String> {
+        use chainhook_types::{
+            StacksChainUpdatedWithNonConsensusEventsData, StacksNonConsensusEventData,
+            StacksNonConsensusEventPayloadData,
+        };
+        let Some(chain_tip) = self.stacks_blocks_pool.get_canonical_fork_chain_tip() else {
+            return Err("StackerDB chunk received with no canonical chain tip".to_string());
+        };
+        let chunks = stacks::standardize_stacks_marshalled_stackerdb_chunks(
+            marshalled_stackerdb_chunks,
+            ctx,
+        )?;
+        if chunks.len() > 0 {
+            Ok(Some(StacksChainEvent::ChainUpdatedWithNonConsensusEvents(
+                StacksChainUpdatedWithNonConsensusEventsData {
+                    events: chunks
+                        .into_iter()
+                        .map(|chunk| StacksNonConsensusEventData {
+                            payload: StacksNonConsensusEventPayloadData::SignerMessage(chunk),
+                            received_at_ms: receipt_time_ms as u64,
+                            received_at_block: chain_tip.clone(),
+                        })
+                        .collect(),
+                },
+            )))
+        } else {
+            Ok(None)
+        }
     }
 }
 

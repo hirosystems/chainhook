@@ -8,6 +8,7 @@ import {
 import { StacksTransactionEventSchema } from './tx_events';
 import { StacksTransactionKindSchema } from './tx_kind';
 import { StacksIfThisSchema } from './if_this';
+import { StacksSignerMessageEventSchema } from './signers';
 
 export const StacksExecutionCostSchema = Type.Optional(
   Type.Object({
@@ -52,7 +53,7 @@ export const StacksTransactionMetadataSchema = Type.Object({
 });
 export type StacksTransactionMetadata = Static<typeof StacksTransactionMetadataSchema>;
 
-const StacksTransactionSchema = Type.Object({
+export const StacksTransactionSchema = Type.Object({
   transaction_identifier: TransactionIdentifierSchema,
   operations: Type.Array(RosettaOperationSchema),
   metadata: StacksTransactionMetadataSchema,
@@ -73,6 +74,7 @@ export const StacksEventMetadataSchema = Type.Object({
   block_time: Nullable(Type.Integer()),
   signer_bitvec: Nullable(Type.String()),
   signer_signature: Nullable(Type.Array(Type.String())),
+  signer_public_keys: Nullable(Type.Array(Type.String())),
 
   // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
   cycle_number: Nullable(Type.Integer()),
@@ -103,9 +105,17 @@ export const StacksEventSchema = Type.Object({
 });
 export type StacksEvent = Static<typeof StacksEventSchema>;
 
+export const StacksNonConsensusEventSchema = Type.Object({
+  payload: Type.Union([StacksSignerMessageEventSchema]),
+  received_at_ms: Type.Integer(),
+  received_at_block: BlockIdentifierSchema,
+});
+export type StacksNonConsensusEvent = Static<typeof StacksNonConsensusEventSchema>;
+
 export const StacksPayloadSchema = Type.Object({
   apply: Type.Array(StacksEventSchema),
   rollback: Type.Array(StacksEventSchema),
+  events: Type.Array(StacksNonConsensusEventSchema),
   chainhook: Type.Object({
     uuid: Type.String(),
     predicate: StacksIfThisSchema,
