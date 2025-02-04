@@ -83,7 +83,7 @@ describe('predicates', () => {
     await server.start([testPredicate], async () => {});
 
     expect(fs.existsSync(`${observer.predicate_disk_file_path}/predicate-test.json`)).toBe(true);
-    const disk = recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
+    const disk = await recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
     const storedPredicate = disk.get('test');
     expect(storedPredicate).not.toBeUndefined();
     expect(storedPredicate?.name).toBe(testPredicate.name);
@@ -102,8 +102,8 @@ describe('predicates', () => {
   });
 
   describe('pre-stored', () => {
-    beforeEach(() => {
-      savePredicateToDisk(observer.predicate_disk_file_path, {
+    beforeEach(async () => {
+      await savePredicateToDisk(observer.predicate_disk_file_path, {
         uuid: 'e2777d77-473a-4c1d-9012-152deb36bf4c',
         name: 'test',
         version: 1,
@@ -164,7 +164,7 @@ describe('predicates', () => {
 
       mockAgent.assertNoPendingInterceptors();
       expect(fs.existsSync(`${observer.predicate_disk_file_path}/predicate-test.json`)).toBe(true);
-      const disk = recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
+      const disk = await recallPersistedPredicatesFromDisk(observer.predicate_disk_file_path);
       const storedPredicate = disk.get('test');
       // Should have a different uuid
       expect(storedPredicate?.uuid).not.toBe('e2777d77-473a-4c1d-9012-152deb36bf4c');
