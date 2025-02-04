@@ -25,6 +25,7 @@ use crate::observer::{
     start_observer_commands_handler, EventObserverConfig, ObserverCommand, ObserverSidecar,
 };
 use crate::utils::{AbstractBlock, Context};
+use chainhook_types::OrdinalInscriptionCharms;
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinChainEvent, BitcoinNetwork, BlockchainEvent,
     BlockchainUpdatedWithHeaders, OrdinalInscriptionNumber, OrdinalInscriptionRevealData,
@@ -1164,7 +1165,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 metadata: None,
                                 metaprotocol: None,
                                 delegate: None,
-                                parent: None,
+                                parents: vec![],
                                 ordinal_number: cursor,
                                 ordinal_block_height: b.block.block_identifier.index,
                                 ordinal_offset: 0,
@@ -1172,6 +1173,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 transfers_pre_inscription: cursor as u32,
                                 satpoint_post_inscription: format!("{cursor}"),
                                 curse_type: None,
+                                charms: OrdinalInscriptionCharms::none(),
                             },
                         ))
                 }
