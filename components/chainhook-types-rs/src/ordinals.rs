@@ -40,6 +40,45 @@ pub enum OrdinalInscriptionCurseType {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct OrdinalInscriptionCharms {
+    pub coin: bool,
+    pub cursed: bool,
+    pub epic: bool,
+    pub legendary: bool,
+    pub lost: bool,
+    pub nineball: bool,
+    pub rare: bool,
+    pub reinscription: bool,
+    pub unbound: bool,
+    pub uncommon: bool,
+    pub vindicated: bool,
+    pub mythic: bool,
+    pub burned: bool,
+    pub palindrome: bool,
+}
+
+impl OrdinalInscriptionCharms {
+    pub fn none() -> Self {
+        OrdinalInscriptionCharms {
+            coin: false,
+            cursed: false,
+            epic: false,
+            legendary: false,
+            lost: false,
+            nineball: false,
+            rare: false,
+            reinscription: false,
+            unbound: false,
+            uncommon: false,
+            vindicated: false,
+            mythic: false,
+            burned: false,
+            palindrome: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct OrdinalInscriptionRevealData {
     pub content_bytes: String,
     pub content_type: String,
@@ -54,7 +93,7 @@ pub struct OrdinalInscriptionRevealData {
     pub delegate: Option<String>,
     pub metaprotocol: Option<String>,
     pub metadata: Option<Value>,
-    pub parents: Option<Vec<String>>,
+    pub parents: Vec<String>,
     pub ordinal_number: u64,
     pub ordinal_block_height: u64,
     pub ordinal_offset: u64,
@@ -62,6 +101,7 @@ pub struct OrdinalInscriptionRevealData {
     pub transfers_pre_inscription: u32,
     pub satpoint_post_inscription: String,
     pub curse_type: Option<OrdinalInscriptionCurseType>,
+    pub charms: OrdinalInscriptionCharms,
 }
 
 impl OrdinalInscriptionNumber {
