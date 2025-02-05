@@ -47,7 +47,7 @@ rocket_okapi = { version = "0.8.0", git = "https://github.com/hirosystems/okapi.
 rocket = { version = "=0.5.0", features = ["json"] }
 
 [dependencies.rocksdb]
-version = "0.20.1"
+version = "0.21.0"
 default-features = false
 features = ["lz4", "snappy"]
 
