@@ -36,10 +36,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install build-essential
+      - name: Install rocksdb dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y clang llvm
 
       - name: Install Rust toolchain
         run: |
@@ -124,11 +124,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build-essential
+      - name: Install rocksdb dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y clang llvm
 
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
