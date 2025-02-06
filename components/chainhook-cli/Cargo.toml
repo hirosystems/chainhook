@@ -15,8 +15,9 @@ redis = "0.21.5"
 serde-redis = "0.12.0"
 hex = "0.4.3"
 rand = "0.8.5"
-chainhook-sdk = { version = "0.12.6", default-features = false, features = [
-    "zeromq", "stacks-signers"
+chainhook-sdk = { default-features = false, features = [
+    "zeromq",
+    "stacks-signers",
 ], path = "../chainhook-sdk" }
 hiro-system-kit = "0.3.4"
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
@@ -46,7 +47,7 @@ rocket_okapi = { version = "0.8.0", git = "https://github.com/hirosystems/okapi.
 rocket = { version = "=0.5.0", features = ["json"] }
 
 [dependencies.rocksdb]
-version = "0.20.1"
+version = "0.21.0"
 default-features = false
 features = ["lz4", "snappy"]
 
