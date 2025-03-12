@@ -302,10 +302,18 @@ pub fn get_entries_from_predicates_db(
     predicate_db_conn: &mut Connection,
     ctx: &Context,
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
-    let chainhooks_to_load: Vec<String> = predicate_db_conn
-        .scan_match(ChainhookInstance::either_stx_or_btc_key("*"))
-        .map_err(|e| format!("unable to connect to redis: {}", e))?
-        .collect();
+    let chainhooks_to_load: Vec<String> = loop {
+        match predicate_db_conn.scan_match(ChainhookInstance::either_stx_or_btc_key("*")) {
+            Ok(keys) => break keys.collect(),
+            Err(e) => {
+                let error_msg = format!("unable to connect to redis: {}", e);
+                ctx.try_log(|logger| slog::warn!(logger, "{}", error_msg));
+
+                ctx.try_log(|logger| slog::info!(logger, "Retrying Redis scan_match in 1 second"));
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    };
 
     let mut predicates = vec![];
     for predicate_key in chainhooks_to_load.iter() {
@@ -338,12 +346,29 @@ pub fn load_predicates_from_redis(
     ctx: &Context,
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
     let redis_uri: &str = config.expected_api_database_uri();
-    let client = redis::Client::open(redis_uri)
-        .map_err(|e| format!("unable to connect to redis: {}", e))?;
-    let mut predicate_db_conn = client
-        .get_connection()
-        .map_err(|e| format!("unable to connect to redis: {}", e))?;
-    get_entries_from_predicates_db(&mut predicate_db_conn, ctx)
+
+    loop {
+        match redis::Client::open(redis_uri) {
+            Ok(client) => {
+                match client.get_connection() {
+                    Ok(mut predicate_db_conn) => {
+                        return get_entries_from_predicates_db(&mut predicate_db_conn, ctx);
+                    }
+                    Err(e) => {
+                        let error_msg = format!("unable to connect to redis: {}", e);
+                        ctx.try_log(|logger| slog::warn!(logger, "{}", error_msg));
+                    }
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("unable to open redis client: {}", e);
+                ctx.try_log(|logger| slog::warn!(logger, "{}", error_msg));
+            }
+        }
+
+        ctx.try_log(|logger| slog::info!(logger, "Retrying Redis connection in 1 second"));
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
 }
 
 pub fn document_predicate_api_server() -> Result<String, String> {

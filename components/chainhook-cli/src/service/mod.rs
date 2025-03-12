@@ -1254,10 +1254,28 @@ pub fn open_readwrite_predicates_db_conn(
     config: &PredicatesApiConfig,
 ) -> Result<Connection, String> {
     let redis_uri = &config.database_uri;
-    let client = redis::Client::open(redis_uri.clone()).unwrap();
-    client
-        .get_connection()
-        .map_err(|e| format!("unable to connect to db: {}", e))
+
+    loop {
+        match redis::Client::open(redis_uri.clone()) {
+            Ok(client) => {
+                match client.get_connection() {
+                    Ok(connection) => {
+                        return Ok(connection);
+                    }
+                    Err(e) => {
+                        let error_msg = format!("unable to connect to db: {}", e);
+                        eprintln!("{}", error_msg);
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("unable to open redis client: {}", e);
+                eprintln!("{}", error_msg);
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    }
 }
 
 pub fn open_readwrite_predicates_db_conn_verbose(
