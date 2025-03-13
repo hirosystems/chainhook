@@ -15,8 +15,6 @@ extern crate lazy_static;
 
 pub extern crate bitcoincore_rpc;
 pub extern crate bitcoincore_rpc_json;
-pub extern crate dashmap;
-pub extern crate fxhash;
 
 pub use bitcoincore_rpc::bitcoin;
 pub use chainhook_types as types;
