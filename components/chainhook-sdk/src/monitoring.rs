@@ -41,6 +41,7 @@ pub struct PrometheusMonitoring {
     pub btc_last_block_ingestion_time: UInt64Gauge,
     pub btc_registered_predicates: UInt64Gauge,
     pub btc_deregistered_predicates: UInt64Gauge,
+    pub is_connected_to_predicates_db: UInt64Gauge,
     pub registry: Registry,
 }
 
@@ -169,6 +170,11 @@ impl PrometheusMonitoring {
             "chainhook_btc_deregistered_predicates",
             "The number of Bitcoin predicates that have been deregistered by the Chainhook node.",
         );
+        let is_connected_to_predicates_db = PrometheusMonitoring::create_and_register_uint64_gauge(
+            &registry,
+            "chainhook_is_connected_to_predicates_db",
+            "Whether the Chainhook node is connected to the predicates database.",
+        );
 
         PrometheusMonitoring {
             stx_highest_block_appended,
@@ -194,6 +200,7 @@ impl PrometheusMonitoring {
             btc_last_block_ingestion_time,
             btc_registered_predicates,
             btc_deregistered_predicates,
+            is_connected_to_predicates_db,
             registry,
         }
     }
@@ -365,6 +372,10 @@ impl PrometheusMonitoring {
         }
     }
 
+    pub fn set_is_connected_to_predicates_db(&self, is_connected: bool) {
+        self.is_connected_to_predicates_db.set(is_connected as u64);
+    }
+
     pub fn get_metrics(&self) -> JsonValue {
         json!({
             "bitcoin": {
@@ -396,7 +407,8 @@ impl PrometheusMonitoring {
                 },
                 "registered_predicates": self.stx_registered_predicates.get(),
                 "deregistered_predicates": self.stx_deregistered_predicates.get(),
-            }
+            },
+            "is_connected_to_predicates_db": self.is_connected_to_predicates_db.get(),
         })
     }
 }
