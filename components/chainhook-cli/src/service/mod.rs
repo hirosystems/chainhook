@@ -14,6 +14,7 @@ use crate::storage::{
 use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, ChainhookStore};
 
 use chainhook_sdk::chainhooks::types::ChainhookInstance;
+use chainhook_sdk::monitoring::PrometheusMonitoring;
 use chainhook_sdk::observer::{
     start_event_observer, HookExpirationData, ObserverCommand, ObserverEvent,
     PredicateDeregisteredEvent, PredicateEvaluationReport, PredicateInterruptedData,
@@ -1233,13 +1234,16 @@ fn retrieve_predicate_status(
 
 pub fn connect_to_redis_with_retry(redis_uri: &str) -> Connection {
     loop {
+        let prometheus_monitoring = PrometheusMonitoring::new();
         match redis::Client::open(redis_uri) {
             Ok(client) => {
                 match client.get_connection() {
                     Ok(connection) => {
+                        prometheus_monitoring.set_is_connected_to_predicates_db(true);                      
                         return connection;
                     }
                     Err(e) => {
+                        prometheus_monitoring.set_is_connected_to_predicates_db(false);   
                         let error_msg = format!("unable to connect to db: {}", e);
                         eprintln!("{}", error_msg);
                         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -1247,6 +1251,7 @@ pub fn connect_to_redis_with_retry(redis_uri: &str) -> Connection {
                 }
             }
             Err(e) => {
+                prometheus_monitoring.set_is_connected_to_predicates_db(false);   
                 let error_msg = format!("unable to open redis client: {}", e);
                 eprintln!("{}", error_msg);
                 std::thread::sleep(std::time::Duration::from_secs(1));
