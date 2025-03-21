@@ -60,7 +60,7 @@ impl PrometheusMonitoring {
     pub fn new() -> PrometheusMonitoring {
         // Use the global registry instead of creating a new one
         let registry = &GLOBAL_REGISTRY;
-        
+
         // stacks metrics
         let stx_highest_block_appended = PrometheusMonitoring::create_and_register_uint64_gauge(
             registry,
@@ -217,13 +217,26 @@ impl PrometheusMonitoring {
         help: &str,
     ) -> UInt64Gauge {
         let g = UInt64Gauge::new(name, help).unwrap();
-        registry.register(Box::new(g.clone())).unwrap();
+
+        // Instead of directly registering which can fail if already registered
+        registry.register(Box::new(g.clone())).unwrap_or_else(|e| {
+            // Only log if it's not already a "duplicate metrics" error
+            if !e.to_string().contains("already registered") {
+                eprintln!("Failed to register metric: {}", e);
+            }
+        });
         g
     }
 
     pub fn create_and_register_int_gauge(registry: &Registry, name: &str, help: &str) -> IntGauge {
         let g = IntGauge::new(name, help).unwrap();
-        registry.register(Box::new(g.clone())).unwrap();
+        // Instead of directly registering which can fail if already registered
+        registry.register(Box::new(g.clone())).unwrap_or_else(|e| {
+            // Only log if it's not already a "duplicate metrics" error
+            if !e.to_string().contains("already registered") {
+                eprintln!("Failed to register metric: {}", e);
+            }
+        });
         g
     }
 

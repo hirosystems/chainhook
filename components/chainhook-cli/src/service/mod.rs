@@ -1239,11 +1239,11 @@ pub fn connect_to_redis_with_retry(redis_uri: &str) -> Connection {
             Ok(client) => {
                 match client.get_connection() {
                     Ok(connection) => {
-                        prometheus_monitoring.set_is_connected_to_predicates_db(true);                      
+                        prometheus_monitoring.set_is_connected_to_predicates_db(true);
                         return connection;
                     }
                     Err(e) => {
-                        prometheus_monitoring.set_is_connected_to_predicates_db(false);   
+                        prometheus_monitoring.set_is_connected_to_predicates_db(false);
                         let error_msg = format!("unable to connect to db: {}", e);
                         eprintln!("{}", error_msg);
                         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -1251,7 +1251,7 @@ pub fn connect_to_redis_with_retry(redis_uri: &str) -> Connection {
                 }
             }
             Err(e) => {
-                prometheus_monitoring.set_is_connected_to_predicates_db(false);   
+                prometheus_monitoring.set_is_connected_to_predicates_db(false);
                 let error_msg = format!("unable to open redis client: {}", e);
                 eprintln!("{}", error_msg);
                 std::thread::sleep(std::time::Duration::from_secs(1));
