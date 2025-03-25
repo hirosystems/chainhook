@@ -8,4 +8,4 @@ default-members = ["components/chainhook-cli", "components/chainhook-sdk"]
 resolver = "2"
 
 [patch.crates-io]
-stacks-codec = { git = "https://github.com/hirosystems/clarinet.git", rev = "2ea8e2a104c2e9f3c6f90297bfd79daf596bf34d" }
+stacks-codec = { git = "https://github.com/hirosystems/clarinet.git", rev = "5c9e05b22c07830dc56bd9923741102a4502f4e0" }
