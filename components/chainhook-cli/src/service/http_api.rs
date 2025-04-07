@@ -22,7 +22,7 @@ use std::error::Error;
 
 use crate::config::PredicatesApiConfig;
 
-use super::{open_readwrite_predicates_db_conn, PredicateStatus};
+use super::{connect_to_redis_with_retry, PredicateStatus};
 
 pub async fn start_predicate_api_server(
     api_config: PredicatesApiConfig,
@@ -87,10 +87,9 @@ fn handle_get_predicates(
     ctx: &State<Context>,
 ) -> Json<JsonValue> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP GET /v1/chainhooks"));
-    match open_readwrite_predicates_db_conn(api_config) {
-        Ok(mut predicates_db_conn) => {
-            let predicates = match get_entries_from_predicates_db(&mut predicates_db_conn, ctx) {
-                Ok(predicates) => predicates,
+    let mut predicates_db_conn = connect_to_redis_with_retry(&api_config.database_uri);
+    let predicates = match get_entries_from_predicates_db(&mut predicates_db_conn, ctx) {
+        Ok(predicates) => predicates,
                 Err(e) => {
                     ctx.try_log(|logger| slog::warn!(logger, "unable to retrieve predicates: {e}"));
                     return Json(json!({
@@ -107,14 +106,8 @@ fn handle_get_predicates(
 
             Json(json!({
                 "status": 200,
-                "result": serialized_predicates
-            }))
-        }
-        Err(e) => Json(json!({
-            "status": 500,
-            "message": e,
-        })),
-    }
+        "result": serialized_predicates
+    }))
 }
 
 #[openapi(tag = "Managing Predicates")]
@@ -147,17 +140,16 @@ fn handle_create_predicate(
 
     let predicate_uuid = predicate.get_uuid().to_string();
 
-    if let Ok(mut predicates_db_conn) = open_readwrite_predicates_db_conn(api_config) {
-        if let Ok(Some(_)) = get_entry_from_predicates_db(
-            &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
-            &mut predicates_db_conn,
-            ctx,
-        ) {
-            return Json(json!({
-                "status": 409,
-                "error": "Predicate uuid already in use",
-            }))
-        }
+    let mut predicates_db_conn = connect_to_redis_with_retry(&api_config.database_uri);
+    if let Ok(Some(_)) = get_entry_from_predicates_db(
+        &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
+        &mut predicates_db_conn,
+        ctx,
+    ) {
+        return Json(json!({
+            "status": 409,
+            "error": "Predicate uuid already in use",
+        }))
     }
 
     let background_job_tx = background_job_tx.inner();
@@ -186,31 +178,24 @@ fn handle_get_predicate(
         )
     });
 
-    match open_readwrite_predicates_db_conn(api_config) {
-        Ok(mut predicates_db_conn) => {
-            let (predicate, status) = match get_entry_from_predicates_db(
-                &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
-                &mut predicates_db_conn,
-                ctx,
-            ) {
-                Ok(Some(predicate_with_status)) => predicate_with_status,
-                _ => {
-                    return Json(json!({
-                        "status": 404,
-                    }))
-                }
-            };
-            let result = serialized_predicate_with_status(&predicate, &status);
-            Json(json!({
-                "status": 200,
-                "result": result
+    let mut predicates_db_conn = connect_to_redis_with_retry(&api_config.database_uri);
+    let (predicate, status) = match get_entry_from_predicates_db(
+        &ChainhookInstance::either_stx_or_btc_key(&predicate_uuid),
+        &mut predicates_db_conn,
+        ctx,
+    ) {
+        Ok(Some(predicate_with_status)) => predicate_with_status,
+        _ => {
+            return Json(json!({
+                "status": 404,
             }))
         }
-        Err(e) => Json(json!({
-            "status": 500,
-            "message": e,
-        })),
-    }
+    };
+    let result = serialized_predicate_with_status(&predicate, &status);
+    Json(json!({
+        "status": 200,
+        "result": result
+    }))
 }
 
 #[openapi(tag = "Managing Predicates")]
@@ -334,16 +319,10 @@ pub fn get_entries_from_predicates_db(
 }
 
 pub fn load_predicates_from_redis(
-    config: &crate::config::Config,
+    predicate_db_conn: &mut Connection,
     ctx: &Context,
 ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
-    let redis_uri: &str = config.expected_api_database_uri();
-    let client = redis::Client::open(redis_uri)
-        .map_err(|e| format!("unable to connect to redis: {}", e))?;
-    let mut predicate_db_conn = client
-        .get_connection()
-        .map_err(|e| format!("unable to connect to redis: {}", e))?;
-    get_entries_from_predicates_db(&mut predicate_db_conn, ctx)
+    get_entries_from_predicates_db(predicate_db_conn, ctx)
 }
 
 pub fn document_predicate_api_server() -> Result<String, String> {

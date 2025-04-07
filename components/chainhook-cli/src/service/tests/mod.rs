@@ -1,4 +1,5 @@
 use chainhook_sdk::chainhooks::types::ChainhookSpecificationNetworkMap;
+use chainhook_sdk::monitoring::PrometheusMonitoring;
 use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
@@ -407,6 +408,8 @@ async fn test_stacks_predicate_status_is_updated(
         .map_err(|e| cleanup_err(e, &working_dir, redis_port))
         .unwrap();
 
+    let prometheus_monitoring = PrometheusMonitoring::new();
+    assert_eq!(prometheus_monitoring.is_connected_to_predicates_db.get(), true as u64);
     for i in 1..blocks_to_mine + 1 {
         mine_stacks_block(
             stacks_ingestion_port,
@@ -494,6 +497,10 @@ async fn test_bitcoin_predicate_status_is_updated(
         .map_err(|e| cleanup_err(e, &working_dir, redis_port))
         .unwrap();
     }
+
+    let prometheus_monitoring = PrometheusMonitoring::new();
+    assert_eq!(prometheus_monitoring.is_connected_to_predicates_db.get(), true as u64);
+
     sleep(Duration::new(2, 0));
     let result = get_predicate_status(uuid, chainhook_service_port)
         .await

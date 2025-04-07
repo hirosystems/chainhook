@@ -1,7 +1,7 @@
 use crate::config::{Config, PredicatesApi};
 use crate::scan::common::get_block_heights_to_scan;
 use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
+    connect_to_redis_with_retry, set_confirmed_expiration_status,
     set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
 };
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
@@ -71,7 +71,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
     let mut predicates_db_conn = match config.http_api {
         PredicatesApi::On(ref api_config) => {
-            Some(open_readwrite_predicates_db_conn_or_panic(api_config, ctx))
+            Some(connect_to_redis_with_retry(&api_config.database_uri))
         }
         PredicatesApi::Off => None,
     };

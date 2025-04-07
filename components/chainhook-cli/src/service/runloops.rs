@@ -19,7 +19,7 @@ use crate::{
         bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate, common::PredicateScanResult,
         stacks::scan_stacks_chainstate_via_rocksdb_using_predicate,
     },
-    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status}, storage::StacksDbConnections,
+    service::{connect_to_redis_with_retry, set_predicate_interrupted_status}, storage::StacksDbConnections,
 };
 
 use super::ScanningData;
@@ -99,10 +99,7 @@ pub fn start_stacks_scan_runloop(
                                 let error = format!(
                                     "Unable to evaluate predicate on Stacks chainstate: {e}"
                                 );
-                                let mut predicates_db_conn =
-                                    open_readwrite_predicates_db_conn_or_panic(
-                                        api_config, &moved_ctx,
-                                    );
+                                let mut predicates_db_conn = connect_to_redis_with_retry(&api_config.database_uri);
                                 set_predicate_interrupted_status(
                                     error,
                                     &predicate_spec.key(),
@@ -183,10 +180,7 @@ pub fn start_bitcoin_scan_runloop(
                                 let error = format!(
                                     "Unable to evaluate predicate on Bitcoin chainstate: {e}"
                                 );
-                                let mut predicates_db_conn =
-                                    open_readwrite_predicates_db_conn_or_panic(
-                                        api_config, &moved_ctx,
-                                    );
+                                let mut predicates_db_conn = connect_to_redis_with_retry(&api_config.database_uri);
                                 set_predicate_interrupted_status(
                                     error,
                                     &predicate_spec.key(),

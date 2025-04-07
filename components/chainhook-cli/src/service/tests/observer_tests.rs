@@ -87,6 +87,73 @@ async fn prometheus_endpoint_returns_encoded_metrics() -> Result<(), String> {
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port))?;
 
+
+    // Define expected metric groups with their expected values
+    let expected_metrics = [
+        // Bitcoin metrics
+        ("chainhook_btc_block_evaluation_lag", "0"),
+        ("chainhook_btc_canonical_fork_lag", "0"),
+        ("chainhook_btc_deregistered_predicates", "0"),
+        ("chainhook_btc_highest_block_appended", "0"),
+        ("chainhook_btc_highest_block_evaluated", "0"),
+        ("chainhook_btc_highest_block_received", "0"),
+        ("chainhook_btc_last_block_ingestion_time", "0"),
+        ("chainhook_btc_last_reorg_applied_blocks", "0"),
+        ("chainhook_btc_last_reorg_rolled_back_blocks", "0"),
+        ("chainhook_btc_last_reorg_timestamp", "0"),
+        ("chainhook_btc_registered_predicates", "0"),
+        
+        // Stacks metrics
+        ("chainhook_stx_block_evaluation_lag", "0"),
+        ("chainhook_stx_canonical_fork_lag", "0"),
+        ("chainhook_stx_deregistered_predicates", "0"),
+        ("chainhook_stx_highest_block_appended", "1"),
+        ("chainhook_stx_highest_block_evaluated", "1"),
+        ("chainhook_stx_highest_block_received", "1"),
+        ("chainhook_stx_last_reorg_applied_blocks", "0"),
+        ("chainhook_stx_last_reorg_rolled_back_blocks", "0"),
+        ("chainhook_stx_last_reorg_timestamp", "0"),
+        ("chainhook_stx_registered_predicates", "1"),
+    ];
+
+    // Verify each metric exists with the expected value
+    for (metric_name, expected_value) in expected_metrics {
+        // Check the gauge line exists with the correct value
+        let gauge_line = format!("{} {}", metric_name, expected_value);
+        assert!(
+            metrics.contains(&gauge_line),
+            "Metric '{}' with value '{}' not found in response", 
+            metric_name, 
+            expected_value
+        );
+        
+        // Check that the TYPE line exists
+        let type_line = format!("# TYPE {} gauge", metric_name);
+        assert!(
+            metrics.contains(&type_line),
+            "Type declaration for '{}' not found", 
+            metric_name
+        );
+        
+        // Check that the HELP line exists
+        assert!(
+            metrics.contains(&format!("# HELP {}", metric_name)),
+            "Help text for '{}' not found", 
+            metric_name
+        );
+    }
+
+    // Special case for timestamp which will vary
+    assert!(
+        metrics.contains("# TYPE chainhook_stx_last_block_ingestion_time gauge") && 
+        metrics.contains("# HELP chainhook_stx_last_block_ingestion_time") &&
+        metrics.contains("chainhook_stx_last_block_ingestion_time "),
+        "Last block ingestion time metric is missing or incomplete"
+    );
+
+
+    println!("metrics: {}", metrics);
+
     const EXPECTED: &str = "# HELP chainhook_stx_registered_predicates The number of Stacks predicates that have been registered by the Chainhook node.\n# TYPE chainhook_stx_registered_predicates gauge\nchainhook_stx_registered_predicates 1\n";
     assert!(metrics.contains(EXPECTED));
 

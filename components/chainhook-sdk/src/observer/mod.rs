@@ -911,12 +911,11 @@ pub async fn start_bitcoin_event_observer(
     );
 
     if let Some(port) = config.prometheus_monitoring_port {
-        let registry_moved = prometheus_monitoring.registry.clone();
+        // let registry_moved = prometheus_monitoring.registry.clone();
         let ctx_cloned = ctx.clone();
         let _ = std::thread::spawn(move || {
             hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
                 port,
-                registry_moved,
                 ctx_cloned,
             ));
         });
@@ -982,12 +981,11 @@ pub async fn start_stacks_event_observer(
     );
 
     if let Some(port) = config.prometheus_monitoring_port {
-        let registry_moved = prometheus_monitoring.registry.clone();
+        // let registry_moved = prometheus_monitoring.registry.clone();
         let ctx_cloned = ctx.clone();
         let _ = std::thread::spawn(move || {
             hiro_system_kit::nestable_block_on(start_serving_prometheus_metrics(
                 port,
-                registry_moved,
                 ctx_cloned,
             ));
         });

@@ -13,8 +13,14 @@ use prometheus::{
 };
 use rocket::serde::json::{json, Value as JsonValue};
 use std::time::{SystemTime, UNIX_EPOCH};
+use lazy_static::lazy_static;
 
 type UInt64Gauge = GenericGauge<AtomicU64>;
+
+// Create a global Registry that can be accessed from anywhere
+lazy_static! {
+    pub static ref GLOBAL_REGISTRY: Registry = Registry::new();
+}
 
 #[derive(Debug, Clone)]
 pub struct PrometheusMonitoring {
@@ -41,7 +47,7 @@ pub struct PrometheusMonitoring {
     pub btc_last_block_ingestion_time: UInt64Gauge,
     pub btc_registered_predicates: UInt64Gauge,
     pub btc_deregistered_predicates: UInt64Gauge,
-    pub registry: Registry,
+    pub is_connected_to_predicates_db: UInt64Gauge,
 }
 
 impl Default for PrometheusMonitoring {
@@ -52,122 +58,129 @@ impl Default for PrometheusMonitoring {
 
 impl PrometheusMonitoring {
     pub fn new() -> PrometheusMonitoring {
-        let registry = Registry::new();
+        // Use the global registry instead of creating a new one
+        let registry = &GLOBAL_REGISTRY;
+
         // stacks metrics
         let stx_highest_block_appended = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_highest_block_appended",
             "The highest Stacks block successfully appended to a Chainhook node fork.",
         );
         let stx_highest_block_received = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_highest_block_received",
             "The highest Stacks block received by the Chainhook node from the Stacks node.",
         );
         let stx_highest_block_evaluated = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_highest_block_evaluated",
             "The highest Stacks block successfully evaluated against predicates.",
         );
         let stx_canonical_fork_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_canonical_fork_lag",
             "The difference between the highest Stacks block received and the highest Stacks block appended.",
         );
         let stx_block_evaluation_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_block_evaluation_lag",
             "The difference between the highest Stacks block appended and the highest Stacks block evaluated.",
         );
         let stx_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
-            &registry,
+            registry,
             "chainhook_stx_last_reorg_timestamp",
             "The timestamp of the latest Stacks reorg ingested by the Chainhook node.",
         );
         let stx_last_reorg_applied_blocks = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_last_reorg_applied_blocks",
             "The number of blocks applied to the Stacks chain as part of the latest Stacks reorg.",
         );
         let stx_last_reorg_rolled_back_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
-                &registry,
+                registry,
                 "chainhook_stx_last_reorg_rolled_back_blocks",
                 "The number of blocks rolled back from the Stacks chain as part of the latest Stacks reorg.",
             );
         let stx_last_block_ingestion_time = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_last_block_ingestion_time",
             "The time that the Chainhook node last ingested a Stacks block.",
         );
         let stx_registered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_registered_predicates",
             "The number of Stacks predicates that have been registered by the Chainhook node.",
         );
         let stx_deregistered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_stx_deregistered_predicates",
             "The number of Stacks predicates that have been deregistered by the Chainhook node.",
         );
 
         // bitcoin metrics
         let btc_highest_block_appended = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_highest_block_appended",
             "The highest Bitcoin block successfully appended to a Chainhook node fork.",
         );
         let btc_highest_block_received = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_highest_block_received",
             "The highest Bitcoin block received by the Chainhook node from the Bitcoin node.",
         );
         let btc_highest_block_evaluated = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_highest_block_evaluated",
             "The highest Bitcoin block successfully evaluated against predicates.",
         );
         let btc_canonical_fork_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_canonical_fork_lag",
             "The difference between the highest Bitcoin block received and the highest Bitcoin block appended.",
         );
         let btc_block_evaluation_lag = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_block_evaluation_lag",
             "The difference between the highest Bitcoin block appended and the highest Bitcoin block evaluated.",
         );
         let btc_last_reorg_timestamp = PrometheusMonitoring::create_and_register_int_gauge(
-            &registry,
+            registry,
             "chainhook_btc_last_reorg_timestamp",
             "The timestamp of the latest Bitcoin reorg ingested by the Chainhook node.",
         );
         let btc_last_reorg_applied_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
-                &registry,
+                registry,
                 "chainhook_btc_last_reorg_applied_blocks",
                 "The number of blocks applied to the Bitcoin chain as part of the latest Bitcoin reorg.",
             );
         let btc_last_reorg_rolled_back_blocks =
             PrometheusMonitoring::create_and_register_uint64_gauge(
-                &registry,
+                registry,
                 "chainhook_btc_last_reorg_rolled_back_blocks",
                 "The number of blocks rolled back from the Bitcoin chain as part of the latest Bitcoin reorg.",
             );
         let btc_last_block_ingestion_time = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_last_block_ingestion_time",
             "The time that the Chainhook node last ingested a Bitcoin block.",
         );
         let btc_registered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_registered_predicates",
             "The number of Bitcoin predicates that have been registered by the Chainhook node.",
         );
         let btc_deregistered_predicates = PrometheusMonitoring::create_and_register_uint64_gauge(
-            &registry,
+            registry,
             "chainhook_btc_deregistered_predicates",
             "The number of Bitcoin predicates that have been deregistered by the Chainhook node.",
+        );
+        let is_connected_to_predicates_db = PrometheusMonitoring::create_and_register_uint64_gauge(
+            registry,
+            "chainhook_is_connected_to_predicates_db",
+            "Whether the Chainhook node is connected to the predicates database.",
         );
 
         PrometheusMonitoring {
@@ -194,7 +207,7 @@ impl PrometheusMonitoring {
             btc_last_block_ingestion_time,
             btc_registered_predicates,
             btc_deregistered_predicates,
-            registry,
+            is_connected_to_predicates_db,
         }
     }
     // setup helpers
@@ -204,13 +217,26 @@ impl PrometheusMonitoring {
         help: &str,
     ) -> UInt64Gauge {
         let g = UInt64Gauge::new(name, help).unwrap();
-        registry.register(Box::new(g.clone())).unwrap();
+
+        // Instead of directly registering which can fail if already registered
+        registry.register(Box::new(g.clone())).unwrap_or_else(|e| {
+            // Only log if it's not already a "duplicate metrics" error
+            if !e.to_string().contains("already registered") {
+                eprintln!("Failed to register metric: {}", e);
+            }
+        });
         g
     }
 
     pub fn create_and_register_int_gauge(registry: &Registry, name: &str, help: &str) -> IntGauge {
         let g = IntGauge::new(name, help).unwrap();
-        registry.register(Box::new(g.clone())).unwrap();
+        // Instead of directly registering which can fail if already registered
+        registry.register(Box::new(g.clone())).unwrap_or_else(|e| {
+            // Only log if it's not already a "duplicate metrics" error
+            if !e.to_string().contains("already registered") {
+                eprintln!("Failed to register metric: {}", e);
+            }
+        });
         g
     }
 
@@ -365,6 +391,10 @@ impl PrometheusMonitoring {
         }
     }
 
+    pub fn set_is_connected_to_predicates_db(&self, is_connected: bool) {
+        self.is_connected_to_predicates_db.set(is_connected as u64);
+    }
+
     pub fn get_metrics(&self) -> JsonValue {
         json!({
             "bitcoin": {
@@ -396,14 +426,14 @@ impl PrometheusMonitoring {
                 },
                 "registered_predicates": self.stx_registered_predicates.get(),
                 "deregistered_predicates": self.stx_deregistered_predicates.get(),
-            }
+            },
+            "is_connected_to_predicates_db": self.is_connected_to_predicates_db.get(),
         })
     }
 }
 
 async fn serve_req(
     req: Request<Body>,
-    registry: Registry,
     ctx: Context,
 ) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
@@ -416,7 +446,8 @@ async fn serve_req(
             });
 
             let encoder = TextEncoder::new();
-            let metric_families = registry.gather();
+            // Use the global registry instead of a passed registry
+            let metric_families = GLOBAL_REGISTRY.gather();
             let mut buffer = vec![];
             let response = match encoder.encode(&metric_families, &mut buffer) {
                 Ok(_) => Response::builder()
@@ -453,15 +484,14 @@ async fn serve_req(
     }
 }
 
-pub async fn start_serving_prometheus_metrics(port: u16, registry: Registry, ctx: Context) {
+pub async fn start_serving_prometheus_metrics(port: u16, ctx: Context) {
     let addr = ([0, 0, 0, 0], port).into();
     let ctx_clone = ctx.clone();
     let make_svc = make_service_fn(|_| {
-        let registry = registry.clone();
         let ctx_clone = ctx_clone.clone();
         async move {
             Ok::<_, hyper::Error>(service_fn(move |r| {
-                serve_req(r, registry.clone(), ctx_clone.clone())
+                serve_req(r, ctx_clone.clone())
             }))
         }
     });
