@@ -25,6 +25,7 @@ use crate::observer::{
     start_observer_commands_handler, EventObserverConfig, ObserverCommand, ObserverSidecar,
 };
 use crate::utils::{AbstractBlock, Context};
+use chainhook_types::OrdinalInscriptionCharms;
 use chainhook_types::{
     BitcoinBlockSignaling, BitcoinChainEvent, BitcoinNetwork, BlockchainEvent,
     BlockchainUpdatedWithHeaders, OrdinalInscriptionNumber, OrdinalInscriptionRevealData,
@@ -35,11 +36,13 @@ use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{channel, Sender};
 
+use super::PredicatesConfig;
 use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
 
 fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
     let config: EventObserverConfig = EventObserverConfig {
         registered_chainhooks: ChainhookStore::new(),
+        predicates_config: PredicatesConfig::default(),
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: "user".into(),
         bitcoind_rpc_password: "user".into(),
@@ -80,14 +83,14 @@ fn stacks_chainhook_contract_call(
         },
     );
 
-    let spec = StacksChainhookSpecificationNetworkMap {
+    
+    StacksChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         networks,
         version: 1,
-    };
-    spec
+    }
 }
 
 fn bitcoin_chainhook_p2pkh(
@@ -114,14 +117,14 @@ fn bitcoin_chainhook_p2pkh(
         },
     );
 
-    let spec = BitcoinChainhookSpecificationNetworkMap {
+    
+    BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         version: 1,
         networks,
-    };
-    spec
+    }
 }
 
 fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap {
@@ -146,14 +149,14 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap
         },
     );
 
-    let spec = BitcoinChainhookSpecificationNetworkMap {
+    
+    BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
         owner_uuid: None,
         version: 1,
         networks,
-    };
-    spec
+    }
 }
 
 fn generate_and_register_new_stacks_chainhook(
@@ -208,7 +211,7 @@ fn generate_and_register_new_bitcoin_chainhook(
     p2pkh_address: &str,
     expire_after_occurrence: Option<u64>,
 ) -> BitcoinChainhookInstance {
-    let chainhook = bitcoin_chainhook_p2pkh(id, &p2pkh_address, expire_after_occurrence);
+    let chainhook = bitcoin_chainhook_p2pkh(id, p2pkh_address, expire_after_occurrence);
     let _ = observer_commands_tx.send(ObserverCommand::RegisterPredicate(
         ChainhookSpecificationNetworkMap::Bitcoin(chainhook.clone()),
     ));
@@ -1162,7 +1165,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 metadata: None,
                                 metaprotocol: None,
                                 delegate: None,
-                                parent: None,
+                                parents: vec![],
                                 ordinal_number: cursor,
                                 ordinal_block_height: b.block.block_identifier.index,
                                 ordinal_offset: 0,
@@ -1170,6 +1173,7 @@ fn test_bitcoin_chainhook_through_reorg() {
                                 transfers_pre_inscription: cursor as u32,
                                 satpoint_post_inscription: format!("{cursor}"),
                                 curse_type: None,
+                                charms: OrdinalInscriptionCharms::none(),
                             },
                         ))
                 }

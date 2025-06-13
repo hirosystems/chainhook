@@ -287,81 +287,81 @@ fn test_stacks_vector_055() {
 }
 
 #[test_case(StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
-    sender: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    sender: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "stx_transfer")]
 #[test_case(StacksTransactionEventPayload::STXMintEvent(STXMintEventData {
-    recipient: format!(""),
-    amount: format!("1"),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "stx_mint")]
 #[test_case(StacksTransactionEventPayload::STXBurnEvent(STXBurnEventData {
-    sender: format!(""),
-    amount: format!("1"),
+    sender: String::new(),
+    amount: "1".to_string(),
 }); "stx_burn")]
 #[test_case(StacksTransactionEventPayload::STXLockEvent(STXLockEventData {
-    locked_amount: format!("1"),
-    unlock_height: format!(""),
-    locked_address: format!(""),
+    locked_amount: "1".to_string(),
+    unlock_height: String::new(),
+    locked_address: String::new(),
 }); "stx_lock")]
 #[test_case(StacksTransactionEventPayload::NFTTransferEvent(NFTTransferEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    sender: format!(""),
-    recipient: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    sender: String::new(),
+    recipient: String::new(),
 }); "nft_transfer")]
 #[test_case(StacksTransactionEventPayload::NFTMintEvent(NFTMintEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    recipient: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    recipient: String::new(),
 }); "nft_mint")]
 #[test_case(StacksTransactionEventPayload::NFTBurnEvent(NFTBurnEventData {
-    asset_class_identifier: format!(""),
-    hex_asset_identifier: format!(""),
-    sender: format!(""),
+    asset_class_identifier: String::new(),
+    hex_asset_identifier: String::new(),
+    sender: String::new(),
 }); "nft_burn")]
 #[test_case(StacksTransactionEventPayload::FTTransferEvent(FTTransferEventData {
-    asset_class_identifier: format!(""),
-    sender: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    sender: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "ft_transfer")]
 #[test_case(StacksTransactionEventPayload::FTMintEvent(FTMintEventData {
-    asset_class_identifier: format!(""),
-    recipient: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    recipient: String::new(),
+    amount: "1".to_string(),
 }); "ft_mint")]
 #[test_case(StacksTransactionEventPayload::FTBurnEvent(FTBurnEventData {
-    asset_class_identifier: format!(""),
-    sender: format!(""),
-    amount: format!("1"),
+    asset_class_identifier: String::new(),
+    sender: String::new(),
+    amount: "1".to_string(),
 }); "ft_burn")]
 #[test_case(StacksTransactionEventPayload::DataVarSetEvent(DataVarSetEventData {
-    contract_identifier: format!(""),
-    var: format!(""),
-    hex_new_value: format!(""),
+    contract_identifier: String::new(),
+    var: String::new(),
+    hex_new_value: String::new(),
 }); "data_var_set")]
 #[test_case(StacksTransactionEventPayload::DataMapInsertEvent(DataMapInsertEventData {
-    contract_identifier: format!(""),
-    hex_inserted_key: format!(""),
-    hex_inserted_value: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_inserted_key: String::new(),
+    hex_inserted_value: String::new(),
+    map: String::new()
 }); "data_map_insert")]
 #[test_case(StacksTransactionEventPayload::DataMapUpdateEvent(DataMapUpdateEventData {
-    contract_identifier: format!(""),
-    hex_new_value: format!(""),
-    hex_key: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_new_value: String::new(),
+    hex_key: String::new(),
+    map: String::new()
 }); "data_map_update")]
 #[test_case(StacksTransactionEventPayload::DataMapDeleteEvent(DataMapDeleteEventData {
-    contract_identifier: format!(""),
-    hex_deleted_key: format!(""),
-    map: format!("")
+    contract_identifier: String::new(),
+    hex_deleted_key: String::new(),
+    map: String::new()
 }); "data_map_delete")]
 #[test_case(StacksTransactionEventPayload::SmartContractEvent(SmartContractEventData {
-    contract_identifier: format!(""),
-    topic: format!("print"),
-    hex_value: format!(""),
+    contract_identifier: String::new(),
+    topic: "print".to_string(),
+    hex_value: String::new(),
 }); "smart_contract_print_event")]
 fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransactionEventPayload) {
     let new_event = create_new_event_from_stacks_event(original_event.clone());
@@ -374,10 +374,10 @@ fn new_events_can_be_converted_into_chainhook_event(original_event: StacksTransa
 #[test]
 fn into_chainhook_event_rejects_invalid_missing_event() {
     let new_event = NewEvent {
-        txid: format!(""),
+        txid: String::new(),
         committed: false,
         event_index: 0,
-        event_type: format!(""),
+        event_type: String::new(),
         stx_transfer_event: None,
         stx_mint_event: None,
         stx_burn_event: None,
@@ -397,4 +397,61 @@ fn into_chainhook_event_rejects_invalid_missing_event() {
     new_event
         .into_chainhook_event()
         .expect_err("expected error on missing event");
+}
+
+#[test]
+#[cfg(feature = "stacks-signers")]
+fn parses_block_response_signer_message() {
+    use chainhook_types::{BlockResponseData, StacksSignerMessage};
+
+    use crate::{
+        indexer::stacks::{
+            NewSignerModifiedSlot, NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots,
+            NewStackerDbChunks, NewStackerDbChunksContractId,
+        },
+        utils::Context,
+    };
+
+    use super::standardize_stacks_stackerdb_chunks;
+
+    let new_chunks = NewStackerDbChunks {
+        contract_id: NewStackerDbChunksContractId {
+            name: "signers-0-1".to_string(),
+            issuer: (
+                NewStackerDbChunkIssuerId(26),
+                NewStackerDbChunkIssuerSlots(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            ),
+        },
+        modified_slots: vec![NewSignerModifiedSlot {
+            sig: "01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1".to_string(),
+            data: "01008f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f000a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b10000005d737461636b732d7369676e657220302e302e3120283a646431656265363436303366353464616534383535386135643832643962643838356539376130312c206465627567206275696c642c206c696e7578205b616172636836345d29".to_string(),
+            slot_id: 1,
+            slot_version: 11,
+        }],
+    };
+    let ctx = &Context::empty();
+    let parsed_chunk = standardize_stacks_stackerdb_chunks(&new_chunks, ctx).unwrap();
+
+    assert_eq!(parsed_chunk.len(), 1);
+    let message = &parsed_chunk[0];
+    assert_eq!(message.contract, "signers-0-1");
+    assert_eq!(
+        message.pubkey,
+        "0x028efa20fa5706567008ebaf48f7ae891342eeb944d96392f719c505c89f84ed8d"
+    );
+    assert_eq!(message.sig, "0x01060cc1bef9ccfe7139f5240ff5c33c44c83206e851e21b63234a996654f70d750b44d9c76466a5c45515b63183dfcfaefe5877fbd3593859e50d5df39cd469a1");
+
+    match &message.message {
+        StacksSignerMessage::BlockResponse(response) => match response {
+            BlockResponseData::Accepted(accepted) => {
+                assert_eq!(accepted.signature, "0x00a1c66742e665e981d10f7a70a5df312c9cba729331129ff1b510e71133d79c0122b25266bf47e8c1c923b4fde0464756ced884030e9983f797c902961fc9b0b1");
+                assert_eq!(
+                    accepted.signer_signature_hash,
+                    "0x8f913dd2bcc2cfbd1c82166e0ad99230f76de098a5ba6ee1b15b042c8f67c6f0"
+                );
+            }
+            _ => assert!(false),
+        },
+        _ => assert!(false),
+    }
 }

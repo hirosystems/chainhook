@@ -1,14 +1,15 @@
+use crate::observer::EventObserverConfig;
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
+use super::types::validate_txid;
 use super::types::{
     append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
-use super::types::validate_txid;
 use chainhook_types::{
-    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksTransactionData,
-    StacksTransactionEvent, StacksTransactionEventPayload, StacksTransactionKind,
-    TransactionIdentifier,
+    BlockIdentifier, StacksChainEvent, StacksNetwork, StacksNonConsensusEventData,
+    StacksTransactionData, StacksTransactionEvent, StacksTransactionEventPayload,
+    StacksTransactionKind, TransactionIdentifier,
 };
 use clarity::codec::StacksMessageCodec;
 use clarity::vm::types::{
@@ -22,6 +23,7 @@ use schemars::JsonSchema;
 use serde_json::Value as JsonValue;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
+use std::time::Duration;
 
 use reqwest::RequestBuilder;
 
@@ -257,6 +259,8 @@ pub enum StacksPredicate {
     NftEvent(StacksNftEventBasedPredicate),
     StxEvent(StacksStxEventBasedPredicate),
     Txid(ExactMatchingRule),
+    #[cfg(feature = "stacks-signers")]
+    SignerMessage(StacksSignerMessagePredicate),
 }
 
 impl StacksPredicate {
@@ -298,16 +302,33 @@ impl StacksPredicate {
             StacksPredicate::NftEvent(_) => {}
             StacksPredicate::StxEvent(_) => {}
             StacksPredicate::Txid(ExactMatchingRule::Equals(txid)) => {
-                if let Err(e) = validate_txid(&txid) {
+                if let Err(e) = validate_txid(txid) {
                     return Err(append_error_context(
                         "invalid predicate for scope 'txid'",
                         vec![e],
                     ));
                 }
             }
+            #[cfg(feature = "stacks-signers")]
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
+                // TODO(rafaelcr): Validate pubkey format
+            }
+            #[cfg(feature = "stacks-signers")]
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(_)) => {}
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StacksSignerMessagePredicate {
+    AfterTimestamp(u64),
+    FromSignerPubKey(String),
+}
+
+impl StacksSignerMessagePredicate {
+    // TODO(rafaelcr): Write validators
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -318,8 +339,8 @@ pub struct StacksContractCallBasedPredicate {
 }
 
 fn validate_contract_identifier(id: &String) -> Result<(), String> {
-    if let Err(e) = QualifiedContractIdentifier::parse(&id) {
-        return Err(format!("invalid contract identifier: {}", e.to_string()));
+    if let Err(e) = QualifiedContractIdentifier::parse(id) {
+        return Err(format!("invalid contract identifier: {}", e));
     }
     Ok(())
 }
@@ -355,7 +376,7 @@ impl StacksContractDeploymentPredicate {
         match self {
             StacksContractDeploymentPredicate::Deployer(deployer) => {
                 if !deployer.eq("*") {
-                    if let Err(e) = PrincipalData::parse_standard_principal(&deployer) {
+                    if let Err(e) = PrincipalData::parse_standard_principal(deployer) {
                         return Err(format!(
                             "contract deployer must be a valid Stacks address: {}",
                             e
@@ -402,7 +423,7 @@ impl StacksPrintEventBasedPredicate {
                 ..
             } => {
                 if !contract_identifier.eq("*") {
-                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                    if let Err(e) = validate_contract_identifier(contract_identifier) {
                         errors.push(e);
                     }
                 }
@@ -412,12 +433,12 @@ impl StacksPrintEventBasedPredicate {
                 regex,
             } => {
                 if !contract_identifier.eq("*") {
-                    if let Err(e) = validate_contract_identifier(&contract_identifier) {
+                    if let Err(e) = validate_contract_identifier(contract_identifier) {
                         errors.push(e);
                     }
                 }
                 if let Err(e) = Regex::new(regex) {
-                    errors.push(format!("invalid regex: {}", e.to_string()))
+                    errors.push(format!("invalid regex: {}", e))
                 }
             }
         }
@@ -455,6 +476,7 @@ pub struct StacksTriggerChainhook<'a> {
     pub chainhook: &'a StacksChainhookInstance,
     pub apply: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
     pub rollback: Vec<(Vec<&'a StacksTransactionData>, &'a dyn AbstractStacksBlock)>,
+    pub events: Vec<&'a StacksNonConsensusEventData>,
 }
 
 #[derive(Clone, Debug)]
@@ -478,22 +500,18 @@ pub struct StacksChainhookPayload {
 pub struct StacksChainhookOccurrencePayload {
     pub apply: Vec<StacksApplyTransactionPayload>,
     pub rollback: Vec<StacksRollbackTransactionPayload>,
+    pub events: Vec<StacksNonConsensusEventData>,
     pub chainhook: StacksChainhookPayload,
 }
 
 impl StacksChainhookOccurrencePayload {
-    pub fn from_trigger<'a>(
-        trigger: StacksTriggerChainhook<'a>,
-    ) -> StacksChainhookOccurrencePayload {
+    pub fn from_trigger(trigger: StacksTriggerChainhook<'_>) -> StacksChainhookOccurrencePayload {
         StacksChainhookOccurrencePayload {
             apply: trigger
                 .apply
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter()
-                        .map(|t| t.clone())
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksApplyTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -504,10 +522,7 @@ impl StacksChainhookOccurrencePayload {
                 .rollback
                 .into_iter()
                 .map(|(transactions, block)| {
-                    let transactions = transactions
-                        .into_iter()
-                        .map(|t| t.clone())
-                        .collect::<Vec<_>>();
+                    let transactions = transactions.into_iter().cloned().collect::<Vec<_>>();
                     StacksRollbackTransactionPayload {
                         block_identifier: block.get_identifier().clone(),
                         transactions,
@@ -517,6 +532,7 @@ impl StacksChainhookOccurrencePayload {
             chainhook: StacksChainhookPayload {
                 uuid: trigger.chainhook.uuid.clone(),
             },
+            events: trigger.events.into_iter().cloned().collect::<Vec<_>>(),
         }
     }
 }
@@ -593,6 +609,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -621,6 +638,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -657,6 +675,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
@@ -718,10 +737,37 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
                         chainhook,
                         apply,
                         rollback,
+                        events: vec![],
                     })
                 }
             }
         }
+        #[cfg(feature = "stacks-signers")]
+        StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
+            if let Some(first_event) = data.events.first() {
+                for chainhook in active_chainhooks.iter() {
+                    evaluated_predicates
+                        .insert(chainhook.uuid.as_str(), &first_event.received_at_block);
+                    let (occurrences, mut expirations) =
+                        evaluate_stacks_predicate_on_non_consensus_events(
+                            &data.events,
+                            chainhook,
+                            ctx,
+                        );
+                    expired_predicates.append(&mut expirations);
+                    if occurrences.len() > 0 {
+                        triggered_predicates.push(StacksTriggerChainhook {
+                            chainhook,
+                            apply: vec![],
+                            rollback: vec![],
+                            events: occurrences,
+                        });
+                    }
+                }
+            }
+        }
+        #[cfg(not(feature = "stacks-signers"))]
+        StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => {}
     }
     (
         triggered_predicates,
@@ -757,7 +803,7 @@ pub fn evaluate_stacks_chainhook_on_blocks<'a>(
                     }
                 }
             }
-            if hits.len() > 0 {
+            if !hits.is_empty() {
                 occurrences.push((hits, block));
             }
         } else {
@@ -792,7 +838,45 @@ pub fn evaluate_stacks_predicate_on_block<'a>(
         | StacksPredicate::StxEvent(_)
         | StacksPredicate::PrintEvent(_)
         | StacksPredicate::Txid(_) => unreachable!(),
+        #[cfg(feature = "stacks-signers")]
+        StacksPredicate::SignerMessage(_) => false,
     }
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
+    events: &'a Vec<StacksNonConsensusEventData>,
+    chainhook: &'a StacksChainhookInstance,
+    _ctx: &Context,
+) -> (
+    Vec<&'a StacksNonConsensusEventData>,
+    BTreeMap<&'a str, &'a BlockIdentifier>,
+) {
+    let mut occurrences = vec![];
+    let expired_predicates = BTreeMap::new();
+    for event in events {
+        match &chainhook.predicate {
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(
+                timestamp,
+            )) => {
+                if event.received_at_ms >= *timestamp {
+                    occurrences.push(event);
+                }
+            }
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
+                // TODO(rafaelcr): Evaluate on pubkey
+            }
+            StacksPredicate::BlockHeight(_)
+            | StacksPredicate::ContractDeployment(_)
+            | StacksPredicate::ContractCall(_)
+            | StacksPredicate::FtEvent(_)
+            | StacksPredicate::NftEvent(_)
+            | StacksPredicate::StxEvent(_)
+            | StacksPredicate::PrintEvent(_)
+            | StacksPredicate::Txid(_) => {},
+        };
+    }
+    (occurrences, expired_predicates)
 }
 
 pub fn evaluate_stacks_predicate_on_transaction<'a>(
@@ -816,20 +900,18 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             _ => false,
         },
         StacksPredicate::ContractDeployment(StacksContractDeploymentPredicate::ImplementTrait(
-            stacks_trait,
-        )) => match stacks_trait {
-            _ => match &transaction.metadata.kind {
-                StacksTransactionKind::ContractDeployment(_actual_deployment) => {
-                    ctx.try_log(|logger| {
-                        slog::warn!(
-                            logger,
-                            "StacksContractDeploymentPredicate::ImplementTrait uninmplemented"
-                        )
-                    });
-                    false
-                }
-                _ => false,
-            },
+            _stacks_trait,
+        )) => match &transaction.metadata.kind {
+            StacksTransactionKind::ContractDeployment(_actual_deployment) => {
+                ctx.try_log(|logger| {
+                    slog::warn!(
+                        logger,
+                        "StacksContractDeploymentPredicate::ImplementTrait uninmplemented"
+                    )
+                });
+                false
+            }
+            _ => false,
         },
         StacksPredicate::ContractCall(expected_contract_call) => match &transaction.metadata.kind {
             StacksTransactionKind::ContractCall(actual_contract_call) => {
@@ -951,55 +1033,54 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
         }
         StacksPredicate::PrintEvent(expected_event) => {
             for event in transaction.metadata.receipt.events.iter() {
-                match &event.event_payload {
-                    StacksTransactionEventPayload::SmartContractEvent(actual) => {
-                        if actual.topic == "print" {
-                            match expected_event {
-                                StacksPrintEventBasedPredicate::Contains {
-                                    contract_identifier,
-                                    contains,
-                                } => {
-                                    if contract_identifier == &actual.contract_identifier
-                                        || contract_identifier == "*"
-                                    {
-                                        if contains == "*" {
-                                            return true;
-                                        }
+                if let StacksTransactionEventPayload::SmartContractEvent(actual) =
+                    &event.event_payload
+                {
+                    if actual.topic == "print" {
+                        match expected_event {
+                            StacksPrintEventBasedPredicate::Contains {
+                                contract_identifier,
+                                contains,
+                            } => {
+                                if contract_identifier == &actual.contract_identifier
+                                    || contract_identifier == "*"
+                                {
+                                    if contains == "*" {
+                                        return true;
+                                    }
+                                    let value = format!(
+                                        "{}",
+                                        expect_decoded_clarity_value(&actual.hex_value)
+                                    );
+                                    if value.contains(contains) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            StacksPrintEventBasedPredicate::MatchesRegex {
+                                contract_identifier,
+                                regex,
+                            } => {
+                                if contract_identifier == &actual.contract_identifier
+                                    || contract_identifier == "*"
+                                {
+                                    if let Ok(regex) = Regex::new(regex) {
                                         let value = format!(
                                             "{}",
                                             expect_decoded_clarity_value(&actual.hex_value)
                                         );
-                                        if value.contains(contains) {
+                                        if regex.is_match(&value) {
                                             return true;
                                         }
-                                    }
-                                }
-                                StacksPrintEventBasedPredicate::MatchesRegex {
-                                    contract_identifier,
-                                    regex,
-                                } => {
-                                    if contract_identifier == &actual.contract_identifier
-                                        || contract_identifier == "*"
-                                    {
-                                        if let Ok(regex) = Regex::new(regex) {
-                                            let value = format!(
-                                                "{}",
-                                                expect_decoded_clarity_value(&actual.hex_value)
-                                            );
-                                            if regex.is_match(&value) {
-                                                return true;
-                                            }
-                                        } else {
-                                            ctx.try_log(|logger| {
-                                                slog::error!(logger, "unable to parse print_event matching rule as regex")
-                                            });
-                                        }
+                                    } else {
+                                        ctx.try_log(|logger| {
+                                            slog::error!(logger, "unable to parse print_event matching rule as regex")
+                                        });
                                     }
                                 }
                             }
                         }
                     }
-                    _ => {}
                 }
             }
             false
@@ -1008,7 +1089,27 @@ pub fn evaluate_stacks_predicate_on_transaction<'a>(
             txid.eq(&transaction.transaction_identifier.hash)
         }
         StacksPredicate::BlockHeight(_) => unreachable!(),
+        #[cfg(feature = "stacks-signers")]
+        StacksPredicate::SignerMessage(_) => false,
     }
+}
+
+fn serialize_stacks_non_consensus_event(
+    event: &StacksNonConsensusEventData,
+    _ctx: &Context,
+) -> serde_json::Value {
+    use chainhook_types::StacksNonConsensusEventPayloadData;
+
+    let payload = match &event.payload {
+        StacksNonConsensusEventPayloadData::SignerMessage(chunk) => {
+            json!({"type": "SignerMessage", "data": chunk})
+        }
+    };
+    json!({
+        "payload": payload,
+        "received_at_ms": event.received_at_ms,
+        "received_at_block": event.received_at_block,
+    })
 }
 
 fn serialize_stacks_block(
@@ -1023,7 +1124,7 @@ fn serialize_stacks_block(
         "parent_block_identifier": block.get_parent_identifier(),
         "timestamp": block.get_timestamp(),
         "transactions": transactions.into_iter().map(|transaction| {
-            serialize_stacks_transaction(&transaction, decode_clarity_values, include_contract_abi, ctx)
+            serialize_stacks_transaction(transaction, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
         "metadata": block.get_serialized_metadata(),
     })
@@ -1227,7 +1328,7 @@ pub fn expect_decoded_clarity_value(hex_value: &str) -> ClarityValue {
 
 pub fn try_decode_clarity_value(hex_value: &str) -> Option<ClarityValue> {
     let hex_value = hex_value.strip_prefix("0x")?;
-    let value_bytes = hex::decode(&hex_value).ok()?;
+    let value_bytes = hex::decode(hex_value).ok()?;
     ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)).ok()
 }
 
@@ -1236,20 +1337,20 @@ pub fn serialized_decoded_clarity_value(hex_value: &str, ctx: &Context) -> serde
         Some(hex_value) => hex_value,
         _ => return json!(hex_value.to_string()),
     };
-    let value_bytes = match hex::decode(&hex_value) {
+    let value_bytes = match hex::decode(hex_value) {
         Ok(bytes) => bytes,
         _ => return json!(hex_value.to_string()),
     };
-    let value = match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
+
+    match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => serialize_to_json(&value),
         Err(e) => {
             ctx.try_log(|logger| {
                 slog::error!(logger, "unable to deserialize clarity value {:?}", e)
             });
-            return json!(hex_value.to_string());
+            json!(hex_value.to_string())
         }
-    };
-    value
+    }
 }
 
 pub fn serialize_to_json(value: &ClarityValue) -> serde_json::Value {
@@ -1277,13 +1378,13 @@ pub fn serialize_to_json(value: &ClarityValue) -> serde_json::Value {
         }
         ClarityValue::Optional(opt_data) => match &opt_data.data {
             None => serde_json::Value::Null,
-            Some(value) => serialize_to_json(&*value),
+            Some(value) => serialize_to_json(value),
         },
         ClarityValue::Response(res_data) => {
             json!({
                 "result": {
                     "success": res_data.committed,
-                    "value": serialize_to_json(&*res_data.data),
+                    "value": serialize_to_json(&res_data.data),
                 }
             })
         }
@@ -1321,6 +1422,7 @@ pub fn serialize_stacks_payload_to_json<'a>(
         "rollback": trigger.rollback.into_iter().map(|(transactions, block)| {
             serialize_stacks_block(block, transactions, decode_clarity_values, include_contract_abi, ctx)
         }).collect::<Vec<_>>(),
+        "events": trigger.events.into_iter().map(|event| serialize_stacks_non_consensus_event(event, ctx)).collect::<Vec<_>>(),
         "chainhook": {
             "uuid": trigger.chainhook.uuid,
             "predicate": trigger.chainhook.predicate,
@@ -1332,21 +1434,26 @@ pub fn serialize_stacks_payload_to_json<'a>(
 pub fn handle_stacks_hook_action<'a>(
     trigger: StacksTriggerChainhook<'a>,
     proofs: &HashMap<&'a TransactionIdentifier, String>,
+    config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<StacksChainhookOccurrence, String> {
     match &trigger.chainhook.action {
         HookAction::HttpPost(http) => {
-            let client = Client::builder()
+            let mut client_builder = Client::builder();
+            if let Some(timeout) = config.predicates_config.payload_http_request_timeout_ms {
+                client_builder = client_builder.timeout(Duration::from_millis(timeout));
+            }
+            let client = client_builder
                 .build()
-                .map_err(|e| format!("unable to build http client: {}", e.to_string()))?;
-            let host = format!("{}", http.url);
+                .map_err(|e| format!("unable to build http client: {}", e))?;
+            let host = http.url.to_string();
             let method = Method::POST;
             let body = serde_json::to_vec(&serialize_stacks_payload_to_json(
                 trigger.clone(),
                 proofs,
                 ctx,
             ))
-            .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
+            .map_err(|e| format!("unable to serialize payload {}", e))?;
             Ok(StacksChainhookOccurrence::Http(
                 client
                     .request(method, &host)
@@ -1358,7 +1465,7 @@ pub fn handle_stacks_hook_action<'a>(
         }
         HookAction::FileAppend(disk) => {
             let bytes = serde_json::to_vec(&serialize_stacks_payload_to_json(trigger, proofs, ctx))
-                .map_err(|e| format!("unable to serialize payload {}", e.to_string()))?;
+                .map_err(|e| format!("unable to serialize payload {}", e))?;
             Ok(StacksChainhookOccurrence::File(
                 disk.path.to_string(),
                 bytes,

@@ -1,15 +1,38 @@
+pub mod signers;
+pub mod sqlite;
+
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
 use chainhook_sdk::types::{BlockIdentifier, StacksBlockData, StacksBlockUpdate};
 use chainhook_sdk::utils::Context;
 use rocksdb::{Options, DB};
+use rusqlite::Connection;
+use signers::open_readonly_signers_db_conn;
 
 const UNCONFIRMED_KEY_PREFIX: &[u8; 2] = b"~:";
 const CONFIRMED_KEY_PREFIX: &[u8; 2] = b"b:";
 const KEY_SUFFIX: &[u8; 2] = b":d";
 const LAST_UNCONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:~";
 const LAST_CONFIRMED_KEY_PREFIX: &[u8; 3] = b"m:t";
+
+/// Keeps references to all databases used to monitor Stacks transactions and events.
+// TODO(rafaelcr): Expand this struct to be flexible enough to include Bitcoin DBs and/or turn some DBs on/off.
+pub struct StacksDbConnections {
+    pub stacks_db: DB,
+    // TODO(rafaelcr): Make this optional if we're not interested in signer data.
+    pub signers_db: Connection,
+}
+
+impl StacksDbConnections {
+    /// Opens all connections in read-only mode.
+    pub fn open_readonly(base_dir: &PathBuf, ctx: &Context) -> Result<Self, String> {
+        Ok(StacksDbConnections {
+            stacks_db: open_readonly_stacks_db_conn(base_dir, ctx)?,
+            signers_db: open_readonly_signers_db_conn(base_dir, ctx)?,
+        })
+    }
+}
 
 fn get_db_default_options() -> Options {
     let mut opts = Options::default();
@@ -60,7 +83,7 @@ pub fn open_readonly_stacks_db_conn_with_retry(
 }
 
 pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result<DB, String> {
-    let path = get_default_stacks_db_file_path(&base_dir);
+    let path = get_default_stacks_db_file_path(base_dir);
     let opts = get_db_default_options();
     match DB::open_for_read_only(&opts, path.clone(), false) {
         Ok(db) => Ok(db),
@@ -68,27 +91,25 @@ pub fn open_readonly_stacks_db_conn(base_dir: &PathBuf, ctx: &Context) -> Result
             if e.to_string()
                 .contains("IO error: No such file or directory")
             {
-                return match open_readwrite_stacks_db_conn(base_dir, ctx) {
+                match open_readwrite_stacks_db_conn(base_dir, ctx) {
                     Ok(_) => {
-                        let db = DB::open_for_read_only(&opts, path, false).map_err(|e| {
-                            format!("unable to open stacks.rocksdb: {}", e.to_string())
-                        })?;
+                        let db = DB::open_for_read_only(&opts, path, false)
+                            .map_err(|e| format!("unable to open stacks.rocksdb: {}", e))?;
                         Ok(db)
                     }
                     Err(e) => Err(e),
-                };
+                }
             } else {
-                return Err(format!("unable to open stacks.rocksdb: {}", e.to_string()));
+                Err(format!("unable to open stacks.rocksdb: {}", e))
             }
         }
     }
 }
 
 pub fn open_readwrite_stacks_db_conn(base_dir: &PathBuf, _ctx: &Context) -> Result<DB, String> {
-    let path = get_default_stacks_db_file_path(&base_dir);
+    let path = get_default_stacks_db_file_path(base_dir);
     let opts = get_db_default_options();
-    let db = DB::open(&opts, path)
-        .map_err(|e| format!("unable to open stacks.rocksdb: {}", e.to_string()))?;
+    let db = DB::open(&opts, path).map_err(|e| format!("unable to open stacks.rocksdb: {}", e))?;
     Ok(db)
 }
 
@@ -124,7 +145,7 @@ pub fn insert_entry_in_stacks_blocks(
     let key = get_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
-        .put(&key, &block_bytes.to_string().as_bytes())
+        .put(key, block_bytes.to_string().as_bytes())
         .map_err(|e| format!("unable to insert blocks: {}", e))?;
     let previous_last_inserted = get_last_block_height_inserted(stacks_db_rw, ctx).unwrap_or(0);
     if block.block_identifier.index > previous_last_inserted {
@@ -155,7 +176,7 @@ pub fn insert_unconfirmed_entry_in_stacks_blocks(
     let key = get_unconfirmed_block_key(&block.block_identifier);
     let block_bytes = json!(block);
     stacks_db_rw
-        .put(&key, &block_bytes.to_string().as_bytes())
+        .put(key, block_bytes.to_string().as_bytes())
         .map_err(|e| format!("unable to insert blocks: {}", e))?;
     let previous_last_inserted =
         get_last_unconfirmed_block_height_inserted(stacks_db_rw, _ctx).unwrap_or(0);
@@ -175,9 +196,9 @@ pub fn delete_unconfirmed_entry_from_stacks_blocks(
     stacks_db_rw: &DB,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let key = get_unconfirmed_block_key(&block_identifier);
+    let key = get_unconfirmed_block_key(block_identifier);
     stacks_db_rw
-        .delete(&key)
+        .delete(key)
         .map_err(|e| format!("unable to delete blocks: {}", e))
 }
 
@@ -186,9 +207,9 @@ pub fn delete_confirmed_entry_from_stacks_blocks(
     stacks_db_rw: &DB,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let key = get_block_key(&block_identifier);
+    let key = get_block_key(block_identifier);
     stacks_db_rw
-        .delete(&key)
+        .delete(key)
         .map_err(|e| format!("unable to delete blocks: {}", e))
 }
 
@@ -196,10 +217,10 @@ pub fn get_last_unconfirmed_block_height_inserted(stacks_db: &DB, _ctx: &Context
     stacks_db
         .get(get_last_unconfirmed_insert_key())
         .unwrap_or(None)
-        .and_then(|bytes| {
-            Some(u64::from_be_bytes([
+        .map(|bytes| {
+            u64::from_be_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]))
+            ])
         })
 }
 
@@ -230,10 +251,10 @@ pub fn get_last_block_height_inserted(stacks_db: &DB, _ctx: &Context) -> Option<
     stacks_db
         .get(get_last_confirmed_insert_key())
         .unwrap_or(None)
-        .and_then(|bytes| {
-            Some(u64::from_be_bytes([
+        .map(|bytes| {
+            u64::from_be_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]))
+            ])
         })
 }
 
@@ -279,10 +300,8 @@ pub fn get_stacks_block_at_block_height(
         }) {
             Ok(Some(entry)) => {
                 return Ok(Some({
-                    let spec: StacksBlockData =
-                        serde_json::from_slice(&entry[..]).map_err(|e| {
-                            format!("unable to deserialize Stacks block {}", e.to_string())
-                        })?;
+                    let spec: StacksBlockData = serde_json::from_slice(&entry[..])
+                        .map_err(|e| format!("unable to deserialize Stacks block {}", e))?;
                     spec
                 }))
             }

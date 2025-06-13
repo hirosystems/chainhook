@@ -17,13 +17,18 @@ use crate::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
         get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
         open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
+        signers::get_signer_db_messages_received_at_block, StacksDbConnections,
     },
 };
-use chainhook_sdk::types::{BlockIdentifier, Chain};
 use chainhook_sdk::{
     chainhooks::stacks::evaluate_stacks_chainhook_on_blocks,
     indexer::{self, stacks::standardize_stacks_serialized_block_header, Indexer},
+    try_info,
     utils::Context,
+};
+use chainhook_sdk::{
+    chainhooks::stacks::evaluate_stacks_predicate_on_non_consensus_events,
+    types::{BlockIdentifier, Chain},
 };
 use chainhook_sdk::{
     chainhooks::stacks::{
@@ -32,7 +37,6 @@ use chainhook_sdk::{
     },
     utils::{file_append, send_request, AbstractStacksBlock},
 };
-use rocksdb::DB;
 
 use super::common::PredicateScanResult;
 
@@ -97,14 +101,10 @@ pub async fn get_canonical_fork_from_tsv(
             for result in reader_builder.deserialize() {
                 line += 1;
                 let record: Record = result.unwrap();
-                match &record.kind {
-                    RecordKind::StacksBlockReceived => match record_tx.send(Some((record, line))) {
-                        Err(_e) => {
-                            break;
-                        }
-                        _ => {}
-                    },
-                    _ => {}
+                if let RecordKind::StacksBlockReceived = &record.kind {
+                    if let Err(_e) = record_tx.send(Some((record, line))) {
+                        break;
+                    }
                 };
             }
             let _ = record_tx.send(None);
@@ -119,7 +119,7 @@ pub async fn get_canonical_fork_from_tsv(
         while let Ok(Some((record, line))) = record_rx.recv() {
             let (block_identifier, parent_block_identifier) = match (&record.kind, &record.blob) {
                 (RecordKind::StacksBlockReceived, Some(blob)) => {
-                    match standardize_stacks_serialized_block_header(&blob) {
+                    match standardize_stacks_serialized_block_header(blob) {
                         Ok(data) => data,
                         Err(e) => {
                             error!(
@@ -184,11 +184,12 @@ pub async fn get_canonical_fork_from_tsv(
 pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     predicate_spec: &StacksChainhookInstance,
     unfinished_scan_data: Option<ScanningData>,
-    stacks_db_conn: &DB,
+    db_conns: &mut StacksDbConnections,
     config: &Config,
     kill_signal: Option<Arc<RwLock<bool>>>,
     ctx: &Context,
 ) -> Result<PredicateScanResult, String> {
+    let stacks_db_conn = &db_conns.stacks_db;
     let predicate_uuid = &predicate_spec.uuid;
     let mut chain_tip = match get_last_unconfirmed_block_height_inserted(stacks_db_conn, ctx) {
         Some(chain_tip) => chain_tip,
@@ -250,14 +251,11 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
     let mut loop_did_trigger = false;
     while let Some(current_block_height) = block_heights_to_scan.pop_front() {
         if let Some(kill_signal) = kill_signal.clone() {
-            match kill_signal.read() {
-                Ok(kill_signal) => {
-                    // if true, we're received the kill signal, so break out of the loop
-                    if *kill_signal {
-                        return Ok(PredicateScanResult::Deregistered);
-                    }
+            if let Ok(kill_signal) = kill_signal.read() {
+                // if true, we're received the kill signal, so break out of the loop
+                if *kill_signal {
+                    return Ok(PredicateScanResult::Deregistered);
                 }
-                Err(_) => {}
             }
         }
         if let Some(ref mut predicates_db_conn) = predicates_db_conn {
@@ -334,20 +332,32 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         last_block_scanned = block_data.block_identifier.clone();
 
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
-
         let (hits_per_blocks, _predicates_expired) =
-            evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
+            evaluate_stacks_chainhook_on_blocks(blocks, predicate_spec, ctx);
 
-        if hits_per_blocks.is_empty() {
+        let events = get_signer_db_messages_received_at_block(
+            &mut db_conns.signers_db,
+            &block_data.block_identifier,
+        )?;
+        let (hits_per_events, _) =
+            evaluate_stacks_predicate_on_non_consensus_events(&events, predicate_spec, ctx);
+
+        if hits_per_blocks.is_empty() && hits_per_events.is_empty() {
             continue;
         }
 
         let trigger = StacksTriggerChainhook {
-            chainhook: &predicate_spec,
+            chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
+            events: hits_per_events,
         };
-        let res = match handle_stacks_hook_action(trigger, &proofs, &ctx) {
+        let res = match handle_stacks_hook_action(
+            trigger,
+            &proofs,
+            &config.get_event_observer_config(),
+            ctx,
+        ) {
             Err(e) => {
                 warn!(
                     ctx.expect_logger(),
@@ -360,9 +370,9 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 loop_did_trigger = true;
                 let res = match action {
                     StacksChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 3, 1, &ctx).await
+                        send_request(request, 3, 1, ctx).await
                     }
-                    StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, &ctx),
+                    StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx),
                     StacksChainhookOccurrence::Data(_payload) => Ok(()),
                 };
                 match res {
@@ -385,7 +395,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                     res.unwrap_err()
                 ));
             } else {
-                return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+                return Err("Scan aborted (consecutive action errors >= 3)".to_string());
             }
         }
     }
@@ -420,10 +430,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 3,
                 stacks_db_conn,
             ) {
-                Ok(block) => match block {
-                    Some(_) => true,
-                    None => false,
-                },
+                Ok(block) => block.is_some(),
                 Err(e) => {
                     warn!(
                         ctx.expect_logger(),
@@ -456,10 +463,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
     config: &mut Config,
     ctx: &Context,
 ) -> Result<BlockIdentifier, String> {
-    let start_block = match predicate_spec.start_block {
-        Some(start_block) => start_block,
-        None => 0,
-    };
+    let start_block = predicate_spec.start_block.unwrap_or_default();
     if let Some(end_block) = predicate_spec.end_block {
         if start_block > end_block {
             return Err(
@@ -502,7 +506,9 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         let mut tsv_line = String::new();
         while tsv_current_line < tsv_line_number {
             tsv_line.clear();
-            let bytes_read = tsv_reader.read_line(&mut tsv_line).map_err(|e| e.to_string())?;
+            let bytes_read = tsv_reader
+                .read_line(&mut tsv_line)
+                .map_err(|e| e.to_string())?;
             if bytes_read == 0 {
                 return Err("Unexpected EOF when reading TSV".to_string());
             }
@@ -530,17 +536,20 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         let blocks: Vec<&dyn AbstractStacksBlock> = vec![&block_data];
 
         let (hits_per_blocks, _predicates_expired) =
-            evaluate_stacks_chainhook_on_blocks(blocks, &predicate_spec, ctx);
+            evaluate_stacks_chainhook_on_blocks(blocks, predicate_spec, ctx);
         if hits_per_blocks.is_empty() {
             continue;
         }
 
         let trigger = StacksTriggerChainhook {
-            chainhook: &predicate_spec,
+            chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
+            // TODO(rafaelcr): Consider StackerDB chunks that come from TSVs.
+            events: vec![],
         };
-        match handle_stacks_hook_action(trigger, &proofs, &ctx) {
+        match handle_stacks_hook_action(trigger, &proofs, &config.get_event_observer_config(), ctx)
+        {
             Err(e) => {
                 error!(ctx.expect_logger(), "unable to handle action {}", e);
             }
@@ -548,9 +557,9 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
                 occurrences_found += 1;
                 let res = match action {
                     StacksChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 10, 3, &ctx).await
+                        send_request(request, 10, 3, ctx).await
                     }
-                    StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, &ctx),
+                    StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx),
                     StacksChainhookOccurrence::Data(_payload) => unreachable!(),
                 };
                 if res.is_err() {
@@ -562,7 +571,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
         }
         // We abort after 3 consecutive errors
         if err_count >= 3 {
-            return Err(format!("Scan aborted (consecutive action errors >= 3)"));
+            return Err("Scan aborted (consecutive action errors >= 3)".to_string());
         }
     }
     info!(
@@ -573,98 +582,101 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
     Ok(last_block_scanned)
 }
 
-pub async fn consolidate_local_stacks_chainstate_using_csv(
+/// Downloads a remote archive TSV that contains Stacks node events and imports it into chainhook in order to fill up the Stacks
+/// blocks database. This import will only happen if chainhook is starting from a fresh install with an empty index.
+pub async fn import_stacks_chainstate_from_remote_tsv(
     config: &mut Config,
     ctx: &Context,
 ) -> Result<(), String> {
+    #[cfg(not(test))]
+    {
+        if !config.is_cache_path_empty()? {
+            try_info!(ctx, "A Stacks chainstate already exists, skipping TSV chainstante import");
+            return Ok(());
+        }
+        if !config.contains_remote_stacks_tsv_url() {
+            try_info!(ctx, "No remote Stacks TSV location was specified in config file, skipping TSV chainstante import");
+            return Ok(());
+        }
+    }
+    try_info!(ctx, "Importing Stacks chainstate from TSV");
+
+    download_stacks_dataset_if_required(config, ctx).await?;
+    let stacks_db = open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
+    let confirmed_tip = get_last_block_height_inserted(&stacks_db, ctx);
+    let mut canonical_fork: VecDeque<(BlockIdentifier, BlockIdentifier, u64)> =
+        get_canonical_fork_from_tsv(config, confirmed_tip, ctx).await?;
+
+    let mut indexer = Indexer::new(config.network.clone());
+    let mut blocks_inserted = 0;
+    let mut blocks_read = 0;
+    let blocks_to_insert = canonical_fork.len();
+    let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
     info!(
         ctx.expect_logger(),
-        "Building local chainstate from Stacks archive file"
+        "Beginning import of {} Stacks blocks into rocks db", blocks_to_insert
     );
+    // TODO: To avoid repeating code with `scan_stacks_chainstate_via_csv_using_predicate`, we should move this block
+    // retrieval code into a reusable function.
+    let tsv_path = config.expected_local_stacks_tsv_file()?.clone();
+    let mut tsv_reader = BufReader::new(File::open(tsv_path).map_err(|e| e.to_string())?);
+    let mut tsv_current_line = 0;
+    for (block_identifier, _parent_block_identifier, tsv_line_number) in canonical_fork.drain(..) {
+        blocks_read += 1;
 
-    let downloaded_new_dataset = download_stacks_dataset_if_required(config, ctx).await?;
-    if downloaded_new_dataset {
-        let stacks_db =
-            open_readonly_stacks_db_conn_with_retry(&config.expected_cache_path(), 3, ctx)?;
-        let confirmed_tip = get_last_block_height_inserted(&stacks_db, &ctx);
-        let mut canonical_fork: VecDeque<(BlockIdentifier, BlockIdentifier, u64)> =
-            get_canonical_fork_from_tsv(config, confirmed_tip, ctx).await?;
+        // If blocks already stored, move on
+        if is_stacks_block_present(&block_identifier, 3, &stacks_db_rw) {
+            continue;
+        }
+        blocks_inserted += 1;
 
-        let mut indexer = Indexer::new(config.network.clone());
-        let mut blocks_inserted = 0;
-        let mut blocks_read = 0;
-        let blocks_to_insert = canonical_fork.len();
-        let stacks_db_rw = open_readwrite_stacks_db_conn(&config.expected_cache_path(), ctx)?;
-        info!(
-            ctx.expect_logger(),
-            "Beginning import of {} Stacks blocks into rocks db", blocks_to_insert
-        );
-        // TODO: To avoid repeating code with `scan_stacks_chainstate_via_csv_using_predicate`, we should move this block
-        // retrieval code into a reusable function.
-        let tsv_path = config.expected_local_stacks_tsv_file()?.clone();
-        let mut tsv_reader = BufReader::new(File::open(tsv_path).map_err(|e| e.to_string())?);
-        let mut tsv_current_line = 0;
-        for (block_identifier, _parent_block_identifier, tsv_line_number) in
-            canonical_fork.drain(..)
-        {
-            blocks_read += 1;
+        // Seek to required line from TSV and retrieve its block payload.
+        let mut tsv_line = String::new();
+        while tsv_current_line < tsv_line_number {
+            tsv_line.clear();
+            let bytes_read = tsv_reader
+                .read_line(&mut tsv_line)
+                .map_err(|e| e.to_string())?;
+            if bytes_read == 0 {
+                return Err("Unexpected EOF when reading TSV".to_string());
+            }
+            tsv_current_line += 1;
+        }
+        let Some(serialized_block) = tsv_line.split('\t').last() else {
+            return Err("Unable to retrieve serialized block from TSV line".to_string());
+        };
 
-            // If blocks already stored, move on
-            if is_stacks_block_present(&block_identifier, 3, &stacks_db_rw) {
+        let block_data = match indexer::stacks::standardize_stacks_serialized_block(
+            &indexer.config,
+            serialized_block,
+            &mut indexer.stacks_context,
+            ctx,
+        ) {
+            Ok(block) => block,
+            Err(e) => {
+                error!(
+                    &ctx.expect_logger(),
+                    "Failed to standardize stacks block: {e}"
+                );
                 continue;
             }
-            blocks_inserted += 1;
+        };
 
-            // Seek to required line from TSV and retrieve its block payload.
-            let mut tsv_line = String::new();
-            while tsv_current_line < tsv_line_number {
-                tsv_line.clear();
-                let bytes_read = tsv_reader.read_line(&mut tsv_line).map_err(|e| e.to_string())?;
-                if bytes_read == 0 {
-                    return Err("Unexpected EOF when reading TSV".to_string());
-                }
-                tsv_current_line += 1;
-            }
-            let Some(serialized_block) = tsv_line.split('\t').last() else {
-                return Err("Unable to retrieve serialized block from TSV line".to_string());
-            };
+        // TODO(rafaelcr): Store signer messages
+        insert_entry_in_stacks_blocks(&block_data, &stacks_db_rw, ctx)?;
 
-            let block_data = match indexer::stacks::standardize_stacks_serialized_block(
-                &indexer.config,
-                serialized_block,
-                &mut indexer.stacks_context,
-                ctx,
-            ) {
-                Ok(block) => block,
-                Err(e) => {
-                    error!(
-                        &ctx.expect_logger(),
-                        "Failed to standardize stacks block: {e}"
-                    );
-                    continue;
-                }
-            };
-
-            insert_entry_in_stacks_blocks(&block_data, &stacks_db_rw, ctx)?;
-
-            if blocks_inserted % 2500 == 0 {
-                info!(
-                    ctx.expect_logger(),
-                    "Importing Stacks blocks into rocks db: {}/{}", blocks_read, blocks_to_insert
-                );
-                let _ = stacks_db_rw.flush();
-            }
+        if blocks_inserted % 2500 == 0 {
+            info!(
+                ctx.expect_logger(),
+                "Importing Stacks blocks into rocks db: {}/{}", blocks_read, blocks_to_insert
+            );
+            let _ = stacks_db_rw.flush();
         }
-        let _ = stacks_db_rw.flush();
-        info!(
-            ctx.expect_logger(),
-            "{blocks_read} Stacks blocks read, {blocks_inserted} inserted"
-        );
-    } else {
-        info!(
-            ctx.expect_logger(),
-            "Skipping database consolidation - no new archive found since last consolidation."
-        );
     }
+    let _ = stacks_db_rw.flush();
+    info!(
+        ctx.expect_logger(),
+        "{blocks_read} Stacks blocks read, {blocks_inserted} inserted"
+    );
     Ok(())
 }

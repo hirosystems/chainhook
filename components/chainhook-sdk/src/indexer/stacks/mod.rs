@@ -35,6 +35,42 @@ pub struct NewBlock {
     pub transactions: Vec<NewTransaction>,
     pub events: Vec<NewEvent>,
     pub matured_miner_rewards: Vec<MaturedMinerReward>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenure_height: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_time: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_bitvec: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_signature_hash: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer_signature: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cycle_number: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward_set: Option<RewardSet>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RewardSet {
+    pub pox_ustx_threshold: String,
+    pub rewarded_addresses: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signers: Option<Vec<RewardSetSigner>>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RewardSetSigner {
+    pub signing_key: String,
+    pub weight: u32,
+    pub stacked_amt: String,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone)]
@@ -76,6 +112,8 @@ pub struct NewTransaction {
     pub raw_result: String,
     pub raw_tx: String,
     pub execution_cost: Option<StacksTransactionExecutionCost>,
+    pub contract_interface: Option<ContractInterface>,
+    /// @deprecated Use `contract_interface` instead
     pub contract_abi: Option<ContractInterface>,
 }
 
@@ -255,7 +293,7 @@ impl NewEvent {
                 },
             });
         }
-        return Err(format!("unable to support event type"));
+        Err("unable to support event type".to_string())
     }
 }
 
@@ -273,15 +311,46 @@ pub struct ContractReadonlyCall {
     pub result: String,
 }
 
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunkIssuerId(pub u32);
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunkIssuerSlots(pub Vec<u32>);
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunksContractId {
+    pub name: String,
+    pub issuer: (NewStackerDbChunkIssuerId, NewStackerDbChunkIssuerSlots),
+}
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewSignerModifiedSlot {
+    pub sig: String,
+    pub data: String,
+    pub slot_id: u32,
+    pub slot_version: u32,
+}
+
+#[cfg(feature = "stacks-signers")]
+#[derive(Deserialize, Debug)]
+pub struct NewStackerDbChunks {
+    pub contract_id: NewStackerDbChunksContractId,
+    pub modified_slots: Vec<NewSignerModifiedSlot>,
+}
+
 pub fn standardize_stacks_serialized_block_header(
     serialized_block: &str,
 ) -> Result<(BlockIdentifier, BlockIdentifier), String> {
     let mut block_header: NewBlockHeader = serde_json::from_str(serialized_block)
-        .map_err(|e| format!("unable to parse stacks block_header {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block_header {}", e))?;
     let hash = block_header
         .index_block_hash
         .take()
-        .ok_or(format!("unable to retrieve index_block_hash"))?;
+        .ok_or("unable to retrieve index_block_hash".to_string())?;
     let block_identifier = BlockIdentifier {
         hash,
         index: block_header.block_height,
@@ -289,7 +358,7 @@ pub fn standardize_stacks_serialized_block_header(
     let parent_hash = block_header
         .parent_index_block_hash
         .take()
-        .ok_or(format!("unable to retrieve parent_index_block_hash"))?;
+        .ok_or("unable to retrieve parent_index_block_hash".to_string())?;
 
     let parent_height = block_identifier.index.saturating_sub(1);
     let parent_block_identifier = BlockIdentifier {
@@ -306,7 +375,7 @@ pub fn standardize_stacks_serialized_block(
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
     let mut block: NewBlock = serde_json::from_str(serialized_block)
-        .map_err(|e| format!("unable to parse stacks block_header {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block_header {}", e))?;
     standardize_stacks_block(indexer_config, &mut block, chain_ctx, ctx)
 }
 
@@ -317,7 +386,7 @@ pub fn standardize_stacks_marshalled_block(
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
     let mut block: NewBlock = serde_json::from_value(marshalled_block)
-        .map_err(|e| format!("unable to parse stacks block {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse stacks block {}", e))?;
     standardize_stacks_block(indexer_config, &mut block, chain_ctx, ctx)
 }
 
@@ -327,23 +396,23 @@ pub fn standardize_stacks_block(
     chain_ctx: &mut StacksChainContext,
     ctx: &Context,
 ) -> Result<StacksBlockData, String> {
-    let pox_cycle_length: u64 = (chain_ctx.pox_config.get_pox_cycle_len()).into();
+    let pox_cycle_length: u64 = chain_ctx.pox_config.get_pox_cycle_len();
     let current_len = u64::saturating_sub(
         block.burn_block_height,
-        1 + (chain_ctx.pox_config.first_burnchain_block_height as u64),
+        1 + chain_ctx.pox_config.first_burnchain_block_height,
     );
     let pox_cycle_id: u32 = (current_len / pox_cycle_length).try_into().unwrap_or(0);
     let mut events: HashMap<&String, Vec<&NewEvent>> = HashMap::new();
     for event in block.events.iter() {
         events
             .entry(&event.txid)
-            .and_modify(|events| events.push(&event))
+            .and_modify(|events| events.push(event))
             .or_insert(vec![&event]);
     }
 
     let mut transactions = vec![];
     for tx in block.transactions.iter() {
-        let tx_events = events.remove(&tx.txid).unwrap_or(vec![]);
+        let tx_events = events.remove(&tx.txid).unwrap_or_default();
         let (description, tx_type, fee, nonce, sender, sponsor) =
             match get_tx_description(&tx.raw_tx, &tx_events) {
                 Ok(desc) => desc,
@@ -354,8 +423,7 @@ pub fn standardize_stacks_block(
                     }
                     return Err(format!(
                         "unable to standardize block #{} ({})",
-                        block.block_height,
-                        e.to_string()
+                        block.block_height, e
                     ));
                 }
             };
@@ -390,7 +458,7 @@ pub fn standardize_stacks_block(
                 description,
                 position: StacksTransactionPosition::anchor_block(tx.tx_index),
                 proof: None,
-                contract_abi: tx.contract_abi.clone(),
+                contract_abi: tx.contract_interface.clone().or_else(|| tx.contract_abi.clone()),
             },
         });
     }
@@ -408,6 +476,11 @@ pub fn standardize_stacks_block(
             hash: block.parent_microblock.clone(),
         })
     };
+
+    let signer_sig_hash = block
+        .signer_signature_hash
+        .as_ref()
+        .map(|hash| hex::decode(&hash[2..]).expect("unable to decode signer_signature hex"));
 
     let block = StacksBlockData {
         block_identifier: BlockIdentifier {
@@ -432,6 +505,52 @@ pub fn standardize_stacks_block(
             pox_cycle_length: pox_cycle_length.try_into().unwrap(),
             confirm_microblock_identifier,
             stacks_block_hash: block.block_hash.clone(),
+
+            block_time: block.block_time,
+            tenure_height: block.tenure_height,
+            // TODO: decode `signer_bitvec` into an easy to use bit string representation (e.g. "01010101")
+            signer_bitvec: block.signer_bitvec.clone(),
+            signer_signature: block.signer_signature.clone(),
+
+            signer_public_keys: match (signer_sig_hash, &block.signer_signature) {
+                (Some(signer_sig_hash), Some(signatures)) => Some(
+                    signatures
+                        .iter()
+                        .map(|sig_hex| {
+                            let sig_msg =
+                                clarity::util::secp256k1::MessageSignature::from_hex(sig_hex)
+                                    .map_err(|e| {
+                                        format!("unable to parse signer signature message: {}", e)
+                                    })?;
+                            let pubkey =
+                                get_signer_pubkey_from_message_hash(&signer_sig_hash, &sig_msg)
+                                    .map_err(|e| {
+                                        format!("unable to recover signer sig pubkey: {}", e)
+                                    })?;
+                            Ok(format!("0x{}", hex::encode(pubkey)))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?,
+                ),
+                _ => None,
+            },
+
+            cycle_number: block.cycle_number,
+            reward_set: block.reward_set.as_ref().and_then(|r| {
+                Some(StacksBlockMetadataRewardSet {
+                    pox_ustx_threshold: r.pox_ustx_threshold.clone(),
+                    rewarded_addresses: r.rewarded_addresses.clone(),
+                    signers: r.signers.as_ref().map(|signers| {
+                        signers
+                            .into_iter()
+                            .map(|signer| StacksBlockMetadataRewardSetSigner {
+                                signing_key: signer.signing_key.clone(),
+                                weight: signer.weight,
+                                stacked_amt: signer.stacked_amt.clone(),
+                            })
+                            .collect()
+                    }),
+                })
+            }),
         },
         transactions,
     };
@@ -446,7 +565,7 @@ pub fn standardize_stacks_serialized_microblock_trail(
 ) -> Result<Vec<StacksMicroblockData>, String> {
     let mut microblock_trail: NewMicroblockTrail =
         serde_json::from_str(serialized_microblock_trail)
-            .map_err(|e| format!("unable to parse microblock trail {}", e.to_string()))?;
+            .map_err(|e| format!("unable to parse microblock trail {}", e))?;
     standardize_stacks_microblock_trail(indexer_config, &mut microblock_trail, chain_ctx, ctx)
 }
 
@@ -458,7 +577,7 @@ pub fn standardize_stacks_marshalled_microblock_trail(
 ) -> Result<Vec<StacksMicroblockData>, String> {
     let mut microblock_trail: NewMicroblockTrail =
         serde_json::from_value(marshalled_microblock_trail)
-            .map_err(|e| format!("unable to parse microblock trail {}", e.to_string()))?;
+            .map_err(|e| format!("unable to parse microblock trail {}", e))?;
     standardize_stacks_microblock_trail(indexer_config, &mut microblock_trail, chain_ctx, ctx)
 }
 
@@ -472,7 +591,7 @@ pub fn standardize_stacks_microblock_trail(
     for event in microblock_trail.events.iter() {
         events
             .entry(&event.txid)
-            .and_modify(|events| events.push(&event))
+            .and_modify(|events| events.push(event))
             .or_insert(vec![&event]);
     }
     let mut microblocks_set: BTreeMap<
@@ -480,7 +599,7 @@ pub fn standardize_stacks_microblock_trail(
         Vec<StacksTransactionData>,
     > = BTreeMap::new();
     for tx in microblock_trail.transactions.iter() {
-        let tx_events = events.remove(&tx.txid).unwrap_or(vec![]);
+        let tx_events = events.remove(&tx.txid).unwrap_or_default();
         let (description, tx_type, fee, nonce, sender, sponsor) =
             get_tx_description(&tx.raw_tx, &tx_events).expect("unable to parse transaction");
 
@@ -562,26 +681,363 @@ pub fn standardize_stacks_microblock_trail(
     Ok(microblocks)
 }
 
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_marshalled_stackerdb_chunks(
+    marshalled_stackerdb_chunks: JsonValue,
+    ctx: &Context,
+) -> Result<Vec<StacksStackerDbChunk>, String> {
+    let mut stackerdb_chunks: NewStackerDbChunks =
+        serde_json::from_value(marshalled_stackerdb_chunks)
+            .map_err(|e| format!("unable to parse stackerdb chunks {e}"))?;
+    standardize_stacks_stackerdb_chunks(&mut stackerdb_chunks, ctx)
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_stackerdb_chunks(
+    stackerdb_chunks: &NewStackerDbChunks,
+    _ctx: &Context,
+) -> Result<Vec<StacksStackerDbChunk>, String> {
+    use stacks_codec::codec::BlockResponse;
+    use stacks_codec::codec::RejectCode;
+    use stacks_codec::codec::SignerMessage;
+    use stacks_codec::codec::ValidateRejectCode;
+
+    let contract_id = &stackerdb_chunks.contract_id.name;
+    let mut parsed_chunks: Vec<StacksStackerDbChunk> = vec![];
+    for slot in stackerdb_chunks.modified_slots.iter() {
+        let data_bytes = hex::decode(&slot.data)
+            .map_err(|e| format!("unable to decode signer slot hex data: {e}"))?;
+        let signer_message = SignerMessage::consensus_deserialize(&mut Cursor::new(&data_bytes))
+            .map_err(|e| format!("unable to deserialize SignerMessage: {e}"))?;
+        let message = match signer_message {
+            SignerMessage::BlockProposal(block_proposal) => {
+                StacksSignerMessage::BlockProposal(BlockProposalData {
+                    block: standardize_stacks_nakamoto_block(&block_proposal.block)?,
+                    burn_height: block_proposal.burn_height,
+                    reward_cycle: block_proposal.reward_cycle,
+                })
+            }
+            SignerMessage::BlockResponse(block_response) => match block_response {
+                BlockResponse::Accepted(block_accepted) => StacksSignerMessage::BlockResponse(
+                    BlockResponseData::Accepted(BlockAcceptedResponse {
+                        signer_signature_hash: format!(
+                            "0x{}",
+                            block_accepted.signer_signature_hash.to_hex()
+                        ),
+                        signature: format!("0x{}", block_accepted.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_accepted.metadata.server_version,
+                        },
+                    }),
+                ),
+                BlockResponse::Rejected(block_rejection) => StacksSignerMessage::BlockResponse(
+                    BlockResponseData::Rejected(BlockRejectedResponse {
+                        reason: block_rejection.reason,
+                        reason_code: match block_rejection.reason_code {
+                            RejectCode::ValidationFailed(validate_reject_code) => {
+                                BlockRejectReasonCode::ValidationFailed {
+                                    validation_failed: match validate_reject_code {
+                                        ValidateRejectCode::BadBlockHash => {
+                                            BlockValidationFailedCode::BadBlockHash
+                                        }
+                                        ValidateRejectCode::BadTransaction => {
+                                            BlockValidationFailedCode::BadTransaction
+                                        }
+                                        ValidateRejectCode::InvalidBlock => {
+                                            BlockValidationFailedCode::InvalidBlock
+                                        }
+                                        ValidateRejectCode::ChainstateError => {
+                                            BlockValidationFailedCode::ChainstateError
+                                        }
+                                        ValidateRejectCode::UnknownParent => {
+                                            BlockValidationFailedCode::UnknownParent
+                                        }
+                                        ValidateRejectCode::NonCanonicalTenure => {
+                                            BlockValidationFailedCode::NonCanonicalTenure
+                                        }
+                                        ValidateRejectCode::NoSuchTenure => {
+                                            BlockValidationFailedCode::NoSuchTenure
+                                        }
+                                    },
+                                }
+                            }
+                            RejectCode::NoSortitionView => BlockRejectReasonCode::NoSortitionView,
+                            RejectCode::ConnectivityIssues => {
+                                BlockRejectReasonCode::ConnectivityIssues
+                            }
+                            RejectCode::RejectedInPriorRound => {
+                                BlockRejectReasonCode::RejectedInPriorRound
+                            }
+                            RejectCode::SortitionViewMismatch => {
+                                BlockRejectReasonCode::SortitionViewMismatch
+                            }
+                            RejectCode::TestingDirective => BlockRejectReasonCode::TestingDirective,
+                        },
+                        signer_signature_hash: format!(
+                            "0x{}",
+                            block_rejection.signer_signature_hash.to_hex()
+                        ),
+                        chain_id: block_rejection.chain_id,
+                        signature: format!("0x{}", block_rejection.signature.to_hex()),
+                        metadata: SignerMessageMetadata {
+                            server_version: block_rejection.metadata.server_version,
+                        },
+                    }),
+                ),
+            },
+            SignerMessage::BlockPushed(nakamoto_block) => {
+                StacksSignerMessage::BlockPushed(BlockPushedData {
+                    block: standardize_stacks_nakamoto_block(&nakamoto_block)?,
+                })
+            }
+            SignerMessage::MockSignature(signature) => StacksSignerMessage::MockSignature(
+                standardize_stacks_signer_mock_signature(&signature)?,
+            ),
+            SignerMessage::MockProposal(data) => StacksSignerMessage::MockProposal(
+                standardize_stacks_signer_peer_info(&data.peer_info)?,
+            ),
+            SignerMessage::MockBlock(data) => StacksSignerMessage::MockBlock(MockBlockData {
+                mock_proposal: MockProposalData {
+                    peer_info: standardize_stacks_signer_peer_info(&data.mock_proposal.peer_info)?,
+                },
+                mock_signatures: data
+                    .mock_signatures
+                    .iter()
+                    .map(|signature| standardize_stacks_signer_mock_signature(signature))
+                    .try_fold(
+                        Vec::new(),
+                        |mut acc, item| -> Result<Vec<MockSignatureData>, String> {
+                            item.and_then(|val| {
+                                acc.push(val);
+                                Ok(())
+                            })?;
+                            Ok(acc)
+                        },
+                    )?,
+            }),
+        };
+        parsed_chunks.push(StacksStackerDbChunk {
+            contract: contract_id.clone(),
+            sig: format!("0x{}", slot.sig),
+            pubkey: format!(
+                "0x{}",
+                get_signer_pubkey_from_stackerdb_chunk_slot(slot, &data_bytes)?
+            ),
+            message,
+        });
+    }
+
+    Ok(parsed_chunks)
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_signer_mock_signature(
+    signature: &stacks_codec::codec::MockSignature,
+) -> Result<MockSignatureData, String> {
+    let pubkey = get_signer_pubkey_from_message_hash(
+        &signature
+            .mock_proposal
+            .signer_signature_hash()
+            .as_bytes()
+            .to_vec(),
+        &signature.signature,
+    )?;
+    Ok(MockSignatureData {
+        mock_proposal: MockProposalData {
+            peer_info: standardize_stacks_signer_peer_info(&signature.mock_proposal.peer_info)?,
+        },
+        metadata: SignerMessageMetadata {
+            server_version: signature.metadata.server_version.clone(),
+        },
+        signature: format!("0x{}", signature.signature.to_hex()),
+        pubkey: format!("0x{}", hex::encode(pubkey)),
+    })
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_signer_peer_info(
+    peer_info: &stacks_codec::codec::PeerInfo,
+) -> Result<PeerInfoData, String> {
+    let block_hash = format!("0x{}", peer_info.stacks_tip.to_hex());
+    Ok(PeerInfoData {
+        burn_block_height: peer_info.burn_block_height,
+        stacks_tip_consensus_hash: format!("0x{}", peer_info.stacks_tip_consensus_hash.to_hex()),
+        stacks_tip: block_hash.clone(),
+        stacks_tip_height: peer_info.stacks_tip_height,
+        pox_consensus: format!("0x{}", peer_info.pox_consensus.to_hex()),
+        server_version: peer_info.server_version.clone(),
+        network_id: peer_info.network_id,
+        index_block_hash: get_nakamoto_index_block_hash(
+            &block_hash,
+            &peer_info.stacks_tip_consensus_hash,
+        )?,
+    })
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn standardize_stacks_nakamoto_block(
+    block: &stacks_codec::codec::NakamotoBlock,
+) -> Result<NakamotoBlockData, String> {
+    use miniscript::bitcoin::hex::Case;
+    use miniscript::bitcoin::hex::DisplayHex;
+
+    let block_hash = get_nakamoto_block_hash(block)?;
+    Ok(NakamotoBlockData {
+        header: NakamotoBlockHeaderData {
+            version: block.header.version,
+            chain_length: block.header.chain_length,
+            burn_spent: block.header.burn_spent,
+            consensus_hash: format!("0x{}", block.header.consensus_hash.to_hex()),
+            parent_block_id: format!("0x{}", block.header.parent_block_id.to_hex()),
+            tx_merkle_root: format!("0x{}", block.header.tx_merkle_root.to_hex()),
+            state_index_root: format!("0x{}", block.header.state_index_root.to_hex()),
+            timestamp: block.header.timestamp,
+            miner_signature: format!("0x{}", block.header.miner_signature.to_hex()),
+            signer_signature: block
+                .header
+                .signer_signature
+                .iter()
+                .map(|s| format!("0x{}", s.to_hex()))
+                .collect(),
+            pox_treatment: format!(
+                "0x{}",
+                block
+                    .header
+                    .pox_treatment
+                    .serialize_to_vec()
+                    .to_hex_string(Case::Lower)
+            ),
+        },
+        block_hash: block_hash.clone(),
+        index_block_hash: get_nakamoto_index_block_hash(&block_hash, &block.header.consensus_hash)?,
+        // TODO(rafaelcr): Parse and return transactions.
+        transactions: vec![],
+    })
+}
+
+#[cfg(feature = "stacks-signers")]
+fn get_nakamoto_block_hash(block: &stacks_codec::codec::NakamotoBlock) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+
+    let mut block_header_bytes = vec![block.header.version];
+    block_header_bytes.extend(block.header.chain_length.to_be_bytes());
+    block_header_bytes.extend(block.header.burn_spent.to_be_bytes());
+    block_header_bytes.extend(block.header.consensus_hash.as_bytes());
+    block_header_bytes.extend(block.header.parent_block_id.as_bytes());
+    block_header_bytes.extend(block.header.tx_merkle_root.as_bytes());
+    block_header_bytes.extend(block.header.state_index_root.as_bytes());
+    block_header_bytes.extend(block.header.timestamp.to_be_bytes());
+    block_header_bytes.extend(block.header.miner_signature.as_bytes());
+    block_header_bytes.extend(block.header.pox_treatment.serialize_to_vec());
+
+    let hash = Sha512Trunc256Sum::from_data(&block_header_bytes).to_bytes();
+    Ok(format!("0x{}", hex::encode(hash)))
+}
+
+#[cfg(feature = "stacks-signers")]
+fn get_nakamoto_index_block_hash(
+    block_hash: &String,
+    consensus_hash: &clarity::types::chainstate::ConsensusHash,
+) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+
+    let mut bytes = hex::decode(block_hash[2..].to_string())
+        .map_err(|e| format!("unable to decode block hash: {e}"))?;
+    bytes.extend(consensus_hash.as_bytes());
+
+    let hash = Sha512Trunc256Sum::from_data(&bytes).to_bytes();
+    Ok(format!("0x{}", hex::encode(hash)))
+}
+
+pub fn get_signer_pubkey_from_message_hash(
+    message_hash: &Vec<u8>,
+    signature: &clarity::util::secp256k1::MessageSignature,
+) -> Result<[u8; 33], String> {
+    use miniscript::bitcoin::{
+        key::Secp256k1,
+        secp256k1::{
+            ecdsa::{RecoverableSignature, RecoveryId},
+            Message,
+        },
+    };
+
+    let (first, sig) = signature.0.split_at(1);
+    let rec_id = first[0];
+
+    let secp = Secp256k1::new();
+    let recovery_id =
+        RecoveryId::from_i32(rec_id as i32).map_err(|e| format!("invalid recovery id: {e}"))?;
+    let signature = RecoverableSignature::from_compact(&sig, recovery_id)
+        .map_err(|e| format!("invalid signature: {e}"))?;
+    let message = Message::from_digest_slice(&message_hash)
+        .map_err(|e| format!("invalid digest message: {e}"))?;
+
+    let pubkey = secp
+        .recover_ecdsa(&message, &signature)
+        .map_err(|e| format!("unable to recover pubkey: {e}"))?;
+
+    Ok(pubkey.serialize())
+}
+
+#[cfg(feature = "stacks-signers")]
+pub fn get_signer_pubkey_from_stackerdb_chunk_slot(
+    slot: &NewSignerModifiedSlot,
+    data_bytes: &Vec<u8>,
+) -> Result<String, String> {
+    use clarity::util::hash::Sha512Trunc256Sum;
+    use miniscript::bitcoin::{
+        key::Secp256k1,
+        secp256k1::{
+            ecdsa::{RecoverableSignature, RecoveryId},
+            Message,
+        },
+    };
+
+    let mut digest_bytes = slot.slot_id.to_be_bytes().to_vec();
+    digest_bytes.extend(slot.slot_version.to_be_bytes());
+    let data_bytes_hashed = Sha512Trunc256Sum::from_data(&data_bytes).to_bytes();
+    digest_bytes.extend(data_bytes_hashed);
+    let digest = Sha512Trunc256Sum::from_data(&digest_bytes).to_bytes();
+
+    let sig_bytes =
+        hex::decode(&slot.sig).map_err(|e| format!("unable to decode signer slot sig: {e}"))?;
+    let (first, sig) = sig_bytes.split_at(1);
+    let rec_id = first[0];
+
+    let secp = Secp256k1::new();
+    let recovery_id =
+        RecoveryId::from_i32(rec_id as i32).map_err(|e| format!("invalid recovery id: {e}"))?;
+    let signature = RecoverableSignature::from_compact(&sig, recovery_id)
+        .map_err(|e| format!("invalid signature: {e}"))?;
+    let message =
+        Message::from_digest_slice(&digest).map_err(|e| format!("invalid digest message: {e}"))?;
+
+    let pubkey = secp
+        .recover_ecdsa(&message, &signature)
+        .map_err(|e| format!("unable to recover signer pubkey: {e}"))?;
+
+    Ok(hex::encode(pubkey.serialize()))
+}
+
 pub fn get_value_description(raw_value: &str, ctx: &Context) -> String {
     let raw_value = match raw_value.strip_prefix("0x") {
         Some(raw_value) => raw_value,
         _ => return raw_value.to_string(),
     };
-    let value_bytes = match hex::decode(&raw_value) {
+    let value_bytes = match hex::decode(raw_value) {
         Ok(bytes) => bytes,
         _ => return raw_value.to_string(),
     };
 
-    let value = match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
+    match ClarityValue::consensus_deserialize(&mut Cursor::new(&value_bytes)) {
         Ok(value) => format!("{}", value),
         Err(e) => {
             ctx.try_log(|logger| {
                 slog::error!(logger, "unable to deserialize clarity value {:?}", e)
             });
-            return raw_value.to_string();
+            raw_value.to_string()
         }
-    };
-    value
+    }
 }
 
 pub fn get_tx_description(
@@ -602,22 +1058,20 @@ pub fn get_tx_description(
         Some(raw_tx) => raw_tx,
         _ => return Err("unable to read txid".into()),
     };
-    let tx_bytes = match hex::decode(&raw_tx) {
+    let tx_bytes = match hex::decode(raw_tx) {
         Ok(bytes) => bytes,
-        Err(e) => return Err(format!("unable to read txid {}", e.to_string())),
+        Err(e) => return Err(format!("unable to read txid {}", e)),
     };
 
     // Handle Stacks transitions operated through Bitcoin transactions
     if tx_bytes.eq(&[0]) {
         if tx_events.is_empty() {
-            return Err(format!(
-                "received block with transaction '0x00' and no events"
-            ));
+            return Err("received block with transaction '0x00' and no events".to_string());
         };
         for event in tx_events.iter() {
             if let Some(ref event_data) = event.stx_transfer_event {
                 let data: STXTransferEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 let description = format!(
                     "transfered: {} µSTX from {} to {} through Bitcoin transaction",
                     data.amount, data.sender, data.recipient
@@ -626,7 +1080,7 @@ pub fn get_tx_description(
                 return Ok((description, tx_type, 0, 0, data.sender, None));
             } else if let Some(ref event_data) = event.stx_lock_event {
                 let data: STXLockEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 let description = format!(
                     "stacked: {} µSTX by {} through Bitcoin transaction",
                     data.locked_amount, data.locked_address,
@@ -640,85 +1094,71 @@ pub fn get_tx_description(
                 return Ok((description, tx_type, 0, 0, data.locked_address, None));
             } else if let Some(ref event_data) = event.contract_event {
                 let data: SmartContractEventData = serde_json::from_value(event_data.clone())
-                    .map_err(|e| format!("unable to decode event_data {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to decode event_data {}", e))?;
                 if let Some(ClarityValue::Response(data)) =
                     try_decode_clarity_value(&data.hex_value)
                 {
                     if data.committed {
                         if let ClarityValue::Tuple(outter) = *data.data {
                             if let Some(ClarityValue::Tuple(inner)) = outter.data_map.get("data") {
-                                match (
+                                if let (
+                                    Some(ClarityValue::Principal(stacking_address)),
+                                    Some(ClarityValue::UInt(amount_ustx)),
+                                    Some(ClarityValue::Principal(delegate)),
+                                    Some(ClarityValue::Optional(pox_addr)),
+                                    Some(ClarityValue::Optional(unlock_burn_height)),
+                                ) = (
                                     &outter.data_map.get("stacker"),
                                     &inner.data_map.get("amount-ustx"),
                                     &inner.data_map.get("delegate-to"),
                                     &inner.data_map.get("pox-addr"),
                                     &inner.data_map.get("unlock-burn-height"),
                                 ) {
-                                    (
-                                        Some(ClarityValue::Principal(stacking_address)),
-                                        Some(ClarityValue::UInt(amount_ustx)),
-                                        Some(ClarityValue::Principal(delegate)),
-                                        Some(ClarityValue::Optional(pox_addr)),
-                                        Some(ClarityValue::Optional(unlock_burn_height)),
-                                    ) => {
-                                        let description = format!(
-                                        "stacked: {} µSTX delegated to {} through Bitcoin transaction",
-                                        amount_ustx, delegate.to_string(),
+                                    let description = format!(
+                                    "stacked: {} µSTX delegated to {} through Bitcoin transaction",
+                                    amount_ustx, delegate,
+                                );
+                                    let tx_type = StacksTransactionKind::BitcoinOp(
+                                        BitcoinOpData::DelegateStackSTX(DelegateStackSTXData {
+                                            stacking_address: stacking_address.to_string(),
+                                            amount: amount_ustx.to_string(),
+                                            delegate: delegate.to_string(),
+                                            pox_address: match &pox_addr.data {
+                                                Some(value) => match &**value {
+                                                    ClarityValue::Tuple(address_comps) => {
+                                                        match (
+                                                            &address_comps.data_map.get("version"),
+                                                            &address_comps
+                                                                .data_map
+                                                                .get("hashbytes"),
+                                                        ) {
+                                                            (
+                                                                Some(ClarityValue::UInt(_version)),
+                                                                Some(ClarityValue::Sequence(
+                                                                    SequenceData::Buffer(
+                                                                        _hashbytes,
+                                                                    ),
+                                                                )),
+                                                            ) => None,
+                                                            _ => None,
+                                                        }
+                                                    }
+                                                    _ => None,
+                                                },
+                                                _ => None,
+                                            },
+                                            unlock_height: match &unlock_burn_height.data {
+                                                Some(value) => match &**value {
+                                                    ClarityValue::UInt(value) => {
+                                                        Some(value.to_string())
+                                                    }
+                                                    _ => None,
+                                                },
+                                                _ => None,
+                                            },
+                                        }),
                                     );
-                                        let tx_type = StacksTransactionKind::BitcoinOp(
-                                            BitcoinOpData::DelegateStackSTX(DelegateStackSTXData {
-                                                stacking_address: stacking_address.to_string(),
-                                                amount: amount_ustx.to_string(),
-                                                delegate: delegate.to_string(),
-                                                pox_address: match &pox_addr.data {
-                                                    Some(value) => match &**value {
-                                                        ClarityValue::Tuple(address_comps) => {
-                                                            match (
-                                                                &address_comps
-                                                                    .data_map
-                                                                    .get("version"),
-                                                                &address_comps
-                                                                    .data_map
-                                                                    .get("hashbytes"),
-                                                            ) {
-                                                                (
-                                                                    Some(ClarityValue::UInt(
-                                                                        _version,
-                                                                    )),
-                                                                    Some(ClarityValue::Sequence(
-                                                                        SequenceData::Buffer(
-                                                                            _hashbytes,
-                                                                        ),
-                                                                    )),
-                                                                ) => None,
-                                                                _ => None,
-                                                            }
-                                                        }
-                                                        _ => None,
-                                                    },
-                                                    _ => None,
-                                                },
-                                                unlock_height: match &*(&unlock_burn_height.data) {
-                                                    Some(value) => match &**value {
-                                                        ClarityValue::UInt(value) => {
-                                                            Some(value.to_string())
-                                                        }
-                                                        _ => None,
-                                                    },
-                                                    _ => None,
-                                                },
-                                            }),
-                                        );
-                                        return Ok((
-                                            description,
-                                            tx_type,
-                                            0,
-                                            0,
-                                            "".to_string(),
-                                            None,
-                                        ));
-                                    }
-                                    _ => {}
+                                    return Ok((description, tx_type, 0, 0, "".to_string(), None));
                                 }
                             }
                         }
@@ -742,7 +1182,7 @@ pub fn get_tx_description(
     }
 
     let tx = StacksTransaction::consensus_deserialize(&mut Cursor::new(&tx_bytes))
-        .map_err(|e| format!("unable to consensus decode transaction {}", e.to_string()))?;
+        .map_err(|e| format!("unable to consensus decode transaction {}", e))?;
 
     let (fee, nonce, sender, sponsor) = match tx.auth {
         TransactionAuth::Standard(ref conditions) => (
@@ -817,14 +1257,14 @@ pub fn get_tx_description(
             )
         }
         TransactionPayload::Coinbase(_, _, _) => {
-            (format!("coinbase"), StacksTransactionKind::Coinbase)
+            ("coinbase".to_string(), StacksTransactionKind::Coinbase)
         }
         TransactionPayload::TenureChange(_) => (
-            format!("tenure change"),
+            "tenure change".to_string(),
             StacksTransactionKind::TenureChange,
         ),
         TransactionPayload::PoisonMicroblock(_, _) => {
-            (format!("other"), StacksTransactionKind::Unsupported)
+            ("other".to_string(), StacksTransactionKind::Unsupported)
         }
     };
     Ok((description, tx_type, fee, nonce, sender, sponsor))

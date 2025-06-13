@@ -1,7 +1,7 @@
 use super::bitcoin::{TxIn, TxOut};
 use crate::contract_interface::ContractInterface;
 use crate::ordinals::OrdinalOperation;
-use crate::{events::*, Brc20Operation, DEFAULT_STACKS_NODE_RPC};
+use crate::{events::*, Brc20Operation, StacksStackerDbChunk, DEFAULT_STACKS_NODE_RPC};
 use schemars::JsonSchema;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -114,6 +114,33 @@ pub struct StacksBlockMetadata {
     pub pox_cycle_length: u32,
     pub confirm_microblock_identifier: Option<BlockIdentifier>,
     pub stacks_block_hash: String,
+
+    // Fields included in Nakamoto block headers
+    pub block_time: Option<u64>,
+    pub signer_bitvec: Option<String>,
+    pub signer_signature: Option<Vec<String>>,
+    pub signer_public_keys: Option<Vec<String>>,
+
+    // Available starting in epoch3, only included in blocks where the pox cycle rewards are first calculated
+    pub cycle_number: Option<u64>,
+    pub reward_set: Option<StacksBlockMetadataRewardSet>,
+
+    // Available in /new_block messages sent from stacks-core v3.0 and newer
+    pub tenure_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksBlockMetadataRewardSet {
+    pub pox_ustx_threshold: String,
+    pub rewarded_addresses: Vec<String>,
+    pub signers: Option<Vec<StacksBlockMetadataRewardSetSigner>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct StacksBlockMetadataRewardSetSigner {
+    pub signing_key: String,
+    pub weight: u32,
+    pub stacked_amt: String,
 }
 
 /// BitcoinBlock contain an array of Transactions that occurred at a particular
@@ -641,6 +668,19 @@ pub struct BlockchainUpdatedWithReorg {
     pub confirmed_headers: Vec<BlockHeader>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "type", content = "data")]
+pub enum StacksNonConsensusEventPayloadData {
+    SignerMessage(StacksStackerDbChunk),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct StacksNonConsensusEventData {
+    pub payload: StacksNonConsensusEventPayloadData,
+    pub received_at_ms: u64,
+    pub received_at_block: BlockIdentifier,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BlockHeader {
     pub block_identifier: BlockIdentifier,
@@ -667,6 +707,11 @@ pub struct BitcoinChainUpdatedWithReorgData {
     pub confirmed_blocks: Vec<BitcoinBlockData>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct StacksChainUpdatedWithNonConsensusEventsData {
+    pub events: Vec<StacksNonConsensusEventData>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum StacksChainEvent {
@@ -674,6 +719,7 @@ pub enum StacksChainEvent {
     ChainUpdatedWithReorg(StacksChainUpdatedWithReorgData),
     ChainUpdatedWithMicroblocks(StacksChainUpdatedWithMicroblocksData),
     ChainUpdatedWithMicroblocksReorg(StacksChainUpdatedWithMicroblocksReorgData),
+    ChainUpdatedWithNonConsensusEvents(StacksChainUpdatedWithNonConsensusEventsData),
 }
 
 impl StacksChainEvent {
@@ -703,6 +749,7 @@ impl StacksChainEvent {
                 .microblocks_to_apply
                 .first()
                 .and_then(|b| Some(&b.metadata.anchor_block_identifier)),
+            StacksChainEvent::ChainUpdatedWithNonConsensusEvents(_) => None,
         }
     }
 }

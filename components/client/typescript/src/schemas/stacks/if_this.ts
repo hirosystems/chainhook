@@ -53,6 +53,13 @@ export const StacksIfThisPrintEventSchema = Type.Object({
 });
 export type StacksIfThisPrintEvent = Static<typeof StacksIfThisPrintEventSchema>;
 
+export const StacksIfThisPrintEventRegexSchema = Type.Object({
+  scope: Type.Literal('print_event'),
+  contract_identifier: Type.String(),
+  matches_regex: Type.String(),
+});
+export type StacksIfThisPrintEventRegex = Static<typeof StacksIfThisPrintEventRegexSchema>;
+
 export const StacksIfThisContractCallSchema = Type.Object({
   scope: Type.Literal('contract_call'),
   contract_identifier: Type.String(),
@@ -74,6 +81,27 @@ export type StacksIfThisContractDeploymentTrait = Static<
   typeof StacksIfThisContractDeploymentTraitSchema
 >;
 
+export const StacksIfThisSignerMessageAfterTimestampSchema = Type.Object({
+  scope: Type.Literal('signer_message'),
+  after_timestamp: Type.Integer(),
+});
+export type StacksIfThisSignerMessageAfterTimestamp = Static<
+  typeof StacksIfThisSignerMessageAfterTimestampSchema
+>;
+
+export const StacksIfThisSignerMessageSignerPubKeySchema = Type.Object({
+  scope: Type.Literal('signer_message'),
+  signer_pubkey: Type.String(),
+});
+export type StacksIfThisSignerMessageSignerPubKey = Static<
+  typeof StacksIfThisSignerMessageSignerPubKeySchema
+>;
+
+export const StacksIfThisSignerMessageSchema = Type.Union([
+  StacksIfThisSignerMessageAfterTimestampSchema,
+]);
+export type StacksIfThisSignerMessage = Static<typeof StacksIfThisSignerMessageSchema>;
+
 export const StacksIfThisOptionsSchema = Type.Object({
   start_block: Type.Optional(Type.Integer()),
   end_block: Type.Optional(Type.Integer()),
@@ -90,9 +118,11 @@ export const StacksIfThisSchema = Type.Union([
   StacksIfThisNftEventSchema,
   StacksIfThisStxEventSchema,
   StacksIfThisPrintEventSchema,
+  StacksIfThisPrintEventRegexSchema,
   StacksIfThisContractCallSchema,
   StacksIfThisContractDeploymentSchema,
   StacksIfThisContractDeploymentTraitSchema,
+  StacksIfThisSignerMessageSchema,
 ]);
 export type StacksIfThis = Static<typeof StacksIfThisSchema>;
 

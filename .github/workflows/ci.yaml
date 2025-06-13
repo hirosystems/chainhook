@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
+      - beta
       - develop
+      - stacks-signers
     paths-ignore:
       - '**/CHANGELOG.md'
   pull_request:
@@ -15,41 +17,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
-  get_release_info:
-    name: Get Release Info
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.new_release_tag.outputs.TAG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get latest release
-        if: startsWith(github.ref, 'refs/heads/main')
-        id: release
-        uses: pozetroninc/github-action-get-latest-release@master
-        with:
-          repository: ${{ github.repository }}
-          excludes: prerelease, draft
-
-      - name: Determine if release build
-        if: startsWith(github.ref, 'refs/heads/main')
-        id: new_release_tag
-        env:
-          LATEST_RELEASE: ${{ steps.release.outputs.release }}
-        run: |
-          CARGO_VERSION=v$(grep "version" components/chainhook-cli/Cargo.toml | head -n 1 | cut -d\" -f2)
-          if [[ "${CARGO_VERSION}" != "${LATEST_RELEASE}" ]]; then
-            echo "::set-output name=TAG::${CARGO_VERSION}"
-            echo "::warning::Will create release for version: ${CARGO_VERSION}"
-          else
-            echo "::warning::Will not create a release"
-          fi
-
   test:
-    name: Generate test coverage
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: cli
+            features: redis_tests
+          - suite: sdk
+            features: stacks-signers
+    defaults:
+      run:
+        working-directory: ./components/chainhook-${{ matrix.suite }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -61,11 +41,8 @@ jobs:
           rustup toolchain install stable --profile minimal
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
-      - name: Install redis
-        run: sudo apt-get install -y redis-server
-
       - name: Cache cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -76,13 +53,22 @@ jobs:
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.suite }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install and run cargo-tarpaulin
+      - name: Install cargo-tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo --version
-          cargo tarpaulin --out lcov --features redis_tests -- --test-threads=1
+
+      - name: Setup integration environment
+        run: |
+          sudo ufw disable
+          docker compose -f ../../dockerfiles/docker-compose.dev.yml up -d
+          docker compose -f ../../dockerfiles/docker-compose.dev.yml logs -t -f --no-color &> docker-compose-logs.txt &
+        if: matrix.suite == 'cli'
+  
+      - name: Run tests
+        run: |
+          cargo tarpaulin --skip-clean --out lcov --features ${{ matrix.features }} -- --test-threads=1
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
@@ -90,8 +76,15 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           codecov_yml_path: .github/codecov.yml
 
-  dist_chainhook:
-    name: Build Chainhook Distributions
+      - name: Print integration environment logs
+        run: cat docker-compose-logs.txt
+        if: matrix.suite == 'cli' && failure()
+
+      - name: Teardown integration environment
+        run: docker compose -f ../../dockerfiles/docker-compose.dev.yml down -v -t 0
+        if: matrix.suite == 'cli' && always()
+
+  distributions:
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -145,12 +138,12 @@ jobs:
         run: echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Cache cargo
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/
-            ./target/${{ matrix.target }}/release/
-          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+            ./target/
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-${{ matrix.target }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Install wix (Windows)
         if: matrix.os == 'windows-latest' && steps.cache-cargo.outputs.cache-hit != 'true'
@@ -273,65 +266,89 @@ jobs:
       # Separate uploads to prevent paths from being preserved
       - name: Upload cargo artifacts (Linux)
         if: matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: chainhook-${{ env.SHORT_TARGET_NAME }}
           path: chainhook-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
       - name: Upload cargo artifact (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: chainhook-${{ env.SHORT_TARGET_NAME }}
           path: chainhook-${{ env.SHORT_TARGET_NAME }}.msi
 
-  release:
-    name: Release
+  semantic-release:
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
     needs:
       - test
-      - dist_chainhook
-      - get_release_info
-    permissions:
-      actions: write
-      contents: write
+      - distributions
+    outputs:
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_git_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Generate release bot app token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.HIROSYSTEMS_RELEASE_BOT_ID }}
+          private-key: ${{ secrets.HIROSYSTEMS_RELEASE_BOT_PEM }}
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Get bot user ID
+        id: bot-user-id
+        run: |
+          echo "user-id=$(gh api "/users/${{ steps.generate_token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
 
       - name: Download pre-built dists
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
-      - name: Tag and Release
-        uses: ncipollo/release-action@v1
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v4
+        id: semantic
+        # Only run on non-PR events or only PRs that aren't from forks
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          SEMANTIC_RELEASE_PACKAGE: ${{ github.event.repository.name }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_CRATES_IO_API_KEY }}
+          GIT_AUTHOR_EMAIL: "${{ steps.bot-user-id.outputs.user-id }}+${{ steps.generate_token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          GIT_COMMITTER_EMAIL: "${{ steps.bot-user-id.outputs.user-id }}+${{ steps.generate_token.outputs.app-slug }}[bot]@users.noreply.github.com"
         with:
-          artifacts: "**/*.tar.gz,**/*.msi"
-          tag: ${{ needs.get_release_info.outputs.tag }}
-          commit: ${{ env.GITHUB_SHA }}
+          semantic_version: 19
+          extra_plugins: |
+            @semantic-release/changelog@6.0.3
+            @semantic-release/git@10.0.1
+            @semantic-release/exec@6.0.3
+            conventional-changelog-conventionalcommits@6.1.0
 
       - name: Trigger pkg-version-bump workflow
         uses: peter-evans/repository-dispatch@v1
+        if: steps.semantic.outputs.new_release_version != ''
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: released
-          client-payload: '{"tag": "${{ needs.get_release_info.outputs.tag }}"}'
+          client-payload: '{"tag": "${{ steps.semantic.outputs.new_release_version }}"}'
 
   build-publish:
     runs-on: ubuntu-latest
-    needs:
-      - test
-      - dist_chainhook
-      - get_release_info
+    needs: semantic-release
     outputs:
       docker_image_digest: ${{ steps.docker_push.outputs.digest }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Chainhook
-            description: Chainhook is a reorg-aware indexing engine for the Stacks & Bitcoin blockchains.
-            image: ${{ github.repository }}
+          - image: ${{ github.repository }}
             artifact: chainhook-linux-x64-glibc
             dockerfile: dockerfiles/components/chainhook-node.dockerfile
     steps:
@@ -340,11 +357,11 @@ jobs:
           persist-credentials: false
 
       - name: Checkout tag
-        if: needs.get_release_info.outputs.tag != ''
+        if: needs.semantic-release.outputs.new_release_version != ''
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ needs.get_release_info.outputs.tag }}
+          ref: ${{ needs.semantic-release.outputs.new_release_git_tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -358,8 +375,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ needs.get_release_info.outputs.tag }},enable=${{ needs.get_release_info.outputs.tag != '' }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.get_release_info.outputs.tag }},enable=${{ needs.get_release_info.outputs.tag != '' }}
+            type=semver,pattern={{version}},value=${{ needs.semantic-release.outputs.new_release_version }},enable=${{ needs.semantic-release.outputs.new_release_version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.semantic-release.outputs.new_release_version }},enable=${{ needs.semantic-release.outputs.new_release_version != '' }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Log in to DockerHub
@@ -369,7 +386,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Download pre-built dist
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.artifact }}
 
@@ -387,7 +404,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Only push if (there's a new release on main branch, or if building a non-main branch) and (Only run on non-PR events or only PRs that aren't from forks)
-          push: ${{ (github.ref != 'refs/heads/main' || needs.get_release_info.outputs.tag != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+          push: ${{ (github.ref != 'refs/heads/main' || needs.semantic-release.outputs.new_release_version != '') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
 
   deploy-dev:
     runs-on: ubuntu-latest
@@ -418,10 +435,9 @@ jobs:
 
   auto-approve-dev:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: startsWith(github.ref, 'refs/heads/main') && needs.semantic-release.outputs.new_release_version != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     needs: 
       - build-publish
-      - get_release_info
     steps:
       - name: Approve pending deployments
         run: |
@@ -462,11 +478,10 @@ jobs:
 
   auto-approve-stg:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: startsWith(github.ref, 'refs/heads/main') && needs.semantic-release.outputs.new_release_version != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     needs:
       - build-publish
       - deploy-dev
-      - get_release_info
     steps:
       - name: Approve pending deployments
         run: |
@@ -490,8 +505,7 @@ jobs:
     needs:
       - build-publish
       - deploy-staging
-      - get_release_info
-    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: startsWith(github.ref, 'refs/heads/main') && needs.semantic-release.outputs.new_release_version != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     env:
       DEPLOY_ENV: prd
     environment:

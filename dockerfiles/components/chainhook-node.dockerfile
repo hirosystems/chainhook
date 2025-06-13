@@ -1,25 +1,19 @@
-FROM rust:bullseye as build
+FROM rust:bullseye AS build
 
 WORKDIR /src
 
-RUN apt update && apt install -y ca-certificates pkg-config libssl-dev libclang-11-dev
-
-RUN rustup update 1.73.0 && rustup default 1.73.0
+RUN apt update && apt install -y ca-certificates pkg-config libssl-dev libclang-dev
+RUN rustup default stable && rustup update
 
 COPY ./Cargo.* /src/
-
 COPY ./components/chainhook-cli /src/components/chainhook-cli
-
 COPY ./components/chainhook-types-rs /src/components/chainhook-types-rs
-
 COPY ./components/chainhook-sdk /src/components/chainhook-sdk
 
 WORKDIR /src/components/chainhook-cli
 
 RUN mkdir /out
-
 RUN cargo build --features release --release
-
 RUN cp /src/target/release/chainhook /out
 
 FROM debian:bullseye-slim

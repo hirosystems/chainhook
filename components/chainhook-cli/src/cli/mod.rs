@@ -2,7 +2,7 @@ use crate::config::generator::generate_config;
 use crate::config::Config;
 use crate::scan::bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate;
 use crate::scan::stacks::{
-    consolidate_local_stacks_chainstate_using_csv, scan_stacks_chainstate_via_csv_using_predicate,
+    import_stacks_chainstate_from_remote_tsv, scan_stacks_chainstate_via_csv_using_predicate,
     scan_stacks_chainstate_via_rocksdb_using_predicate,
 };
 use crate::service::http_api::document_predicate_api_server;
@@ -11,8 +11,8 @@ use crate::storage::{
     delete_confirmed_entry_from_stacks_blocks, delete_unconfirmed_entry_from_stacks_blocks,
     get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
     get_stacks_block_at_block_height, insert_unconfirmed_entry_in_stacks_blocks,
-    is_stacks_block_present, open_readonly_stacks_db_conn, open_readonly_stacks_db_conn_with_retry,
-    open_readwrite_stacks_db_conn, set_last_confirmed_insert_key,
+    is_stacks_block_present, open_readonly_stacks_db_conn, open_readwrite_stacks_db_conn,
+    set_last_confirmed_insert_key, StacksDbConnections,
 };
 use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecification;
 use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
@@ -24,6 +24,7 @@ use chainhook_sdk::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
 use chainhook_sdk::chainhooks::stacks::StacksPredicate;
 use chainhook_sdk::chainhooks::stacks::StacksPrintEventBasedPredicate;
 use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, FileHook, HookAction};
+use chainhook_sdk::try_info;
 use chainhook_sdk::types::{BitcoinNetwork, BlockIdentifier, StacksNetwork};
 use chainhook_sdk::utils::{BlockHeights, Context};
 use clap::{Parser, Subcommand};
@@ -330,12 +331,9 @@ pub fn main() {
         }
     };
 
-    match hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
-        Err(e) => {
-            crit!(ctx.expect_logger(), "{e}");
-            process::exit(1);
-        }
-        Ok(_) => {}
+    if let Err(e) = hiro_system_kit::nestable_block_on(handle_command(opts, ctx.clone())) {
+        crit!(ctx.expect_logger(), "{e}");
+        process::exit(1);
     }
 }
 
@@ -345,19 +343,17 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             ServiceCommand::Start(cmd) => {
                 let mut config =
                     Config::default(cmd.devnet, cmd.testnet, cmd.mainnet, &cmd.config_path)?;
-
                 if cmd.prometheus_monitoring_port.is_some() {
                     config.monitoring.prometheus_monitoring_port = cmd.prometheus_monitoring_port;
                 }
-
                 let predicates = cmd
                     .predicates_paths
                     .iter()
                     .map(|p| load_predicate_from_path(p))
                     .collect::<Result<Vec<ChainhookSpecificationNetworkMap>, _>>()?;
 
-                info!(ctx.expect_logger(), "Starting service...",);
-
+                try_info!(ctx, "Starting chainhook service");
+                import_stacks_chainstate_from_remote_tsv(&mut config, &ctx).await?;
                 let mut service = Service::new(config, ctx);
                 return service.run(predicates, None).await;
             }
@@ -481,7 +477,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                             // need to create
                             if let Some(dirp) = PathBuf::from(&path).parent() {
                                 std::fs::create_dir_all(dirp).unwrap_or_else(|e| {
-                                    println!("{}", e.to_string());
+                                    println!("{}", e);
                                 });
                             }
                             let mut f = std::fs::OpenOptions::new()
@@ -489,7 +485,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                                 .create(true)
                                 .truncate(true)
                                 .open(&path)
-                                .map_err(|e| format!("{}", e.to_string()))?;
+                                .map_err(|e| format!("{}", e))?;
                             use std::io::Write;
                             let _ = f.write_all(content.as_bytes());
                         } else {
@@ -544,21 +540,20 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         };
                         match open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx) {
                             Ok(_) => {
-                                let _ = consolidate_local_stacks_chainstate_using_csv(
+                                let _ = import_stacks_chainstate_from_remote_tsv(
                                     &mut config,
                                     &ctx,
                                 )
                                 .await;
                                 // Refresh DB connection so it picks up recent changes made by TSV consolidation.
-                                let new_conn = open_readonly_stacks_db_conn_with_retry(
+                                let mut db_conns = StacksDbConnections::open_readonly(
                                     &config.expected_cache_path(),
-                                    5,
                                     &ctx,
                                 )?;
                                 scan_stacks_chainstate_via_rocksdb_using_predicate(
                                     &predicate_spec,
                                     None,
-                                    &new_conn,
+                                    &mut db_conns,
                                     &config,
                                     None,
                                     &ctx,
@@ -816,7 +811,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
             }
             StacksCommand::Db(StacksDbCommand::Update(cmd)) => {
                 let mut config = Config::default(false, false, false, &cmd.config_path)?;
-                consolidate_local_stacks_chainstate_using_csv(&mut config, &ctx).await?;
+                import_stacks_chainstate_from_remote_tsv(&mut config, &ctx).await?;
             }
             StacksCommand::Db(StacksDbCommand::Check(cmd)) => {
                 let config = Config::default(false, false, false, &cmd.config_path)?;
@@ -882,7 +877,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 pub fn load_predicate_from_path(
     predicate_path: &str,
 ) -> Result<ChainhookSpecificationNetworkMap, String> {
-    let file = std::fs::File::open(&predicate_path)
+    let file = std::fs::File::open(predicate_path)
         .map_err(|e| format!("unable to read file {}\n{:?}", predicate_path, e))?;
     let mut file_reader = BufReader::new(file);
     let mut file_buffer = vec![];

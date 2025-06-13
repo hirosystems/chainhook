@@ -1,6 +1,16 @@
 {
   "branches": [
-    "main"
+    "main",
+    {
+      "name": "beta",
+      "channel": "beta",
+      "prerelease": true
+    },
+    {
+      "name": "stacks-signers",
+      "channel": "stacks-signers",
+      "prerelease": true
+    }
   ],
   "plugins": [
     [
@@ -15,8 +25,23 @@
         "preset": "conventionalcommits"
       }
     ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sed -i -e '1h;2,$H;$!d;g' -e 's@name = \"chainhook\"\\nversion = \"[^\"]*\"@name = \"chainhook\"\\nversion = \"${nextRelease.version}\"@g' Cargo.toml Cargo.lock"
+      }
+    ],
     "@semantic-release/github",
     "@semantic-release/changelog",
-    "@semantic-release/git"
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "components/chainhook-cli/Cargo.toml",
+          "components/chainhook-cli/Cargo.lock"
+        ]
+      }
+    ]
   ]
 }

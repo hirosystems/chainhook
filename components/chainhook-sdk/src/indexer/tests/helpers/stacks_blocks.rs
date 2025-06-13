@@ -1,6 +1,6 @@
 use super::BlockEvent;
 use chainhook_types::{
-    BlockIdentifier, StacksBlockData, StacksBlockMetadata, StacksTransactionData,
+    BlockIdentifier, StacksBlockData, StacksBlockMetadata, StacksBlockMetadataRewardSet, StacksBlockMetadataRewardSetSigner, StacksTransactionData
 };
 
 pub fn generate_test_stacks_block(
@@ -65,13 +65,35 @@ pub fn generate_test_stacks_block(
         metadata: StacksBlockMetadata {
             bitcoin_anchor_block_identifier: BlockIdentifier {
                 index: parent_height,
-                hash: format!(""),
+                hash: String::new(),
             },
             pox_cycle_index: 1,
             pox_cycle_position: block_height.try_into().unwrap(),
             pox_cycle_length: 100,
             confirm_microblock_identifier,
-            stacks_block_hash: format!(""),
+            stacks_block_hash: String::new(),
+            block_time: Some(12345),
+            tenure_height: Some(1122),
+            signer_bitvec: Some("1010101010101".to_owned()),
+            signer_signature: Some(vec!["1234".to_owned(), "2345".to_owned()]),
+            signer_public_keys: Some(vec!["12".to_owned(), "23".to_owned()]),
+            cycle_number: Some(1),
+            reward_set: Some(StacksBlockMetadataRewardSet {
+                pox_ustx_threshold: "50000".to_owned(),
+                rewarded_addresses: vec![],
+                signers: Some(vec![
+                    StacksBlockMetadataRewardSetSigner {
+                        signing_key: "0123".to_owned(),
+                        weight: 123,
+                        stacked_amt: "555555".to_owned(),
+                    },
+                    StacksBlockMetadataRewardSetSigner {
+                        signing_key: "2345".to_owned(),
+                        weight: 234,
+                        stacked_amt: "6677777".to_owned(),
+                    },
+                ]),
+            }),
         },
     })
 }
