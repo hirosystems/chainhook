@@ -112,6 +112,8 @@ pub struct NewTransaction {
     pub raw_result: String,
     pub raw_tx: String,
     pub execution_cost: Option<StacksTransactionExecutionCost>,
+    pub contract_interface: Option<ContractInterface>,
+    /// @deprecated Use `contract_interface` instead
     pub contract_abi: Option<ContractInterface>,
 }
 
@@ -456,7 +458,7 @@ pub fn standardize_stacks_block(
                 description,
                 position: StacksTransactionPosition::anchor_block(tx.tx_index),
                 proof: None,
-                contract_abi: tx.contract_abi.clone(),
+                contract_abi: tx.contract_interface.clone().or_else(|| tx.contract_abi.clone()),
             },
         });
     }
