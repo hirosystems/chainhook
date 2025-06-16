@@ -1,3 +1,38 @@
+## [1.9.0](https://github.com/hirosystems/chainhook/compare/v1.8.0...v1.9.0) (2025-06-16)
+
+
+### Features
+
+* add mock signature pubkey ([#670](https://github.com/hirosystems/chainhook/issues/670)) ([c414d79](https://github.com/hirosystems/chainhook/commit/c414d793e9a25c1b541914fee256d98d53bc08a3))
+* add mock signer message support ([#669](https://github.com/hirosystems/chainhook/issues/669)) ([ad5fd54](https://github.com/hirosystems/chainhook/commit/ad5fd54b3d1d8f638fa44a531bca71306fbb8c6f))
+* add various new nakamoto block fields to `/new_block` ingestion and `StacksPayload` ([#659](https://github.com/hirosystems/chainhook/issues/659)) ([f48cda5](https://github.com/hirosystems/chainhook/commit/f48cda533dfc58bb630737fb29cf1bc9c966a638))
+* callback to intercept and modify predicates before re-registration ([#675](https://github.com/hirosystems/chainhook/issues/675)) ([5f13912](https://github.com/hirosystems/chainhook/commit/5f13912330fbe9a370e83b3433eb8fdaa9f8a764))
+* include recovered signer pubkeys in new block payload ([#662](https://github.com/hirosystems/chainhook/issues/662)) ([b5ad4ba](https://github.com/hirosystems/chainhook/commit/b5ad4ba11dd72722bb6cbe936ec29411cde9a606))
+* include signer messages in Stacks predicate payloads ([#656](https://github.com/hirosystems/chainhook/issues/656)) ([aee14bc](https://github.com/hirosystems/chainhook/commit/aee14bc693573f403f8a6d8eafe7b30d2ca76b54))
+* parse `/stackerdb_chunks` Stacks node event ([#653](https://github.com/hirosystems/chainhook/issues/653)) ([e44d84a](https://github.com/hirosystems/chainhook/commit/e44d84a0d739921a5a3ccae6e9643bdb85005f71))
+* store signer messages in local sqlite database ([#664](https://github.com/hirosystems/chainhook/issues/664)) ([d12acd9](https://github.com/hirosystems/chainhook/commit/d12acd9c99ce0d0721dfcb853e5cb236e45925b7))
+* support tenure-height in block messages ([#661](https://github.com/hirosystems/chainhook/issues/661)) ([99e5a61](https://github.com/hirosystems/chainhook/commit/99e5a6119fb8e87e1e14d789fdb866eae230e8e8))
+* **ts-client:** add persisted predicates and periodic health check ([#658](https://github.com/hirosystems/chainhook/issues/658)) ([535226a](https://github.com/hirosystems/chainhook/commit/535226a80480585aabfcf89d68b21d2ada1c50c1))
+* **ts-client:** add signer messages to stacks payloads ([#657](https://github.com/hirosystems/chainhook/issues/657)) ([ff66bb2](https://github.com/hirosystems/chainhook/commit/ff66bb2eab771c16fead154607a280664eb6be4e))
+
+
+### Bug Fixes
+
+* add a configurable max timeout for outgoing predicate payload requests ([#642](https://github.com/hirosystems/chainhook/issues/642)) ([6c1dfa9](https://github.com/hirosystems/chainhook/commit/6c1dfa9f741041d0fac32e2a89c04a71b4a485cd)), closes [#643](https://github.com/hirosystems/chainhook/issues/643)
+* add missing fields to ordinal inscription reveals ([#703](https://github.com/hirosystems/chainhook/issues/703)) ([4e49608](https://github.com/hirosystems/chainhook/commit/4e4960897983206c376bb7d94a9ba727802ec043))
+* bump stacks codec ([3c117b5](https://github.com/hirosystems/chainhook/commit/3c117b562d02b8b5379fd4b0f3187567d7f5289b))
+* increase stacks event server body size limit to 500MB ([#660](https://github.com/hirosystems/chainhook/issues/660)) ([21234c9](https://github.com/hirosystems/chainhook/commit/21234c978d4c49ea5526c2cf1f74d42a645a68c8))
+* mock signature retrieval ([#671](https://github.com/hirosystems/chainhook/issues/671)) ([8bb59c1](https://github.com/hirosystems/chainhook/commit/8bb59c1b4727a37df47e08b7a31456bcb6528289))
+* only import stacks tsv if chainstate is empty ([#684](https://github.com/hirosystems/chainhook/issues/684)) ([1f9f37e](https://github.com/hirosystems/chainhook/commit/1f9f37ee8c9afa864fc618b761195b0d0711dfbe)), closes [#677](https://github.com/hirosystems/chainhook/issues/677)
+* propagate error when trying to store peer info ([1bc949a](https://github.com/hirosystems/chainhook/commit/1bc949a6ce17ab67c2c1af2d21fe330461689f49))
+* read contract_interface from Stacks node block events ([#712](https://github.com/hirosystems/chainhook/issues/712)) ([6f9c718](https://github.com/hirosystems/chainhook/commit/6f9c7186e9c818572cb625c0bcc8c14d48a330b8))
+* read stacks-core http event POST payloads for ignored events ([#673](https://github.com/hirosystems/chainhook/issues/673)) ([a01470e](https://github.com/hirosystems/chainhook/commit/a01470e34876dcf67969063e1fc900ae947a0a54))
+* return 500 status code to Stacks node when event ingestion fails ([#648](https://github.com/hirosystems/chainhook/issues/648)) ([63c753c](https://github.com/hirosystems/chainhook/commit/63c753c1a1b043e271d1ebca1f90f154030a89e8)), closes [#646](https://github.com/hirosystems/chainhook/issues/646)
+* signer pubkey calculation ([#665](https://github.com/hirosystems/chainhook/issues/665)) ([cc93873](https://github.com/hirosystems/chainhook/commit/cc93873dacc88e5df97d1006394b99744e63009b))
+* ts client missing matches_regex option for print_event ([#701](https://github.com/hirosystems/chainhook/issues/701)) ([8247900](https://github.com/hirosystems/chainhook/commit/82479005da815d314a897e8f6e3288cba5130c00))
+* update SignerMessage deserializing ([#663](https://github.com/hirosystems/chainhook/issues/663)) ([71364c1](https://github.com/hirosystems/chainhook/commit/71364c15a88a06d5c71b3f3d3c88c489ff4733d1))
+* validate ts client predicates before registering ([#639](https://github.com/hirosystems/chainhook/issues/639)) ([2d08f72](https://github.com/hirosystems/chainhook/commit/2d08f72e44446e9c311f8a64f992e103f17a4ae7))
+
 ## [1.9.0-stacks-signers.8](https://github.com/hirosystems/chainhook/compare/v1.9.0-stacks-signers.7...v1.9.0-stacks-signers.8) (2024-11-12)
 
 
