@@ -458,7 +458,10 @@ pub fn standardize_stacks_block(
                 description,
                 position: StacksTransactionPosition::anchor_block(tx.tx_index),
                 proof: None,
-                contract_abi: tx.contract_interface.clone().or_else(|| tx.contract_abi.clone()),
+                contract_abi: tx
+                    .contract_interface
+                    .clone()
+                    .or_else(|| tx.contract_abi.clone()),
             },
         });
     }
