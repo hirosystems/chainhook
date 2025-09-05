@@ -166,6 +166,8 @@ pub fn handle_new_stacks_block(
             }) {
                 return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
             }
+            // FIXME: wait here until `ObserverCommand::PropagateStacksChainEvent` and `ObserverEvent::StacksChainEvent`
+            // processing is done.
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");

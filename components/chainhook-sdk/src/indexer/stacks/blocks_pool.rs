@@ -2,8 +2,7 @@ use crate::{
     indexer::{
         fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
         ChainSegmentIncompatibility,
-    },
-    utils::Context,
+    }, try_error, try_info, try_warn, utils::Context
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
@@ -17,7 +16,6 @@ use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
     highest_competing_fork_height_delta: Option<u16>,
-    orphans: BTreeSet<BlockIdentifier>,
     block_store: HashMap<BlockIdentifier, StacksBlockData>,
     forks: BTreeMap<usize, ChainSegment>,
     microblock_store: HashMap<(BlockIdentifier, BlockIdentifier), StacksMicroblockData>,
@@ -40,7 +38,6 @@ impl StacksBlockPool {
             canonical_fork_id: 0,
             highest_competing_fork_height_delta: None,
             block_store: HashMap::new(),
-            orphans: BTreeSet::new(),
             forks,
             microblock_store: HashMap::new(),
             micro_forks: HashMap::new(),
@@ -145,7 +142,7 @@ impl StacksBlockPool {
             }
         }
 
-        let fork_updated = match fork_updated.take() {
+        match fork_updated.take() {
             Some(fork) => {
                 ctx.try_log(|logger| {
                     slog::info!(
@@ -158,51 +155,23 @@ impl StacksBlockPool {
                 fork
             }
             None => {
-                ctx.try_log(|logger| {
-                    slog::error!(
-                        logger,
-                        "Unable to process Stacks {} - inboxed for later",
-                        block.block_identifier
-                    )
-                });
-                self.orphans.insert(block.block_identifier.clone());
-                return Ok(None);
+                // Look for the orphan block in the blocks DB. If it already exists, it means we've received an old block and we
+                // should just ignore it. This can happen if the Stacks node feeding us blocks is still catching up to our chain
+                // tip.
+                match self.block_store.get(&block.block_identifier) {
+                    Some(_) => {
+                        try_info!(ctx, "Ignoring previously processed block: Stacks {}", block.block_identifier);
+                        return Ok(None);
+                    },
+                    // If we can't find it, though, it means the Stacks node is ahead of our chain tip thus making it impossible
+                    // for us to fill the gap.
+                    None => {
+                        try_error!(ctx, "Unable to process orphan block: Stacks {}", block.block_identifier);
+                        return Err("Unable to process orphan Stacks block".to_string())
+                    }
+                };
             }
         };
-
-        // Process former orphans
-        let orphans = self.orphans.clone();
-        let mut orphans_to_untrack = HashSet::new();
-
-        let mut at_least_one_orphan_appended = true;
-        // As long as we are successful appending blocks that were previously unprocessable,
-        // Keep looping on this backlog
-        let mut applied = HashSet::new();
-        while at_least_one_orphan_appended {
-            at_least_one_orphan_appended = false;
-            for orphan_block_identifier in orphans.iter() {
-                if applied.contains(orphan_block_identifier) {
-                    continue;
-                }
-                let block = match self.block_store.get(orphan_block_identifier) {
-                    Some(block) => block.clone(),
-                    None => continue,
-                };
-
-                let (orphan_appended, _new_fork) = fork_updated.try_append_block(&block, ctx);
-                if orphan_appended {
-                    applied.insert(orphan_block_identifier);
-                    orphans_to_untrack.insert(orphan_block_identifier);
-                }
-                at_least_one_orphan_appended = at_least_one_orphan_appended || orphan_appended;
-            }
-        }
-
-        // Update orphans
-        for orphan in orphans_to_untrack.into_iter() {
-            ctx.try_log(|logger| slog::info!(logger, "Dequeuing orphan {}", orphan));
-            self.orphans.remove(orphan);
-        }
 
         // Select canonical fork
         let mut canonical_fork_id = 0;
@@ -353,15 +322,6 @@ impl StacksBlockPool {
             blocks_to_prune.append(&mut res);
             if fork.block_ids.is_empty() {
                 forks_to_prune.push(*fork_id);
-            }
-        }
-
-        // Prune orphans using the confirmed block
-        let iter = self.orphans.clone().into_iter();
-        for orphan in iter {
-            if orphan.index < cut_off.index {
-                self.orphans.remove(&orphan);
-                blocks_to_prune.push(orphan);
             }
         }
 
