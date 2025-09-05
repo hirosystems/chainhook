@@ -2,7 +2,7 @@ use crate::{
     indexer::{
         fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
         ChainSegmentIncompatibility,
-    }, try_error, try_info, try_warn, utils::Context
+    }, try_error, try_info, utils::Context
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,

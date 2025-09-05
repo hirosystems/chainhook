@@ -158,8 +158,13 @@ pub fn handle_new_stacks_block(
     };
 
     match chain_event {
+        // If we have a new chain event, we will wait until *all* its processing is completed, including evaluating all chainhooks
+        // and writing all updates to the blocks DB store. We do this because we must make sure the block is fully ingested before
+        // returning a 200 status code response to the Stacks node, otherwise it is impossible for us to retry that block in the
+        // future. Any error will produce a 500 response compelling the node to retry the same block indefinitely.
         Ok(Some(chain_event)) => {
             prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
+            // This sends processing to a background thread, but we will wait until everything is complete.
             if let Err(e) = background_job_tx.lock().map(|tx| {
                 tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
                     .map_err(|e| format!("Unable to send stacks chain event: {}", e))
