@@ -12,6 +12,8 @@ use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::State;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use super::{
     BitcoinConfig, BitcoinRPCRequest, MempoolAdmissionData, ObserverCommand,
@@ -129,6 +131,7 @@ pub fn handle_new_stacks_block(
     marshalled_block: Json<JsonValue>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     prometheus_monitoring: &State<PrometheusMonitoring>,
+    block_processing_flag: &State<Arc<AtomicBool>>,
     ctx: &State<Context>,
 ) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     try_info!(ctx, "POST /new_block");
@@ -163,16 +166,28 @@ pub fn handle_new_stacks_block(
         // returning a 200 status code response to the Stacks node, otherwise it is impossible for us to retry that block in the
         // future. Any error will produce a 500 response compelling the node to retry the same block indefinitely.
         Ok(Some(chain_event)) => {
+            // Validate that block processing flag starts as false
+            if block_processing_flag.load(Ordering::Relaxed) {
+                return error_response("Block processing flag is already set to true - another block is being processed".to_string(), ctx);
+            }
+            
+            // Set flag to true to indicate block processing has started
+            block_processing_flag.store(true, Ordering::Relaxed);
             prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
-            // This sends processing to a background thread, but we will wait until everything is complete.
+            
             if let Err(e) = background_job_tx.lock().map(|tx| {
                 tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
-                    .map_err(|e| format!("Unable to send stacks chain event: {}", e))
+                .map_err(|e| format!("Unable to send stacks chain event: {}", e))
             }) {
+                // Reset flag on error
+                block_processing_flag.store(false, Ordering::Relaxed);
                 return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
             }
-            // FIXME: wait here until `ObserverCommand::PropagateStacksChainEvent` and `ObserverEvent::StacksChainEvent`
-            // processing is done.
+
+            // Wait for background processing to complete indefinitely
+            while block_processing_flag.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(10)); // Small sleep to avoid busy waiting
+            }
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");

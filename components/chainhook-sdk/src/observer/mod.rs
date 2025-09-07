@@ -44,6 +44,7 @@ use std::str;
 use std::str::FromStr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::AtomicBool;
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
 
@@ -731,6 +732,7 @@ pub struct EventObserverBuilder {
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
+    block_processing_flag: Option<Arc<AtomicBool>>,
 }
 
 impl EventObserverBuilder {
@@ -748,6 +750,7 @@ impl EventObserverBuilder {
             observer_events_tx: None,
             observer_sidecar: None,
             stacks_startup_context: None,
+            block_processing_flag: None,
         }
     }
 
@@ -773,6 +776,12 @@ impl EventObserverBuilder {
         self
     }
 
+    /// Sets the block processing flag for synchronous block processing.
+    pub fn block_processing_flag(&mut self, flag: Arc<AtomicBool>) -> &mut Self {
+        self.block_processing_flag = Some(flag);
+        self
+    }
+
     /// Starts the event observer, calling [start_event_observer]. This function consumes the
     /// [EventObserverBuilder] and spawns a new thread to run the observer.
     pub fn start(self) -> Result<(), Box<dyn Error>> {
@@ -783,6 +792,7 @@ impl EventObserverBuilder {
             self.observer_events_tx,
             self.observer_sidecar,
             self.stacks_startup_context,
+            self.block_processing_flag,
             self.ctx,
         )
     }
@@ -796,6 +806,7 @@ pub fn start_event_observer(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
+    block_processing_flag: Option<Arc<AtomicBool>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -848,6 +859,7 @@ pub fn start_event_observer(
                         observer_events_tx.clone(),
                         observer_sidecar,
                         stacks_startup_context.unwrap_or_default(),
+                        block_processing_flag,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -943,6 +955,7 @@ pub async fn start_stacks_event_observer(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
+    block_processing_flag: Option<Arc<AtomicBool>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -1033,12 +1046,18 @@ pub async fn start_stacks_event_observer(
     }
 
     let ctx_cloned = ctx.clone();
-    let ignite = rocket::custom(ingestion_config)
+    let mut rocket_builder = rocket::custom(ingestion_config)
         .manage(indexer_rw_lock)
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
-        .manage(prometheus_monitoring.clone())
+        .manage(prometheus_monitoring.clone());
+    
+    if let Some(flag) = block_processing_flag {
+        rocket_builder = rocket_builder.manage(flag);
+    }
+    
+    let ignite = rocket_builder
         .mount("/", routes)
         .ignite()
         .await?;
