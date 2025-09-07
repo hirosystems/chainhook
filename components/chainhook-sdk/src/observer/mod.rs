@@ -42,9 +42,10 @@ use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::atomic::AtomicBool;
+use std::thread;
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
 
@@ -1052,15 +1053,12 @@ pub async fn start_stacks_event_observer(
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(prometheus_monitoring.clone());
-    
+
     if let Some(flag) = block_processing_flag {
         rocket_builder = rocket_builder.manage(flag);
     }
-    
-    let ignite = rocket_builder
-        .mount("/", routes)
-        .ignite()
-        .await?;
+
+    let ignite = rocket_builder.mount("/", routes).ignite().await?;
     let ingestion_shutdown = Some(ignite.shutdown());
 
     let _ = std::thread::spawn(move || {
@@ -1579,8 +1577,30 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
+                // Send all Bitcoin chainhook requests in parallel using threads
+                let (tx_results, rx_results) = std::sync::mpsc::channel();
+                let mut handles = Vec::new();
+
                 for (request, data) in requests.into_iter() {
-                    match send_request(request, 3, 1, &ctx).await {
+                    let ctx_clone = ctx.clone();
+                    let tx_results_clone = tx_results.clone();
+                    let handle = thread::spawn(move || {
+                        let result = hiro_system_kit::nestable_block_on(send_request(
+                            request, 3, 1, &ctx_clone,
+                        ));
+                        let _ = tx_results_clone.send((result, data));
+                    });
+                    handles.push(handle);
+                }
+
+                // Wait for all threads to complete
+                for handle in handles {
+                    let _ = handle.join();
+                }
+
+                // Collect all results
+                while let Ok((result, data)) = rx_results.try_recv() {
+                    match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
@@ -1595,7 +1615,7 @@ pub async fn start_observer_commands_handler(
                                 }));
                             }
                         }
-                    }
+                    };
                 }
 
                 prometheus_monitoring.btc_metrics_block_evaluated(new_tip);
@@ -1769,16 +1789,38 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
+                // Send all Stacks chainhook requests in parallel using threads
+                let (tx_results, rx_results) = std::sync::mpsc::channel();
+                let mut handles = Vec::new();
+
                 for (request, data) in requests.into_iter() {
-                    // todo(lgalabru): collect responses for reporting
-                    ctx.try_log(|logger| {
-                        slog::debug!(
-                            logger,
-                            "Dispatching request from stacks chainhook {:?}",
-                            request
-                        )
+                    let ctx_clone = ctx.clone();
+                    let tx_results_clone = tx_results.clone();
+                    let handle = thread::spawn(move || {
+                        // todo(lgalabru): collect responses for reporting
+                        ctx_clone.try_log(|logger| {
+                            slog::debug!(
+                                logger,
+                                "Dispatching request from stacks chainhook {:?}",
+                                request
+                            )
+                        });
+                        let result = hiro_system_kit::nestable_block_on(send_request(
+                            request, 1, 0, &ctx_clone,
+                        ));
+                        let _ = tx_results_clone.send((result, data));
                     });
-                    match send_request(request, 3, 1, &ctx).await {
+                    handles.push(handle);
+                }
+
+                // Wait for all threads to complete
+                for handle in handles {
+                    let _ = handle.join();
+                }
+
+                // Collect all results
+                while let Ok((result, data)) = rx_results.try_recv() {
+                    match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::StacksPredicateTriggered(data));
