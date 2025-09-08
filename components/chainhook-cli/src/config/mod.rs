@@ -4,7 +4,7 @@ pub mod generator;
 use chainhook_sdk::chainhooks::types::{ChainhookStore, PoxConfig};
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::{
-    EventObserverConfig, PredicatesConfig, DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+    EventObserverConfig, PredicatesConfig, DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS, DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX, DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY
 };
 use chainhook_sdk::types::{
     BitcoinBlockSignaling, BitcoinNetwork, StacksNetwork, StacksNodeConfig,
@@ -123,6 +123,8 @@ impl Config {
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: self.predicates.payload_http_request_timeout_ms,
                 payload_http_request_concurrency: self.predicates.payload_http_request_concurrency,
+                payload_http_request_attempts_max: self.predicates.payload_http_request_attempts_max,
+                payload_http_request_attempts_interval_ms: self.predicates.payload_http_request_attempts_interval_ms,
             },
             bitcoind_rpc_username: self.network.bitcoind_rpc_username.clone(),
             bitcoind_rpc_password: self.network.bitcoind_rpc_password.clone(),
@@ -204,12 +206,20 @@ impl Config {
                 None => PredicatesConfig {
                     payload_http_request_timeout_ms: None,
                     payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                    payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                    payload_http_request_attempts_interval_ms: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
                 },
                 Some(predicates) => PredicatesConfig {
                     payload_http_request_timeout_ms: predicates.payload_http_request_timeout_ms,
                     payload_http_request_concurrency: predicates
                         .payload_http_request_concurrency
                         .unwrap_or(DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY),
+                    payload_http_request_attempts_max: predicates
+                        .payload_http_request_attempts_max
+                        .unwrap_or(DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX),
+                    payload_http_request_attempts_interval_ms: predicates
+                        .payload_http_request_attempts_interval_ms
+                        .unwrap_or(DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS),
                 },
             },
             event_sources,
@@ -390,6 +400,8 @@ impl Config {
             predicates: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             event_sources: vec![],
             limits: LimitsConfig {
@@ -427,6 +439,8 @@ impl Config {
             predicates: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_TESTNET_STACKS_TSV_ARCHIVE.into(),
@@ -466,6 +480,8 @@ impl Config {
             predicates: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             event_sources: vec![EventSourceConfig::StacksTsvUrl(UrlConfig {
                 file_url: DEFAULT_MAINNET_STACKS_TSV_ARCHIVE.into(),

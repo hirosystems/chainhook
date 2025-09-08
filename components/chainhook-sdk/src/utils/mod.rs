@@ -8,7 +8,7 @@ use chainhook_types::{
 use hiro_system_kit::slog::{self, Logger};
 use reqwest::RequestBuilder;
 use serde_json::Value as JsonValue;
-use crate::{try_info, try_warn};
+use crate::{observer::PredicatesConfig, try_info, try_warn};
 
 #[derive(Clone)]
 pub struct Context {
@@ -143,8 +143,7 @@ impl AbstractBlock for BitcoinBlockData {
 
 pub async fn send_request(
     request_builder: RequestBuilder,
-    attempts_max: u16,
-    attempts_interval_sec: u16,
+    config: &PredicatesConfig,
     ctx: &Context,
 ) -> Result<(), String> {
     let mut retry = 0;
@@ -176,7 +175,7 @@ pub async fn send_request(
                 err_msg
             }
         };
-        if retry >= attempts_max {
+        if retry >= config.payload_http_request_attempts_max {
             let msg: String = format!(
                 "unable to send request after several retries. most recent error: {}",
                 err_msg
@@ -184,7 +183,7 @@ pub async fn send_request(
             try_warn!(ctx, "{}", msg);
             return Err(msg);
         }
-        std::thread::sleep(std::time::Duration::from_secs(attempts_interval_sec.into()));
+        std::thread::sleep(std::time::Duration::from_millis(config.payload_http_request_attempts_interval_ms.into()));
     }
 }
 
@@ -192,7 +191,7 @@ pub async fn send_request(
 /// Each request is processed by calling the provided closure with the request and data.
 pub fn send_concurrent_http_requests<D>(
     requests: Vec<(RequestBuilder, D)>,
-    concurrency: usize,
+    config: &PredicatesConfig,
     ctx: &Context,
 ) -> Vec<(Result<(), String>, D)>
 where D: Send + 'static,
@@ -213,12 +212,13 @@ where D: Send + 'static,
     drop(tx_requests); // Signal that no more requests will be sent
 
     // Spawn worker threads (max_threads, or fewer if we have fewer requests)
-    let num_threads = std::cmp::min(concurrency, std::cmp::max(1, request_count));
+    let num_threads = std::cmp::min(config.payload_http_request_concurrency, std::cmp::max(1, request_count));
     let rx_requests_shared = Arc::new(Mutex::new(rx_requests));
     for _ in 0..num_threads {
         let rx_requests_shared_clone = rx_requests_shared.clone();
         let tx_results_clone = tx_results.clone();
         let ctx_clone = ctx.clone();
+        let config_clone = config.clone();
         let handle = thread::spawn(move || {
             loop {
                 let request_data = {
@@ -228,7 +228,7 @@ where D: Send + 'static,
                 match request_data {
                     Ok((request, data)) => {
                         let result = hiro_system_kit::nestable_block_on(send_request(
-                            request, 1, 1, &ctx_clone,
+                            request, &config_clone, &ctx_clone,
                         ))
                         .map_err(|e| e.to_string());
                         let _ = tx_results_clone.send((result, data));

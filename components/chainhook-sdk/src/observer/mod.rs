@@ -42,12 +42,13 @@ use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
 pub const DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY: usize = 10;
+pub const DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX: u16 = 3;
+pub const DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS: u16 = 100;
 
 #[derive(Deserialize)]
 pub struct NewTransaction {
@@ -72,6 +73,8 @@ pub enum DataHandlerEvent {
 pub struct PredicatesConfig {
     pub payload_http_request_timeout_ms: Option<u64>,
     pub payload_http_request_concurrency: usize,
+    pub payload_http_request_attempts_max: u16,
+    pub payload_http_request_attempts_interval_ms: u16,
 }
 
 impl PredicatesConfig {
@@ -79,6 +82,9 @@ impl PredicatesConfig {
         PredicatesConfig {
             payload_http_request_timeout_ms: None,
             payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+            payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+            payload_http_request_attempts_interval_ms:
+                DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
         }
     }
 }
@@ -317,6 +323,9 @@ impl BitcoinEventObserverConfigBuilder {
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms:
+                    DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: self
@@ -351,6 +360,9 @@ impl EventObserverConfig {
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms:
+                    DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: "devnet".into(),
@@ -437,6 +449,9 @@ impl EventObserverConfig {
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
+                payload_http_request_attempts_max: DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX,
+                payload_http_request_attempts_interval_ms:
+                    DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS,
             },
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
@@ -1569,11 +1584,9 @@ pub async fn start_observer_commands_handler(
                 }
 
                 // Send all Bitcoin chainhook requests using a thread pool
-                for (result, data) in send_concurrent_http_requests(
-                    requests,
-                    config.predicates_config.payload_http_request_concurrency,
-                    &ctx,
-                ) {
+                for (result, data) in
+                    send_concurrent_http_requests(requests, &config.predicates_config, &ctx)
+                {
                     match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
@@ -1764,11 +1777,9 @@ pub async fn start_observer_commands_handler(
                 }
 
                 // Send all Stacks chainhook requests using a thread pool
-                for (result, data) in send_concurrent_http_requests(
-                    requests,
-                    config.predicates_config.payload_http_request_concurrency,
-                    &ctx,
-                ) {
+                for (result, data) in
+                    send_concurrent_http_requests(requests, &config.predicates_config, &ctx)
+                {
                     match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
