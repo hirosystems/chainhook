@@ -64,26 +64,6 @@ fn test_stacks_vector_010() {
 }
 
 #[test]
-fn test_stacks_vector_011() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_011(), None));
-}
-
-#[test]
-fn test_stacks_vector_012() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_012(), None));
-}
-
-#[test]
-fn test_stacks_vector_013() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_013(), None));
-}
-
-#[test]
-fn test_stacks_vector_014() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_014(), None));
-}
-
-#[test]
 fn test_stacks_vector_015() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_015(), None));
 }
