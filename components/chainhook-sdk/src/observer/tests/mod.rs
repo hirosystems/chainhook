@@ -268,7 +268,7 @@ fn assert_predicates_triggered_event(
 fn assert_stacks_chain_event(observer_events_rx: &crossbeam_channel::Receiver<ObserverEvent>) {
     assert!(
         match observer_events_rx.recv() {
-            Ok(ObserverEvent::StacksChainEvent(_, _)) => {
+            Ok(ObserverEvent::StacksChainEvent(_)) => {
                 true
             }
             _ => false,
