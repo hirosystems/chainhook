@@ -3,10 +3,15 @@ use std::{
     fs::{self, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
+    sync::{Arc, Mutex},
+    thread::{self, sleep},
+    time::Duration,
 };
 
+use crate::{observer::PredicatesConfig, try_info, try_warn};
 use chainhook_types::{
-    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData, StacksTransactionData
+    BitcoinBlockData, BlockHeader, BlockIdentifier, StacksBlockData, StacksMicroblockData,
+    StacksTransactionData,
 };
 use hiro_system_kit::slog::{self, Logger};
 use reqwest::RequestBuilder;
@@ -145,8 +150,7 @@ impl AbstractBlock for BitcoinBlockData {
 
 pub async fn send_request(
     request_builder: RequestBuilder,
-    attempts_max: u16,
-    attempts_interval_sec: u16,
+    config: &PredicatesConfig,
     ctx: &Context,
 ) -> Result<(), String> {
     let mut retry = 0;
@@ -154,40 +158,113 @@ pub async fn send_request(
         let request_builder = match request_builder.try_clone() {
             Some(rb) => rb,
             None => {
-                ctx.try_log(|logger| slog::warn!(logger, "unable to clone request builder"));
+                try_warn!(ctx, "unable to clone request builder");
                 return Err("internal server error: unable to clone request builder".to_string());
             }
         };
         let err_msg = match request_builder.send().await {
             Ok(res) => {
                 if res.status().is_success() {
-                    ctx.try_log(|logger| slog::debug!(logger, "Trigger {} successful", res.url()));
+                    try_info!(ctx, "Request {} successful", res.url());
                     return Ok(());
                 } else {
                     retry += 1;
                     let err_msg =
-                        format!("Trigger {} failed with status {}", res.url(), res.status());
-                    ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                        format!("Request {} failed with status {}", res.url(), res.status());
+                    try_warn!(ctx, "{err_msg}");
                     err_msg
                 }
             }
             Err(e) => {
                 retry += 1;
-                let err_msg = format!("unable to send request {}", e);
-                ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                let err_msg = format!("Request error: {e}");
+                try_warn!(ctx, "{err_msg}");
                 err_msg
             }
         };
-        if retry >= attempts_max {
-            let msg: String = format!(
-                "unable to send request after several retries. most recent error: {}",
-                err_msg
-            );
-            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+        if retry >= config.payload_http_request_attempts_max {
+            let msg = format!("Request failed after max attempts. most recent error: {err_msg}");
+            try_warn!(ctx, "{msg}");
             return Err(msg);
         }
-        std::thread::sleep(std::time::Duration::from_secs(attempts_interval_sec.into()));
+        sleep(Duration::from_millis(
+            config.payload_http_request_attempts_interval_ms.into(),
+        ));
     }
+}
+
+/// Processes requests in parallel using a thread pool with a configurable maximum number of threads.
+/// Each request is processed by calling the provided closure with the request and data.
+pub fn send_concurrent_http_requests<D>(
+    requests: Vec<(RequestBuilder, D)>,
+    config: &PredicatesConfig,
+    ctx: &Context,
+) -> Vec<(Result<(), String>, D)>
+where
+    D: Send + 'static,
+{
+    let request_count = requests.len();
+    if request_count == 0 {
+        return Vec::new();
+    }
+
+    let (tx_requests, rx_requests) = std::sync::mpsc::channel();
+    let (tx_results, rx_results) = std::sync::mpsc::channel();
+    let mut handles = Vec::new();
+
+    // Send all requests to the queue
+    for (request, data) in requests.into_iter() {
+        let _ = tx_requests.send((request, data));
+    }
+    drop(tx_requests); // Signal that no more requests will be sent
+
+    // Spawn worker threads (max_threads, or fewer if we have fewer requests)
+    let num_threads = std::cmp::min(
+        config.payload_http_request_concurrency,
+        std::cmp::max(1, request_count),
+    );
+    let rx_requests_shared = Arc::new(Mutex::new(rx_requests));
+    try_info!(ctx, "Sending {request_count} total requests across {num_threads} worker threads");
+
+    for _ in 0..num_threads {
+        let rx_requests_shared_clone = rx_requests_shared.clone();
+        let tx_results_clone = tx_results.clone();
+        let ctx_clone = ctx.clone();
+        let config_clone = config.clone();
+        let handle = thread::spawn(move || {
+            loop {
+                let request_data = {
+                    let rx_guard = rx_requests_shared_clone.lock().unwrap();
+                    rx_guard.recv()
+                };
+                match request_data {
+                    Ok((request, data)) => {
+                        let result = hiro_system_kit::nestable_block_on(send_request(
+                            request,
+                            &config_clone,
+                            &ctx_clone,
+                        ))
+                        .map_err(|e| e.to_string());
+                        let _ = tx_results_clone.send((result, data));
+                    }
+                    Err(_) => break, // Channel closed, no more requests
+                }
+            }
+        });
+        handles.push(handle);
+    }
+
+    // Wait for all threads to complete
+    for handle in handles {
+        let _ = handle.join();
+    }
+
+    // Collect all results
+    let mut results = Vec::new();
+    while let Ok((result, data)) = rx_results.try_recv() {
+        results.push((result, data));
+    }
+    results
 }
 
 pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), String> {
@@ -206,11 +283,7 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
                 let _ = file.write_all(&bytes);
             }
             Err(e) => {
-                let msg = format!(
-                    "unable to create file {}: {}",
-                    file_path.display(),
-                    e
-                );
+                let msg = format!("unable to create file {}: {}", file_path.display(), e);
                 ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
                 return Err(msg);
             }
@@ -219,7 +292,6 @@ pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), St
 
     let mut file = match OpenOptions::new()
         .create(false)
-        
         .append(true)
         .open(file_path)
     {

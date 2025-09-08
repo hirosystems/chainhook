@@ -370,7 +370,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
                 loop_did_trigger = true;
                 let res = match action {
                     StacksChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 3, 1, ctx).await
+                        send_request(request, &config.predicates, ctx).await
                     }
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx),
                     StacksChainhookOccurrence::Data(_payload) => Ok(()),
@@ -557,7 +557,7 @@ pub async fn scan_stacks_chainstate_via_csv_using_predicate(
                 occurrences_found += 1;
                 let res = match action {
                     StacksChainhookOccurrence::Http(request, _) => {
-                        send_request(request, 10, 3, ctx).await
+                        send_request(request, &config.predicates, ctx).await
                     }
                     StacksChainhookOccurrence::File(path, bytes) => file_append(path, bytes, ctx),
                     StacksChainhookOccurrence::Data(_payload) => unreachable!(),
