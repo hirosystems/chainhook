@@ -43,7 +43,7 @@ use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -963,6 +963,7 @@ pub async fn start_bitcoin_event_observer(
         None,
         prometheus_monitoring,
         observer_sidecar,
+        None,
         ctx,
     )
     .await
@@ -1071,13 +1072,14 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     }
 
     let ctx_cloned = ctx.clone();
+    let block_processing_flag_cloned = block_processing_flag.clone();
     let ignite = rocket::custom(ingestion_config)
         .manage(indexer_rw_lock)
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(prometheus_monitoring.clone())
-        .manage(block_processing_flag)
+        .manage(block_processing_flag_cloned)
         .mount("/", routes)
         .ignite()
         .await?;
@@ -1096,6 +1098,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
         ingestion_shutdown,
         prometheus_monitoring,
         observer_sidecar,
+        Some(block_processing_flag),
         ctx,
     )
     .await
@@ -1176,6 +1179,7 @@ pub async fn start_observer_commands_handler(
     ingestion_shutdown: Option<Shutdown>,
     prometheus_monitoring: PrometheusMonitoring,
     observer_sidecar: Option<ObserverSidecar>,
+    block_processing_flag: Option<Arc<AtomicBool>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -1684,6 +1688,7 @@ pub async fn start_observer_commands_handler(
                 };
 
                 // process hooks
+                // TODO: use thread pool to evaluate predicates
                 let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_stacks_chainhooks_on_chain_event(
                         &chain_event,
@@ -1818,6 +1823,8 @@ pub async fn start_observer_commands_handler(
 
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));
+                } else if let Some(ref flag) = block_processing_flag {
+                    flag.store(false, Ordering::Relaxed);
                 }
             }
             ObserverCommand::PropagateStacksMempoolEvent(mempool_event) => {
