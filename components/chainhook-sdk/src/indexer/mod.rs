@@ -442,10 +442,7 @@ impl ChainSegment {
                             block_appended = true;
                         }
                     }
-                    ChainSegmentIncompatibility::AlreadyPresent => {
-                        // Fork has this block already
-                        return (true, None);
-                    }
+                    ChainSegmentIncompatibility::AlreadyPresent => {}
                     ChainSegmentIncompatibility::OutdatedSegment => {}
                     ChainSegmentIncompatibility::ParentBlockUnknown => {}
                     ChainSegmentIncompatibility::OutdatedBlock => {}

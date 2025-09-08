@@ -124,6 +124,14 @@ impl StacksBlockPool {
 
         let mut fork_updated = None;
         for (_, fork) in self.forks.iter_mut() {
+            if fork.block_ids.contains(&block.block_identifier) {
+                try_info!(
+                    ctx,
+                    "Ignoring previously processed block already present in fork: Stacks {}",
+                    block.block_identifier
+                );
+                return Ok(None);
+            }
             let (block_appended, mut new_fork) = fork.try_append_block(&block, ctx);
             if block_appended {
                 if let Some(new_fork) = new_fork.take() {
