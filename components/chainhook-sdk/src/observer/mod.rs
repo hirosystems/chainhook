@@ -21,7 +21,7 @@ use crate::indexer::bitcoin::{
 };
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
-use crate::utils::{send_request, Context};
+use crate::utils::{send_concurrent_http_requests, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
@@ -42,10 +42,12 @@ use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
+pub const DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY: usize = 10;
 
 #[derive(Deserialize)]
 pub struct NewTransaction {
@@ -69,12 +71,14 @@ pub enum DataHandlerEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredicatesConfig {
     pub payload_http_request_timeout_ms: Option<u64>,
+    pub payload_http_request_concurrency: usize,
 }
 
 impl PredicatesConfig {
     pub fn new() -> Self {
         PredicatesConfig {
             payload_http_request_timeout_ms: None,
+            payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
         }
     }
 }
@@ -312,6 +316,7 @@ impl BitcoinEventObserverConfigBuilder {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: self
@@ -345,6 +350,7 @@ impl EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: "devnet".into(),
@@ -430,6 +436,7 @@ impl EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
@@ -1042,6 +1049,7 @@ pub async fn start_stacks_event_observer(
         .mount("/", routes)
         .ignite()
         .await?;
+
     let ingestion_shutdown = Some(ignite.shutdown());
 
     let _ = std::thread::spawn(move || {
@@ -1560,8 +1568,13 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for (request, data) in requests.into_iter() {
-                    match send_request(request, 3, 1, &ctx).await {
+                // Send all Bitcoin chainhook requests using a thread pool
+                for (result, data) in send_concurrent_http_requests(
+                    requests,
+                    config.predicates_config.payload_http_request_concurrency,
+                    &ctx,
+                ) {
+                    match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::BitcoinPredicateTriggered(data));
@@ -1576,7 +1589,7 @@ pub async fn start_observer_commands_handler(
                                 }));
                             }
                         }
-                    }
+                    };
                 }
 
                 prometheus_monitoring.btc_metrics_block_evaluated(new_tip);
@@ -1750,16 +1763,13 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for (request, data) in requests.into_iter() {
-                    // todo(lgalabru): collect responses for reporting
-                    ctx.try_log(|logger| {
-                        slog::debug!(
-                            logger,
-                            "Dispatching request from stacks chainhook {:?}",
-                            request
-                        )
-                    });
-                    match send_request(request, 3, 1, &ctx).await {
+                // Send all Stacks chainhook requests using a thread pool
+                for (result, data) in send_concurrent_http_requests(
+                    requests,
+                    config.predicates_config.payload_http_request_concurrency,
+                    &ctx,
+                ) {
+                    match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::StacksPredicateTriggered(data));
