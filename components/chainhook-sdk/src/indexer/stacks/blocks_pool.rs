@@ -1,7 +1,7 @@
 use crate::{
     indexer::{
-        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
-        ChainSegmentIncompatibility,
+        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
+        ChainSegment, ChainSegmentIncompatibility,
     },
     try_error, try_info,
     utils::Context,
@@ -109,30 +109,15 @@ impl StacksBlockPool {
     ) -> Result<Option<StacksChainEvent>, String> {
         try_info!(ctx, "Start processing Stacks {}", block.block_identifier);
 
-        // Keep block data in memory
-        let existing_entry = self
-            .block_store
-            .insert(block.block_identifier.clone(), block.clone());
-        if existing_entry.is_some() {
-            try_info!(
-                ctx,
-                "Stacks {} has already been processed",
-                block.block_identifier
-            );
-            return Ok(None);
-        }
-
         for (i, fork) in self.forks.iter() {
-            ctx.try_log(|logger| slog::info!(logger, "Active fork {}: {}", i, fork));
+            try_info!(ctx, "Active fork {i}: {fork}");
         }
         // Retrieve previous canonical fork
         let previous_canonical_fork_id = self.canonical_fork_id;
         let previous_canonical_fork = match self.forks.get(&previous_canonical_fork_id) {
             Some(fork) => fork.clone(),
             None => {
-                ctx.try_log(|logger| {
-                    slog::error!(logger, "unable to retrieve previous stacks fork")
-                });
+                try_error!(ctx, "unable to retrieve previous stacks fork");
                 return Err("unable to retrieve previous stacks fork".to_string());
             }
         };
@@ -161,14 +146,13 @@ impl StacksBlockPool {
 
         match fork_updated.take() {
             Some(fork) => {
-                ctx.try_log(|logger| {
-                    slog::info!(
-                        logger,
-                        "Stacks {} successfully appended to {}",
-                        block.block_identifier,
-                        fork
-                    )
-                });
+                try_info!(
+                    ctx,
+                    "Stacks {} successfully appended to {fork}",
+                    block.block_identifier
+                );
+                self.block_store
+                    .insert(block.block_identifier.clone(), block.clone());
                 fork
             }
             None => {
