@@ -131,7 +131,7 @@ pub fn handle_new_stacks_block(
     marshalled_block: Json<JsonValue>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     prometheus_monitoring: &State<PrometheusMonitoring>,
-    block_processing_flag: &State<Arc<AtomicBool>>,
+    stacks_block_processing_flag: &State<Arc<AtomicBool>>,
     ctx: &State<Context>,
 ) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     try_info!(ctx, "POST /new_block");
@@ -166,20 +166,20 @@ pub fn handle_new_stacks_block(
         // returning a 200 status code response to the Stacks node, otherwise it is impossible for us to retry that block in the
         // future. Any error will produce a 500 response compelling the node to retry the same block indefinitely.
         Ok(Some(chain_event)) => {
-            if block_processing_flag.load(Ordering::Relaxed) {
+            if stacks_block_processing_flag.load(Ordering::Relaxed) {
                 return error_response("Block processing flag is already set to true - another block is being processed".to_string(), ctx);
             }
-            block_processing_flag.store(true, Ordering::Relaxed);
+            stacks_block_processing_flag.store(true, Ordering::Relaxed);
 
             if let Err(e) = background_job_tx.lock().map(|tx| {
                 tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
                 .map_err(|e| format!("Unable to send stacks chain event: {}", e))
             }) {
-                block_processing_flag.store(false, Ordering::Relaxed);
+                stacks_block_processing_flag.store(false, Ordering::Relaxed);
                 return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
             }
 
-            while block_processing_flag.load(Ordering::Relaxed) {
+            while stacks_block_processing_flag.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(10)); // Small sleep to avoid busy waiting
             }
             prometheus_monitoring.stx_metrics_block_appeneded(new_tip);

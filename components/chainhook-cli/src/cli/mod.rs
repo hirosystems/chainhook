@@ -33,6 +33,8 @@ use std::collections::BTreeMap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::process;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -354,7 +356,7 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 
                 try_info!(ctx, "Starting chainhook service");
                 import_stacks_chainstate_from_remote_tsv(&mut config, &ctx).await?;
-                let mut service = Service::new(config, ctx);
+                let mut service = Service::new(config, ctx, Arc::new(AtomicBool::new(false)));
                 return service.run(predicates, None).await;
             }
         },
@@ -540,11 +542,8 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
                         };
                         match open_readonly_stacks_db_conn(&config.expected_cache_path(), &ctx) {
                             Ok(_) => {
-                                let _ = import_stacks_chainstate_from_remote_tsv(
-                                    &mut config,
-                                    &ctx,
-                                )
-                                .await;
+                                let _ = import_stacks_chainstate_from_remote_tsv(&mut config, &ctx)
+                                    .await;
                                 // Refresh DB connection so it picks up recent changes made by TSV consolidation.
                                 let mut db_conns = StacksDbConnections::open_readonly(
                                     &config.expected_cache_path(),

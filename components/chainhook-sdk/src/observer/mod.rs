@@ -747,7 +747,7 @@ impl ObserverSidecar {
 ///     .start()
 /// }
 /// ```
-pub struct EventObserverBuilder {
+pub struct EventObserverBuilder<D: BlocksDatabaseAccess + Send + Sync + 'static> {
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -755,9 +755,11 @@ pub struct EventObserverBuilder {
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
 }
 
-impl EventObserverBuilder {
+impl<D: BlocksDatabaseAccess + Send + Sync + 'static> EventObserverBuilder<D> {
     pub fn new(
         config: EventObserverConfig,
         observer_commands_tx: &Sender<ObserverCommand>,
@@ -772,6 +774,8 @@ impl EventObserverBuilder {
             observer_events_tx: None,
             observer_sidecar: None,
             stacks_startup_context: None,
+            stacks_block_processing_flag: Arc::new(AtomicBool::new(false)),
+            stacks_database_access: None,
         }
     }
 
@@ -797,12 +801,15 @@ impl EventObserverBuilder {
         self
     }
 
+    /// Sets the Stacks database access. See [BlocksDatabaseAccess].
+    pub fn stacks_database_access(&mut self, stacks_database_access: Option<D>) -> &mut Self {
+        self.stacks_database_access = stacks_database_access;
+        self
+    }
+
     /// Starts the event observer, calling [start_event_observer]. This function consumes the
     /// [EventObserverBuilder] and spawns a new thread to run the observer.
-    pub fn start<D: crate::indexer::database::BlocksDatabaseAccess + Send + Sync + 'static>(
-        self,
-        database_access: Option<D>,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn start(self) -> Result<(), Box<dyn Error>> {
         start_event_observer(
             self.config,
             self.observer_commands_tx,
@@ -810,7 +817,8 @@ impl EventObserverBuilder {
             self.observer_events_tx,
             self.observer_sidecar,
             self.stacks_startup_context,
-            database_access,
+            self.stacks_block_processing_flag,
+            self.stacks_database_access,
             self.ctx,
         )
     }
@@ -824,7 +832,8 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
-    database_access: Option<D>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -867,7 +876,6 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
-            let block_processing_flag = Arc::new(AtomicBool::new(false));
 
             let _ = hiro_system_kit::thread_named("Chainhook event observer")
                 .spawn(move || {
@@ -878,8 +886,8 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
                         observer_events_tx.clone(),
                         observer_sidecar,
                         stacks_startup_context.unwrap_or_default(),
-                        block_processing_flag,
-                        database_access,
+                        stacks_block_processing_flag,
+                        stacks_database_access,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -976,8 +984,8 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
-    block_processing_flag: Arc<AtomicBool>,
-    database_access: Option<D>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -989,7 +997,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
     };
 
-    let mut indexer = if let Some(db_access) = database_access {
+    let mut indexer = if let Some(db_access) = stacks_database_access {
         Indexer::new_with_database_access(indexer_config.clone(), db_access)
     } else {
         Indexer::new(indexer_config.clone())
@@ -1072,14 +1080,14 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     }
 
     let ctx_cloned = ctx.clone();
-    let block_processing_flag_cloned = block_processing_flag.clone();
+    let stacks_block_processing_flag_cloned = stacks_block_processing_flag.clone();
     let ignite = rocket::custom(ingestion_config)
         .manage(indexer_rw_lock)
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(prometheus_monitoring.clone())
-        .manage(block_processing_flag_cloned)
+        .manage(stacks_block_processing_flag_cloned)
         .mount("/", routes)
         .ignite()
         .await?;
@@ -1098,7 +1106,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
         ingestion_shutdown,
         prometheus_monitoring,
         observer_sidecar,
-        Some(block_processing_flag),
+        Some(stacks_block_processing_flag),
         ctx,
     )
     .await
@@ -1179,7 +1187,7 @@ pub async fn start_observer_commands_handler(
     ingestion_shutdown: Option<Shutdown>,
     prometheus_monitoring: PrometheusMonitoring,
     observer_sidecar: Option<ObserverSidecar>,
-    block_processing_flag: Option<Arc<AtomicBool>>,
+    stacks_block_processing_flag: Option<Arc<AtomicBool>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -1823,7 +1831,7 @@ pub async fn start_observer_commands_handler(
 
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));
-                } else if let Some(ref flag) = block_processing_flag {
+                } else if let Some(ref flag) = stacks_block_processing_flag {
                     flag.store(false, Ordering::Relaxed);
                 }
             }

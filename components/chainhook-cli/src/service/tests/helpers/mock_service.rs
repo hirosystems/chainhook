@@ -22,6 +22,8 @@ use reqwest::Method;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -326,7 +328,7 @@ pub async fn start_chainhook_service(
     startup_predicates: Option<Vec<ChainhookSpecificationNetworkMap>>,
     ctx: &Context,
 ) -> Result<Sender<ObserverCommand>, String> {
-    let mut service = Service::new(config, ctx.clone());
+    let mut service = Service::new(config, ctx.clone(), Arc::new(AtomicBool::new(false)));
     let (observer_command_tx, observer_command_rx) = mpsc::channel();
     let moved_observer_command_tx = observer_command_tx.clone();
     let _ = hiro_system_kit::thread_named("Chainhook service")

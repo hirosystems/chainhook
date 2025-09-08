@@ -20,15 +20,15 @@ use chainhook_sdk::observer::{
     PredicateDeregisteredEvent, PredicateEvaluationReport, PredicateInterruptedData,
     StacksObserverStartupContext,
 };
-use chainhook_sdk::{try_error, try_info};
 use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
+use chainhook_sdk::{try_error, try_info};
 use redis::{Commands, Connection};
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::http_api::get_entry_from_predicates_db;
@@ -37,21 +37,16 @@ use self::runloops::{BitcoinScanOp, StacksScanOp};
 pub struct Service {
     config: Config,
     ctx: Context,
-    block_processing_flag: Option<Arc<AtomicBool>>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
 }
 
 impl Service {
-    pub fn new(config: Config, ctx: Context) -> Self {
-        Self { 
-            config, 
+    pub fn new(config: Config, ctx: Context, stacks_block_processing_flag: Arc<AtomicBool>) -> Self {
+        Self {
+            config,
             ctx,
-            block_processing_flag: None,
+            stacks_block_processing_flag,
         }
-    }
-    
-    pub fn with_block_processing_flag(mut self, block_processing_flag: Arc<AtomicBool>) -> Self {
-        self.block_processing_flag = Some(block_processing_flag);
-        self
     }
 
     pub async fn run(
@@ -291,9 +286,8 @@ impl Service {
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
         // Create database access for the observer
-        let database_access = StacksDatabaseAccess::new(
-            PathBuf::from(&self.config.storage.working_dir)
-        );
+        let database_access =
+            StacksDatabaseAccess::new(PathBuf::from(&self.config.storage.working_dir));
 
         let _ = start_event_observer(
             event_observer_config.clone(),
@@ -302,6 +296,7 @@ impl Service {
             Some(observer_event_tx_moved),
             None,
             Some(stacks_startup_context),
+            self.stacks_block_processing_flag.clone(),
             Some(database_access),
             self.ctx.clone(),
         );
@@ -576,7 +571,11 @@ impl Service {
                                 ) {
                                     try_error!(self.ctx, "unable to store signer messages: {e}");
                                 };
-                                try_info!(self.ctx, "Stored {} stacks non-consensus events", data.events.len());
+                                try_info!(
+                                    self.ctx,
+                                    "Stored {} stacks non-consensus events",
+                                    data.events.len()
+                                );
                             }
                         },
                         Err(e) => {
@@ -662,9 +661,7 @@ impl Service {
                     };
 
                     // Signal completion by setting block processing flag to false
-                    if let Some(ref flag) = self.block_processing_flag {
-                        flag.store(false, Ordering::Relaxed);
-                    }
+                    self.stacks_block_processing_flag.store(false, Ordering::Relaxed);
                 }
                 ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                     predicate_key,
