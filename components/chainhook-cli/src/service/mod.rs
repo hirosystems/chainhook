@@ -302,7 +302,6 @@ impl Service {
             Some(observer_event_tx_moved),
             None,
             Some(stacks_startup_context),
-            self.block_processing_flag.clone(),
             Some(database_access),
             self.ctx.clone(),
         );

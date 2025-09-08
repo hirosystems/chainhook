@@ -755,7 +755,6 @@ pub struct EventObserverBuilder {
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
-    block_processing_flag: Option<Arc<AtomicBool>>,
 }
 
 impl EventObserverBuilder {
@@ -773,7 +772,6 @@ impl EventObserverBuilder {
             observer_events_tx: None,
             observer_sidecar: None,
             stacks_startup_context: None,
-            block_processing_flag: None,
         }
     }
 
@@ -799,12 +797,6 @@ impl EventObserverBuilder {
         self
     }
 
-    /// Sets the block processing flag for synchronous block processing.
-    pub fn block_processing_flag(&mut self, flag: Arc<AtomicBool>) -> &mut Self {
-        self.block_processing_flag = Some(flag);
-        self
-    }
-
     /// Starts the event observer, calling [start_event_observer]. This function consumes the
     /// [EventObserverBuilder] and spawns a new thread to run the observer.
     pub fn start<D: crate::indexer::database::BlocksDatabaseAccess + Send + Sync + 'static>(
@@ -818,7 +810,6 @@ impl EventObserverBuilder {
             self.observer_events_tx,
             self.observer_sidecar,
             self.stacks_startup_context,
-            self.block_processing_flag,
             database_access,
             self.ctx,
         )
@@ -833,7 +824,6 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
-    block_processing_flag: Option<Arc<AtomicBool>>,
     database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
@@ -877,6 +867,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
+            let block_processing_flag = Arc::new(AtomicBool::new(false));
 
             let _ = hiro_system_kit::thread_named("Chainhook event observer")
                 .spawn(move || {
@@ -984,7 +975,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
-    block_processing_flag: Option<Arc<AtomicBool>>,
+    block_processing_flag: Arc<AtomicBool>,
     database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
@@ -1080,18 +1071,16 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     }
 
     let ctx_cloned = ctx.clone();
-    let mut rocket_builder = rocket::custom(ingestion_config)
+    let ignite = rocket::custom(ingestion_config)
         .manage(indexer_rw_lock)
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
-        .manage(prometheus_monitoring.clone());
-
-    if let Some(flag) = block_processing_flag {
-        rocket_builder = rocket_builder.manage(flag);
-    }
-
-    let ignite = rocket_builder.mount("/", routes).ignite().await?;
+        .manage(prometheus_monitoring.clone())
+        .manage(block_processing_flag)
+        .mount("/", routes)
+        .ignite()
+        .await?;
     let ingestion_shutdown = Some(ignite.shutdown());
 
     let _ = std::thread::spawn(move || {
