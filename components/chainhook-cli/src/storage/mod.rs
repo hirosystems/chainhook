@@ -1,3 +1,4 @@
+pub mod database_access;
 pub mod signers;
 pub mod sqlite;
 

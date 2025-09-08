@@ -1,9 +1,11 @@
 pub mod bitcoin;
+pub mod database;
 pub mod fork_scratch_pad;
 pub mod stacks;
 
 use crate::{
     chainhooks::types::PoxConfig,
+    indexer::database::BlocksDatabaseAccess,
     utils::{AbstractBlock, Context},
 };
 
@@ -87,6 +89,24 @@ pub struct Indexer {
 impl Indexer {
     pub fn new(config: IndexerConfig) -> Indexer {
         let stacks_blocks_pool = StacksBlockPool::new();
+        let bitcoin_blocks_pool = ForkScratchPad::new();
+        let stacks_context = StacksChainContext::new(&config.stacks_network);
+        let bitcoin_context = BitcoinChainContext::new();
+
+        Indexer {
+            config,
+            stacks_blocks_pool,
+            bitcoin_blocks_pool,
+            stacks_context,
+            bitcoin_context,
+        }
+    }
+
+    pub fn new_with_database_access<D: BlocksDatabaseAccess + Send + Sync + 'static>(
+        config: IndexerConfig,
+        database_access: D,
+    ) -> Indexer {
+        let stacks_blocks_pool = StacksBlockPool::new_with_database_access(database_access);
         let bitcoin_blocks_pool = ForkScratchPad::new();
         let stacks_context = StacksChainContext::new(&config.stacks_network);
         let bitcoin_context = BitcoinChainContext::new();

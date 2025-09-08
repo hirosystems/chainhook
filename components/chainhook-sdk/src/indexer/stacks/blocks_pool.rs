@@ -1,8 +1,10 @@
 use crate::{
     indexer::{
-        fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
+        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment,
         ChainSegmentIncompatibility,
-    }, try_error, try_info, utils::Context
+    },
+    try_error, try_info,
+    utils::Context,
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
@@ -12,6 +14,7 @@ use chainhook_types::{
 };
 use hiro_system_kit::slog;
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
@@ -22,6 +25,7 @@ pub struct StacksBlockPool {
     micro_forks: HashMap<BlockIdentifier, Vec<ChainSegment>>,
     micro_orphans: BTreeSet<(BlockIdentifier, BlockIdentifier)>,
     canonical_micro_fork_id: HashMap<BlockIdentifier, usize>,
+    database_access: Option<Arc<dyn BlocksDatabaseAccess + Send + Sync>>,
 }
 
 impl Default for StacksBlockPool {
@@ -43,14 +47,31 @@ impl StacksBlockPool {
             micro_forks: HashMap::new(),
             micro_orphans: BTreeSet::new(),
             canonical_micro_fork_id: HashMap::new(),
+            database_access: None,
+        }
+    }
+
+    pub fn new_with_database_access<D: BlocksDatabaseAccess + Send + Sync + 'static>(
+        database_access: D,
+    ) -> StacksBlockPool {
+        let mut forks = BTreeMap::new();
+        forks.insert(0, ChainSegment::new());
+        StacksBlockPool {
+            canonical_fork_id: 0,
+            highest_competing_fork_height_delta: None,
+            block_store: HashMap::new(),
+            forks,
+            microblock_store: HashMap::new(),
+            micro_forks: HashMap::new(),
+            micro_orphans: BTreeSet::new(),
+            canonical_micro_fork_id: HashMap::new(),
+            database_access: Some(Arc::new(database_access)),
         }
     }
 
     pub fn get_canonical_fork_chain_tip(&self) -> Option<&BlockIdentifier> {
         match self.forks.get(&self.canonical_fork_id) {
-            Some(fork) => {
-                Some(fork.get_tip())
-            },
+            Some(fork) => Some(fork.get_tip()),
             None => None,
         }
     }
@@ -86,22 +107,18 @@ impl StacksBlockPool {
         block: StacksBlockData,
         ctx: &Context,
     ) -> Result<Option<StacksChainEvent>, String> {
-        ctx.try_log(|logger| {
-            slog::info!(logger, "Start processing Stacks {}", block.block_identifier)
-        });
+        try_info!(ctx, "Start processing Stacks {}", block.block_identifier);
 
         // Keep block data in memory
         let existing_entry = self
             .block_store
             .insert(block.block_identifier.clone(), block.clone());
         if existing_entry.is_some() {
-            ctx.try_log(|logger| {
-                slog::warn!(
-                    logger,
-                    "Stacks {} has already been processed",
-                    block.block_identifier
-                )
-            });
+            try_info!(
+                ctx,
+                "Stacks {} has already been processed",
+                block.block_identifier
+            );
             return Ok(None);
         }
 
@@ -158,18 +175,22 @@ impl StacksBlockPool {
                 // Look for the orphan block in the blocks DB. If it already exists, it means we've received an old block and we
                 // should just ignore it. This can happen if the Stacks node feeding us blocks is still catching up to our chain
                 // tip.
-                match self.block_store.get(&block.block_identifier) {
-                    Some(_) => {
-                        try_info!(ctx, "Ignoring previously processed block: Stacks {}", block.block_identifier);
+                if let Some(db_access) = &self.database_access {
+                    if let Ok(true) = db_access.block_exists(&block.block_identifier, ctx) {
+                        try_info!(
+                            ctx,
+                            "Ignoring previously processed block: Stacks {}",
+                            block.block_identifier
+                        );
                         return Ok(None);
-                    },
-                    // If we can't find it, though, it means the Stacks node is ahead of our chain tip thus making it impossible
-                    // for us to fill the gap.
-                    None => {
-                        try_error!(ctx, "Unable to process orphan block: Stacks {}", block.block_identifier);
-                        return Err("Unable to process orphan Stacks block".to_string())
                     }
-                };
+                }
+                try_error!(
+                    ctx,
+                    "Unable to process orphan block: Stacks {}",
+                    block.block_identifier
+                );
+                return Err("Unable to process orphan Stacks block".to_string());
             }
         };
 
@@ -477,12 +498,13 @@ impl StacksBlockPool {
                         micro_fork.try_append_block(&microblock, ctx);
                     if block_appended {
                         ctx.try_log(|logger| {
-                            slog::info!(logger,
-                            "Attempt to append micro fork {} with {} (parent = {}) succeeded",
-                            micro_fork,
-                            microblock.block_identifier,
-                            microblock.parent_block_identifier
-                        )
+                            slog::info!(
+                                logger,
+                                "Attempt to append micro fork {} with {} (parent = {}) succeeded",
+                                micro_fork,
+                                microblock.block_identifier,
+                                microblock.parent_block_identifier
+                            )
                         });
                         if let Some(new_micro_fork) = new_micro_fork.take() {
                             microforks.push(new_micro_fork);
@@ -665,7 +687,8 @@ impl StacksBlockPool {
             (Some(last_microblock), Some(microforks)) => {
                 let previous_canonical_segment = self
                     .canonical_micro_fork_id
-                    .get(&block.parent_block_identifier).map(|id| microforks[*id].clone());
+                    .get(&block.parent_block_identifier)
+                    .map(|id| microforks[*id].clone());
 
                 let mut new_canonical_segment = None;
                 for (microfork_id, microfork) in microforks.iter().enumerate() {

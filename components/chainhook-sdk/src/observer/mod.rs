@@ -19,6 +19,7 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
     BitcoinBlockFullBreakdown,
 };
+use crate::indexer::database::BlocksDatabaseAccess;
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
 use crate::utils::{send_concurrent_http_requests, Context};
@@ -806,7 +807,10 @@ impl EventObserverBuilder {
 
     /// Starts the event observer, calling [start_event_observer]. This function consumes the
     /// [EventObserverBuilder] and spawns a new thread to run the observer.
-    pub fn start(self) -> Result<(), Box<dyn Error>> {
+    pub fn start<D: crate::indexer::database::BlocksDatabaseAccess + Send + Sync + 'static>(
+        self,
+        database_access: Option<D>,
+    ) -> Result<(), Box<dyn Error>> {
         start_event_observer(
             self.config,
             self.observer_commands_tx,
@@ -815,13 +819,14 @@ impl EventObserverBuilder {
             self.observer_sidecar,
             self.stacks_startup_context,
             self.block_processing_flag,
+            database_access,
             self.ctx,
         )
     }
 }
 
 /// Spawns a thread to observe blockchain events. Use [EventObserverBuilder] to configure easily.
-pub fn start_event_observer(
+pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -829,6 +834,7 @@ pub fn start_event_observer(
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
     block_processing_flag: Option<Arc<AtomicBool>>,
+    database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -882,6 +888,7 @@ pub fn start_event_observer(
                         observer_sidecar,
                         stacks_startup_context.unwrap_or_default(),
                         block_processing_flag,
+                        database_access,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -970,7 +977,7 @@ pub async fn start_bitcoin_event_observer(
     .await
 }
 
-pub async fn start_stacks_event_observer(
+pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -978,6 +985,7 @@ pub async fn start_stacks_event_observer(
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
     block_processing_flag: Option<Arc<AtomicBool>>,
+    database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -989,7 +997,11 @@ pub async fn start_stacks_event_observer(
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
     };
 
-    let mut indexer = Indexer::new(indexer_config.clone());
+    let mut indexer = if let Some(db_access) = database_access {
+        Indexer::new_with_database_access(indexer_config.clone(), db_access)
+    } else {
+        Indexer::new(indexer_config.clone())
+    };
 
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 

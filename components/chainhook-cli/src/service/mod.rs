@@ -4,6 +4,7 @@ mod runloops;
 use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
+use crate::storage::database_access::StacksDatabaseAccess;
 use crate::storage::signers::{initialize_signers_db, store_signer_db_messages};
 use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
@@ -24,6 +25,7 @@ use chainhook_sdk::types::{Chain, StacksBlockData, StacksChainEvent};
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -288,6 +290,11 @@ impl Service {
 
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
+        // Create database access for the observer
+        let database_access = StacksDatabaseAccess::new(
+            PathBuf::from(&self.config.storage.working_dir)
+        );
+
         let _ = start_event_observer(
             event_observer_config.clone(),
             moved_observer_command_tx,
@@ -296,6 +303,7 @@ impl Service {
             None,
             Some(stacks_startup_context),
             self.block_processing_flag.clone(),
+            Some(database_access),
             self.ctx.clone(),
         );
 
