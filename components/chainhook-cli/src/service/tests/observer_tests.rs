@@ -1,4 +1,4 @@
-use std::{sync::mpsc::channel, thread::sleep, time::Duration};
+use std::{sync::{atomic::AtomicBool, mpsc::channel, Arc}, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
     chainhooks::types::ChainhookStore,
@@ -165,6 +165,7 @@ async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_po
         None,
         None,
         None,
+        Arc::new(AtomicBool::new(false)),
         None,
         ctx,
     )
