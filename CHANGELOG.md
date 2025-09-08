@@ -1,3 +1,10 @@
+## [1.10.0-migration.1](https://github.com/hirosystems/chainhook/compare/v1.9.0...v1.10.0-migration.1) (2025-09-08)
+
+
+### Features
+
+* send payload http requests using a thread pool ([#722](https://github.com/hirosystems/chainhook/issues/722)) ([4bb20f8](https://github.com/hirosystems/chainhook/commit/4bb20f8a5ed57d379ccd9b9713c97a110113fe40))
+
 ## [1.9.0](https://github.com/hirosystems/chainhook/compare/v1.8.0...v1.9.0) (2025-06-16)
 
 
