@@ -442,14 +442,14 @@ impl ChainSegment {
                             block_appended = true;
                         }
                     }
-                    ChainSegmentIncompatibility::OutdatedSegment => {
-                        // TODO(lgalabru): test depth
-                        // fork_ids_to_prune.push(fork_id);
+                    ChainSegmentIncompatibility::AlreadyPresent => {
+                        // Fork has this block already
+                        return (true, None);
                     }
+                    ChainSegmentIncompatibility::OutdatedSegment => {}
                     ChainSegmentIncompatibility::ParentBlockUnknown => {}
                     ChainSegmentIncompatibility::OutdatedBlock => {}
                     ChainSegmentIncompatibility::Unknown => {}
-                    ChainSegmentIncompatibility::AlreadyPresent => {}
                     ChainSegmentIncompatibility::BlockNotFound => {}
                 }
             }
