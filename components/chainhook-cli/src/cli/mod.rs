@@ -33,6 +33,8 @@ use std::collections::BTreeMap;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::process;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -354,7 +356,9 @@ async fn handle_command(opts: Opts, ctx: Context) -> Result<(), String> {
 
                 try_info!(ctx, "Starting chainhook service");
                 import_stacks_chainstate_from_remote_tsv(&mut config, &ctx).await?;
+                let new_block_processing_flag = Arc::new(AtomicBool::new(false));
                 let mut service = Service::new(config, ctx);
+                service = service.with_block_processing_flag(new_block_processing_flag);
                 return service.run(predicates, None).await;
             }
         },

@@ -25,6 +25,8 @@ use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use self::http_api::get_entry_from_predicates_db;
@@ -33,11 +35,21 @@ use self::runloops::{BitcoinScanOp, StacksScanOp};
 pub struct Service {
     config: Config,
     ctx: Context,
+    block_processing_flag: Option<Arc<AtomicBool>>,
 }
 
 impl Service {
     pub fn new(config: Config, ctx: Context) -> Self {
-        Self { config, ctx }
+        Self { 
+            config, 
+            ctx,
+            block_processing_flag: None,
+        }
+    }
+    
+    pub fn with_block_processing_flag(mut self, block_processing_flag: Arc<AtomicBool>) -> Self {
+        self.block_processing_flag = Some(block_processing_flag);
+        self
     }
 
     pub async fn run(
@@ -283,6 +295,7 @@ impl Service {
             Some(observer_event_tx_moved),
             None,
             Some(stacks_startup_context),
+            self.block_processing_flag.clone(),
             self.ctx.clone(),
         );
 
@@ -640,6 +653,11 @@ impl Service {
                             &ctx,
                         );
                     };
+
+                    // Signal completion by setting block processing flag to false
+                    if let Some(ref flag) = self.block_processing_flag {
+                        flag.store(false, Ordering::Relaxed);
+                    }
                 }
                 ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                     predicate_key,
