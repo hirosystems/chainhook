@@ -7,8 +7,8 @@
       "prerelease": true
     },
     {
-      "name": "stacks-signers",
-      "channel": "stacks-signers",
+      "name": "migration",
+      "channel": "migration",
       "prerelease": true
     }
   ],

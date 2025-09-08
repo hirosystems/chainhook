@@ -6,7 +6,7 @@ on:
       - main
       - beta
       - develop
-      - stacks-signers
+      - migration
     paths-ignore:
       - '**/CHANGELOG.md'
   pull_request:
