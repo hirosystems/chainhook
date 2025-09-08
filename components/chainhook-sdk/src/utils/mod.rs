@@ -1,8 +1,5 @@
 use std::{
-    collections::{BTreeSet, VecDeque},
-    fs::{self, OpenOptions},
-    io::{Read, Write},
-    path::PathBuf,
+    collections::{BTreeSet, VecDeque}, fs::{self, OpenOptions}, io::{Read, Write}, path::PathBuf, sync::{Arc, Mutex}, thread
 };
 
 use chainhook_types::{
@@ -11,6 +8,7 @@ use chainhook_types::{
 use hiro_system_kit::slog::{self, Logger};
 use reqwest::RequestBuilder;
 use serde_json::Value as JsonValue;
+use crate::{try_info, try_warn};
 
 #[derive(Clone)]
 pub struct Context {
@@ -161,20 +159,20 @@ pub async fn send_request(
         let err_msg = match request_builder.send().await {
             Ok(res) => {
                 if res.status().is_success() {
-                    ctx.try_log(|logger| slog::debug!(logger, "Trigger {} successful", res.url()));
+                    try_info!(ctx, "Trigger {} successful", res.url());
                     return Ok(());
                 } else {
                     retry += 1;
                     let err_msg =
                         format!("Trigger {} failed with status {}", res.url(), res.status());
-                    ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                    try_warn!(ctx, "{}", err_msg);
                     err_msg
                 }
             }
             Err(e) => {
                 retry += 1;
                 let err_msg = format!("unable to send request {}", e);
-                ctx.try_log(|logger| slog::warn!(logger, "{}", err_msg));
+                try_warn!(ctx, "{}", err_msg);
                 err_msg
             }
         };
@@ -183,11 +181,76 @@ pub async fn send_request(
                 "unable to send request after several retries. most recent error: {}",
                 err_msg
             );
-            ctx.try_log(|logger| slog::warn!(logger, "{}", msg));
+            try_warn!(ctx, "{}", msg);
             return Err(msg);
         }
         std::thread::sleep(std::time::Duration::from_secs(attempts_interval_sec.into()));
     }
+}
+
+/// Processes requests in parallel using a thread pool with a configurable maximum number of threads.
+/// Each request is processed by calling the provided closure with the request and data.
+pub fn send_concurrent_http_requests<D>(
+    requests: Vec<(RequestBuilder, D)>,
+    concurrency: usize,
+    ctx: &Context,
+) -> Vec<(Result<(), String>, D)>
+where D: Send + 'static,
+{
+    let request_count = requests.len();
+    if request_count == 0 {
+        return Vec::new();
+    }
+
+    let (tx_requests, rx_requests) = std::sync::mpsc::channel();
+    let (tx_results, rx_results) = std::sync::mpsc::channel();
+    let mut handles = Vec::new();
+
+    // Send all requests to the queue
+    for (request, data) in requests.into_iter() {
+        let _ = tx_requests.send((request, data));
+    }
+    drop(tx_requests); // Signal that no more requests will be sent
+
+    // Spawn worker threads (max_threads, or fewer if we have fewer requests)
+    let num_threads = std::cmp::min(concurrency, std::cmp::max(1, request_count));
+    let rx_requests_shared = Arc::new(Mutex::new(rx_requests));
+    for _ in 0..num_threads {
+        let rx_requests_shared_clone = rx_requests_shared.clone();
+        let tx_results_clone = tx_results.clone();
+        let ctx_clone = ctx.clone();
+        let handle = thread::spawn(move || {
+            loop {
+                let request_data = {
+                    let rx_guard = rx_requests_shared_clone.lock().unwrap();
+                    rx_guard.recv()
+                };
+                match request_data {
+                    Ok((request, data)) => {
+                        let result = hiro_system_kit::nestable_block_on(send_request(
+                            request, 1, 1, &ctx_clone,
+                        ))
+                        .map_err(|e| e.to_string());
+                        let _ = tx_results_clone.send((result, data));
+                    }
+                    Err(_) => break, // Channel closed, no more requests
+                }
+            }
+        });
+        handles.push(handle);
+    }
+
+    // Wait for all threads to complete
+    for handle in handles {
+        let _ = handle.join();
+    }
+
+    // Collect all results
+    let mut results = Vec::new();
+    while let Ok((result, data)) = rx_results.try_recv() {
+        results.push((result, data));
+    }
+    results
 }
 
 pub fn file_append(path: String, bytes: Vec<u8>, ctx: &Context) -> Result<(), String> {

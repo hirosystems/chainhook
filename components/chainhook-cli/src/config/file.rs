@@ -68,6 +68,7 @@ pub struct NetworkConfigFile {
 #[derive(Deserialize, Debug, Clone)]
 pub struct PredicatesConfigFile {
     pub payload_http_request_timeout_ms: Option<u64>,
+    pub payload_http_request_concurrency: Option<usize>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

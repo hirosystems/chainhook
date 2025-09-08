@@ -166,28 +166,23 @@ pub fn handle_new_stacks_block(
         // returning a 200 status code response to the Stacks node, otherwise it is impossible for us to retry that block in the
         // future. Any error will produce a 500 response compelling the node to retry the same block indefinitely.
         Ok(Some(chain_event)) => {
-            // Validate that block processing flag starts as false
             if block_processing_flag.load(Ordering::Relaxed) {
                 return error_response("Block processing flag is already set to true - another block is being processed".to_string(), ctx);
             }
-            
-            // Set flag to true to indicate block processing has started
             block_processing_flag.store(true, Ordering::Relaxed);
-            prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
-            
+
             if let Err(e) = background_job_tx.lock().map(|tx| {
                 tx.send(ObserverCommand::PropagateStacksChainEvent(chain_event))
                 .map_err(|e| format!("Unable to send stacks chain event: {}", e))
             }) {
-                // Reset flag on error
                 block_processing_flag.store(false, Ordering::Relaxed);
                 return error_response(format!("unable to acquire background_job_tx: {e}"), ctx);
             }
 
-            // Wait for background processing to complete indefinitely
             while block_processing_flag.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(10)); // Small sleep to avoid busy waiting
             }
+            prometheus_monitoring.stx_metrics_block_appeneded(new_tip);
         }
         Ok(None) => {
             try_info!(ctx, "No chain event was generated");

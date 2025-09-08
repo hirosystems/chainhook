@@ -21,7 +21,7 @@ use crate::indexer::bitcoin::{
 };
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
-use crate::utils::{send_request, Context};
+use crate::utils::{send_concurrent_http_requests, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
@@ -45,9 +45,9 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
 
 pub const DEFAULT_INGESTION_PORT: u16 = 20445;
+pub const DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY: usize = 10;
 
 #[derive(Deserialize)]
 pub struct NewTransaction {
@@ -71,12 +71,14 @@ pub enum DataHandlerEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PredicatesConfig {
     pub payload_http_request_timeout_ms: Option<u64>,
+    pub payload_http_request_concurrency: usize,
 }
 
 impl PredicatesConfig {
     pub fn new() -> Self {
         PredicatesConfig {
             payload_http_request_timeout_ms: None,
+            payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
         }
     }
 }
@@ -314,6 +316,7 @@ impl BitcoinEventObserverConfigBuilder {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: self
@@ -347,6 +350,7 @@ impl EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoin_rpc_proxy_enabled: false,
             bitcoind_rpc_username: "devnet".into(),
@@ -432,6 +436,7 @@ impl EventObserverConfig {
             registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
+                payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
             },
             bitcoind_rpc_username: overrides
                 .and_then(|c| c.bitcoind_rpc_username.clone())
@@ -1577,29 +1582,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                // Send all Bitcoin chainhook requests in parallel using threads
-                let (tx_results, rx_results) = std::sync::mpsc::channel();
-                let mut handles = Vec::new();
-
-                for (request, data) in requests.into_iter() {
-                    let ctx_clone = ctx.clone();
-                    let tx_results_clone = tx_results.clone();
-                    let handle = thread::spawn(move || {
-                        let result = hiro_system_kit::nestable_block_on(send_request(
-                            request, 3, 1, &ctx_clone,
-                        ));
-                        let _ = tx_results_clone.send((result, data));
-                    });
-                    handles.push(handle);
-                }
-
-                // Wait for all threads to complete
-                for handle in handles {
-                    let _ = handle.join();
-                }
-
-                // Collect all results
-                while let Ok((result, data)) = rx_results.try_recv() {
+                // Send all Bitcoin chainhook requests using a thread pool
+                for (result, data) in send_concurrent_http_requests(
+                    requests,
+                    config.predicates_config.payload_http_request_concurrency,
+                    &ctx,
+                ) {
                     match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
@@ -1789,37 +1777,12 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                // Send all Stacks chainhook requests in parallel using threads
-                let (tx_results, rx_results) = std::sync::mpsc::channel();
-                let mut handles = Vec::new();
-
-                for (request, data) in requests.into_iter() {
-                    let ctx_clone = ctx.clone();
-                    let tx_results_clone = tx_results.clone();
-                    let handle = thread::spawn(move || {
-                        // todo(lgalabru): collect responses for reporting
-                        ctx_clone.try_log(|logger| {
-                            slog::debug!(
-                                logger,
-                                "Dispatching request from stacks chainhook {:?}",
-                                request
-                            )
-                        });
-                        let result = hiro_system_kit::nestable_block_on(send_request(
-                            request, 1, 0, &ctx_clone,
-                        ));
-                        let _ = tx_results_clone.send((result, data));
-                    });
-                    handles.push(handle);
-                }
-
-                // Wait for all threads to complete
-                for handle in handles {
-                    let _ = handle.join();
-                }
-
-                // Collect all results
-                while let Ok((result, data)) = rx_results.try_recv() {
+                // Send all Stacks chainhook requests using a thread pool
+                for (result, data) in send_concurrent_http_requests(
+                    requests,
+                    config.predicates_config.payload_http_request_concurrency,
+                    &ctx,
+                ) {
                     match result {
                         Ok(_) => {
                             if let Some(ref tx) = observer_events_tx {
