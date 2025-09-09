@@ -195,19 +195,19 @@ impl StacksBlockPool {
                         } else {
                             try_error!(
                                 ctx,
-                                "Unable to process deep re-orged fork block: Stacks {}",
+                                "Unable to append block: Stacks {}",
                                 block.block_identifier
                             );
-                            return Err("Unable to process deep re-orged fork Stacks block".to_string());
+                            return Err("Unable to append block".to_string());
                         }
                     }
                 } else {
                     try_error!(
                         ctx,
-                        "Unable to process orphan block: Stacks {}",
+                        "Unable to append block, DB access not available: Stacks {}",
                         block.block_identifier
                     );
-                    return Err("Unable to process orphan Stacks block".to_string());
+                    return Err("Unable to append block, DB access not available".to_string());
                 }
             }
         };
