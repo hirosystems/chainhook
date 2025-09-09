@@ -170,14 +170,14 @@ impl StacksBlockPool {
                 // Look for the orphan block in the blocks DB. If it already exists, it means we've received an old block and we
                 // should just ignore it. This can happen if the Stacks node feeding us blocks is still catching up to our chain
                 // tip.
-                let handled = if let Some(db_access) = &self.database_access {
+                if let Some(db_access) = &self.database_access {
                     if let Ok(true) = db_access.block_exists(&block.block_identifier, ctx) {
                         try_info!(
                             ctx,
                             "Ignoring previously processed block: Stacks {}",
                             block.block_identifier
                         );
-                        true
+                        return Ok(None);
                     } else {
                         // Check the new block's parent, perhaps this is a deep re-orged block segment we need to add to our
                         // forks.
@@ -192,15 +192,16 @@ impl StacksBlockPool {
                             let mut fork = ChainSegment::new();
                             fork.append_block_identifier(&block.parent_block_identifier);
                             self.add_fork(fork);
-                            true
                         } else {
-                            false
+                            try_error!(
+                                ctx,
+                                "Unable to process deep re-orged fork block: Stacks {}",
+                                block.block_identifier
+                            );
+                            return Err("Unable to process deep re-orged fork Stacks block".to_string());
                         }
                     }
                 } else {
-                    false
-                };
-                if !handled {
                     try_error!(
                         ctx,
                         "Unable to process orphan block: Stacks {}",
