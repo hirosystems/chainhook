@@ -1,7 +1,8 @@
 use crate::{
-    indexer::{database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment, ChainSegmentIncompatibility},
-    try_error, try_info,
-    utils::Context,
+    indexer::{
+        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
+        ChainSegment, ChainSegmentIncompatibility,
+    }, try_error, try_info, utils::Context
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
@@ -118,9 +119,6 @@ impl StacksBlockPool {
     ) -> Result<Option<StacksChainEvent>, String> {
         try_info!(ctx, "Start processing Stacks {}", block.block_identifier);
 
-        for (i, fork) in self.forks.iter() {
-            try_info!(ctx, "Active fork {i}: {fork}");
-        }
         // Retrieve previous canonical fork
         let previous_canonical_fork_id = self.canonical_fork_id;
         let previous_canonical_fork = match self.forks.get(&previous_canonical_fork_id) {
@@ -185,10 +183,13 @@ impl StacksBlockPool {
                             try_info!(
                                 ctx,
                                 "Appending new deep re-orged fork for block: Stacks {}",
-                                block.parent_block_identifier
+                                block.block_identifier
                             );
                             let mut fork = ChainSegment::new();
                             fork.append_block_identifier(&block.parent_block_identifier);
+                            fork.append_block_identifier(&block.block_identifier);
+                            self.block_store
+                                .insert(block.block_identifier.clone(), block.clone());
                             self.add_fork(fork);
                         } else {
                             try_error!(
@@ -222,15 +223,6 @@ impl StacksBlockPool {
                 .get(fork.get_tip())
                 .map(|b| b.metadata.bitcoin_anchor_block_identifier.index)
                 .unwrap_or(0);
-            ctx.try_log(|logger| {
-                slog::info!(
-                    logger,
-                    "Active fork: {} - {} / {}",
-                    fork_id,
-                    fork,
-                    tip_bitcoin_height
-                )
-            });
             let tip_height = fork.get_tip().index;
             highest_heights.push(tip_height); // todo (I think we need to double-check reasoning on this)
 
@@ -256,28 +248,13 @@ impl StacksBlockPool {
         } else {
             None
         };
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Highest competing fork height delta computed as {} with data {:?}",
-                self.highest_competing_fork_height_delta.unwrap_or(0),
-                highest_heights
-            )
-        });
 
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Active fork selected as canonical: {}",
-                canonical_fork_id
-            )
-        });
-
-        self.canonical_fork_id = canonical_fork_id;
         // Generate chain event from the previous and current canonical forks
+        self.canonical_fork_id = canonical_fork_id;
         let canonical_fork = self.forks.get(&canonical_fork_id).unwrap().clone();
+        try_info!(ctx, "Canonical fork is: {canonical_fork_id} {canonical_fork}");
         if canonical_fork.eq(&previous_canonical_fork) {
-            ctx.try_log(|logger| slog::info!(logger, "Canonical fork unchanged"));
+            try_info!(ctx, "Canonical fork unchanged");
             return Ok(None);
         }
 
