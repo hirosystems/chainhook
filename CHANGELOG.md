@@ -1,3 +1,10 @@
+## [1.10.0-migration.2](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.1...v1.10.0-migration.2) (2025-09-09)
+
+
+### Bug Fixes
+
+* synchronize stacks block append and eval with stacks node ([#723](https://github.com/hirosystems/chainhook/issues/723)) ([4b6c03a](https://github.com/hirosystems/chainhook/commit/4b6c03ac3db03793023bedec30ad0cc5017ed78c))
+
 ## [1.10.0-migration.1](https://github.com/hirosystems/chainhook/compare/v1.9.0...v1.10.0-migration.1) (2025-09-08)
 
 
