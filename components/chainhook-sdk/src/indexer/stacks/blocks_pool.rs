@@ -1,8 +1,5 @@
 use crate::{
-    indexer::{
-        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
-        ChainSegment, ChainSegmentIncompatibility,
-    },
+    indexer::{database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment, ChainSegmentIncompatibility},
     try_error, try_info,
     utils::Context,
 };
@@ -102,6 +99,18 @@ impl StacksBlockPool {
         }
     }
 
+    fn add_fork(&mut self, fork: ChainSegment) -> usize {
+        let number_of_forks = self.forks.len();
+        let mut next_fork_id = 0;
+        for (index, (fork_id, _)) in self.forks.iter().enumerate() {
+            if (index + 1) == number_of_forks {
+                next_fork_id = fork_id + 1;
+            }
+        }
+        self.forks.insert(next_fork_id, fork);
+        next_fork_id
+    }
+
     pub fn process_block(
         &mut self,
         block: StacksBlockData,
@@ -135,14 +144,7 @@ impl StacksBlockPool {
             let (block_appended, mut new_fork) = fork.try_append_block(&block, ctx);
             if block_appended {
                 if let Some(new_fork) = new_fork.take() {
-                    let number_of_forks = self.forks.len();
-                    let mut next_fork_id = 0;
-                    for (index, (fork_id, _)) in self.forks.iter().enumerate() {
-                        if (index + 1) == number_of_forks {
-                            next_fork_id = fork_id + 1;
-                        }
-                    }
-                    self.forks.insert(next_fork_id, new_fork);
+                    let next_fork_id = self.add_fork(new_fork);
                     fork_updated = self.forks.get_mut(&next_fork_id);
                 } else {
                     fork_updated = Some(fork);
@@ -161,7 +163,6 @@ impl StacksBlockPool {
                 );
                 self.block_store
                     .insert(block.block_identifier.clone(), block.clone());
-                fork
             }
             None => {
                 // Look for the orphan block in the blocks DB. If it already exists, it means we've received an old block and we
@@ -175,14 +176,37 @@ impl StacksBlockPool {
                             block.block_identifier
                         );
                         return Ok(None);
+                    } else {
+                        // Check the new block's parent, perhaps this is a deep re-orged block segment we need to add to our
+                        // forks.
+                        if let Ok(true) =
+                            db_access.block_exists(&block.parent_block_identifier, ctx)
+                        {
+                            try_info!(
+                                ctx,
+                                "Appending new deep re-orged fork for block: Stacks {}",
+                                block.parent_block_identifier
+                            );
+                            let mut fork = ChainSegment::new();
+                            fork.append_block_identifier(&block.parent_block_identifier);
+                            self.add_fork(fork);
+                        } else {
+                            try_error!(
+                                ctx,
+                                "Unable to append block: Stacks {}",
+                                block.block_identifier
+                            );
+                            return Err("Unable to append block".to_string());
+                        }
                     }
+                } else {
+                    try_error!(
+                        ctx,
+                        "Unable to append block, DB access not available: Stacks {}",
+                        block.block_identifier
+                    );
+                    return Err("Unable to append block, DB access not available".to_string());
                 }
-                try_error!(
-                    ctx,
-                    "Unable to process orphan block: Stacks {}",
-                    block.block_identifier
-                );
-                return Err("Unable to process orphan Stacks block".to_string());
             }
         };
 

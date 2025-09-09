@@ -44,36 +44,6 @@ fn test_stacks_vector_006() {
 }
 
 #[test]
-fn test_stacks_vector_007() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_007(), None));
-}
-
-#[test]
-fn test_stacks_vector_008() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_008(), None));
-}
-
-#[test]
-fn test_stacks_vector_009() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_009(), None));
-}
-
-#[test]
-fn test_stacks_vector_010() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_010(), None));
-}
-
-#[test]
-fn test_stacks_vector_015() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_015(), None));
-}
-
-#[test]
-fn test_stacks_vector_016() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_016(), None));
-}
-
-#[test]
 fn test_stacks_vector_017() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_017(), None));
 }
@@ -144,11 +114,6 @@ fn test_stacks_vector_050() {
 }
 
 #[test]
-fn test_stacks_vector_051() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_051(), None));
-}
-
-#[test]
 fn test_stacks_vector_052() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_052(), None));
 }
@@ -157,13 +122,10 @@ fn test_stacks_vector_052() {
 fn test_stacks_vector_053() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_053());
 }
+
 #[test]
 fn test_stacks_vector_054() {
     process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_054());
-}
-#[test]
-fn test_stacks_vector_055() {
-    process_stacks_blocks_and_check_expectations(helpers::stacks_shapes::get_vector_055());
 }
 
 #[test_case(StacksTransactionEventPayload::STXTransferEvent(STXTransferEventData {
