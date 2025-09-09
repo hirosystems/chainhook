@@ -373,6 +373,7 @@ fn test_stacks_chainhook_register_deregister() {
             None,
             prometheus_monitoring_moved,
             None,
+            None,
             Context::empty(),
         ));
     });
@@ -583,6 +584,7 @@ fn test_stacks_chainhook_auto_deregister() {
             None,
             prometheus_monitoring_moved,
             None,
+            None,
             Context::empty(),
         ));
     });
@@ -737,6 +739,7 @@ fn test_bitcoin_chainhook_register_deregister() {
             Some(observer_events_tx),
             None,
             prometheus_monitoring_moved,
+            None,
             None,
             Context::empty(),
         ));
@@ -955,6 +958,7 @@ fn test_bitcoin_chainhook_auto_deregister() {
             None,
             prometheus_monitoring_moved,
             None,
+            None,
             Context::empty(),
         ));
     });
@@ -1133,6 +1137,7 @@ fn test_bitcoin_chainhook_through_reorg() {
             None,
             prometheus_monitoring_moved,
             Some(observer_sidecar),
+            None,
             Context::empty(),
         ));
     });

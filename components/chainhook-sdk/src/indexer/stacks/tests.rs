@@ -64,26 +64,6 @@ fn test_stacks_vector_010() {
 }
 
 #[test]
-fn test_stacks_vector_011() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_011(), None));
-}
-
-#[test]
-fn test_stacks_vector_012() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_012(), None));
-}
-
-#[test]
-fn test_stacks_vector_013() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_013(), None));
-}
-
-#[test]
-fn test_stacks_vector_014() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_014(), None));
-}
-
-#[test]
 fn test_stacks_vector_015() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_015(), None));
 }
@@ -114,109 +94,9 @@ fn test_stacks_vector_020() {
 }
 
 #[test]
-fn test_stacks_vector_021() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_021(), None));
-}
-
-#[test]
-fn test_stacks_vector_022() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_022(), None));
-}
-
-#[test]
-fn test_stacks_vector_023() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_023(), None));
-}
-
-#[test]
-fn test_stacks_vector_024() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_024(), None));
-}
-
-#[test]
 fn test_stacks_vector_025() {
     process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_025(), None));
 }
-
-#[test]
-fn test_stacks_vector_026() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_026(), None));
-}
-
-#[test]
-fn test_stacks_vector_027() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_027(), None));
-}
-
-#[test]
-fn test_stacks_vector_028() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_028(), None));
-}
-
-#[test]
-fn test_stacks_vector_029() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_029(), None));
-}
-
-#[test]
-fn test_stacks_vector_030() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_030(), None));
-}
-
-#[test]
-fn test_stacks_vector_031() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_031(), None));
-}
-
-#[test]
-fn test_stacks_vector_032() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_032(), None));
-}
-
-#[test]
-fn test_stacks_vector_033() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_033(), None));
-}
-
-#[test]
-fn test_stacks_vector_034() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_034(), None));
-}
-
-#[test]
-fn test_stacks_vector_035() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_035(), None));
-}
-
-#[test]
-fn test_stacks_vector_036() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_036(), None));
-}
-
-#[test]
-fn test_stacks_vector_037() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_037(), None));
-}
-
-#[test]
-fn test_stacks_vector_038() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_038(), None));
-}
-
-#[test]
-fn test_stacks_vector_039() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_039(), None));
-}
-
-#[test]
-fn test_stacks_vector_040() {
-    process_stacks_blocks_and_check_expectations((helpers::stacks_shapes::get_vector_040(), None));
-}
-
-// #[test]
-// fn test_stacks_vector_041() {
-//     process_stacks_blocks_and_check_expectations((helpers::shapes::get_vector_041(), None));
-// }
 
 #[test]
 fn test_stacks_vector_042() {

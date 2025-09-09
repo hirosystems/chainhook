@@ -1,4 +1,4 @@
-use std::{sync::mpsc::channel, thread::sleep, time::Duration};
+use std::{sync::{atomic::AtomicBool, mpsc::channel, Arc}, thread::sleep, time::Duration};
 
 use chainhook_sdk::{
     chainhooks::types::ChainhookStore,
@@ -10,7 +10,7 @@ use reqwest::Method;
 use serde_json::Value;
 use test_case::test_case;
 
-use crate::service::tests::{
+use crate::{service::tests::{
     cleanup, cleanup_err,
     helpers::{
         build_predicates::build_stacks_payload,
@@ -20,7 +20,7 @@ use crate::service::tests::{
         },
     },
     setup_bitcoin_chainhook_test, setup_stacks_chainhook_test,
-};
+}, storage::database_access::StacksDatabaseAccess};
 
 use super::helpers::{
     build_predicates::get_random_uuid, get_free_port, mock_stacks_node::create_tmp_working_dir,
@@ -158,12 +158,14 @@ async fn start_and_ping_event_observer(config: EventObserverConfig, ingestion_po
         logger: Some(logger),
         tracer: false,
     };
-    start_event_observer(
+    start_event_observer::<StacksDatabaseAccess>(
         config,
         observer_commands_tx,
         observer_commands_rx,
         None,
         None,
+        None,
+        Arc::new(AtomicBool::new(false)),
         None,
         ctx,
     )

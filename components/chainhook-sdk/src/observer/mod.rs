@@ -19,6 +19,7 @@ use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
     BitcoinBlockFullBreakdown,
 };
+use crate::indexer::database::BlocksDatabaseAccess;
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
 use crate::utils::{send_concurrent_http_requests, Context};
@@ -42,6 +43,7 @@ use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -745,7 +747,7 @@ impl ObserverSidecar {
 ///     .start()
 /// }
 /// ```
-pub struct EventObserverBuilder {
+pub struct EventObserverBuilder<D: BlocksDatabaseAccess + Send + Sync + 'static> {
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -753,9 +755,11 @@ pub struct EventObserverBuilder {
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
 }
 
-impl EventObserverBuilder {
+impl<D: BlocksDatabaseAccess + Send + Sync + 'static> EventObserverBuilder<D> {
     pub fn new(
         config: EventObserverConfig,
         observer_commands_tx: &Sender<ObserverCommand>,
@@ -770,6 +774,8 @@ impl EventObserverBuilder {
             observer_events_tx: None,
             observer_sidecar: None,
             stacks_startup_context: None,
+            stacks_block_processing_flag: Arc::new(AtomicBool::new(false)),
+            stacks_database_access: None,
         }
     }
 
@@ -795,6 +801,12 @@ impl EventObserverBuilder {
         self
     }
 
+    /// Sets the Stacks database access. See [BlocksDatabaseAccess].
+    pub fn stacks_database_access(&mut self, stacks_database_access: Option<D>) -> &mut Self {
+        self.stacks_database_access = stacks_database_access;
+        self
+    }
+
     /// Starts the event observer, calling [start_event_observer]. This function consumes the
     /// [EventObserverBuilder] and spawns a new thread to run the observer.
     pub fn start(self) -> Result<(), Box<dyn Error>> {
@@ -805,19 +817,23 @@ impl EventObserverBuilder {
             self.observer_events_tx,
             self.observer_sidecar,
             self.stacks_startup_context,
+            self.stacks_block_processing_flag,
+            self.stacks_database_access,
             self.ctx,
         )
     }
 }
 
 /// Spawns a thread to observe blockchain events. Use [EventObserverBuilder] to configure easily.
-pub fn start_event_observer(
+pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: Option<StacksObserverStartupContext>,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -870,6 +886,8 @@ pub fn start_event_observer(
                         observer_events_tx.clone(),
                         observer_sidecar,
                         stacks_startup_context.unwrap_or_default(),
+                        stacks_block_processing_flag,
+                        stacks_database_access,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -953,18 +971,21 @@ pub async fn start_bitcoin_event_observer(
         None,
         prometheus_monitoring,
         observer_sidecar,
+        None,
         ctx,
     )
     .await
 }
 
-pub async fn start_stacks_event_observer(
+pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
     stacks_startup_context: StacksObserverStartupContext,
+    stacks_block_processing_flag: Arc<AtomicBool>,
+    stacks_database_access: Option<D>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -976,7 +997,11 @@ pub async fn start_stacks_event_observer(
         bitcoin_block_signaling: config.bitcoin_block_signaling.clone(),
     };
 
-    let mut indexer = Indexer::new(indexer_config.clone());
+    let mut indexer = if let Some(db_access) = stacks_database_access {
+        Indexer::new_with_database_access(indexer_config.clone(), db_access)
+    } else {
+        Indexer::new(indexer_config.clone())
+    };
 
     indexer.seed_stacks_block_pool(stacks_startup_context.block_pool_seed, &ctx);
 
@@ -1055,16 +1080,17 @@ pub async fn start_stacks_event_observer(
     }
 
     let ctx_cloned = ctx.clone();
+    let stacks_block_processing_flag_cloned = stacks_block_processing_flag.clone();
     let ignite = rocket::custom(ingestion_config)
         .manage(indexer_rw_lock)
         .manage(background_job_tx_mutex)
         .manage(bitcoin_config)
         .manage(ctx_cloned)
         .manage(prometheus_monitoring.clone())
+        .manage(stacks_block_processing_flag_cloned)
         .mount("/", routes)
         .ignite()
         .await?;
-
     let ingestion_shutdown = Some(ignite.shutdown());
 
     let _ = std::thread::spawn(move || {
@@ -1080,6 +1106,7 @@ pub async fn start_stacks_event_observer(
         ingestion_shutdown,
         prometheus_monitoring,
         observer_sidecar,
+        Some(stacks_block_processing_flag),
         ctx,
     )
     .await
@@ -1160,6 +1187,7 @@ pub async fn start_observer_commands_handler(
     ingestion_shutdown: Option<Shutdown>,
     prometheus_monitoring: PrometheusMonitoring,
     observer_sidecar: Option<ObserverSidecar>,
+    stacks_block_processing_flag: Option<Arc<AtomicBool>>,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let mut chainhooks_occurrences_tracker: HashMap<String, u64> = HashMap::new();
@@ -1668,6 +1696,7 @@ pub async fn start_observer_commands_handler(
                 };
 
                 // process hooks
+                // TODO: use thread pool to evaluate predicates
                 let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_stacks_chainhooks_on_chain_event(
                         &chain_event,
@@ -1802,6 +1831,8 @@ pub async fn start_observer_commands_handler(
 
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));
+                } else if let Some(ref flag) = stacks_block_processing_flag {
+                    flag.store(false, Ordering::Relaxed);
                 }
             }
             ObserverCommand::PropagateStacksMempoolEvent(mempool_event) => {
