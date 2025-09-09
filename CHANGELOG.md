@@ -1,3 +1,10 @@
+## [1.10.0-migration.4](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.3...v1.10.0-migration.4) (2025-09-09)
+
+
+### Bug Fixes
+
+* tweak logging for fork logic ([#725](https://github.com/hirosystems/chainhook/issues/725)) ([874078d](https://github.com/hirosystems/chainhook/commit/874078d729cbd95bfecb7c4ea5de598960271917))
+
 ## [1.10.0-migration.3](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.2...v1.10.0-migration.3) (2025-09-09)
 
 
