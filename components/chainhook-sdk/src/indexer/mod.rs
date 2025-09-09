@@ -6,6 +6,7 @@ pub mod stacks;
 use crate::{
     chainhooks::types::PoxConfig,
     indexer::database::BlocksDatabaseAccess,
+    try_info, try_warn,
     utils::{AbstractBlock, Context},
 };
 
@@ -411,45 +412,47 @@ impl ChainSegment {
     ) -> (bool, Option<ChainSegment>) {
         let mut block_appended = false;
         let mut fork = None;
-        ctx.try_log(|logger| {
-            slog::info!(
-                logger,
-                "Trying to append {} to {}",
-                block.get_identifier(),
-                self
-            )
-        });
+        try_info!(
+            ctx,
+            "Trying to append {} to {}",
+            block.get_identifier(),
+            self
+        );
         match self.can_append_block(block, ctx) {
             Ok(()) => {
                 self.append_block_identifier(block.get_identifier());
                 block_appended = true;
             }
-            Err(incompatibility) => {
-                ctx.try_log(|logger| {
-                    slog::warn!(logger, "Will have to fork: {:?}", incompatibility)
-                });
-                match incompatibility {
-                    ChainSegmentIncompatibility::BlockCollision => {
-                        let mut new_fork = self.clone();
-                        let (parent_found, _) = new_fork
-                            .keep_blocks_from_oldest_to_block_identifier(
-                                block.get_parent_identifier(),
-                            );
-                        if parent_found {
-                            ctx.try_log(|logger| slog::info!(logger, "Success"));
-                            new_fork.append_block_identifier(block.get_identifier());
-                            fork = Some(new_fork);
-                            block_appended = true;
-                        }
+            Err(incompatibility) => match incompatibility {
+                ChainSegmentIncompatibility::BlockCollision => {
+                    let mut new_fork = self.clone();
+                    let (parent_found, _) = new_fork
+                        .keep_blocks_from_oldest_to_block_identifier(block.get_parent_identifier());
+                    if parent_found {
+                        new_fork.append_block_identifier(block.get_identifier());
+                        try_warn!(ctx, "New fork created from block collision: {new_fork}");
+                        fork = Some(new_fork);
+                        block_appended = true;
+                    } else {
+                        try_info!(
+                            ctx,
+                            "Could not append {} to {} because parent block is not found: {:?}",
+                            block.get_identifier(),
+                            self,
+                            incompatibility
+                        );
                     }
-                    ChainSegmentIncompatibility::AlreadyPresent => {}
-                    ChainSegmentIncompatibility::OutdatedSegment => {}
-                    ChainSegmentIncompatibility::ParentBlockUnknown => {}
-                    ChainSegmentIncompatibility::OutdatedBlock => {}
-                    ChainSegmentIncompatibility::Unknown => {}
-                    ChainSegmentIncompatibility::BlockNotFound => {}
                 }
-            }
+                _ => {
+                    try_info!(
+                        ctx,
+                        "Could not append {} to {}: {:?}",
+                        block.get_identifier(),
+                        self,
+                        incompatibility
+                    );
+                }
+            },
         }
         (block_appended, fork)
     }
@@ -459,7 +462,7 @@ impl std::fmt::Display for ChainSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "Fork [{}], height = {}",
+            "Fork [{}], length = {}",
             self.block_ids
                 .iter()
                 .map(|b| format!("{}", b))
