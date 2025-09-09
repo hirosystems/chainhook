@@ -1,3 +1,10 @@
+## [1.10.0-migration.3](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.2...v1.10.0-migration.3) (2025-09-09)
+
+
+### Bug Fixes
+
+* handle deep stacks re-orgs ([#724](https://github.com/hirosystems/chainhook/issues/724)) ([44153e9](https://github.com/hirosystems/chainhook/commit/44153e984a8a8f9a40ee640739a28f78ae8da1e2))
+
 ## [1.10.0-migration.2](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.1...v1.10.0-migration.2) (2025-09-09)
 
 
