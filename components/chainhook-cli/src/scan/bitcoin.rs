@@ -2,8 +2,9 @@ use crate::config::{Config, PredicatesApi};
 use crate::scan::common::get_block_heights_to_scan;
 use crate::service::{
     open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
-    set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
+    set_predicate_scanning_status, set_unconfirmed_expiration_status,
 };
+use chainhook_sdk::chainhooks::types::{PredicateStatus, ScanningData};
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};
 use chainhook_sdk::chainhooks::bitcoin::{
@@ -186,7 +187,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
         let res = match process_block_with_predicates(
             block,
-            &vec![&predicate_spec],
+            &vec![&(predicate_spec.clone(), PredicateStatus::New)],
             &event_observer_config,
             ctx,
         )
@@ -262,7 +263,7 @@ pub async fn scan_bitcoin_chainstate_via_rpc_using_predicate(
 
 pub async fn process_block_with_predicates(
     block: BitcoinBlockData,
-    predicates: &Vec<&BitcoinChainhookInstance>,
+    predicates: &Vec<&(BitcoinChainhookInstance, PredicateStatus)>,
     event_observer_config: &EventObserverConfig,
     ctx: &Context,
 ) -> Result<u32, String> {

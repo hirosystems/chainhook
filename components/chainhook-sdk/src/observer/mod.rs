@@ -7,13 +7,12 @@ use crate::chainhooks::bitcoin::{
     BitcoinChainhookInstance, BitcoinChainhookOccurrence, BitcoinChainhookOccurrencePayload,
     BitcoinTriggerChainhook,
 };
+use crate::chainhooks::database::PredicatesDatabaseAccess;
 use crate::chainhooks::stacks::{
     evaluate_stacks_chainhooks_on_chain_event, handle_stacks_hook_action, StacksChainhookInstance,
     StacksChainhookOccurrence, StacksChainhookOccurrencePayload,
 };
-use crate::chainhooks::types::{
-    ChainhookInstance, ChainhookSpecificationNetworkMap, ChainhookStore,
-};
+use crate::chainhooks::types::{ChainhookInstance, ChainhookSpecificationNetworkMap};
 
 use crate::indexer::bitcoin::{
     build_http_client, download_and_parse_block_with_retry, standardize_bitcoin_block,
@@ -22,6 +21,7 @@ use crate::indexer::bitcoin::{
 use crate::indexer::database::BlocksDatabaseAccess;
 use crate::indexer::{Indexer, IndexerConfig};
 use crate::monitoring::{start_serving_prometheus_metrics, PrometheusMonitoring};
+use crate::try_info;
 use crate::utils::{send_concurrent_http_requests, Context};
 
 use bitcoincore_rpc::bitcoin::{BlockHash, Txid};
@@ -99,7 +99,6 @@ impl Default for PredicatesConfig {
 
 #[derive(Debug, Clone)]
 pub struct EventObserverConfig {
-    pub registered_chainhooks: ChainhookStore,
     pub predicates_config: PredicatesConfig,
     pub bitcoin_rpc_proxy_enabled: bool,
     pub bitcoind_rpc_username: String,
@@ -321,7 +320,6 @@ impl BitcoinEventObserverConfigBuilder {
             BitcoinNetwork::Regtest
         };
         Ok(EventObserverConfig {
-            registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
@@ -358,7 +356,6 @@ impl BitcoinEventObserverConfigBuilder {
 impl EventObserverConfig {
     pub fn default() -> Self {
         EventObserverConfig {
-            registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
@@ -382,14 +379,12 @@ impl EventObserverConfig {
     }
 
     /// Adds a [ChainhookInstance] to config's the registered chainhook store, returning the updated config.
+    /// Note: This method is deprecated as predicates are now managed through the PredicatesDatabaseAccess trait.
     pub fn register_chainhook_instance(
         &mut self,
-        spec: ChainhookInstance,
+        _spec: ChainhookInstance,
     ) -> Result<&mut Self, String> {
-        let mut chainhook_config = ChainhookStore::new();
-        chainhook_config.register_instance(spec)?;
-        self.registered_chainhooks = chainhook_config;
-
+        // No-op: predicates are now managed through Redis
         Ok(self)
     }
 
@@ -447,7 +442,6 @@ impl EventObserverConfig {
 
         let config = EventObserverConfig {
             bitcoin_rpc_proxy_enabled: false,
-            registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: None,
                 payload_http_request_concurrency: DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY,
@@ -747,7 +741,10 @@ impl ObserverSidecar {
 ///     .start()
 /// }
 /// ```
-pub struct EventObserverBuilder<D: BlocksDatabaseAccess + Send + Sync + 'static> {
+pub struct EventObserverBuilder<
+    D: BlocksDatabaseAccess + Send + Sync + 'static,
+    P: PredicatesDatabaseAccess + Send + Sync + 'static,
+> {
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -757,13 +754,19 @@ pub struct EventObserverBuilder<D: BlocksDatabaseAccess + Send + Sync + 'static>
     stacks_startup_context: Option<StacksObserverStartupContext>,
     stacks_block_processing_flag: Arc<AtomicBool>,
     stacks_database_access: Option<D>,
+    predicates_database_access: P,
 }
 
-impl<D: BlocksDatabaseAccess + Send + Sync + 'static> EventObserverBuilder<D> {
+impl<
+        D: BlocksDatabaseAccess + Send + Sync + 'static,
+        P: PredicatesDatabaseAccess + Send + Sync + 'static,
+    > EventObserverBuilder<D, P>
+{
     pub fn new(
         config: EventObserverConfig,
         observer_commands_tx: &Sender<ObserverCommand>,
         observer_commands_rx: Receiver<ObserverCommand>,
+        predicates_database_access: P,
         ctx: &Context,
     ) -> Self {
         EventObserverBuilder {
@@ -776,6 +779,7 @@ impl<D: BlocksDatabaseAccess + Send + Sync + 'static> EventObserverBuilder<D> {
             stacks_startup_context: None,
             stacks_block_processing_flag: Arc::new(AtomicBool::new(false)),
             stacks_database_access: None,
+            predicates_database_access,
         }
     }
 
@@ -819,13 +823,17 @@ impl<D: BlocksDatabaseAccess + Send + Sync + 'static> EventObserverBuilder<D> {
             self.stacks_startup_context,
             self.stacks_block_processing_flag,
             self.stacks_database_access,
+            self.predicates_database_access,
             self.ctx,
         )
     }
 }
 
 /// Spawns a thread to observe blockchain events. Use [EventObserverBuilder] to configure easily.
-pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
+pub fn start_event_observer<
+    D: BlocksDatabaseAccess + Send + Sync + 'static,
+    P: PredicatesDatabaseAccess + Send + Sync + 'static,
+>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -834,6 +842,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     stacks_startup_context: Option<StacksObserverStartupContext>,
     stacks_block_processing_flag: Arc<AtomicBool>,
     stacks_database_access: Option<D>,
+    predicates_database_access: P,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     match config.bitcoin_block_signaling {
@@ -844,6 +853,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
+            let predicates_database_access_moved = predicates_database_access;
             let _ = hiro_system_kit::thread_named("Chainhook event observer")
                 .spawn(move || {
                     let future = start_bitcoin_event_observer(
@@ -852,6 +862,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
                         observer_commands_rx,
                         observer_events_tx.clone(),
                         observer_sidecar,
+                        predicates_database_access_moved,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -876,6 +887,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
             let context_cloned = ctx.clone();
             let event_observer_config_moved = config.clone();
             let observer_commands_tx_moved = observer_commands_tx.clone();
+            let predicates_database_access_moved = predicates_database_access;
 
             let _ = hiro_system_kit::thread_named("Chainhook event observer")
                 .spawn(move || {
@@ -888,6 +900,7 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
                         stacks_startup_context.unwrap_or_default(),
                         stacks_block_processing_flag,
                         stacks_database_access,
+                        predicates_database_access_moved,
                         context_cloned.clone(),
                     );
                     match hiro_system_kit::nestable_block_on(future) {
@@ -923,15 +936,15 @@ pub fn start_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
     Ok(())
 }
 
-pub async fn start_bitcoin_event_observer(
+pub async fn start_bitcoin_event_observer<P: PredicatesDatabaseAccess + Send + Sync + 'static>(
     config: EventObserverConfig,
     _observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     observer_sidecar: Option<ObserverSidecar>,
+    predicates_database_access: P,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
-    let chainhook_store = config.registered_chainhooks.clone();
     #[cfg(feature = "zeromq")]
     {
         let ctx_moved = ctx.clone();
@@ -944,11 +957,8 @@ pub async fn start_bitcoin_event_observer(
     }
 
     let prometheus_monitoring = PrometheusMonitoring::new();
-    prometheus_monitoring.initialize(
-        chainhook_store.stacks_chainhooks.len() as u64,
-        chainhook_store.bitcoin_chainhooks.len() as u64,
-        None,
-    );
+    // Initialize with 0 counts - will be updated dynamically as predicates are registered
+    prometheus_monitoring.initialize(0, 0, None);
 
     if let Some(port) = config.prometheus_monitoring_port {
         let registry_moved = prometheus_monitoring.registry.clone();
@@ -965,7 +975,7 @@ pub async fn start_bitcoin_event_observer(
     // This loop is used for handling background jobs, emitted by HTTP calls.
     start_observer_commands_handler(
         config,
-        chainhook_store,
+        predicates_database_access,
         observer_commands_rx,
         observer_events_tx,
         None,
@@ -977,7 +987,10 @@ pub async fn start_bitcoin_event_observer(
     .await
 }
 
-pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync + 'static>(
+pub async fn start_stacks_event_observer<
+    D: BlocksDatabaseAccess + Send + Sync + 'static,
+    P: PredicatesDatabaseAccess + Send + Sync + 'static,
+>(
     config: EventObserverConfig,
     observer_commands_tx: Sender<ObserverCommand>,
     observer_commands_rx: Receiver<ObserverCommand>,
@@ -986,6 +999,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     stacks_startup_context: StacksObserverStartupContext,
     stacks_block_processing_flag: Arc<AtomicBool>,
     stacks_database_access: Option<D>,
+    predicates_database_access: P,
     ctx: Context,
 ) -> Result<(), Box<dyn Error>> {
     let indexer_config = IndexerConfig {
@@ -1015,16 +1029,15 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     let bitcoin_rpc_proxy_enabled = config.bitcoin_rpc_proxy_enabled;
     let bitcoin_config = config.get_bitcoin_config();
 
-    let chainhook_store = config.registered_chainhooks.clone();
-
     let indexer_rw_lock = Arc::new(RwLock::new(indexer));
 
     let background_job_tx_mutex = Arc::new(Mutex::new(observer_commands_tx.clone()));
 
     let prometheus_monitoring = PrometheusMonitoring::new();
+    // Initialize with 0 counts - will be updated dynamically as predicates are registered
     prometheus_monitoring.initialize(
-        chainhook_store.stacks_chainhooks.len() as u64,
-        chainhook_store.bitcoin_chainhooks.len() as u64,
+        0,
+        0,
         Some(stacks_startup_context.last_block_height_appended),
     );
 
@@ -1100,7 +1113,7 @@ pub async fn start_stacks_event_observer<D: BlocksDatabaseAccess + Send + Sync +
     // This loop is used for handling background jobs, emitted by HTTP calls.
     start_observer_commands_handler(
         config,
-        chainhook_store,
+        predicates_database_access,
         observer_commands_rx,
         observer_events_tx,
         ingestion_shutdown,
@@ -1179,9 +1192,11 @@ pub enum HandleBlock {
     UndoBlock(BitcoinBlockData),
 }
 
-pub async fn start_observer_commands_handler(
+pub async fn start_observer_commands_handler<
+    P: PredicatesDatabaseAccess + Send + Sync + 'static,
+>(
     config: EventObserverConfig,
-    mut chainhook_store: ChainhookStore,
+    predicates_database_access: P,
     observer_commands_rx: Receiver<ObserverCommand>,
     observer_events_tx: Option<crossbeam_channel::Sender<ObserverEvent>>,
     ingestion_shutdown: Option<Shutdown>,
@@ -1469,12 +1484,8 @@ pub async fn start_observer_commands_handler(
                 let mut requests = vec![];
                 let mut report = PredicateEvaluationReport::new();
 
-                let bitcoin_chainhooks = chainhook_store
-                    .bitcoin_chainhooks
-                    .iter()
-                    .filter(|p| p.enabled)
-                    .filter(|p| p.expired_at.is_none())
-                    .collect::<Vec<_>>();
+                let bitcoin_chainhooks =
+                    predicates_database_access.get_active_bitcoin_predicates(&ctx)?;
                 ctx.try_log(|logger| {
                     slog::info!(
                         logger,
@@ -1483,10 +1494,11 @@ pub async fn start_observer_commands_handler(
                     )
                 });
 
+                let bitcoin_chainhooks_refs: Vec<_> = bitcoin_chainhooks.iter().collect();
                 let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_bitcoin_chainhooks_on_chain_event(
                         &chain_event,
-                        &bitcoin_chainhooks,
+                        &bitcoin_chainhooks_refs,
                         &ctx,
                     );
 
@@ -1594,14 +1606,8 @@ pub async fn start_observer_commands_handler(
                     )
                 });
 
-                for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if chainhook_store
-                        .deregister_bitcoin_hook(hook_uuid.clone())
-                        .is_some()
-                    {
-                        prometheus_monitoring.btc_metrics_deregister_predicate();
-                    }
-                    if let Some(ref tx) = observer_events_tx {
+                if let Some(ref tx) = observer_events_tx {
+                    for hook_uuid in hooks_ids_to_deregister.iter() {
                         let _ = tx.send(ObserverEvent::PredicateDeregistered(
                             PredicateDeregisteredEvent {
                                 predicate_uuid: hook_uuid.clone(),
@@ -1622,7 +1628,6 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
-                            chainhook_store.deregister_bitcoin_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                                     predicate_key: ChainhookInstance::bitcoin_key(&data.chainhook.uuid),
@@ -1640,26 +1645,17 @@ pub async fn start_observer_commands_handler(
                 }
             }
             ObserverCommand::PropagateStacksChainEvent(chain_event) => {
-                ctx.try_log(|logger| {
-                    slog::info!(logger, "Handling PropagateStacksChainEvent command")
-                });
                 let mut hooks_ids_to_deregister = vec![];
                 let mut requests = vec![];
                 let mut report = PredicateEvaluationReport::new();
 
-                let stacks_chainhooks = chainhook_store
-                    .stacks_chainhooks
-                    .iter()
-                    .filter(|p| p.enabled)
-                    .filter(|p| p.expired_at.is_none())
-                    .collect::<Vec<_>>();
-                ctx.try_log(|logger| {
-                    slog::info!(
-                        logger,
-                        "Evaluating {} stacks chainhooks registered",
-                        stacks_chainhooks.len()
-                    )
-                });
+                let stacks_chainhooks =
+                    predicates_database_access.get_active_stacks_predicates(&ctx)?;
+                try_info!(
+                    ctx,
+                    "Evaluating {} stacks chainhooks registered",
+                    stacks_chainhooks.len()
+                );
 
                 // track stacks chain metrics
                 let new_tip = match &chain_event {
@@ -1697,10 +1693,11 @@ pub async fn start_observer_commands_handler(
 
                 // process hooks
                 // TODO: use thread pool to evaluate predicates
+                let stacks_chainhooks_refs: Vec<_> = stacks_chainhooks.iter().collect();
                 let (predicates_triggered, predicates_evaluated, predicates_expired) =
                     evaluate_stacks_chainhooks_on_chain_event(
                         &chain_event,
-                        stacks_chainhooks,
+                        stacks_chainhooks_refs,
                         &ctx,
                     );
                 for (uuid, block_identifier) in predicates_evaluated.into_iter() {
@@ -1725,13 +1722,11 @@ pub async fn start_observer_commands_handler(
                     }
                     report.track_trigger(&entry.chainhook.uuid, &block_ids);
                 }
-                ctx.try_log(|logger| {
-                    slog::info!(
-                        logger,
-                        "{} stacks chainhooks positive evaluations",
-                        predicates_triggered.len()
-                    )
-                });
+                try_info!(
+                    ctx,
+                    "{} stacks chainhooks positive evaluations",
+                    predicates_triggered.len()
+                );
 
                 let mut chainhooks_to_trigger = vec![];
 
@@ -1788,14 +1783,8 @@ pub async fn start_observer_commands_handler(
                     }
                 }
 
-                for hook_uuid in hooks_ids_to_deregister.iter() {
-                    if chainhook_store
-                        .deregister_stacks_hook(hook_uuid.clone())
-                        .is_some()
-                    {
-                        prometheus_monitoring.stx_metrics_deregister_predicate();
-                    }
-                    if let Some(ref tx) = observer_events_tx {
+                if let Some(ref tx) = observer_events_tx {
+                    for hook_uuid in hooks_ids_to_deregister.iter() {
                         let _ = tx.send(ObserverEvent::PredicateDeregistered(
                             PredicateDeregisteredEvent {
                                 predicate_uuid: hook_uuid.clone(),
@@ -1816,7 +1805,6 @@ pub async fn start_observer_commands_handler(
                             }
                         }
                         Err(e) => {
-                            chainhook_store.deregister_stacks_hook(data.chainhook.uuid.clone());
                             if let Some(ref tx) = observer_events_tx {
                                 let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                                     predicate_key: ChainhookInstance::stacks_key(&data.chainhook.uuid),
@@ -1854,20 +1842,17 @@ pub async fn start_observer_commands_handler(
             ObserverCommand::RegisterPredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling RegisterPredicate command"));
 
-                let mut spec =
-                    match chainhook_store.register_instance_from_network_map(networks, spec) {
-                        Ok(spec) => spec,
-                        Err(e) => {
-                            ctx.try_log(|logger| {
-                                slog::warn!(
-                                    logger,
-                                    "Unable to register new chainhook spec: {}",
-                                    e.to_string()
-                                )
-                            });
-                            continue;
-                        }
-                    };
+                // Convert network map to instance
+                let spec = match spec {
+                    ChainhookSpecificationNetworkMap::Stacks(hook) => {
+                        let spec = hook.into_specification_for_network(networks.1)?;
+                        ChainhookInstance::Stacks(spec)
+                    }
+                    ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
+                        let spec = hook.into_specification_for_network(networks.0)?;
+                        ChainhookInstance::Bitcoin(spec)
+                    }
+                };
 
                 match spec {
                     ChainhookInstance::Bitcoin(_) => {
@@ -1883,16 +1868,10 @@ pub async fn start_observer_commands_handler(
                 );
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
-                } else {
-                    ctx.try_log(|logger| {
-                        slog::debug!(logger, "Enabling Predicate {}", spec.uuid())
-                    });
-                    chainhook_store.enable_instance(&mut spec);
                 }
             }
-            ObserverCommand::EnablePredicate(mut spec) => {
+            ObserverCommand::EnablePredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
-                chainhook_store.enable_instance(&mut spec);
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateEnabled(spec));
                 }
@@ -1901,14 +1880,9 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
-                let hook = chainhook_store.deregister_stacks_hook(hook_uuid.clone());
+                prometheus_monitoring.stx_metrics_deregister_predicate();
 
-                if hook.is_some() {
-                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
-                    // so only those that we find in the store should be removed
-                    prometheus_monitoring.stx_metrics_deregister_predicate();
-                };
-                // event if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                // Always propagate the event to delete from Redis
                 if let Some(tx) = &observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         PredicateDeregisteredEvent {
@@ -1922,14 +1896,9 @@ pub async fn start_observer_commands_handler(
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterBitcoinPredicate command")
                 });
-                let hook = chainhook_store.deregister_bitcoin_hook(hook_uuid.clone());
+                prometheus_monitoring.btc_metrics_deregister_predicate();
 
-                if hook.is_some() {
-                    // on startup, only the predicates in the `chainhook_store` are added to the monitoring count,
-                    // so only those that we find in the store should be removed
-                    prometheus_monitoring.btc_metrics_deregister_predicate();
-                };
-                // even if the predicate wasn't in the `chainhook_store`, propogate this event to delete from redis
+                // Always propagate the event to delete from Redis
                 if let Some(tx) = &observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         PredicateDeregisteredEvent {
@@ -1940,20 +1909,20 @@ pub async fn start_observer_commands_handler(
                 };
             }
             ObserverCommand::ExpireStacksPredicate(HookExpirationData {
-                hook_uuid,
-                block_height,
+                hook_uuid: _,
+                block_height: _,
             }) => {
                 ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
-                chainhook_store.expire_stacks_hook(hook_uuid, block_height);
+                // Expiration is now handled by Redis - no need to update memory
             }
             ObserverCommand::ExpireBitcoinPredicate(HookExpirationData {
-                hook_uuid,
-                block_height,
+                hook_uuid: _,
+                block_height: _,
             }) => {
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling ExpireBitcoinPredicate command")
                 });
-                chainhook_store.expire_bitcoin_hook(hook_uuid, block_height);
+                // Expiration is now handled by Redis - no need to update memory
             }
         }
     }

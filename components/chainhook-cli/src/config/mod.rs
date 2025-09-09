@@ -1,7 +1,7 @@
 pub mod file;
 pub mod generator;
 
-use chainhook_sdk::chainhooks::types::{ChainhookStore, PoxConfig};
+use chainhook_sdk::chainhooks::types::PoxConfig;
 pub use chainhook_sdk::indexer::IndexerConfig;
 use chainhook_sdk::observer::{
     EventObserverConfig, PredicatesConfig, DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_INTERVAL_MS, DEFAULT_PAYLOAD_HTTP_REQUEST_ATTEMPTS_MAX, DEFAULT_PAYLOAD_HTTP_REQUEST_CONCURRENCY
@@ -119,7 +119,6 @@ impl Config {
     pub fn get_event_observer_config(&self) -> EventObserverConfig {
         EventObserverConfig {
             bitcoin_rpc_proxy_enabled: true,
-            registered_chainhooks: ChainhookStore::new(),
             predicates_config: PredicatesConfig {
                 payload_http_request_timeout_ms: self.predicates.payload_http_request_timeout_ms,
                 payload_http_request_concurrency: self.predicates.payload_http_request_concurrency,

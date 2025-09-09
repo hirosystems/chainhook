@@ -5,13 +5,15 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use chainhook_sdk::chainhooks::types::ScanningData;
+
 use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
     scan::common::get_block_heights_to_scan,
     service::{
         open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
-        set_predicate_scanning_status, set_unconfirmed_expiration_status, ScanningData,
+        set_predicate_scanning_status, set_unconfirmed_expiration_status,
     },
     storage::{
         get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,

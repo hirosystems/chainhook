@@ -1,4 +1,4 @@
-use crate::service::ScanningData;
+use chainhook_sdk::chainhooks::types::ScanningData;
 use chainhook_sdk::utils::{BlockHeights, BlockHeightsError};
 use std::collections::VecDeque;
 

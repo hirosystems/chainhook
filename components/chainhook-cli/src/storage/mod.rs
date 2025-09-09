@@ -1,4 +1,5 @@
 pub mod database_access;
+pub mod predicates_db;
 pub mod signers;
 pub mod sqlite;
 

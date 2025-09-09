@@ -1,4 +1,5 @@
 pub mod bitcoin;
+pub mod database;
 pub mod stacks;
 pub mod types;
 

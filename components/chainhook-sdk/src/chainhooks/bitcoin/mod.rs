@@ -2,7 +2,7 @@ use super::types::{
     append_error_context, validate_txid, ChainhookInstance, ExactMatchingRule, HookAction,
     MatchingRule, PoxConfig, TxinPredicate,
 };
-use crate::{observer::EventObserverConfig, utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES}};
+use crate::{chainhooks::types::PredicateStatus, observer::EventObserverConfig, utils::{Context, MAX_BLOCK_HEIGHTS_ENTRIES}};
 
 use bitcoincore_rpc_json::bitcoin::{address::Payload, Address};
 use chainhook_types::{
@@ -547,7 +547,7 @@ pub enum BitcoinChainhookOccurrence {
 
 pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
     chain_event: &'a BitcoinChainEvent,
-    active_chainhooks: &Vec<&'a BitcoinChainhookInstance>,
+    active_chainhooks: &Vec<&'a (BitcoinChainhookInstance, PredicateStatus)>,
     ctx: &Context,
 ) -> (
     Vec<BitcoinTriggerChainhook<'a>>,
@@ -560,7 +560,7 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
 
     match chain_event {
         BitcoinChainEvent::ChainUpdatedWithBlocks(event) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let rollback = vec![];
                 let end_block = chainhook.end_block.unwrap_or(u64::MAX);
@@ -592,7 +592,7 @@ pub fn evaluate_bitcoin_chainhooks_on_chain_event<'a>(
             }
         }
         BitcoinChainEvent::ChainUpdatedWithReorg(event) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
                 let end_block = chainhook.end_block.unwrap_or(u64::MAX);

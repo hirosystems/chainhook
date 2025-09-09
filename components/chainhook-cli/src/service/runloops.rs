@@ -22,7 +22,7 @@ use crate::{
     service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status}, storage::StacksDbConnections,
 };
 
-use super::ScanningData;
+use chainhook_sdk::chainhooks::types::ScanningData;
 
 pub enum StacksScanOp {
     StartScan {

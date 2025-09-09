@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use chainhook_types::{BitcoinNetwork, StacksNetwork};
-use serde::ser::{SerializeSeq, Serializer};
+use chainhook_types::BitcoinNetwork;
 use serde::{Deserialize, Serialize};
 
 use schemars::JsonSchema;
@@ -10,155 +9,6 @@ use crate::chainhooks::bitcoin::BitcoinChainhookInstance;
 use crate::chainhooks::bitcoin::BitcoinChainhookSpecificationNetworkMap;
 use crate::chainhooks::stacks::StacksChainhookInstance;
 use crate::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct ChainhookStore {
-    pub stacks_chainhooks: Vec<StacksChainhookInstance>,
-    pub bitcoin_chainhooks: Vec<BitcoinChainhookInstance>,
-}
-
-impl Default for ChainhookStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ChainhookStore {
-    pub fn new() -> ChainhookStore {
-        ChainhookStore {
-            stacks_chainhooks: vec![],
-            bitcoin_chainhooks: vec![],
-        }
-    }
-
-    pub fn register_instance_from_network_map(
-        &mut self,
-        networks: (&BitcoinNetwork, &StacksNetwork),
-        hook: ChainhookSpecificationNetworkMap,
-    ) -> Result<ChainhookInstance, String> {
-        let spec = match hook {
-            ChainhookSpecificationNetworkMap::Stacks(hook) => {
-                let spec = hook.into_specification_for_network(networks.1)?;
-                self.stacks_chainhooks.push(spec.clone());
-                ChainhookInstance::Stacks(spec)
-            }
-            ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
-                let spec = hook.into_specification_for_network(networks.0)?;
-                self.bitcoin_chainhooks.push(spec.clone());
-                ChainhookInstance::Bitcoin(spec)
-            }
-        };
-        Ok(spec)
-    }
-
-    pub fn enable_instance(&mut self, predicate_spec: &mut ChainhookInstance) {
-        match predicate_spec {
-            ChainhookInstance::Stacks(spec_to_enable) => {
-                for spec in self.stacks_chainhooks.iter_mut() {
-                    if spec.uuid.eq(&spec_to_enable.uuid) {
-                        spec.enabled = true;
-                        spec_to_enable.enabled = true;
-                        break;
-                    }
-                }
-            }
-            ChainhookInstance::Bitcoin(spec_to_enable) => {
-                for spec in self.bitcoin_chainhooks.iter_mut() {
-                    if spec.uuid.eq(&spec_to_enable.uuid) {
-                        spec.enabled = true;
-                        spec_to_enable.enabled = true;
-                        break;
-                    }
-                }
-            }
-        };
-    }
-
-    pub fn register_instance(&mut self, spec: ChainhookInstance) -> Result<(), String> {
-        match spec {
-            ChainhookInstance::Stacks(spec) => {
-                let spec = spec.clone();
-                self.stacks_chainhooks.push(spec);
-            }
-            ChainhookInstance::Bitcoin(spec) => {
-                let spec = spec.clone();
-                self.bitcoin_chainhooks.push(spec);
-            }
-        };
-        Ok(())
-    }
-
-    pub fn deregister_stacks_hook(&mut self, hook_uuid: String) -> Option<StacksChainhookInstance> {
-        let mut i = 0;
-        while i < self.stacks_chainhooks.len() {
-            if self.stacks_chainhooks[i].uuid == hook_uuid {
-                let hook = self.stacks_chainhooks.remove(i);
-                return Some(hook);
-            } else {
-                i += 1;
-            }
-        }
-        None
-    }
-
-    pub fn deregister_bitcoin_hook(
-        &mut self,
-        hook_uuid: String,
-    ) -> Option<BitcoinChainhookInstance> {
-        let mut i = 0;
-        while i < self.bitcoin_chainhooks.len() {
-            if self.bitcoin_chainhooks[i].uuid == hook_uuid {
-                let hook = self.bitcoin_chainhooks.remove(i);
-                return Some(hook);
-            } else {
-                i += 1;
-            }
-        }
-        None
-    }
-
-    pub fn expire_stacks_hook(&mut self, hook_uuid: String, block_height: u64) {
-        let mut i = 0;
-        while i < self.stacks_chainhooks.len() {
-            if ChainhookInstance::stacks_key(&self.stacks_chainhooks[i].uuid) == hook_uuid {
-                self.stacks_chainhooks[i].expired_at = Some(block_height);
-                break;
-            } else {
-                i += 1;
-            }
-        }
-    }
-
-    pub fn expire_bitcoin_hook(&mut self, hook_uuid: String, block_height: u64) {
-        let mut i = 0;
-        while i < self.bitcoin_chainhooks.len() {
-            if ChainhookInstance::bitcoin_key(&self.bitcoin_chainhooks[i].uuid) == hook_uuid {
-                self.bitcoin_chainhooks[i].expired_at = Some(block_height);
-                break;
-            } else {
-                i += 1;
-            }
-        }
-    }
-}
-
-impl Serialize for ChainhookStore {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(
-            self.bitcoin_chainhooks.len() + self.stacks_chainhooks.len(),
-        ))?;
-        for chainhook in self.bitcoin_chainhooks.iter() {
-            seq.serialize_element(chainhook)?;
-        }
-        for chainhook in self.stacks_chainhooks.iter() {
-            seq.serialize_element(chainhook)?;
-        }
-        seq.end()
-    }
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -197,6 +47,13 @@ impl ChainhookInstance {
         match &self {
             Self::Bitcoin(data) => &data.uuid,
             Self::Stacks(data) => &data.uuid,
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        match &self {
+            Self::Bitcoin(data) => data.enabled,
+            Self::Stacks(data) => data.enabled,
         }
     }
 }
@@ -1077,4 +934,41 @@ pub fn validate_txid(txid: &String) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PredicateStatus {
+    Scanning(ScanningData),
+    Streaming(StreamingData),
+    UnconfirmedExpiration(ExpiredData),
+    ConfirmedExpiration(ExpiredData),
+    Interrupted(String),
+    New,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct ScanningData {
+    pub number_of_blocks_to_scan: u64,
+    pub number_of_blocks_evaluated: u64,
+    pub number_of_times_triggered: u64,
+    pub last_occurrence: Option<u64>,
+    pub last_evaluated_block_height: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StreamingData {
+    pub last_occurrence: Option<u64>,
+    pub last_evaluation: u64,
+    pub number_of_times_triggered: u64,
+    pub number_of_blocks_evaluated: u64,
+    pub last_evaluated_block_height: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExpiredData {
+    pub number_of_blocks_evaluated: u64,
+    pub number_of_times_triggered: u64,
+    pub last_occurrence: Option<u64>,
+    pub last_evaluated_block_height: u64,
+    pub expired_at_block_height: u64,
 }

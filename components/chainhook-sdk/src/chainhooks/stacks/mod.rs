@@ -1,3 +1,4 @@
+use crate::chainhooks::types::PredicateStatus;
 use crate::observer::EventObserverConfig;
 use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
@@ -550,7 +551,7 @@ impl<'a> StacksTriggerChainhook<'a> {
 
 pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
     chain_event: &'a StacksChainEvent,
-    active_chainhooks: Vec<&'a StacksChainhookInstance>,
+    active_chainhooks: Vec<&'a (StacksChainhookInstance, PredicateStatus)>,
     ctx: &Context,
 ) -> (
     Vec<StacksTriggerChainhook<'a>>,
@@ -562,7 +563,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
     let mut expired_predicates = BTreeMap::new();
     match chain_event {
         StacksChainEvent::ChainUpdatedWithBlocks(update) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
                 for block_update in update.new_blocks.iter() {
@@ -615,7 +616,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
             }
         }
         StacksChainEvent::ChainUpdatedWithMicroblocks(update) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let rollback = vec![];
 
@@ -644,7 +645,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
             }
         }
         StacksChainEvent::ChainUpdatedWithMicroblocksReorg(update) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
 
@@ -681,7 +682,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
             }
         }
         StacksChainEvent::ChainUpdatedWithReorg(update) => {
-            for chainhook in active_chainhooks.iter() {
+            for (chainhook, _) in active_chainhooks.iter() {
                 let mut apply = vec![];
                 let mut rollback = vec![];
 
@@ -745,7 +746,7 @@ pub fn evaluate_stacks_chainhooks_on_chain_event<'a>(
         #[cfg(feature = "stacks-signers")]
         StacksChainEvent::ChainUpdatedWithNonConsensusEvents(data) => {
             if let Some(first_event) = data.events.first() {
-                for chainhook in active_chainhooks.iter() {
+                for (chainhook, _) in active_chainhooks.iter() {
                     evaluated_predicates
                         .insert(chainhook.uuid.as_str(), &first_event.received_at_block);
                     let (occurrences, mut expirations) =

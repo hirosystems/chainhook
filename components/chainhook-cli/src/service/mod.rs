@@ -5,6 +5,7 @@ use crate::config::{Config, PredicatesApi, PredicatesApiConfig};
 use crate::service::http_api::{load_predicates_from_redis, start_predicate_api_server};
 use crate::service::runloops::{start_bitcoin_scan_runloop, start_stacks_scan_runloop};
 use crate::storage::database_access::StacksDatabaseAccess;
+use crate::storage::predicates_db::RedisPredicatesDatabaseAccess;
 use crate::storage::signers::{initialize_signers_db, store_signer_db_messages};
 use crate::storage::{
     confirm_entries_in_stacks_blocks, draft_entries_in_stacks_blocks, get_all_unconfirmed_blocks,
@@ -12,7 +13,9 @@ use crate::storage::{
     open_readwrite_stacks_db_conn,
 };
 
-use chainhook_sdk::chainhooks::types::{ChainhookSpecificationNetworkMap, ChainhookStore};
+use chainhook_sdk::chainhooks::types::{
+    ChainhookSpecificationNetworkMap, ExpiredData, PredicateStatus, ScanningData, StreamingData,
+};
 
 use chainhook_sdk::chainhooks::types::ChainhookInstance;
 use chainhook_sdk::observer::{
@@ -41,7 +44,11 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn new(config: Config, ctx: Context, stacks_block_processing_flag: Arc<AtomicBool>) -> Self {
+    pub fn new(
+        config: Config,
+        ctx: Context,
+        stacks_block_processing_flag: Arc<AtomicBool>,
+    ) -> Self {
         Self {
             config,
             ctx,
@@ -54,8 +61,6 @@ impl Service {
         predicates_from_startup: Vec<ChainhookSpecificationNetworkMap>,
         observer_commands_tx_rx: Option<(Sender<ObserverCommand>, Receiver<ObserverCommand>)>,
     ) -> Result<(), String> {
-        let mut chainhook_store = ChainhookStore::new();
-
         // store all predicates from Redis that were in the process of scanning when
         // chainhook was shutdown - we need to resume where we left off
         let mut leftover_scans = vec![];
@@ -73,7 +78,6 @@ impl Service {
                 }
             };
             for (predicate, status) in registered_predicates.into_iter() {
-                let predicate_uuid = predicate.uuid().to_string();
                 match status {
                     PredicateStatus::Scanning(scanning_data) => {
                         leftover_scans.push((predicate.clone(), Some(scanning_data)));
@@ -99,22 +103,6 @@ impl Service {
                         continue;
                     }
                 }
-                match chainhook_store.register_instance(predicate) {
-                    Ok(_) => {
-                        debug!(
-                            self.ctx.expect_logger(),
-                            "Predicate {} retrieved from storage and registered", predicate_uuid,
-                        );
-                    }
-                    Err(e) => {
-                        warn!(
-                            self.ctx.expect_logger(),
-                            "Failed to register predicate {} after retrieving from storage: {}",
-                            predicate_uuid,
-                            e.to_string()
-                        );
-                    }
-                }
             }
         }
 
@@ -137,29 +125,19 @@ impl Service {
                     }
                 };
             }
-            match chainhook_store.register_instance_from_network_map(
-                (
-                    &self.config.network.bitcoin_network,
-                    &self.config.network.stacks_network,
-                ),
-                predicate,
-            ) {
-                Ok(spec) => {
-                    newly_registered_predicates.push(spec.clone());
-                    debug!(
-                        self.ctx.expect_logger(),
-                        "Predicate {} retrieved from config and loaded",
-                        spec.uuid(),
-                    );
+            let spec = match predicate {
+                ChainhookSpecificationNetworkMap::Stacks(hook) => {
+                    let spec =
+                        hook.into_specification_for_network(&self.config.network.stacks_network)?;
+                    ChainhookInstance::Stacks(spec)
                 }
-                Err(e) => {
-                    warn!(
-                        self.ctx.expect_logger(),
-                        "Failed to load predicate from config: {}",
-                        e.to_string()
-                    );
+                ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
+                    let spec =
+                        hook.into_specification_for_network(&self.config.network.bitcoin_network)?;
+                    ChainhookInstance::Bitcoin(spec)
                 }
-            }
+            };
+            newly_registered_predicates.push(spec);
         }
 
         initialize_signers_db(&self.config.expected_cache_path(), &self.ctx)
@@ -169,8 +147,7 @@ impl Service {
             observer_commands_tx_rx.unwrap_or(channel());
         let (observer_event_tx, observer_event_rx) = crossbeam_channel::unbounded();
 
-        let mut event_observer_config = self.config.get_event_observer_config();
-        event_observer_config.registered_chainhooks = chainhook_store;
+        let event_observer_config = self.config.get_event_observer_config();
 
         // Stacks scan operation threadpool
         let (stacks_scan_op_tx, stacks_scan_op_rx) = crossbeam_channel::unbounded();
@@ -286,8 +263,15 @@ impl Service {
         let observer_event_tx_moved = observer_event_tx.clone();
         let moved_observer_command_tx = observer_command_tx.clone();
         // Create database access for the observer
-        let database_access =
+        let stacks_database_access =
             StacksDatabaseAccess::new(PathBuf::from(&self.config.storage.working_dir));
+
+        // Create Redis predicates database access
+        let redis_uri = match &self.config.http_api {
+            PredicatesApi::On(api_config) => api_config.database_uri.clone(),
+            PredicatesApi::Off => panic!("Predicates API is not enabled"),
+        };
+        let predicates_database_access = RedisPredicatesDatabaseAccess::new(redis_uri);
 
         let _ = start_event_observer(
             event_observer_config.clone(),
@@ -297,7 +281,8 @@ impl Service {
             None,
             Some(stacks_startup_context),
             self.stacks_block_processing_flag.clone(),
-            Some(database_access),
+            Some(stacks_database_access),
+            predicates_database_access,
             self.ctx.clone(),
         );
 
@@ -661,7 +646,8 @@ impl Service {
                     };
 
                     // Signal completion by setting block processing flag to false
-                    self.stacks_block_processing_flag.store(false, Ordering::Relaxed);
+                    self.stacks_block_processing_flag
+                        .store(false, Ordering::Relaxed);
                 }
                 ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
                     predicate_key,
@@ -702,45 +688,7 @@ impl Service {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "type", content = "info")]
-/// A high-level view of how `PredicateStatus` is used/updated can be seen here: docs/images/predicate-status-flowchart/PredicateStatusFlowchart.png.
-pub enum PredicateStatus {
-    Scanning(ScanningData),
-    Streaming(StreamingData),
-    UnconfirmedExpiration(ExpiredData),
-    ConfirmedExpiration(ExpiredData),
-    Interrupted(String),
-    New,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-pub struct ScanningData {
-    pub number_of_blocks_to_scan: u64,
-    pub number_of_blocks_evaluated: u64,
-    pub number_of_times_triggered: u64,
-    pub last_occurrence: Option<u64>,
-    pub last_evaluated_block_height: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct StreamingData {
-    pub last_occurrence: Option<u64>,
-    pub last_evaluation: u64,
-    pub number_of_times_triggered: u64,
-    pub number_of_blocks_evaluated: u64,
-    pub last_evaluated_block_height: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ExpiredData {
-    pub number_of_blocks_evaluated: u64,
-    pub number_of_times_triggered: u64,
-    pub last_occurrence: Option<u64>,
-    pub last_evaluated_block_height: u64,
-    pub expired_at_block_height: u64,
-}
+// PredicateStatus types are now imported from chainhook-sdk
 
 fn update_status_from_report(
     chain: Chain,
