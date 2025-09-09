@@ -6,7 +6,7 @@ pub mod stacks;
 use crate::{
     chainhooks::types::PoxConfig,
     indexer::database::BlocksDatabaseAccess,
-    try_info, try_warn,
+    try_debug,
     utils::{AbstractBlock, Context},
 };
 
@@ -291,9 +291,6 @@ impl ChainSegment {
             Some(tip) => tip,
             None => return Ok(()),
         };
-        ctx.try_log(|logger| {
-            slog::info!(logger, "Comparing {} with {}", tip, block.get_identifier())
-        });
         if tip.index == block.get_parent_identifier().index {
             match tip.hash == block.get_parent_identifier().hash {
                 true => return Ok(()),
@@ -412,7 +409,7 @@ impl ChainSegment {
     ) -> (bool, Option<ChainSegment>) {
         let mut block_appended = false;
         let mut fork = None;
-        try_info!(
+        try_debug!(
             ctx,
             "Trying to append {} to {}",
             block.get_identifier(),
@@ -430,11 +427,11 @@ impl ChainSegment {
                         .keep_blocks_from_oldest_to_block_identifier(block.get_parent_identifier());
                     if parent_found {
                         new_fork.append_block_identifier(block.get_identifier());
-                        try_warn!(ctx, "New fork created from block collision: {new_fork}");
+                        try_debug!(ctx, "New fork created from block collision: {new_fork}");
                         fork = Some(new_fork);
                         block_appended = true;
                     } else {
-                        try_info!(
+                        try_debug!(
                             ctx,
                             "Could not append {} to {} because parent block is not found: {:?}",
                             block.get_identifier(),
@@ -444,7 +441,7 @@ impl ChainSegment {
                     }
                 }
                 _ => {
-                    try_info!(
+                    try_debug!(
                         ctx,
                         "Could not append {} to {}: {:?}",
                         block.get_identifier(),

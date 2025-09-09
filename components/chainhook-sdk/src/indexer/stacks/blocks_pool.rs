@@ -2,9 +2,7 @@ use crate::{
     indexer::{
         database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
         ChainSegment, ChainSegmentIncompatibility,
-    },
-    try_error, try_info,
-    utils::Context,
+    }, try_debug, try_error, try_info, utils::Context
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
@@ -121,9 +119,6 @@ impl StacksBlockPool {
     ) -> Result<Option<StacksChainEvent>, String> {
         try_info!(ctx, "Start processing Stacks {}", block.block_identifier);
 
-        for (i, fork) in self.forks.iter() {
-            try_info!(ctx, "Active fork {i}: {fork}");
-        }
         // Retrieve previous canonical fork
         let previous_canonical_fork_id = self.canonical_fork_id;
         let previous_canonical_fork = match self.forks.get(&previous_canonical_fork_id) {
@@ -253,13 +248,13 @@ impl StacksBlockPool {
         } else {
             None
         };
-        try_info!(ctx, "Canonical fork: {canonical_fork_id}");
 
-        self.canonical_fork_id = canonical_fork_id;
         // Generate chain event from the previous and current canonical forks
+        self.canonical_fork_id = canonical_fork_id;
         let canonical_fork = self.forks.get(&canonical_fork_id).unwrap().clone();
+        try_info!(ctx, "Canonical fork is: {canonical_fork_id} {canonical_fork}");
         if canonical_fork.eq(&previous_canonical_fork) {
-            ctx.try_log(|logger| slog::info!(logger, "Canonical fork unchanged"));
+            try_info!(ctx, "Canonical fork unchanged");
             return Ok(None);
         }
 
