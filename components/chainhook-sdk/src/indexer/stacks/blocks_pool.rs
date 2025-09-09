@@ -2,7 +2,7 @@ use crate::{
     indexer::{
         database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
         ChainSegment, ChainSegmentIncompatibility,
-    }, try_debug, try_error, try_info, utils::Context
+    }, try_error, try_info, utils::Context
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
