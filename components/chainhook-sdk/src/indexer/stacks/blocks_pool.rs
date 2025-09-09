@@ -1,8 +1,5 @@
 use crate::{
-    indexer::{
-        database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
-        ChainSegment, ChainSegmentIncompatibility,
-    },
+    indexer::{database::BlocksDatabaseAccess, ChainSegment, ChainSegmentIncompatibility},
     try_error, try_info,
     utils::Context,
 };
@@ -15,6 +12,8 @@ use chainhook_types::{
 use hiro_system_kit::slog;
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
+
+const STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 20;
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
@@ -102,6 +101,18 @@ impl StacksBlockPool {
         }
     }
 
+    fn add_fork(&mut self, fork: ChainSegment) -> usize {
+        let number_of_forks = self.forks.len();
+        let mut next_fork_id = 0;
+        for (index, (fork_id, _)) in self.forks.iter().enumerate() {
+            if (index + 1) == number_of_forks {
+                next_fork_id = fork_id + 1;
+            }
+        }
+        self.forks.insert(next_fork_id, fork);
+        next_fork_id
+    }
+
     pub fn process_block(
         &mut self,
         block: StacksBlockData,
@@ -135,14 +146,7 @@ impl StacksBlockPool {
             let (block_appended, mut new_fork) = fork.try_append_block(&block, ctx);
             if block_appended {
                 if let Some(new_fork) = new_fork.take() {
-                    let number_of_forks = self.forks.len();
-                    let mut next_fork_id = 0;
-                    for (index, (fork_id, _)) in self.forks.iter().enumerate() {
-                        if (index + 1) == number_of_forks {
-                            next_fork_id = fork_id + 1;
-                        }
-                    }
-                    self.forks.insert(next_fork_id, new_fork);
+                    let next_fork_id = self.add_fork(new_fork);
                     fork_updated = self.forks.get_mut(&next_fork_id);
                 } else {
                     fork_updated = Some(fork);
@@ -161,28 +165,49 @@ impl StacksBlockPool {
                 );
                 self.block_store
                     .insert(block.block_identifier.clone(), block.clone());
-                fork
             }
             None => {
                 // Look for the orphan block in the blocks DB. If it already exists, it means we've received an old block and we
                 // should just ignore it. This can happen if the Stacks node feeding us blocks is still catching up to our chain
                 // tip.
-                if let Some(db_access) = &self.database_access {
+                let handled = if let Some(db_access) = &self.database_access {
                     if let Ok(true) = db_access.block_exists(&block.block_identifier, ctx) {
                         try_info!(
                             ctx,
                             "Ignoring previously processed block: Stacks {}",
                             block.block_identifier
                         );
-                        return Ok(None);
+                        true
+                    } else {
+                        // Check the new block's parent, perhaps this is a deep re-orged block segment we need to add to our
+                        // forks.
+                        if let Ok(true) =
+                            db_access.block_exists(&block.parent_block_identifier, ctx)
+                        {
+                            try_info!(
+                                ctx,
+                                "Appending new deep re-orged fork for block: Stacks {}",
+                                block.parent_block_identifier
+                            );
+                            let mut fork = ChainSegment::new();
+                            fork.append_block_identifier(&block.parent_block_identifier);
+                            self.add_fork(fork);
+                            true
+                        } else {
+                            false
+                        }
                     }
+                } else {
+                    false
+                };
+                if !handled {
+                    try_error!(
+                        ctx,
+                        "Unable to process orphan block: Stacks {}",
+                        block.block_identifier
+                    );
+                    return Err("Unable to process orphan Stacks block".to_string());
                 }
-                try_error!(
-                    ctx,
-                    "Unable to process orphan block: Stacks {}",
-                    block.block_identifier
-                );
-                return Err("Unable to process orphan Stacks block".to_string());
             }
         };
 
@@ -321,12 +346,12 @@ impl StacksBlockPool {
             segment
         };
 
-        if canonical_segment.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
+        if canonical_segment.len() < STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
             ctx.try_log(|logger| slog::info!(logger, "No block to confirm"));
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned
-        let cut_off = &canonical_segment[(CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
+        let cut_off = &canonical_segment[(STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
 
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
