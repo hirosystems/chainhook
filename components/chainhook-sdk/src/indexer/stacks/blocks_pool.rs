@@ -1,5 +1,5 @@
 use crate::{
-    indexer::{database::BlocksDatabaseAccess, ChainSegment, ChainSegmentIncompatibility},
+    indexer::{database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH, ChainSegment, ChainSegmentIncompatibility},
     try_error, try_info,
     utils::Context,
 };
@@ -12,8 +12,6 @@ use chainhook_types::{
 use hiro_system_kit::slog;
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
-
-const STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 20;
 
 pub struct StacksBlockPool {
     canonical_fork_id: usize,
@@ -347,12 +345,12 @@ impl StacksBlockPool {
             segment
         };
 
-        if canonical_segment.len() < STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
+        if canonical_segment.len() < CONFIRMED_SEGMENT_MINIMUM_LENGTH as usize {
             ctx.try_log(|logger| slog::info!(logger, "No block to confirm"));
             return;
         }
         // Any block beyond 6th ancestor is considered as confirmed and can be pruned
-        let cut_off = &canonical_segment[(STACKS_CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
+        let cut_off = &canonical_segment[(CONFIRMED_SEGMENT_MINIMUM_LENGTH - 2) as usize];
 
         // Prune forks using the confirmed block
         let mut blocks_to_prune = vec![];
