@@ -3,8 +3,6 @@ use std::collections::VecDeque;
 use chainhook_sdk::utils::MAX_BLOCK_HEIGHTS_ENTRIES;
 use test_case::test_case;
 
-use crate::service::ScanningData;
-
 use super::common::get_block_heights_to_scan;
 
 fn expect_exceeded_max_entries_error(
@@ -90,7 +88,7 @@ fn get_huge_vec() -> Vec<u64> {
 #[test_case(None, None, Some(3), 2, None, Some(VecDeque::from([0,1,2,3])) => using expect_entries; "end_block > chain_tip, no start_block yields vec from 0 to end")]
 #[test_case(None, None, Some(2), 3, None, Some(VecDeque::from([0,1,2])) => using expect_entries; "chain_tip > end_block, no yields vec from 0 to end_block")]
 #[test_case(None, Some(0), Some(MAX_BLOCK_HEIGHTS_ENTRIES + 1), 0, None, None => using expect_exceeded_max_entries_error; "limits max number of entries")]
-#[test_case(None, Some(0), Some(3), 0, Some(ScanningData { number_of_blocks_to_scan: 0, number_of_blocks_evaluated: 0, number_of_times_triggered: 0, last_occurrence: None, last_evaluated_block_height: 2}), Some(VecDeque::from([2,3])) => using expect_entries; "uses previous scan data for start_block if available")]
+#[test_case(None, Some(0), Some(3), 0, Some(chainhook_sdk::chainhooks::types::ScanningData { number_of_blocks_to_scan: 0, number_of_blocks_evaluated: 0, number_of_times_triggered: 0, last_occurrence: None, last_evaluated_block_height: 2}), Some(VecDeque::from([2,3])) => using expect_entries; "uses previous scan data for start_block if available")]
 #[test_case(Some(vec![0,1,2]), None, None, 0, None, Some(VecDeque::from([0,1,2])) => using expect_entries; "providing blocks returns the same blocks as vec")]
 #[test_case(Some(get_huge_vec()), None, None, 0, None, None => using expect_exceeded_max_entries_error; "providing too many blocks errors")]
 fn test_get_block_heights_to_scan(
@@ -98,7 +96,7 @@ fn test_get_block_heights_to_scan(
     start_block: Option<u64>,
     end_block: Option<u64>,
     chain_tip: u64,
-    unfinished_scan_data: Option<ScanningData>,
+    unfinished_scan_data: Option<chainhook_sdk::chainhooks::types::ScanningData>,
     expected: Option<VecDeque<u64>>,
 ) -> (Result<Option<VecDeque<u64>>, String>, Option<VecDeque<u64>>) {
     (
