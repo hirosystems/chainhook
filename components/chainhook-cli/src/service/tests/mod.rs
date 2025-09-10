@@ -1,4 +1,5 @@
 use chainhook_sdk::chainhooks::types::ChainhookSpecificationNetworkMap;
+use chainhook_sdk::chainhooks::types::StreamingData;
 use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
@@ -26,7 +27,7 @@ use crate::service::tests::helpers::mock_service::{
     setup_stacks_chainhook_test, TestSetupResult,
 };
 use crate::service::tests::helpers::mock_stacks_node::create_burn_fork_at;
-use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, StreamingData};
+use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData};
 use crate::storage::{get_all_unconfirmed_blocks, open_readonly_stacks_db_conn};
 
 use super::http_api::document_predicate_api_server;

@@ -3,10 +3,8 @@ use crate::config::{
     PredicatesApiConfig, StorageConfig, DEFAULT_REDIS_URI,
 };
 use crate::scan::stacks::import_stacks_chainstate_from_remote_tsv;
-use crate::service::{
-    http_api::start_predicate_api_server,
-    PredicateStatus, Service,
-};
+use crate::service::{http_api::start_predicate_api_server, PredicateStatus, Service};
+use crate::storage::predicates_db::{update_predicate_spec, update_predicate_status, RedisPredicatesDatabaseAccess};
 use chainhook_sdk::chainhooks::types::PoxConfig;
 use chainhook_sdk::observer::PredicatesConfig;
 use chainhook_sdk::{
@@ -23,11 +21,11 @@ use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 use super::get_free_port;
 use super::mock_bitcoin_rpc::mock_bitcoin_rpc;
@@ -210,9 +208,14 @@ pub async fn build_predicate_api_server(port: u16) -> (Receiver<ObserverCommand>
     };
 
     let (tx, rx) = channel();
-    let shutdown = start_predicate_api_server(api_config, tx, ctx)
-        .await
-        .unwrap();
+    let shutdown = start_predicate_api_server(
+        api_config,
+        tx,
+        RedisPredicatesDatabaseAccess::new(DEFAULT_REDIS_URI.to_string()),
+        ctx,
+    )
+    .await
+    .unwrap();
 
     // Loop to check if the server is ready
     let mut attempts = 0;

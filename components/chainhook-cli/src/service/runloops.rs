@@ -19,7 +19,7 @@ use crate::{
         bitcoin::scan_bitcoin_chainstate_via_rpc_using_predicate, common::PredicateScanResult,
         stacks::scan_stacks_chainstate_via_rocksdb_using_predicate,
     },
-    service::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status}, storage::StacksDbConnections,
+    storage::{predicates_db::{open_readwrite_predicates_db_conn_or_panic, set_predicate_interrupted_status}, StacksDbConnections},
 };
 
 use chainhook_sdk::chainhooks::types::ScanningData;

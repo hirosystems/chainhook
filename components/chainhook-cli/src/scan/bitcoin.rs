@@ -1,9 +1,6 @@
 use crate::config::{Config, PredicatesApi};
 use crate::scan::common::get_block_heights_to_scan;
-use crate::service::{
-    open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
-    set_predicate_scanning_status, set_unconfirmed_expiration_status,
-};
+use crate::storage::predicates_db::{open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status, set_predicate_scanning_status, set_unconfirmed_expiration_status};
 use chainhook_sdk::chainhooks::types::{PredicateStatus, ScanningData};
 use chainhook_sdk::bitcoincore_rpc::RpcApi;
 use chainhook_sdk::bitcoincore_rpc::{Auth, Client};

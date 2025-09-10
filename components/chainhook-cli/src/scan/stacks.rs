@@ -11,15 +11,8 @@ use crate::{
     archive::download_stacks_dataset_if_required,
     config::{Config, PredicatesApi},
     scan::common::get_block_heights_to_scan,
-    service::{
-        open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status,
-        set_predicate_scanning_status, set_unconfirmed_expiration_status,
-    },
     storage::{
-        get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted,
-        get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present,
-        open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn,
-        signers::get_signer_db_messages_received_at_block, StacksDbConnections,
+        get_last_block_height_inserted, get_last_unconfirmed_block_height_inserted, get_stacks_block_at_block_height, insert_entry_in_stacks_blocks, is_stacks_block_present, open_readonly_stacks_db_conn_with_retry, open_readwrite_stacks_db_conn, predicates_db::{open_readwrite_predicates_db_conn_or_panic, set_confirmed_expiration_status, set_predicate_scanning_status, set_unconfirmed_expiration_status}, signers::get_signer_db_messages_received_at_block, StacksDbConnections
     },
 };
 use chainhook_sdk::{

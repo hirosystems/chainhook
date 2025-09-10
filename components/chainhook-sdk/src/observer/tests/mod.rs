@@ -91,7 +91,7 @@ impl PredicatesDatabaseAccess for TestPredicatesDatabaseAccess {
         Ok(self.bitcoin.lock().unwrap().values().cloned().collect())
     }
 
-    fn enable_predicate(&self, predicate: ChainhookInstance, ctx: &Context) -> Result<(), String> {
+    fn enable_predicate(&self, predicate: ChainhookInstance, _ctx: &Context) -> Result<(), String> {
         match predicate {
             ChainhookInstance::Stacks(predicate) => {
                 self.stacks

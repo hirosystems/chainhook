@@ -10,6 +10,8 @@ use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use redis::{Commands, Connection};
 
+use crate::config::PredicatesApiConfig;
+
 #[derive(Clone)]
 pub struct RedisPredicatesDatabaseAccess {
     redis_uri: String,
@@ -372,7 +374,7 @@ fn update_status_from_report(
 /// Updates a predicate's status to `Scanning`.
 ///
 /// Sets the `last_occurrence` time to the current time if a new trigger has occurred since the last status update.
-fn set_predicate_scanning_status(
+pub fn set_predicate_scanning_status(
     predicate_key: &str,
     number_of_blocks_to_scan: u64,
     number_of_blocks_evaluated: u64,
@@ -456,7 +458,7 @@ fn expire_predicates_for_block(
 }
 
 /// Updates a predicate's status to `UnconfirmedExpiration`.
-fn set_unconfirmed_expiration_status(
+pub fn set_unconfirmed_expiration_status(
     chain: &Chain,
     number_of_new_blocks_evaluated: u64,
     last_evaluated_block_height: u64,
@@ -544,7 +546,7 @@ fn set_unconfirmed_expiration_status(
     }
 }
 
-fn set_confirmed_expiration_status(
+pub fn set_confirmed_expiration_status(
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
     ctx: &Context,
@@ -637,7 +639,7 @@ fn get_predicates_expiring_at_block(
     }
 }
 
-fn update_predicate_status(
+pub fn update_predicate_status(
     predicate_key: &str,
     status: PredicateStatus,
     predicates_db_conn: &mut Connection,
@@ -661,7 +663,7 @@ fn update_predicate_status(
     }
 }
 
-fn update_predicate_spec(
+pub fn update_predicate_spec(
     predicate_key: &str,
     spec: &ChainhookInstance,
     predicates_db_conn: &mut Connection,
@@ -698,7 +700,7 @@ fn retrieve_predicate_status(
     }
 }
 
-fn set_predicate_interrupted_status(
+pub fn set_predicate_interrupted_status(
     error: String,
     predicate_key: &str,
     predicates_db_conn: &mut Connection,
@@ -773,4 +775,33 @@ fn get_entries_from_predicates_db(
         predicates.push(chainhook);
     }
     Ok(predicates)
+}
+
+pub fn open_readwrite_predicates_db_conn(
+    config: &PredicatesApiConfig,
+) -> Result<Connection, String> {
+    let redis_uri = &config.database_uri;
+    let client = redis::Client::open(redis_uri.clone()).unwrap();
+    client
+        .get_connection()
+        .map_err(|e| format!("unable to connect to db: {}", e))
+}
+
+pub fn open_readwrite_predicates_db_conn_verbose(
+    config: &PredicatesApiConfig,
+    ctx: &Context,
+) -> Result<Connection, String> {
+    let res = open_readwrite_predicates_db_conn(config);
+    if let Err(ref e) = res {
+        error!(ctx.expect_logger(), "{}", e.to_string());
+    }
+    res
+}
+
+// todo: evaluate expects
+pub fn open_readwrite_predicates_db_conn_or_panic(
+    config: &PredicatesApiConfig,
+    ctx: &Context,
+) -> Connection {
+    open_readwrite_predicates_db_conn_verbose(config, ctx).expect("unable to open redis conn")
 }
