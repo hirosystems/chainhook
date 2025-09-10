@@ -1609,6 +1609,7 @@ pub async fn start_observer_commands_handler<
 
                 if let Some(ref tx) = observer_events_tx {
                     for hook_uuid in hooks_ids_to_deregister.iter() {
+                        prometheus_monitoring.btc_metrics_deregister_predicate();
                         let _ = tx.send(ObserverEvent::PredicateDeregistered(
                             PredicateDeregisteredEvent {
                                 predicate_uuid: hook_uuid.clone(),
@@ -1820,6 +1821,7 @@ pub async fn start_observer_commands_handler<
 
                 if let Some(ref tx) = observer_events_tx {
                     for hook_uuid in hooks_ids_to_deregister.iter() {
+                        prometheus_monitoring.stx_metrics_deregister_predicate();
                         let _ = tx.send(ObserverEvent::PredicateDeregistered(
                             PredicateDeregisteredEvent {
                                 predicate_uuid: hook_uuid.clone(),
@@ -1913,12 +1915,12 @@ pub async fn start_observer_commands_handler<
                 let spec = match spec {
                     ChainhookSpecificationNetworkMap::Stacks(hook) => {
                         let spec = hook.into_specification_for_network(networks.1)?;
-                        prometheus_monitoring.btc_metrics_register_predicate();
+                        prometheus_monitoring.stx_metrics_register_predicate();
                         ChainhookInstance::Stacks(spec)
                     }
                     ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
                         let spec = hook.into_specification_for_network(networks.0)?;
-                        prometheus_monitoring.stx_metrics_register_predicate();
+                        prometheus_monitoring.btc_metrics_register_predicate();
                         ChainhookInstance::Bitcoin(spec)
                     }
                 };

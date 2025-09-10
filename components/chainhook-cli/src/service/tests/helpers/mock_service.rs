@@ -4,7 +4,7 @@ use crate::config::{
 };
 use crate::scan::stacks::import_stacks_chainstate_from_remote_tsv;
 use crate::service::{
-    http_api::start_predicate_api_server, update_predicate_spec, update_predicate_status,
+    http_api::start_predicate_api_server,
     PredicateStatus, Service,
 };
 use chainhook_sdk::chainhooks::types::PoxConfig;

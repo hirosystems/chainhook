@@ -36,33 +36,42 @@ use chainhook_types::{
 use hiro_system_kit;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::{
+    mpsc::{channel, Sender},
+    Arc, Mutex,
+};
 
 use super::PredicatesConfig;
 use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
 
-struct TestPredicatesDatabaseAccess<'a> {
-    stacks: &'a mut HashMap<String, (StacksChainhookInstance, PredicateStatus)>,
-    bitcoin: &'a mut HashMap<String, (BitcoinChainhookInstance, PredicateStatus)>,
+struct TestPredicatesDatabaseAccess {
+    stacks: Arc<Mutex<HashMap<String, (StacksChainhookInstance, PredicateStatus)>>>,
+    bitcoin: Arc<Mutex<HashMap<String, (BitcoinChainhookInstance, PredicateStatus)>>>,
 }
 
-impl<'a> TestPredicatesDatabaseAccess<'a> {
-    fn new(
-        stacks: &'a mut HashMap<String, (StacksChainhookInstance, PredicateStatus)>,
-        bitcoin: &'a mut HashMap<String, (BitcoinChainhookInstance, PredicateStatus)>,
-    ) -> Self {
-        Self { stacks, bitcoin }
+impl TestPredicatesDatabaseAccess {
+    fn new() -> Self {
+        Self {
+            stacks: Arc::new(Mutex::new(HashMap::new())),
+            bitcoin: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 }
 
-impl<'a> PredicatesDatabaseAccess for TestPredicatesDatabaseAccess<'a> {
-    fn insert_predicate(&self, predicate: ChainhookInstance, ctx: &Context) -> Result<(), String> {
+impl PredicatesDatabaseAccess for TestPredicatesDatabaseAccess {
+    fn insert_predicate(&self, predicate: ChainhookInstance, _ctx: &Context) -> Result<(), String> {
         match predicate {
             ChainhookInstance::Stacks(predicate) => {
-                self.stacks.insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+                self.stacks
+                    .lock()
+                    .unwrap()
+                    .insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
             }
             ChainhookInstance::Bitcoin(predicate) => {
-                self.bitcoin.insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+                self.bitcoin
+                    .lock()
+                    .unwrap()
+                    .insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
             }
         }
         Ok(())
@@ -72,57 +81,124 @@ impl<'a> PredicatesDatabaseAccess for TestPredicatesDatabaseAccess<'a> {
         &self,
         _ctx: &Context,
     ) -> Result<Vec<(StacksChainhookInstance, PredicateStatus)>, String> {
-        Ok(self.stacks.clone())
+        Ok(self.stacks.lock().unwrap().values().cloned().collect())
     }
+
     fn get_active_bitcoin_predicates(
         &self,
         _ctx: &Context,
     ) -> Result<Vec<(BitcoinChainhookInstance, PredicateStatus)>, String> {
-        Ok(self.bitcoin.clone())
+        Ok(self.bitcoin.lock().unwrap().values().cloned().collect())
     }
 
     fn enable_predicate(&self, predicate: ChainhookInstance, ctx: &Context) -> Result<(), String> {
-        todo!()
+        match predicate {
+            ChainhookInstance::Stacks(predicate) => {
+                self.stacks
+                    .lock()
+                    .unwrap()
+                    .insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+            }
+            ChainhookInstance::Bitcoin(predicate) => {
+                self.bitcoin
+                    .lock()
+                    .unwrap()
+                    .insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+            }
+        }
+        Ok(())
     }
 
-    fn delete_predicate(&self, uuid: String, ctx: &Context) -> Result<(), String> {
-        todo!()
+    fn delete_predicate(&self, uuid: &String, _ctx: &Context) -> Result<(), String> {
+        self.stacks.lock().unwrap().remove(uuid);
+        self.bitcoin.lock().unwrap().remove(uuid);
+        Ok(())
     }
 
     fn expire_stacks_predicates_for_block(
         &self,
-        block_height: u64,
-        ctx: &Context,
+        _block_height: u64,
+        _ctx: &Context,
     ) -> Result<(), String> {
         todo!()
     }
 
     fn expire_bitcoin_predicates_for_block(
         &self,
-        block_height: u64,
-        ctx: &Context,
+        _block_height: u64,
+        _ctx: &Context,
     ) -> Result<(), String> {
         todo!()
     }
-    
-    fn get_predicate(&self, uuid: &String, ctx: &Context) -> Result<Option<(ChainhookInstance, PredicateStatus)>, String> {
-        todo!()
+
+    fn get_predicate(
+        &self,
+        uuid: &String,
+        _ctx: &Context,
+    ) -> Result<Option<(ChainhookInstance, PredicateStatus)>, String> {
+        match self.stacks.lock().unwrap().get(uuid) {
+            Some(predicate) => Ok(Some((
+                ChainhookInstance::Stacks(predicate.0.clone()),
+                predicate.1.clone(),
+            ))),
+            None => match self.bitcoin.lock().unwrap().get(uuid) {
+                Some(predicate) => Ok(Some((
+                    ChainhookInstance::Bitcoin(predicate.0.clone()),
+                    predicate.1.clone(),
+                ))),
+                None => Ok(None),
+            },
+        }
     }
-    
-    fn interrupt_predicate(&self, uuid: &String, error: String, ctx: &Context) -> Result<(), String> {
-        todo!()
+
+    fn interrupt_predicate(
+        &self,
+        uuid: &String,
+        _error: String,
+        _ctx: &Context,
+    ) -> Result<(), String> {
+        self.stacks.lock().unwrap().remove(uuid);
+        self.bitcoin.lock().unwrap().remove(uuid);
+        Ok(())
     }
-    
-    fn update_stacks_predicates_from_report(&self, report: super::PredicateEvaluationReport, ctx: &Context) -> Result<(), String> {
-        todo!()
+
+    fn update_stacks_predicates_from_report(
+        &self,
+        _report: super::PredicateEvaluationReport,
+        _ctx: &Context,
+    ) -> Result<(), String> {
+        Ok(())
     }
-    
-    fn update_bitcoin_predicates_from_report(&self, report: super::PredicateEvaluationReport, ctx: &Context) -> Result<(), String> {
-        todo!()
+
+    fn update_bitcoin_predicates_from_report(
+        &self,
+        _report: super::PredicateEvaluationReport,
+        _ctx: &Context,
+    ) -> Result<(), String> {
+        Ok(())
     }
-    
-    fn get_all_predicates(&self, ctx: &Context) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
-        todo!()
+
+    fn get_all_predicates(
+        &self,
+        _ctx: &Context,
+    ) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
+        let mut all: Vec<(ChainhookInstance, PredicateStatus)> = self
+            .stacks
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .map(|(predicate, status)| (ChainhookInstance::Stacks(predicate), status))
+            .collect();
+        all.extend(
+            self.bitcoin
+                .lock()
+                .unwrap()
+                .values()
+                .cloned()
+                .map(|(predicate, status)| (ChainhookInstance::Bitcoin(predicate), status)),
+        );
+        Ok(all)
     }
 }
 
@@ -141,7 +217,8 @@ fn generate_test_config() -> (EventObserverConfig, TestPredicatesDatabaseAccess)
         stacks_network: StacksNetwork::Devnet,
         prometheus_monitoring_port: None,
     };
-    (config, TestPredicatesDatabaseAccess::default())
+    let test_db = TestPredicatesDatabaseAccess::new();
+    (config, test_db)
 }
 
 fn stacks_chainhook_contract_call(
