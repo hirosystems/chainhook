@@ -5,14 +5,15 @@ use crate::chainhooks::bitcoin::BitcoinPredicateType;
 use crate::chainhooks::bitcoin::InscriptionFeedData;
 use crate::chainhooks::bitcoin::OrdinalOperations;
 use crate::chainhooks::bitcoin::OutputPredicate;
+use crate::chainhooks::database::PredicatesDatabaseAccess;
 use crate::chainhooks::stacks::StacksChainhookInstance;
 use crate::chainhooks::stacks::StacksChainhookSpecification;
 use crate::chainhooks::stacks::StacksChainhookSpecificationNetworkMap;
 use crate::chainhooks::stacks::StacksContractCallBasedPredicate;
 use crate::chainhooks::stacks::StacksPredicate;
+use crate::chainhooks::types::PredicateStatus;
 use crate::chainhooks::types::{
-    ChainhookInstance, ChainhookSpecificationNetworkMap, ChainhookStore, ExactMatchingRule,
-    HookAction,
+    ChainhookInstance, ChainhookSpecificationNetworkMap, ExactMatchingRule, HookAction,
 };
 use crate::indexer::fork_scratch_pad::ForkScratchPad;
 use crate::indexer::tests::helpers::transactions::generate_test_tx_bitcoin_p2pkh_transfer;
@@ -34,14 +35,99 @@ use chainhook_types::{
 };
 use hiro_system_kit;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
 
 use super::PredicatesConfig;
 use super::{ObserverEvent, DEFAULT_INGESTION_PORT};
 
-fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
+struct TestPredicatesDatabaseAccess<'a> {
+    stacks: &'a mut HashMap<String, (StacksChainhookInstance, PredicateStatus)>,
+    bitcoin: &'a mut HashMap<String, (BitcoinChainhookInstance, PredicateStatus)>,
+}
+
+impl<'a> TestPredicatesDatabaseAccess<'a> {
+    fn new(
+        stacks: &'a mut HashMap<String, (StacksChainhookInstance, PredicateStatus)>,
+        bitcoin: &'a mut HashMap<String, (BitcoinChainhookInstance, PredicateStatus)>,
+    ) -> Self {
+        Self { stacks, bitcoin }
+    }
+}
+
+impl<'a> PredicatesDatabaseAccess for TestPredicatesDatabaseAccess<'a> {
+    fn insert_predicate(&self, predicate: ChainhookInstance, ctx: &Context) -> Result<(), String> {
+        match predicate {
+            ChainhookInstance::Stacks(predicate) => {
+                self.stacks.insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+            }
+            ChainhookInstance::Bitcoin(predicate) => {
+                self.bitcoin.insert(predicate.uuid.clone(), (predicate, PredicateStatus::New));
+            }
+        }
+        Ok(())
+    }
+
+    fn get_active_stacks_predicates(
+        &self,
+        _ctx: &Context,
+    ) -> Result<Vec<(StacksChainhookInstance, PredicateStatus)>, String> {
+        Ok(self.stacks.clone())
+    }
+    fn get_active_bitcoin_predicates(
+        &self,
+        _ctx: &Context,
+    ) -> Result<Vec<(BitcoinChainhookInstance, PredicateStatus)>, String> {
+        Ok(self.bitcoin.clone())
+    }
+
+    fn enable_predicate(&self, predicate: ChainhookInstance, ctx: &Context) -> Result<(), String> {
+        todo!()
+    }
+
+    fn delete_predicate(&self, uuid: String, ctx: &Context) -> Result<(), String> {
+        todo!()
+    }
+
+    fn expire_stacks_predicates_for_block(
+        &self,
+        block_height: u64,
+        ctx: &Context,
+    ) -> Result<(), String> {
+        todo!()
+    }
+
+    fn expire_bitcoin_predicates_for_block(
+        &self,
+        block_height: u64,
+        ctx: &Context,
+    ) -> Result<(), String> {
+        todo!()
+    }
+    
+    fn get_predicate(&self, uuid: &String, ctx: &Context) -> Result<Option<(ChainhookInstance, PredicateStatus)>, String> {
+        todo!()
+    }
+    
+    fn interrupt_predicate(&self, uuid: &String, error: String, ctx: &Context) -> Result<(), String> {
+        todo!()
+    }
+    
+    fn update_stacks_predicates_from_report(&self, report: super::PredicateEvaluationReport, ctx: &Context) -> Result<(), String> {
+        todo!()
+    }
+    
+    fn update_bitcoin_predicates_from_report(&self, report: super::PredicateEvaluationReport, ctx: &Context) -> Result<(), String> {
+        todo!()
+    }
+    
+    fn get_all_predicates(&self, ctx: &Context) -> Result<Vec<(ChainhookInstance, PredicateStatus)>, String> {
+        todo!()
+    }
+}
+
+fn generate_test_config() -> (EventObserverConfig, TestPredicatesDatabaseAccess) {
     let config: EventObserverConfig = EventObserverConfig {
-        registered_chainhooks: ChainhookStore::new(),
         predicates_config: PredicatesConfig::default(),
         bitcoin_rpc_proxy_enabled: false,
         bitcoind_rpc_username: "user".into(),
@@ -55,7 +141,7 @@ fn generate_test_config() -> (EventObserverConfig, ChainhookStore) {
         stacks_network: StacksNetwork::Devnet,
         prometheus_monitoring_port: None,
     };
-    (config, ChainhookStore::new())
+    (config, TestPredicatesDatabaseAccess::default())
 }
 
 fn stacks_chainhook_contract_call(
@@ -83,7 +169,6 @@ fn stacks_chainhook_contract_call(
         },
     );
 
-    
     StacksChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
@@ -117,7 +202,6 @@ fn bitcoin_chainhook_p2pkh(
         },
     );
 
-    
     BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),
@@ -149,7 +233,6 @@ fn bitcoin_chainhook_ordinals(id: u8) -> BitcoinChainhookSpecificationNetworkMap
         },
     );
 
-    
     BitcoinChainhookSpecificationNetworkMap {
         uuid: format!("{}", id),
         name: format!("Chainhook {}", id),

@@ -499,8 +499,6 @@ pub enum ObserverCommand {
     EnablePredicate(ChainhookInstance),
     DeregisterBitcoinPredicate(String),
     DeregisterStacksPredicate(String),
-    ExpireBitcoinPredicate(HookExpirationData),
-    ExpireStacksPredicate(HookExpirationData),
     NotifyBitcoinTransactionProxied,
     Terminate,
 }
@@ -1563,6 +1561,9 @@ pub async fn start_observer_commands_handler<
                     )
                 });
 
+                predicates_database_access
+                    .update_bitcoin_predicates_from_report(report.clone(), &ctx)?;
+
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicatesTriggered(
                         chainhooks_to_trigger.len(),
@@ -1628,14 +1629,45 @@ pub async fn start_observer_commands_handler<
                             }
                         }
                         Err(e) => {
+                            let error =
+                                format!("Unable to evaluate predicate on Bitcoin chainstate: {e}");
+                            predicates_database_access.interrupt_predicate(
+                                &data.chainhook.uuid,
+                                error.clone(),
+                                &ctx,
+                            )?;
                             if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookInstance::bitcoin_key(&data.chainhook.uuid),
-                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
-                                }));
+                                let _ = tx.send(ObserverEvent::PredicateInterrupted(
+                                    PredicateInterruptedData {
+                                        predicate_key: ChainhookInstance::bitcoin_key(
+                                            &data.chainhook.uuid,
+                                        ),
+                                        error: error,
+                                    },
+                                ));
                             }
                         }
                     };
+                }
+
+                // Expire predicates based on block height
+                match &chain_event {
+                    BitcoinChainEvent::ChainUpdatedWithBlocks(update) => {
+                        for confirmed_block in &update.confirmed_blocks {
+                            predicates_database_access.expire_bitcoin_predicates_for_block(
+                                confirmed_block.block_identifier.index,
+                                &ctx,
+                            )?;
+                        }
+                    }
+                    BitcoinChainEvent::ChainUpdatedWithReorg(update) => {
+                        for confirmed_block in &update.confirmed_blocks {
+                            predicates_database_access.expire_bitcoin_predicates_for_block(
+                                confirmed_block.block_identifier.index,
+                                &ctx,
+                            )?;
+                        }
+                    }
                 }
 
                 prometheus_monitoring.btc_metrics_block_evaluated(new_tip);
@@ -1746,6 +1778,9 @@ pub async fn start_observer_commands_handler<
                     }
                 }
 
+                predicates_database_access
+                    .update_stacks_predicates_from_report(report.clone(), &ctx)?;
+
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicatesTriggered(
                         chainhooks_to_trigger.len(),
@@ -1805,17 +1840,49 @@ pub async fn start_observer_commands_handler<
                             }
                         }
                         Err(e) => {
+                            let error =
+                                format!("Unable to evaluate predicate on Stacks chainstate: {e}");
+                            predicates_database_access.interrupt_predicate(
+                                &data.chainhook.uuid,
+                                error.clone(),
+                                &ctx,
+                            )?;
                             if let Some(ref tx) = observer_events_tx {
-                                let _ = tx.send(ObserverEvent::PredicateInterrupted(PredicateInterruptedData {
-                                    predicate_key: ChainhookInstance::stacks_key(&data.chainhook.uuid),
-                                    error: format!("Unable to evaluate predicate on Bitcoin chainstate: {}", e)
-                                }));
+                                let _ = tx.send(ObserverEvent::PredicateInterrupted(
+                                    PredicateInterruptedData {
+                                        predicate_key: ChainhookInstance::stacks_key(
+                                            &data.chainhook.uuid,
+                                        ),
+                                        error: error,
+                                    },
+                                ));
                             }
                         }
                     };
                 }
 
                 prometheus_monitoring.stx_metrics_block_evaluated(new_tip);
+
+                // Expire predicates based on block height
+                match &chain_event {
+                    StacksChainEvent::ChainUpdatedWithBlocks(update) => {
+                        for confirmed_block in &update.confirmed_blocks {
+                            predicates_database_access.expire_stacks_predicates_for_block(
+                                confirmed_block.block_identifier.index,
+                                &ctx,
+                            )?;
+                        }
+                    }
+                    StacksChainEvent::ChainUpdatedWithReorg(update) => {
+                        for confirmed_block in &update.confirmed_blocks {
+                            predicates_database_access.expire_stacks_predicates_for_block(
+                                confirmed_block.block_identifier.index,
+                                &ctx,
+                            )?;
+                        }
+                    }
+                    _ => {}
+                }
 
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::StacksChainEvent((chain_event, report)));
@@ -1846,32 +1913,26 @@ pub async fn start_observer_commands_handler<
                 let spec = match spec {
                     ChainhookSpecificationNetworkMap::Stacks(hook) => {
                         let spec = hook.into_specification_for_network(networks.1)?;
+                        prometheus_monitoring.btc_metrics_register_predicate();
                         ChainhookInstance::Stacks(spec)
                     }
                     ChainhookSpecificationNetworkMap::Bitcoin(hook) => {
                         let spec = hook.into_specification_for_network(networks.0)?;
+                        prometheus_monitoring.stx_metrics_register_predicate();
                         ChainhookInstance::Bitcoin(spec)
                     }
                 };
-
-                match spec {
-                    ChainhookInstance::Bitcoin(_) => {
-                        prometheus_monitoring.btc_metrics_register_predicate()
-                    }
-                    ChainhookInstance::Stacks(_) => {
-                        prometheus_monitoring.stx_metrics_register_predicate()
-                    }
-                };
-
                 ctx.try_log(
                     |logger| slog::debug!(logger, "Registering chainhook {}", spec.uuid(),),
                 );
+                predicates_database_access.insert_predicate(spec.clone(), &ctx)?;
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateRegistered(spec.clone()));
                 }
             }
             ObserverCommand::EnablePredicate(spec) => {
                 ctx.try_log(|logger| slog::info!(logger, "Enabling Predicate {}", spec.uuid()));
+                predicates_database_access.enable_predicate(spec.clone(), &ctx)?;
                 if let Some(ref tx) = observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateEnabled(spec));
                 }
@@ -1880,9 +1941,9 @@ pub async fn start_observer_commands_handler<
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterStacksPredicate command")
                 });
+                predicates_database_access.delete_predicate(&hook_uuid, &ctx)?;
                 prometheus_monitoring.stx_metrics_deregister_predicate();
 
-                // Always propagate the event to delete from Redis
                 if let Some(tx) = &observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         PredicateDeregisteredEvent {
@@ -1896,33 +1957,17 @@ pub async fn start_observer_commands_handler<
                 ctx.try_log(|logger| {
                     slog::info!(logger, "Handling DeregisterBitcoinPredicate command")
                 });
+                predicates_database_access.delete_predicate(&hook_uuid, &ctx)?;
                 prometheus_monitoring.btc_metrics_deregister_predicate();
 
-                // Always propagate the event to delete from Redis
                 if let Some(tx) = &observer_events_tx {
                     let _ = tx.send(ObserverEvent::PredicateDeregistered(
                         PredicateDeregisteredEvent {
-                            predicate_uuid: hook_uuid.clone(),
+                            predicate_uuid: hook_uuid,
                             chain: Chain::Bitcoin,
                         },
                     ));
                 };
-            }
-            ObserverCommand::ExpireStacksPredicate(HookExpirationData {
-                hook_uuid: _,
-                block_height: _,
-            }) => {
-                ctx.try_log(|logger| slog::info!(logger, "Handling ExpireStacksPredicate command"));
-                // Expiration is now handled by Redis - no need to update memory
-            }
-            ObserverCommand::ExpireBitcoinPredicate(HookExpirationData {
-                hook_uuid: _,
-                block_height: _,
-            }) => {
-                ctx.try_log(|logger| {
-                    slog::info!(logger, "Handling ExpireBitcoinPredicate command")
-                });
-                // Expiration is now handled by Redis - no need to update memory
             }
         }
     }

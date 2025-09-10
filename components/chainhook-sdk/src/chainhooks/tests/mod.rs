@@ -13,7 +13,7 @@ use super::{
     types::{ExactMatchingRule, FileHook},
 };
 use crate::{
-    chainhooks::stacks::serialize_stacks_payload_to_json,
+    chainhooks::{stacks::serialize_stacks_payload_to_json, types::PredicateStatus},
     observer::EventObserverConfig,
     utils::Context,
 };
@@ -410,8 +410,9 @@ fn test_stacks_predicates(
         enabled: true,
         expired_at: None,
     };
+    let entry = (chainhook, PredicateStatus::New);
 
-    let predicates = vec![&chainhook];
+    let predicates = vec![&entry];
     let (triggered, _predicates_evaluated, _expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
@@ -490,8 +491,8 @@ fn test_stacks_predicate_contract_deploy(predicate: StacksPredicate, expected_ap
         enabled: true,
         expired_at: None,
     };
-
-    let predicates = vec![&chainhook];
+    let entry = (chainhook, PredicateStatus::New);
+    let predicates = vec![&entry];
     let (triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
@@ -527,7 +528,7 @@ fn verify_optional_addition_of_contract_abi() {
             new_blocks,
             confirmed_blocks: vec![],
         });
-    let mut contract_deploy_chainhook = StacksChainhookInstance {
+    let contract_deploy_chainhook = StacksChainhookInstance {
         uuid: "contract-deploy".to_string(),
         owner_uuid: None,
         name: "".to_string(),
@@ -547,6 +548,7 @@ fn verify_optional_addition_of_contract_abi() {
         enabled: true,
         expired_at: None,
     };
+    let mut entry1 = (contract_deploy_chainhook, PredicateStatus::New);
     let contract_call_chainhook = StacksChainhookInstance {
         uuid: "contract-call".to_string(),
         owner_uuid: None,
@@ -568,8 +570,9 @@ fn verify_optional_addition_of_contract_abi() {
         enabled: true,
         expired_at: None,
     };
+    let entry2 = (contract_call_chainhook, PredicateStatus::New);
 
-    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    let predicates = vec![&entry1, &entry2];
     let (triggered, _blocks, _) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 2);
@@ -593,8 +596,8 @@ fn verify_optional_addition_of_contract_abi() {
             }
         }
     }
-    contract_deploy_chainhook.include_contract_abi = Some(false);
-    let predicates = vec![&contract_deploy_chainhook, &contract_call_chainhook];
+    entry1.0.include_contract_abi = Some(false);
+    let predicates = vec![&entry1, &entry2];
     let (triggered, _blocks, _) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
     assert_eq!(triggered.len(), 2);
@@ -684,8 +687,9 @@ fn test_stacks_predicate_contract_call(predicate: StacksPredicate, expected_appl
         enabled: true,
         expired_at: None,
     };
+    let entry = (chainhook, PredicateStatus::New);
 
-    let predicates = vec![&chainhook];
+    let predicates = vec![&entry];
     let (triggered, _predicates_evaluated, _predicates_expired) =
         evaluate_stacks_chainhooks_on_chain_event(&event, predicates, &Context::empty());
 
