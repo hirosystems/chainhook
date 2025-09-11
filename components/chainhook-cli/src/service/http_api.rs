@@ -11,7 +11,7 @@ use chainhook_sdk::{
 };
 use hiro_system_kit::slog;
 use redis::{Commands, Connection};
-use rocket::serde::json::{json, Json, Value as JsonValue};
+use rocket::{http::Status, response::status::Custom, serde::json::{json, Json, Value as JsonValue}};
 use rocket::State;
 use rocket::{
     config::{self, Config, LogLevel},
@@ -70,14 +70,31 @@ pub async fn start_predicate_api_server(
     Ok(predicate_api_shutdown)
 }
 
+fn success_response(result: JsonValue) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    Ok(Json(json!({
+        "status": 200,
+        "result": result,
+    })))
+}
+
+fn error_response(
+    message: String,
+    status: Status,
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
+    Err(Custom(
+        status,
+        Json(json!({
+            "status": status.code,
+            "result": message,
+        })),
+    ))
+}
+
 #[openapi(tag = "Health Check")]
 #[get("/ping")]
-fn handle_ping(ctx: &State<Context>) -> Json<JsonValue> {
+fn handle_ping(ctx: &State<Context>) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP GET /ping"));
-    Json(json!({
-        "status": 200,
-        "result": "chainhook service up and running",
-    }))
+    success_response("chainhook service up and running".into())
 }
 
 #[openapi(tag = "Managing Predicates")]
@@ -85,7 +102,7 @@ fn handle_ping(ctx: &State<Context>) -> Json<JsonValue> {
 fn handle_get_predicates(
     api_config: &State<PredicatesApiConfig>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP GET /v1/chainhooks"));
     match open_readwrite_predicates_db_conn(api_config) {
         Ok(mut predicates_db_conn) => {
@@ -93,10 +110,7 @@ fn handle_get_predicates(
                 Ok(predicates) => predicates,
                 Err(e) => {
                     ctx.try_log(|logger| slog::warn!(logger, "unable to retrieve predicates: {e}"));
-                    return Json(json!({
-                        "status": 500,
-                        "message": "unable to retrieve predicates",
-                    }));
+                    return error_response("unable to retrieve predicates".into(), Status::InternalServerError);
                 }
             };
 
@@ -105,15 +119,9 @@ fn handle_get_predicates(
                 .map(|(p, s)| serialized_predicate_with_status(p, s))
                 .collect::<Vec<_>>();
 
-            Json(json!({
-                "status": 200,
-                "result": serialized_predicates
-            }))
+            success_response(serialized_predicates.into())
         }
-        Err(e) => Json(json!({
-            "status": 500,
-            "message": e,
-        })),
+        Err(e) => error_response(e.to_string(), Status::InternalServerError),
     }
 }
 
@@ -124,22 +132,16 @@ fn handle_create_predicate(
     api_config: &State<PredicatesApiConfig>,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| slog::info!(logger, "Handling HTTP POST /v1/chainhooks"));
     let predicate = match predicate {
         Err(e) => {
-            return Json(json!({
-                "status": 422,
-                "error": e.to_string(),
-            }))
+            return error_response(e.to_string(), Status::UnprocessableEntity);
         }
         Ok(predicate) => {
             let predicate = predicate.into_inner();
             if let Err(e) = predicate.validate() {
-                return Json(json!({
-                    "status": 422,
-                    "error": e,
-                }));
+                return error_response(e.to_string(), Status::UnprocessableEntity);
             }
             predicate
         }
@@ -153,10 +155,7 @@ fn handle_create_predicate(
             &mut predicates_db_conn,
             ctx,
         ) {
-            return Json(json!({
-                "status": 409,
-                "error": "Predicate uuid already in use",
-            }))
+            return error_response("Predicate uuid already in use".into(), Status::Conflict);
         }
     }
 
@@ -165,10 +164,7 @@ fn handle_create_predicate(
         let _ = tx.send(ObserverCommand::RegisterPredicate(predicate));
     };
 
-    Json(json!({
-        "status": 200,
-        "result": predicate_uuid,
-    }))
+    success_response(predicate_uuid.into())
 }
 
 #[openapi(tag = "Managing Predicates")]
@@ -177,7 +173,7 @@ fn handle_get_predicate(
     predicate_uuid: String,
     api_config: &State<PredicatesApiConfig>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| {
         slog::info!(
             logger,
@@ -195,21 +191,13 @@ fn handle_get_predicate(
             ) {
                 Ok(Some(predicate_with_status)) => predicate_with_status,
                 _ => {
-                    return Json(json!({
-                        "status": 404,
-                    }))
+                    return error_response("Predicate not found".into(), Status::NotFound);
                 }
             };
             let result = serialized_predicate_with_status(&predicate, &status);
-            Json(json!({
-                "status": 200,
-                "result": result
-            }))
+            success_response(result)
         }
-        Err(e) => Json(json!({
-            "status": 500,
-            "message": e,
-        })),
+        Err(e) => error_response(e.to_string(), Status::InternalServerError),
     }
 }
 
@@ -219,7 +207,7 @@ fn handle_delete_stacks_predicate(
     predicate_uuid: String,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| {
         slog::info!(
             logger,
@@ -233,10 +221,7 @@ fn handle_delete_stacks_predicate(
         let _ = tx.send(ObserverCommand::DeregisterStacksPredicate(predicate_uuid));
     };
 
-    Json(json!({
-        "status": 200,
-        "result": "Ok",
-    }))
+    success_response("Ok".into())
 }
 
 #[openapi(tag = "Managing Predicates")]
@@ -245,7 +230,7 @@ fn handle_delete_bitcoin_predicate(
     predicate_uuid: String,
     background_job_tx: &State<Arc<Mutex<Sender<ObserverCommand>>>>,
     ctx: &State<Context>,
-) -> Json<JsonValue> {
+) -> Result<Json<JsonValue>, Custom<Json<JsonValue>>> {
     ctx.try_log(|logger| {
         slog::info!(
             logger,
@@ -259,10 +244,7 @@ fn handle_delete_bitcoin_predicate(
         let _ = tx.send(ObserverCommand::DeregisterBitcoinPredicate(predicate_uuid));
     };
 
-    Json(json!({
-        "status": 200,
-        "result": "Ok",
-    }))
+    success_response("Ok".into())
 }
 
 pub fn get_entry_from_predicates_db(

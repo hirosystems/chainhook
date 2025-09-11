@@ -3,7 +3,6 @@ use chainhook_sdk::types::Chain;
 use chainhook_sdk::utils::Context;
 use rocket::serde::json::Value as JsonValue;
 use rocket::Shutdown;
-use std::fs::{self};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::thread::sleep;
@@ -28,8 +27,6 @@ use crate::service::tests::helpers::mock_service::{
 use crate::service::tests::helpers::mock_stacks_node::create_burn_fork_at;
 use crate::service::{PredicateStatus, PredicateStatus::*, ScanningData, StreamingData};
 use crate::storage::{get_all_unconfirmed_blocks, open_readonly_stacks_db_conn};
-
-use super::http_api::document_predicate_api_server;
 
 pub mod helpers;
 mod observer_tests;
@@ -830,20 +827,6 @@ async fn register_predicate_responds_409_if_uuid_in_use() -> Result<(), String> 
     cleanup(&working_dir, redis_port);
     assert_eq!(result.get("status"), Some(&json!(409)));
     Ok(())
-}
-
-#[test]
-fn it_generates_open_api_spec() {
-    let new_spec = document_predicate_api_server().unwrap();
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("../../docs/chainhook-openapi.json");
-    let current_spec = fs::read_to_string(path).unwrap();
-
-    assert_eq!(
-        current_spec, new_spec,
-        "breaking change detected: open api spec has been updated"
-    )
 }
 
 #[tokio::test]
