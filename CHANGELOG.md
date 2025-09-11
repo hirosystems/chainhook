@@ -1,3 +1,10 @@
+## [1.10.0-migration.5](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.4...v1.10.0-migration.5) (2025-09-11)
+
+
+### Bug Fixes
+
+* return correct http status codes from api ([#727](https://github.com/hirosystems/chainhook/issues/727)) ([5d7a241](https://github.com/hirosystems/chainhook/commit/5d7a24193fbbcd02b1e574e1b3132dc80c6ff023))
+
 ## [1.10.0-migration.4](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.3...v1.10.0-migration.4) (2025-09-09)
 
 
