@@ -45,7 +45,14 @@ pub async fn get_predicate_status(uuid: &str, port: u16) -> Result<PredicateStat
                         return serde_json::from_value(status.clone())
                             .map_err(|e| format!("failed to parse status {}", e));
                     }
-                    None => return Err("no status field on get predicate result".to_string()),
+                    None => {
+                        attempts += 1;
+                        if attempts == 10 {
+                            return Err("no status field on get predicate result".to_string());
+                        } else {
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        }
+                    },
                 },
                 None => {
                     attempts += 1;

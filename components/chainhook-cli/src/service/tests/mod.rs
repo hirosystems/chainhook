@@ -474,7 +474,6 @@ async fn test_bitcoin_predicate_status_is_updated(
         .await
         .map_err(|e| cleanup_err(e, &working_dir, redis_port))
         .unwrap();
-    sleep(Duration::new(1, 0));
 
     await_new_scanning_status_complete(uuid, chainhook_service_port)
         .await
