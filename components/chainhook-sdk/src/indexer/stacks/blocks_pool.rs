@@ -196,7 +196,7 @@ impl StacksBlockPool {
                         } else if block.block_identifier.index == 0 {
                             try_info!(
                                 ctx,
-                                "Appending block 0 special case: Stacks {}",
+                                "Ignoring block 0 special case: Stacks {}",
                                 block.block_identifier
                             );
                             return Ok(None);
