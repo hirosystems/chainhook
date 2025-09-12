@@ -2,7 +2,9 @@ use crate::{
     indexer::{
         database::BlocksDatabaseAccess, fork_scratch_pad::CONFIRMED_SEGMENT_MINIMUM_LENGTH,
         ChainSegment, ChainSegmentIncompatibility,
-    }, try_error, try_info, utils::Context
+    },
+    try_error, try_info,
+    utils::Context,
 };
 use chainhook_types::{
     BlockIdentifier, StacksBlockData, StacksBlockUpdate, StacksChainEvent,
@@ -191,6 +193,17 @@ impl StacksBlockPool {
                             self.block_store
                                 .insert(block.block_identifier.clone(), block.clone());
                             self.add_fork(fork);
+                        } else if block.block_identifier.index == 0 {
+                            try_info!(
+                                ctx,
+                                "Appending block 0 special case: Stacks {}",
+                                block.block_identifier
+                            );
+                            let mut fork = ChainSegment::new();
+                            fork.append_block_identifier(&block.block_identifier);
+                            self.block_store
+                                .insert(block.block_identifier.clone(), block.clone());
+                            self.add_fork(fork);
                         } else {
                             try_error!(
                                 ctx,
@@ -252,7 +265,10 @@ impl StacksBlockPool {
         // Generate chain event from the previous and current canonical forks
         self.canonical_fork_id = canonical_fork_id;
         let canonical_fork = self.forks.get(&canonical_fork_id).unwrap().clone();
-        try_info!(ctx, "Canonical fork is: {canonical_fork_id} {canonical_fork}");
+        try_info!(
+            ctx,
+            "Canonical fork is: {canonical_fork_id} {canonical_fork}"
+        );
         if canonical_fork.eq(&previous_canonical_fork) {
             try_info!(ctx, "Canonical fork unchanged");
             return Ok(None);
