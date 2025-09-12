@@ -1,3 +1,10 @@
+## [1.10.0-migration.6](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.5...v1.10.0-migration.6) (2025-09-12)
+
+
+### Bug Fixes
+
+* always append block 0 ([#728](https://github.com/hirosystems/chainhook/issues/728)) ([be0c2c0](https://github.com/hirosystems/chainhook/commit/be0c2c039d0648ed934dbda528e6ca665be213cd))
+
 ## [1.10.0-migration.5](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.4...v1.10.0-migration.5) (2025-09-11)
 
 
