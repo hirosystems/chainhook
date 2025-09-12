@@ -199,11 +199,7 @@ impl StacksBlockPool {
                                 "Appending block 0 special case: Stacks {}",
                                 block.block_identifier
                             );
-                            let mut fork = ChainSegment::new();
-                            fork.append_block_identifier(&block.block_identifier);
-                            self.block_store
-                                .insert(block.block_identifier.clone(), block.clone());
-                            self.add_fork(fork);
+                            return Ok(None);
                         } else {
                             try_error!(
                                 ctx,
