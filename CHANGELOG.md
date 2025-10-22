@@ -1,3 +1,10 @@
+## [1.10.0-migration.7](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.6...v1.10.0-migration.7) (2025-10-22)
+
+
+### Bug Fixes
+
+* ignore signer events on block eval ([#730](https://github.com/hirosystems/chainhook/issues/730)) ([5b04e3f](https://github.com/hirosystems/chainhook/commit/5b04e3fe5d98e55650012fb5d630895cc84c6745))
+
 ## [1.10.0-migration.6](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.5...v1.10.0-migration.6) (2025-09-12)
 
 
