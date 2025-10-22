@@ -335,14 +335,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
         let (hits_per_blocks, _predicates_expired) =
             evaluate_stacks_chainhook_on_blocks(blocks, predicate_spec, ctx);
 
-        let events = get_signer_db_messages_received_at_block(
-            &mut db_conns.signers_db,
-            &block_data.block_identifier,
-        )?;
-        let (hits_per_events, _) =
-            evaluate_stacks_predicate_on_non_consensus_events(&events, predicate_spec, ctx);
-
-        if hits_per_blocks.is_empty() && hits_per_events.is_empty() {
+        if hits_per_blocks.is_empty() {
             continue;
         }
 
@@ -350,7 +343,7 @@ pub async fn scan_stacks_chainstate_via_rocksdb_using_predicate(
             chainhook: predicate_spec,
             apply: hits_per_blocks,
             rollback: vec![],
-            events: hits_per_events,
+            events: vec![],
         };
         let res = match handle_stacks_hook_action(
             trigger,
