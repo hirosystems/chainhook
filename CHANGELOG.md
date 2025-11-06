@@ -1,3 +1,10 @@
+## [1.10.0-migration.8](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.7...v1.10.0-migration.8) (2025-11-06)
+
+
+### Bug Fixes
+
+* upgrade clarity dependency ([#731](https://github.com/hirosystems/chainhook/issues/731)) ([ede86d2](https://github.com/hirosystems/chainhook/commit/ede86d23f7f661207f40dad496464b7f7337c6f8))
+
 ## [1.10.0-migration.7](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.6...v1.10.0-migration.7) (2025-10-22)
 
 
