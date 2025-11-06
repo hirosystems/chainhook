@@ -8,11 +8,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { version = "1", features = ["rc"] }
+serde = { version = "1.0.228", features = ["rc"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde_derive = "1"
-stacks-codec = "2.4.1"
-clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch = "feat/clarity-wasm-develop", package = "clarity", default-features = false, features = ["log"] }
+stacks-codec = { git = "https://github.com/stx-labs/clarinet.git", version = "3.9.1" }
+clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch="develop", package = "clarity", default-features = false }
 hiro-system-kit = { version = "0.3.4", optional = true }
 rocket = { version = "=0.5.0", features = ["json"] }
 bitcoincore-rpc = "0.18.0"
