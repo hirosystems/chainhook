@@ -177,7 +177,7 @@ pub async fn send_request(
             }
             Err(e) => {
                 retry += 1;
-                let err_msg = format!("Request error: {e}");
+                let err_msg = format!("Request error: {:?}", e);
                 try_warn!(ctx, "{err_msg}");
                 err_msg
             }
