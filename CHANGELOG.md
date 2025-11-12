@@ -1,3 +1,10 @@
+## [1.10.0-migration.9](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.8...v1.10.0-migration.9) (2025-11-12)
+
+
+### Bug Fixes
+
+* upgrade reqwest to latest version ([#732](https://github.com/hirosystems/chainhook/issues/732)) ([fee7f34](https://github.com/hirosystems/chainhook/commit/fee7f34903a514a79df8589c487331ee146b1542))
+
 ## [1.10.0-migration.8](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.7...v1.10.0-migration.8) (2025-11-06)
 
 
