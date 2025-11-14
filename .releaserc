@@ -28,6 +28,20 @@
     [
       "@semantic-release/exec",
       {
+        "execCwd": "components/client/typescript",
+        "prepareCmd": "npm ci"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "pkgRoot": "./components/client/typescript",
+        "npmPublish": true
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
         "prepareCmd": "sed -i -e '1h;2,$H;$!d;g' -e 's@name = \"chainhook\"\\nversion = \"[^\"]*\"@name = \"chainhook\"\\nversion = \"${nextRelease.version}\"@g' Cargo.toml Cargo.lock"
       }
     ],
@@ -38,6 +52,8 @@
       {
         "assets": [
           "CHANGELOG.md",
+          "components/client/typescript/package.json",
+          "components/client/typescript/package-lock.json",
           "components/chainhook-cli/Cargo.toml",
           "components/chainhook-cli/Cargo.lock"
         ]
