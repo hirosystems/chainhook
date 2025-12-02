@@ -3,7 +3,10 @@ use chainhook_sdk::types::BlockIdentifier;
 use chainhook_sdk::utils::Context;
 use std::path::PathBuf;
 
-use crate::storage::{is_stacks_block_present, open_readonly_stacks_db_conn_with_retry};
+use crate::storage::{
+    get_stacks_block_at_block_height, is_stacks_block_present,
+    open_readonly_stacks_db_conn_with_retry,
+};
 
 /// Implementation of DatabaseAccess trait for chainhook-cli
 /// This provides database access to the SDK without creating circular dependencies
@@ -24,6 +27,13 @@ impl BlocksDatabaseAccess for StacksDatabaseAccess {
         ctx: &Context,
     ) -> Result<bool, String> {
         let stacks_db = open_readonly_stacks_db_conn_with_retry(&self.db_path, 0, ctx)?;
-        Ok(is_stacks_block_present(block_identifier, 0, &stacks_db))
+        if let Some(block) =
+            get_stacks_block_at_block_height(block_identifier.index, true, 0, &stacks_db)?
+        {
+            if block.block_identifier.hash == block_identifier.hash {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
     }
 }
