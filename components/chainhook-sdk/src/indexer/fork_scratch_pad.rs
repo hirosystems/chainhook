@@ -16,7 +16,7 @@ pub struct ForkScratchPad {
     forks: BTreeMap<usize, ChainSegment>,
     headers_store: BTreeMap<BlockIdentifier, BlockHeader>,
 }
-pub const CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 7;
+pub const CONFIRMED_SEGMENT_MINIMUM_LENGTH: i32 = 128;
 impl Default for ForkScratchPad {
     fn default() -> Self {
         Self::new()
