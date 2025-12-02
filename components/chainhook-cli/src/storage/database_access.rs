@@ -3,10 +3,7 @@ use chainhook_sdk::types::BlockIdentifier;
 use chainhook_sdk::utils::Context;
 use std::path::PathBuf;
 
-use crate::storage::{
-    get_stacks_block_at_block_height, is_stacks_block_present,
-    open_readonly_stacks_db_conn_with_retry,
-};
+use crate::storage::{get_stacks_block_at_block_height, open_readonly_stacks_db_conn_with_retry};
 
 /// Implementation of DatabaseAccess trait for chainhook-cli
 /// This provides database access to the SDK without creating circular dependencies
