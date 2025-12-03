@@ -462,9 +462,9 @@ impl std::fmt::Display for ChainSegment {
             "Fork [{}], length = {}",
             self.block_ids
                 .iter()
-                .next()
                 .map(|b| format!("{}", b))
-                .unwrap_or_else(|| "".to_string()),
+                .collect::<Vec<_>>()
+                .join(", "),
             self.get_length()
         )
     }
