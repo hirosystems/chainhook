@@ -24,6 +24,8 @@ impl BlocksDatabaseAccess for StacksDatabaseAccess {
         ctx: &Context,
     ) -> Result<bool, String> {
         let stacks_db = open_readonly_stacks_db_conn_with_retry(&self.db_path, 0, ctx)?;
+        // We have to retrieve the full block to check and compare both its hash and index. There's a function called
+        // `is_stacks_block_present` that sounds like could be used here but it only checks the index.
         if let Some(block) =
             get_stacks_block_at_block_height(block_identifier.index, true, 0, &stacks_db)?
         {
