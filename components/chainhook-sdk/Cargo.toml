@@ -11,7 +11,7 @@ edition = "2021"
 serde = { version = "1.0.228", features = ["rc"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 serde_derive = "1"
-stacks-codec = { git = "https://github.com/stx-labs/clarinet.git", version = "3.9.1" }
+stacks-codec = { git = "https://github.com/stx-labs/clarinet.git", version = "3.11.0" }
 clarity = { git = "https://github.com/stacks-network/stacks-core.git", branch="develop", package = "clarity", default-features = false }
 hiro-system-kit = { version = "0.3.4", optional = true }
 rocket = { version = "=0.5.0", features = ["json"] }

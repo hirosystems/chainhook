@@ -1181,7 +1181,7 @@ pub fn get_tx_description(
         ));
     }
 
-    let tx = StacksTransaction::consensus_deserialize(&mut Cursor::new(&tx_bytes))
+    let (tx, _ ) = StacksTransaction::consensus_deserialize_with_len(&mut Cursor::new(&tx_bytes))
         .map_err(|e| format!("unable to consensus decode transaction {}", e))?;
 
     let (fee, nonce, sender, sponsor) = match tx.auth {

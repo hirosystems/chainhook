@@ -17,7 +17,7 @@ hex = "0.4.3"
 rand = "0.8.5"
 chainhook-sdk = { default-features = false, features = [
     "zeromq",
-    "stacks-signers",
+    # "stacks-signers",
 ], path = "../chainhook-sdk" }
 hiro-system-kit = "0.3.4"
 # hiro-system-kit = { path = "../../../clarinet/components/hiro-system-kit" }
