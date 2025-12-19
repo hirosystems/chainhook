@@ -866,7 +866,7 @@ impl StacksBlockPool {
                 },
             ));
         }
-        if let Ok(divergence) = canonical_segment.try_identify_divergence(other_segment, false, ctx)
+        if let Ok(divergence) = canonical_segment.try_identify_divergence(other_segment, ctx)
         {
             if divergence.block_ids_to_rollback.is_empty() {
                 let mut new_blocks = vec![];
@@ -1037,7 +1037,7 @@ impl StacksBlockPool {
         }
 
         if let Ok(divergence) =
-            new_canonical_segment.try_identify_divergence(previous_canonical_segment, true, ctx)
+            new_canonical_segment.try_identify_divergence(previous_canonical_segment, ctx)
         {
             if divergence.block_ids_to_rollback.is_empty() {
                 let mut new_microblocks = vec![];

@@ -4,10 +4,7 @@ pub mod fork_scratch_pad;
 pub mod stacks;
 
 use crate::{
-    chainhooks::types::PoxConfig,
-    indexer::database::BlocksDatabaseAccess,
-    try_debug,
-    utils::{AbstractBlock, Context},
+    chainhooks::types::PoxConfig, indexer::database::BlocksDatabaseAccess, try_debug, try_warn, utils::{AbstractBlock, Context}
 };
 
 use chainhook_types::{
@@ -364,7 +361,6 @@ impl ChainSegment {
     fn try_identify_divergence(
         &self,
         other_segment: &ChainSegment,
-        allow_reset: bool,
         ctx: &Context,
     ) -> Result<ChainSegmentDivergence, ChainSegmentIncompatibility> {
         let mut common_root = None;
@@ -384,22 +380,16 @@ impl ChainSegment {
             }
             block_ids_to_rollback.push(cursor_segment_1.clone());
         }
-        ctx.try_log(|logger| {
-            slog::debug!(logger, "Blocks to rollback: {:?}", block_ids_to_rollback)
-        });
-        ctx.try_log(|logger| slog::debug!(logger, "Blocks to apply: {:?}", block_ids_to_apply));
+        try_debug!(ctx, "Blocks to rollback: {:?}", block_ids_to_rollback);
+        try_debug!(ctx, "Blocks to apply: {:?}", block_ids_to_apply);
         block_ids_to_apply.reverse();
-        match common_root.take() {
-            Some(_common_root) => Ok(ChainSegmentDivergence {
-                block_ids_to_rollback,
-                block_ids_to_apply,
-            }),
-            None if allow_reset => Ok(ChainSegmentDivergence {
-                block_ids_to_rollback,
-                block_ids_to_apply,
-            }),
-            None => Err(ChainSegmentIncompatibility::Unknown),
+        if common_root.is_none() {
+            try_warn!(ctx, "No deep re-org common root found between {} and {}, returning incomplete divergence", self, other_segment);
         }
+        Ok(ChainSegmentDivergence {
+            block_ids_to_rollback,
+            block_ids_to_apply,
+        })
     }
 
     fn try_append_block(

@@ -317,7 +317,7 @@ impl ForkScratchPad {
                 },
             ));
         }
-        if let Ok(divergence) = canonical_segment.try_identify_divergence(other_segment, false, ctx)
+        if let Ok(divergence) = canonical_segment.try_identify_divergence(other_segment, ctx)
         {
             if divergence.block_ids_to_rollback.is_empty() {
                 let mut new_headers = vec![];
