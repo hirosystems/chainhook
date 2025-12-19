@@ -1,3 +1,11 @@
+## [1.10.0-migration.11](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.10...v1.10.0-migration.11) (2025-12-19)
+
+
+### Bug Fixes
+
+* send re-org chain divergence even if incomplete ([#737](https://github.com/hirosystems/chainhook/issues/737)) ([f5b6fd3](https://github.com/hirosystems/chainhook/commit/f5b6fd37788d0028ff9a0c2a31b23ad611366a98))
+* upgrade stacks-codec to support new tenure extends ([#736](https://github.com/hirosystems/chainhook/issues/736)) ([e026dff](https://github.com/hirosystems/chainhook/commit/e026dff7f5e655665f1aaca157118f94441741a9))
+
 ## [1.10.0-migration.10](https://github.com/hirosystems/chainhook/compare/v1.10.0-migration.9...v1.10.0-migration.10) (2025-12-03)
 
 
