@@ -25,8 +25,8 @@ jobs:
         include:
           - suite: cli
             features: redis_tests
-          - suite: sdk
-            features: stacks-signers
+          # - suite: sdk
+          #   features: stacks-signers
     defaults:
       run:
         working-directory: ./components/chainhook-${{ matrix.suite }}

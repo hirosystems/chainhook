@@ -27,7 +27,7 @@ use chainhook_sdk::{
     utils::Context,
 };
 use chainhook_sdk::{
-    chainhooks::stacks::evaluate_stacks_predicate_on_non_consensus_events,
+    // chainhooks::stacks::evaluate_stacks_predicate_on_non_consensus_events,
     types::{BlockIdentifier, Chain},
 };
 use chainhook_sdk::{

@@ -465,7 +465,7 @@ dependencies = [
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
  "chainhook-types",
- "clarity",
+ "clarity 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?branch=develop)",
  "crossbeam-channel",
  "hex",
  "hiro-system-kit",
@@ -591,9 +591,9 @@ dependencies = [
 [[package]]
 name = "clarity"
 version = "0.0.1"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#aa20011b5ac0de27f715669aac4d32d1b0932f3a"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#3da96c1a3af20bd677a7d8bfd17dcfbcde86d78b"
 dependencies = [
- "clarity-types",
+ "clarity-types 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?branch=develop)",
  "integer-sqrt",
  "lazy_static",
  "regex",
@@ -602,20 +602,50 @@ dependencies = [
  "serde_json",
  "serde_stacker",
  "slog",
- "stacks-common",
+ "stacks-common 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?branch=develop)",
+]
+
+[[package]]
+name = "clarity"
+version = "0.0.1"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203#cf8d6858d997b747e3b40b6c6bdbf3f7ece29203"
+dependencies = [
+ "clarity-types 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203)",
+ "integer-sqrt",
+ "lazy_static",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_stacker",
+ "slog",
+ "stacks-common 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203)",
 ]
 
 [[package]]
 name = "clarity-types"
 version = "0.0.1"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#aa20011b5ac0de27f715669aac4d32d1b0932f3a"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#3da96c1a3af20bd677a7d8bfd17dcfbcde86d78b"
 dependencies = [
  "lazy_static",
  "regex",
  "serde",
  "serde_derive",
  "slog",
- "stacks-common",
+ "stacks-common 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?branch=develop)",
+]
+
+[[package]]
+name = "clarity-types"
+version = "0.0.1"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203#cf8d6858d997b747e3b40b6c6bdbf3f7ece29203"
+dependencies = [
+ "lazy_static",
+ "regex",
+ "serde",
+ "serde_derive",
+ "slog",
+ "stacks-common 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203)",
 ]
 
 [[package]]
@@ -1871,7 +1901,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3465,18 +3495,43 @@ dependencies = [
 
 [[package]]
 name = "stacks-codec"
-version = "3.9.2"
-source = "git+https://github.com/stx-labs/clarinet.git#a36fc9a3366722cda297dabb41ea4382390eaaa3"
+version = "3.11.0"
+source = "git+https://github.com/stx-labs/clarinet.git#4a10818a6c1736de28684f837adebec1b6b91ab5"
 dependencies = [
- "clarity",
+ "clarity 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203)",
  "serde",
- "stacks-common",
+ "stacks-common 0.0.1 (git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203)",
 ]
 
 [[package]]
 name = "stacks-common"
 version = "0.0.1"
-source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#aa20011b5ac0de27f715669aac4d32d1b0932f3a"
+source = "git+https://github.com/stacks-network/stacks-core.git?branch=develop#3da96c1a3af20bd677a7d8bfd17dcfbcde86d78b"
+dependencies = [
+ "chrono",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "hashbrown 0.15.2",
+ "lazy_static",
+ "libsecp256k1",
+ "p256",
+ "ripemd",
+ "secp256k1 0.24.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2 0.10.8",
+ "sha3",
+ "slog",
+ "slog-term",
+ "thiserror",
+ "toml 0.5.11",
+]
+
+[[package]]
+name = "stacks-common"
+version = "0.0.1"
+source = "git+https://github.com/stacks-network/stacks-core.git?rev=cf8d6858d997b747e3b40b6c6bdbf3f7ece29203#cf8d6858d997b747e3b40b6c6bdbf3f7ece29203"
 dependencies = [
  "chrono",
  "curve25519-dalek",
