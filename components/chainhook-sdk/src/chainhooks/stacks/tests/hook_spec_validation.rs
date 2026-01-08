@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 use crate::chainhooks::stacks::{StacksChainhookSpecification, StacksChainhookSpecificationNetworkMap, StacksContractCallBasedPredicate, StacksContractDeploymentPredicate, StacksPredicate, StacksPrintEventBasedPredicate};
+#[cfg(feature = "stacks-signers")]
+use crate::chainhooks::stacks::StacksSignerMessagePredicate;
 use crate::chainhooks::types::*;
 use crate::chainhooks::types::HttpHook;
 use chainhook_types::StacksNetwork;
@@ -32,6 +34,25 @@ lazy_static! {
     static ref CONTRACT_METHOD_ERR: String = "invalid predicate for scope 'contract_call': invalid contract method: BadNameValue(\"ClarityName\", \"!@*&!*\")".into();
     static ref PRINT_EVENT_ID_ERR: String = "invalid predicate for scope 'print_event': invalid contract identifier: ParseError(\"Invalid principal literal: base58ck checksum 0x147e6835 does not match expected 0x9b3dfe6a\")".into();
     static ref INVALID_REGEX_ERR: String = "invalid predicate for scope 'print_event': invalid regex: regex parse error:\n    [\\]\n    ^\nerror: unclosed character class".into();
+    
+    // Signer message predicates (secp256k1 pubkeys: compressed=66 hex chars, uncompressed=130 hex chars)
+    static ref COMPRESSED_PUBKEY_VALID_WITH_PREFIX: String = "0x02a1b2c3d4e5f67890123456789012345678901234567890123456789012345678".into();
+    static ref COMPRESSED_PUBKEY_VALID_NO_PREFIX: String = "02a1b2c3d4e5f67890123456789012345678901234567890123456789012345678".into();
+    static ref UNCOMPRESSED_PUBKEY_VALID: String = "0x04a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890ab123456789012345678901234567890123456789012345678901234567890".into();
+    static ref PUBKEY_INVALID_LENGTH: String = "0x02a1b2c3d4".into();
+    static ref PUBKEY_INVALID_HEX: String = "0x02g1b2c3d4e5f67890123456789012345678901234567890123456789012345678".into();
+    static ref PUBKEY_INVALID_COMPRESSED_PREFIX: String = "0x01a1b2c3d4e5f67890123456789012345678901234567890123456789012345678".into();
+    static ref PUBKEY_INVALID_UNCOMPRESSED_PREFIX: String = "0x05a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890ab123456789012345678901234567890123456789012345678901234567890".into();
+    static ref TIMESTAMP_VALID: u64 = 1704067200000; // Jan 1, 2024 in milliseconds
+    static ref TIMESTAMP_ZERO: u64 = 0;
+    static ref TIMESTAMP_TOO_FAR_FUTURE: u64 = 5000000000000; // Beyond year 2100
+    
+    static ref SIGNER_PUBKEY_LENGTH_ERR: String = "invalid predicate for scope 'signer_message': signer public key must be a valid secp256k1 public key (33 bytes compressed or 65 bytes uncompressed), represented as a hexadecimal string".into();
+    static ref SIGNER_PUBKEY_HEX_ERR: String = "invalid predicate for scope 'signer_message': signer public key must be a hexadecimal string".into();
+    static ref SIGNER_PUBKEY_COMPRESSED_PREFIX_ERR: String = "invalid predicate for scope 'signer_message': compressed signer public key must start with '02' or '03'".into();
+    static ref SIGNER_PUBKEY_UNCOMPRESSED_PREFIX_ERR: String = "invalid predicate for scope 'signer_message': uncompressed signer public key must start with '04'".into();
+    static ref SIGNER_TIMESTAMP_ZERO_ERR: String = "invalid predicate for scope 'signer_message': timestamp must be greater than 0".into();
+    static ref SIGNER_TIMESTAMP_FAR_FUTURE_ERR: String = "invalid predicate for scope 'signer_message': timestamp must be a reasonable Unix timestamp in milliseconds (before year 2100)".into();
     
     static ref INVALID_PREDICATE: StacksPredicate = StacksPredicate::PrintEvent(StacksPrintEventBasedPredicate::MatchesRegex { contract_identifier: CONTRACT_ID_INVALID_ADDRESS.clone(), regex:  INVALID_REGEX.clone() });
     static ref INVALID_HOOK_ACTION: HookAction = 
@@ -176,6 +197,58 @@ lazy_static! {
 #[test_case(
     &StacksPredicate::Txid(ExactMatchingRule::Equals(TXID_VALID.clone())), 
     None; "txid just right"
+)]
+// StacksPredicate::SignerMessage - Pubkey validation
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(COMPRESSED_PUBKEY_VALID_WITH_PREFIX.clone())), 
+    None; "signer pubkey compressed with prefix"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(COMPRESSED_PUBKEY_VALID_NO_PREFIX.clone())), 
+    None; "signer pubkey compressed no prefix"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(UNCOMPRESSED_PUBKEY_VALID.clone())), 
+    None; "signer pubkey uncompressed valid"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(PUBKEY_INVALID_LENGTH.clone())), 
+    Some(vec![SIGNER_PUBKEY_LENGTH_ERR.clone()]); "signer pubkey invalid length"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(PUBKEY_INVALID_HEX.clone())), 
+    Some(vec![SIGNER_PUBKEY_HEX_ERR.clone()]); "signer pubkey invalid hex"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(PUBKEY_INVALID_COMPRESSED_PREFIX.clone())), 
+    Some(vec![SIGNER_PUBKEY_COMPRESSED_PREFIX_ERR.clone()]); "signer pubkey invalid compressed prefix"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(PUBKEY_INVALID_UNCOMPRESSED_PREFIX.clone())), 
+    Some(vec![SIGNER_PUBKEY_UNCOMPRESSED_PREFIX_ERR.clone()]); "signer pubkey invalid uncompressed prefix"
+)]
+// StacksPredicate::SignerMessage - Timestamp validation
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(*TIMESTAMP_VALID)), 
+    None; "signer timestamp valid"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(*TIMESTAMP_ZERO)), 
+    Some(vec![SIGNER_TIMESTAMP_ZERO_ERR.clone()]); "signer timestamp zero"
+)]
+#[cfg(feature = "stacks-signers")]
+#[test_case(
+    &StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(*TIMESTAMP_TOO_FAR_FUTURE)), 
+    Some(vec![SIGNER_TIMESTAMP_FAR_FUTURE_ERR.clone()]); "signer timestamp too far future"
 )]
 fn it_validates_stacks_predicates(predicate: &StacksPredicate, expected_err: Option<Vec<String>>) {
     if let Err(e) = predicate.validate() {

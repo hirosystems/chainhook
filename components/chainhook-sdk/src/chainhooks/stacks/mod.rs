@@ -3,13 +3,13 @@ use crate::utils::{AbstractStacksBlock, Context, MAX_BLOCK_HEIGHTS_ENTRIES};
 
 use super::types::validate_txid;
 use super::types::{
-    append_error_context, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
+    append_error_context, is_hex, BlockIdentifierIndexRule, ChainhookInstance, ExactMatchingRule,
     HookAction,
 };
 use chainhook_types::{
     BlockIdentifier, StacksChainEvent, StacksNetwork, StacksNonConsensusEventData,
-    StacksTransactionData, StacksTransactionEvent, StacksTransactionEventPayload,
-    StacksTransactionKind, TransactionIdentifier,
+    StacksNonConsensusEventPayloadData, StacksTransactionData, StacksTransactionEvent,
+    StacksTransactionEventPayload, StacksTransactionKind, TransactionIdentifier,
 };
 use clarity::codec::StacksMessageCodec;
 use clarity::vm::types::{
@@ -310,11 +310,14 @@ impl StacksPredicate {
                 }
             }
             #[cfg(feature = "stacks-signers")]
-            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
-                // TODO(rafaelcr): Validate pubkey format
+            StacksPredicate::SignerMessage(predicate) => {
+                if let Err(e) = predicate.validate() {
+                    return Err(append_error_context(
+                        "invalid predicate for scope 'signer_message'",
+                        vec![e],
+                    ));
+                }
             }
-            #[cfg(feature = "stacks-signers")]
-            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::AfterTimestamp(_)) => {}
         }
         Ok(())
     }
@@ -328,7 +331,73 @@ pub enum StacksSignerMessagePredicate {
 }
 
 impl StacksSignerMessagePredicate {
-    // TODO(rafaelcr): Write validators
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            StacksSignerMessagePredicate::AfterTimestamp(timestamp) => {
+                validate_timestamp(*timestamp)
+            }
+            StacksSignerMessagePredicate::FromSignerPubKey(pubkey) => {
+                validate_signer_pubkey(pubkey)
+            }
+        }
+    }
+}
+
+fn validate_timestamp(timestamp: u64) -> Result<(), String> {
+    if timestamp == 0 {
+        return Err("timestamp must be greater than 0".into());
+    }
+    // Check for unreasonably far future timestamps (year 2100)
+    const YEAR_2100_TIMESTAMP: u64 = 4102444800000; // milliseconds
+    if timestamp > YEAR_2100_TIMESTAMP {
+        return Err("timestamp must be a reasonable Unix timestamp in milliseconds (before year 2100)".into());
+    }
+    Ok(())
+}
+
+fn validate_signer_pubkey(pubkey: &String) -> Result<(), String> {
+    // Remove 0x prefix if present
+    let pubkey_hex = if pubkey.starts_with("0x") || pubkey.starts_with("0X") {
+        &pubkey[2..]
+    } else {
+        pubkey.as_str()
+    };
+
+    // Check if it's valid hex
+    if !is_hex(pubkey_hex) {
+        return Err("signer public key must be a hexadecimal string".into());
+    }
+
+    // secp256k1 public keys can be:
+    // - Compressed: 33 bytes (66 hex characters)
+    // - Uncompressed: 65 bytes (130 hex characters)
+    let len = pubkey_hex.len();
+    
+    // Validate compressed key (66 hex characters)
+    if len == 66 {
+        let prefix = &pubkey_hex[0..2];
+        if prefix != "02" && prefix != "03" {
+            return Err(
+                "compressed signer public key must start with '02' or '03'".into(),
+            );
+        }
+        return Ok(());
+    }
+
+    // Validate uncompressed key (130 hex characters)
+    if len == 130 {
+        let prefix = &pubkey_hex[0..2];
+        if prefix != "04" {
+            return Err("uncompressed signer public key must start with '04'".into());
+        }
+        return Ok(());
+    }
+    
+    // If we reach here, the length is invalid
+    Err(
+        "signer public key must be a valid secp256k1 public key (33 bytes compressed or 65 bytes uncompressed), represented as a hexadecimal string"
+            .into(),
+    )
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
@@ -863,8 +932,26 @@ pub fn evaluate_stacks_predicate_on_non_consensus_events<'a>(
                     occurrences.push(event);
                 }
             }
-            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(_)) => {
-                // TODO(rafaelcr): Evaluate on pubkey
+            StacksPredicate::SignerMessage(StacksSignerMessagePredicate::FromSignerPubKey(
+                expected_pubkey,
+            )) => {
+                let StacksNonConsensusEventPayloadData::SignerMessage(chunk) = &event.payload;
+                // Normalize both pubkeys by removing "0x" prefix if present for comparison
+                let normalized_expected = if expected_pubkey.starts_with("0x") || expected_pubkey.starts_with("0X") {
+                    &expected_pubkey[2..]
+                } else {
+                    expected_pubkey.as_str()
+                };
+                
+                let normalized_actual = if chunk.pubkey.starts_with("0x") || chunk.pubkey.starts_with("0X") {
+                    &chunk.pubkey[2..]
+                } else {
+                    chunk.pubkey.as_str()
+                };
+                
+                if normalized_expected.eq_ignore_ascii_case(normalized_actual) {
+                    occurrences.push(event);
+                }
             }
             StacksPredicate::BlockHeight(_)
             | StacksPredicate::ContractDeployment(_)
