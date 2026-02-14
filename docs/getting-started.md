@@ -11,6 +11,14 @@ Chainhook can extract data from the Bitcoin and the Stacks blockchains using pre
 - **Chainhook as a development tool** has a few convenient features designed to make developers as productive as possible by allowing them to iterate quickly in their local environments.
 - **Chainhook as a service** can be used to evaluate new Bitcoin and/or Stacks blocks against your predicates. You can also dynamically register new predicates by [enabling predicates registration API](./overview.md#then-that-predicate-design).
 
+## Prerequisites
+
+Before installing Chainhook, ensure you have the following:
+
+- [Rust toolchain](https://rustup.rs/) (stable) — required to build from source
+- `git` — to clone the repository
+- A C compiler and `pkg-config` (on Linux: `build-essential`, `libssl-dev`)
+
 ## Install Chainhook from the Source
 
 Chainhook can be installed from the source by following the steps below:
@@ -27,13 +35,20 @@ Chainhook can be installed from the source by following the steps below:
    cd chainhook
    ```
 
-3. Run cargo target to install chainhook:
+3. Build and install the Chainhook CLI:
 
     ```bash
-    cargo chainhook-install
+    cargo install --path components/chainhook-cli
+    ```
+
+4. Verify the installation:
+
+    ```bash
+    chainhook --version
     ```
 
 If you want to start using Chainhook for extracting data from Bitcoin or Stacks, you can design your predicates using the following guides:
 
 - [How to use chainhooks with bitcoin](./how-to-guides/how-to-use-chainhooks-with-bitcoin.md)
 - [How to use chainhooks with stacks](./how-to-guides/how-to-use-chainhooks-with-stacks.md)
+- [Troubleshooting common issues](./troubleshooting.md)
